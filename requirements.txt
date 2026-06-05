@@ -6,3 +6,5 @@ django-environ
 psycopg2-binary
 requests
 beautifulsoup4
+django-cloudinary-storage
+cloudinary
