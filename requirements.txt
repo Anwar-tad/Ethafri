@@ -1,0 +1,8 @@
+django
+gunicorn
+whitenoise
+google-generativeai
+django-environ
+psycopg2-binary
+requests
+beautifulsoup4
