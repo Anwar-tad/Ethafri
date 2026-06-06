@@ -1,22 +1,22 @@
 import os
 from pathlib import Path
-# ለደህንነት ሲባል API Keyዎችን ከ environment ለማንበብ
-from environ import Env 
+from environ import Env
+from django.utils.translation import gettext_lazy as _
 
 env = Env()
 Env.read_env()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# የደህንነት ማስጠንቀቂያ፡ ይህንን ቁልፍ ለወደፊት በ Environment Variable መደበቅ አለብህ
 SECRET_KEY = env('SECRET_KEY', default='django-insecure-your-secret-key')
 
-DEBUG = True # ወደ ፕሮዳክሽን ሲገባ False ይደረጋል
+DEBUG = env.bool('DEBUG', default=True)
 
 ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
+    'cloudinary_storage', # ከ 'django.contrib.staticfiles' በፊት መሆን አለበት
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -26,7 +26,6 @@ INSTALLED_APPS = [
     
     # የEthAfri ሞጁሎች
     'marketplace', 
-    'cloudinary_storage', # ለፎቶዎች (በRender ላይ ፎቶ እንዳይጠፋ)
     'cloudinary',
 ]
 
@@ -43,15 +42,37 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'core.urls'
 
-# ... TEMPLATES እና WSGI እንዳሉ ይቀጥላሉ ...
+# (ስህተት 1 መፍትሄ) TEMPLATES ብሎኩ ሙሉ በሙሉ እንዲህ መሆን አለበት
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'APP_DIRS': True, # ይህ ለአድሚን ገጽ በጣም አስፈላጊ ነው
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
 
-# ዳታቤዝ፡ ለጊዜው በSQLite ይቆይና Render ላይ PostgreSQL ስንፈጥር እንቀይረዋለን
+WSGI_APPLICATION = 'core.wsgi.application'
+
+# ዳታቤዝ
 DATABASES = {
     'default': env.db('DATABASE_URL', default=f'sqlite:///{BASE_DIR}/db.sqlite3')
 }
 
-# ቋንቋ፡ ኢቲአፍሪን ለኢትዮጵያ ዝግጁ ማድረግ
-LANGUAGE_CODE = 'am' # ዋናው ቋንቋ አማርኛ እንዲሆን
+# (ስህተት 2 መፍትሄ) ቋንቋ እና ትርጉም
+LANGUAGE_CODE = 'am'
+LANGUAGES = [
+    ('am', _('Amharic')),
+    ('en', _('English')),
+]
+
 TIME_ZONE = 'Africa/Addis_Ababa'
 USE_I18N = True
 USE_L10N = True
@@ -59,15 +80,19 @@ USE_TZ = True
 
 # ስታቲክ ፋይሎች
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# ሚዲያ ፋይሎች (ፎቶዎች እዚህ ይገባሉ)
-MEDIA_URL = '/media/'
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage' # ፎቶዎች በCloudinary እንዲቀመጡ
-MEDIA_ROOT = BASE_DIR / 'media'
+# ሚዲያ ፋይሎች (Cloudinary)
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': env('CLOUDINARY_CLOUD_NAME', default=''),
+    'API_KEY': env('CLOUDINARY_API_KEY', default=''),
+    'API_SECRET': env('CLOUDINARY_API_SECRET', default=''),
+}
 
-# የGemini AI ቁልፍን በሲስተሙ ውስጥ ማገናኛ
-GEMINI_API_KEY = env('GEMINI_API_KEY', default='YOUR_API_KEY_HERE')
+# AI Keys (ሁለቱንም አማራጮች እዚህ እናስቀምጥ)
+GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
+GROQ_API_KEY = env('GROQ_API_KEY', default='') # ለFallback የተጨመረ
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

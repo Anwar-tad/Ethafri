@@ -1,22 +1,38 @@
 import google.generativeai as genai
+from groq import Groq
 import json
 from django.conf import settings
 
-def analyze_product_smartly(title, description, price):
-    # API ቁልፍህን እዚህ ጋር ያገናኛል
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    
-    prompt = f"""
-    አንተ የ EthAfri Smart Marketplace AI ነህ። ይህንን እቃ መርምር፡
-    እቃ: {title}
-    መግለጫ: {description}
-    ዋጋ: {price} ETB
+def analyze_with_gemini(prompt):
+    """የመጀመሪያ ምርጫ - Gemini"""
+    try:
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"Gemini failed: {e}")
+        return None
 
-    እባክህ የሚከተሉትን መረጃዎች በ JSON ቅርጽ ብቻ መልስ (ምንም ሌላ ጽሁፍ አትጨምር)፦
+def analyze_with_groq(prompt):
+    """ሁለተኛ ምርጫ (Backup) - Groq (Llama 3)"""
+    try:
+        client = Groq(api_key=settings.GROQ_API_KEY)
+        completion = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        print(f"Groq failed: {e}")
+        return None
+
+def analyze_product_smartly(title, description, price):
+    prompt = f"""
+    አንተ የ EthAfri Smart Marketplace AI ነህ። እቃ: {title}, መግለጫ: {description}, ዋጋ: {price} ETB
+    መረጃውን በዚህ JSON ብቻ መልስ:
     {{
-      "category": "ምድብ (ለምሳሌ፡ መኪና፣ ቤት...)",
+      "category": "ምድብ",
       "specs": {{"ቁልፍ": "እሴት"}},
       "tags": ["tag1", "tag2"],
       "valuation": "Fair/Cheap/Expensive",
@@ -24,11 +40,18 @@ def analyze_product_smartly(title, description, price):
     }}
     """
     
-    try:
-        response = model.generate_content(prompt)
-        # JSON መረጃውን ማጽዳት
-        content = response.text.strip().replace('```json', '').replace('```', '')
-        return json.loads(content)
-    except Exception as e:
-        print(f"AI Error: {e}")
-        return None
+    # 1. መጀመሪያ ጀሚኒን ሞክር
+    result = analyze_with_gemini(prompt)
+    
+    # 2. ጀሚኒ ካልሰራ ግሮክን (Groq) ሞክር
+    if not result:
+        print("Switching to Backup AI (Groq)...")
+        result = analyze_with_groq(prompt)
+        
+    if result:
+        try:
+            content = result.strip().replace('```json', '').replace('```', '')
+            return json.loads(content)
+        except:
+            return None
+    return None
