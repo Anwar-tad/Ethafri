@@ -62,8 +62,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 
 # ዳታቤዝ
+import dj_database_url
+
 DATABASES = {
-    'default': env.db('DATABASE_URL', default=f'sqlite:///{BASE_DIR}/db.sqlite3')
+    'default': dj_database_url.config(
+        default=env('DATABASE_URL'),
+        conn_max_age=0, # ለ Pooler 0 መሆኑ ይመረጣል
+        ssl_require=True
+    )
 }
 
 # (ስህተት 2 መፍትሄ) ቋንቋ እና ትርጉም
