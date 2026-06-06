@@ -1,8 +1,32 @@
 from django.shortcuts import render, redirect
-from .models import Product, Category
+from django.contrib.auth.decorators import login_required
+from .models import Product, Category, MarketTrend, UserSearch
 from .ai_utils import analyze_product_smartly
+from .growth_agent import run_daily_market_analysis
 
-def add_product(request):
+# 1. ዋና ገጽ (እቃዎችን ማሳያ እና ፍለጋ መመዝገቢያ)
+def home(request):
+    query = request.GET.get('q')
+    if query:
+        # ሰዎች የሚፈልጉትን ቃል AIው እንዲያጠናው እንመዘግባለን
+        products = Product.objects.filter(title__icontains=query)
+        UserSearch.objects.create(
+            query=query,
+            results_count=products.count(),
+            user=request.user if request.user.is_authenticated else None
+        )
+    else:
+        products = Product.objects.filter(is_active=True).order_by('-created_at')
+
+    categories = Category.objects.all()
+    return render(request, 'marketplace/home.html', {
+        'products': products,
+        'categories': categories
+    })
+
+# 2. እቃ መለጠፊያ (በ AI የሚታገዝ)
+@login_required # እቃ ለመለጠፍ መግባት አለባቸው
+def post_product(request):
     if request.method == "POST":
         title = request.POST.get('title')
         description = request.POST.get('description')
@@ -10,7 +34,7 @@ def add_product(request):
         image = request.FILES.get('image')
         location = request.POST.get('location')
 
-        # 1. መጀመሪያ እቃውን ለጊዜው እናስቀምጥ
+        # መጀመሪያ እቃውን እናስቀምጥ
         product = Product.objects.create(
             seller=request.user,
             title=title,
@@ -20,32 +44,26 @@ def add_product(request):
             location=location
         )
 
-        # 2. AI ኤጀንቱን ጠርተን መረጃውን እናበልጽግ
+        # AI ኤጀንቱን ጠርተን መረጃውን እናበልጽግ
         ai_data = analyze_product_smartly(title, description, price)
         
         if ai_data:
-            # ምድቡን ማስተካከል
-            cat, _ = Category.objects.get_or_create(name=ai_data['category'])
+            cat, _ = Category.objects.get_or_create(name=ai_data.get('category', 'ሌሎች'))
             product.category = cat
-            product.specifications = ai_data['specs']
-            product.ai_tags = ai_data['tags']
-            product.market_value_status = ai_data['valuation']
+            product.specifications = ai_data.get('specs', {})
+            product.ai_tags = ai_data.get('tags', [])
+            product.market_value_status = ai_data.get('valuation', 'Unknown')
             product.save()
 
-        return redirect('home')
+        return render(request, 'marketplace/post_success.html', {'ai_data': ai_data})
     
-    return render(request, 'marketplace/add_product.html')
+    return render(request, 'marketplace/post_product.html')
 
-# marketplace/views.py ላይ ጨምረው
-from .growth_agent import run_daily_market_analysis
-from .models import MarketTrend
-
+# 3. የዕድገት ዴሽቦርድ (ለባለቤቱ)
 def admin_growth_dashboard(request):
-    # ይህ ገጽ ለባለቤቱ ብቻ የሚታይ ነው
     if not request.user.is_staff:
         return redirect('home')
 
-    # AIው ገበያውን እንዲመረምር ትእዛዝ መስጠት
     analysis_report = None
     if 'run_analysis' in request.GET:
         analysis_report = run_daily_market_analysis()

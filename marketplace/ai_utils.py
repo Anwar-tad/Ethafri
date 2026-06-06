@@ -1,7 +1,11 @@
 import google.generativeai as genai
 import json
+from django.conf import settings
 
 def analyze_product_smartly(title, description, price):
+    # API ቁልፍህን እዚህ ጋር ያገናኛል
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    
     model = genai.GenerativeModel('gemini-1.5-flash')
     
     prompt = f"""
@@ -10,18 +14,21 @@ def analyze_product_smartly(title, description, price):
     መግለጫ: {description}
     ዋጋ: {price} ETB
 
-    እባክህ የሚከተሉትን መረጃዎች በ JSON ብቻ መልስ፡
-    1. category: (እቃው የሚመደብበት - መኪና፣ ኤሌክትሮኒክስ፣ ሪል-ስቴት፣ ወዘተ)
-    2. specs: (የእቃው ዝርዝር መረጃ በ ቁልፍ፡እሴት መልክ - ለምሳሌ 'ቀለም':'ቀይ')
-    3. tags: (ለፍለጋ የሚረዱ 5 ቃላት በአማርኛ እና በእንግሊዝኛ)
-    4. valuation: (ዋጋው ከገበያ አንጻር፡ 'Fair', 'Cheap', ወይም 'Expensive')
-    5. marketing_tip: (ሻጩ እቃውን ቶሎ እንዲሸጥ የሚሰጥ ምክር)
+    እባክህ የሚከተሉትን መረጃዎች በ JSON ቅርጽ ብቻ መልስ (ምንም ሌላ ጽሁፍ አትጨምር)፦
+    {{
+      "category": "ምድብ (ለምሳሌ፡ መኪና፣ ቤት...)",
+      "specs": {{"ቁልፍ": "እሴት"}},
+      "tags": ["tag1", "tag2"],
+      "valuation": "Fair/Cheap/Expensive",
+      "marketing_tip": "የሽያጭ ምክር"
+    }}
     """
     
     try:
         response = model.generate_content(prompt)
-        # JSON መረጃውን መውሰድ
-        clean_response = response.text.strip().replace('```json', '').replace('```', '')
-        return json.loads(clean_response)
-    except:
+        # JSON መረጃውን ማጽዳት
+        content = response.text.strip().replace('```json', '').replace('```', '')
+        return json.loads(content)
+    except Exception as e:
+        print(f"AI Error: {e}")
         return None
