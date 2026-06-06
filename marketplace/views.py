@@ -25,7 +25,7 @@ def home(request):
     })
 
 # 2. እቃ መለጠፊያ (በ AI የሚታገዝ)
-@login_required # እቃ ለመለጠፍ መግባት አለባቸው
+@login_required 
 def post_product(request):
     if request.method == "POST":
         title = request.POST.get('title')
@@ -55,11 +55,16 @@ def post_product(request):
             product.market_value_status = ai_data.get('valuation', 'Unknown')
             product.save()
 
+        # እዚህ ጋር ዳታውን ይዞ ወደ ስኬት ገጽ ይሄዳል
         return render(request, 'marketplace/post_success.html', {'ai_data': ai_data})
     
     return render(request, 'marketplace/post_product.html')
 
-# 3. የዕድገት ዴሽቦርድ (ለባለቤቱ)
+# 3. የስኬት ገጽ (ይህቺ ናት ስህተቱን የምትፈታው!)
+def post_success(request):
+    return render(request, 'marketplace/post_success.html')
+
+# 4. የዕድገት ዴሽቦርድ (ለባለቤቱ)
 def admin_growth_dashboard(request):
     if not request.user.is_staff:
         return redirect('home')
