@@ -41,3 +41,12 @@ class MarketTrend(models.Model):
     demand_level = models.IntegerField() # ከ 1-100
     ai_suggestion = models.TextField()
     last_updated = models.DateTimeField(auto_now=True)
+    
+class UserSearch(models.Model):
+    query = models.CharField(max_length=255) # ሰውየው የፈለገው ቃል
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    results_count = models.IntegerField(default=0) # ስንት እቃ ተገኘ?
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.query
