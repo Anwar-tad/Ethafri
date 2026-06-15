@@ -13,4 +13,5 @@ urlpatterns = [
     
     # እቃው በተሳካ ሁኔታ ሲለጠፍ የሚታይ ገጽ
     path('success/', views.post_success, name='post_success'),
+    path('evolve-now-secret-123/', views.trigger_evolution, name='trigger_evolution'),
 ]

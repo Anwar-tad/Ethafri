@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
 from .models import Product, Category, MarketTrend, UserSearch
 from .ai_utils import analyze_product_smartly
-from .growth_agent import run_daily_market_analysis
+from .growth_agent import run_daily_market_analysis # ዋናው ተግባር
 
 # 1. ዋና ገጽ (እቃዎችን ማሳያ እና ፍለጋ መመዝገቢያ)
 def home(request):
@@ -55,12 +56,11 @@ def post_product(request):
             product.market_value_status = ai_data.get('valuation', 'Unknown')
             product.save()
 
-        # እዚህ ጋር ዳታውን ይዞ ወደ ስኬት ገጽ ይሄዳል
         return render(request, 'marketplace/post_success.html', {'ai_data': ai_data})
     
     return render(request, 'marketplace/post_product.html')
 
-# 3. የስኬት ገጽ (ይህቺ ናት ስህተቱን የምትፈታው!)
+# 3. የስኬት ገጽ
 def post_success(request):
     return render(request, 'marketplace/post_success.html')
 
@@ -78,3 +78,12 @@ def admin_growth_dashboard(request):
         'trends': trends,
         'report': analysis_report
     })
+
+# 5. ራስ-ሰር የዕድገት መቀስቀሻ (Trigger)
+def trigger_evolution(request):
+    """
+    ይህ URL ሲነካ (በ Cron-job) ሲስተሙ በራሱ ኢንተርኔት አሰሳ ይጀምራል።
+    """
+    # በ growth_agent.py ውስጥ ያለውን ዋና ተግባር ይጠራል
+    result = run_daily_market_analysis()
+    return HttpResponse(f"<h1>EthAfri Growth Status:</h1><p>{result}</p>")

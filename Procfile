@@ -1,2 +1,1 @@
-web: gunicorn core.wsgi
-worker: python manage.py evolve_market
+web: gunicorn core.wsgi --log-level debug --timeout 120
