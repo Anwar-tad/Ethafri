@@ -15,14 +15,21 @@ MODEL_NAME = 'gemini-2.5-flash'
 # 1. የ API Cooldown (እረፍት) እና የ Lock አያያዝ
 # ---------------------------------------------------------
 
+# growth_agent.py አናት ላይ ያለውን ይህን ፈንክሽን ብቻ ቀይረው፡
+
 def is_api_on_cooldown(provider_name):
-    """ዳታቤዝን በመፈተሽ ኤፒአይው በእረፍት ላይ መሆኑን ያረጋግጣል"""
+    """ዳታቤዝን በመፈተሽ ኤፒአይው በእረፍት ላይ መሆኑን ያረጋግጣል (Timezone-safe)"""
     config = SiteConfig.objects.filter(key=f"COOLDOWN_{provider_name}").first()
     if config:
         cooldown_until_str = config.value.get('until', '')
         if cooldown_until_str:
             cooldown_until = datetime.datetime.fromisoformat(cooldown_until_str)
-            if timezone.now() < timezone.make_aware(cooldown_until):
+            
+            # ⚠️ ሰዓቱ የሰዓት ቀጠና (Timezone) ከሌለው ብቻ ቀጠና እንዲኖረው ያደርጋል (ስህተቱን ይፈታል)
+            if timezone.is_naive(cooldown_until):
+                cooldown_until = timezone.make_aware(cooldown_until)
+                
+            if timezone.now() < cooldown_until:
                 return True # በእረፍት ላይ ነው (ይዘለላል)
     return False
 
