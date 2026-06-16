@@ -1,28 +1,30 @@
+# EthAfri/marketplace/growth_agent.py
+
 import google.generativeai as genai
 from groq import Groq
 import json, datetime, re, requests
 from django.utils.text import slugify
 from django.conf import settings
-from .models import MarketTrend, Category, UserSearch, Product
+from .models import MarketTrend, Category, UserSearch, Product, ProductTranslation, SiteConfig, AISystemTask
 from django.contrib.auth.models import User
 
-# ---------------------------------------------------------
-# 1. ባለ ብዙ ሰንሰለት AI ሞተሮች (Failover Chain)
-# ---------------------------------------------------------
+# በእርስዎ መመሪያ መሰረት የሚሰራው ብቸኛው ሞዴል
+MODEL_NAME = 'gemini-2.5-flash' 
 
-def ask_ai_failover(prompt):
-    """Gemini -> Groq -> Mistral (Direct API) -> OpenRouter"""
-    
-    # 1. Google Gemini
+def ask_ethafri_ceo(prompt):
+    """Gemini 2.5 Flash ን ይጠቀማል፣ ካልሰራ ወደ Groq ይቀይራል"""
+    # 1. Gemini 2.5 Flash ሙከራ
     try:
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.5-flash') 
+            model = genai.GenerativeModel(MODEL_NAME)
             response = model.generate_content(prompt)
-            if response and response.text: return response.text
-    except Exception as e: print(f"Gemini Fail: {e}")
+            if response and response.text:
+                return response.text
+    except Exception as e:
+        print(f"⚠️ Gemini 2.5 Error: {e}")
 
-    # 2. Groq
+    # 2. Groq (Llama 3.3) እንደ ቤካፕ
     try:
         if settings.GROQ_API_KEY:
             client = Groq(api_key=settings.GROQ_API_KEY)
@@ -31,99 +33,110 @@ def ask_ai_failover(prompt):
                 messages=[{"role": "user", "content": prompt}],
             )
             return resp.choices[0].message.content
-    except Exception as e: print(f"Groq Fail: {e}")
-
-    # 3. Mistral AI (Direct Call - No Library Needed)
-    try:
-        MISTRAL_KEY = getattr(settings, 'MISTRAL_API_KEY', None)
-        if MISTRAL_KEY:
-            resp = requests.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {MISTRAL_KEY}"},
-                json={
-                    "model": "mistral-small-latest",
-                    "messages": [{"role": "user", "content": prompt}]
-                },
-                timeout=10
-            )
-            return resp.json()['choices'][0]['message']['content']
-    except Exception as e: print(f"Mistral API Fail: {e}")
-
-    # 4. OpenRouter
-    try:
-        OPENROUTER_KEY = getattr(settings, 'OPENROUTER_API_KEY', None)
-        if OPENROUTER_KEY:
-            resp = requests.post(
-                url="https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {OPENROUTER_KEY}"},
-                json={
-                    "model": "google/gemini-2.0-flash-001:free",
-                    "messages": [{"role": "user", "content": prompt}]
-                },
-                timeout=10
-            )
-            return resp.json()['choices'][0]['message']['content']
-    except Exception as e: print(f"OpenRouter Fail: {e}")
-
+    except Exception as e:
+        print(f"⚠️ Groq Error: {e}")
     return None
 
-# ---------------------------------------------------------
-# 2. የዕድገት ሞተር (The Brain)
-# ---------------------------------------------------------
-
 def run_daily_market_analysis():
+    """
+    EthAfri Autonomous CEO: ራሱን የሚገነባ፣ ዲዛይን የሚቀይር እና ገበያ የሚያጠና ሞተር
+    """
     now = datetime.datetime.now()
     admin_user = User.objects.filter(is_superuser=True).first()
-    if not admin_user: return "❌ አድሚን አልተገኘም።"
+    if not admin_user:
+        return "❌ አድሚን አልተገኘም። እባክዎ መጀመሪያ create_admin.py ይኑር።"
 
-    prompt = f"""
-    አንተ የ EthAfri Smart Marketplace CEO ነህ። ዛሬ {now} ነው።
+    ceo_prompt = f"""
+    አንተ የ EthAfri (ኢቲአፍሪ) ራስ-ገዝ CEO እና ዲዛይነር ነህ። ዛሬ {now} ነው።
+    ዌብሳይቱ 'ከመርፌ እስከ መርከብ' የሚሸጥበት ግሎባል ማርኬት እንዲሆን ነው አላማው።
+
     ተግባርህ፦
-    1. በኢትዮጵያ አሁን በጣም ተፈላጊ የሆኑ 3 አዳዲስ የገበያ ዘርፎችን (Categories) ለይ።
-    2. ለእያንዳንዱ ዘርፍ 1 ናሙና እቃ ፍጠር።
-    3. ለጎግል ፍለጋ 5 ቁልፍ ቃላትን አውጣ።
+    1. ቅድሚያ የሚሰጠውን ስራ ወስን (ዲዛይን ማሻሻል፣ አዲስ ገበያ ማጥናት፣ ወይም ቋንቋ ማስፋፋት)።
+    2. የዌብሳይቱን UI (Logo Text, Banner, Primary Color) የሚቀይር አዲስ JSON አዘጋጅ።
+    3. አንድ አዲስ ምርት መርጠህ በ 7 ቋንቋዎች (AM, EN, OM, AR, SO, TI, FR) መግለጫ ጻፍ።
+    4. ለእቃው የሚሆን Unsplash Image Search Keywords ስጠኝ።
+
     መልስህን በዚህ JSON ብቻ አቅርብ (መግቢያ ወሬ አትጨምር)፦
     {{
-      "categories": [{{ "name": "ምድብ", "product": "ስም", "desc": "መግለጫ" }}],
-      "seo": ["ቃል1", "ቃል2"],
-      "advice": "ምክር"
+      "priority_decision": "ለምን ይህ ስራ እንደቀደመ ማብራሪያ",
+      "ui_design": {{
+          "banner_title": "ማራኪ ባነር ጽሁፍ",
+          "banner_sub": "ንዑስ ጽሁፍ",
+          "theme_color": "#1a2a6c",
+          "logo_text": "EthAfri Smart"
+      }},
+      "market_entry": {{
+          "category": "ምድብ ስም",
+          "title_am": "የእቃው ስም በአማርኛ",
+          "price": 500,
+          "img_keywords": "product keywords for image",
+          "translations": {{
+              "am": "...", "en": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."
+          }}
+      }},
+      "seo_keywords": ["keyword1", "keyword2"]
     }}
     """
 
-    ai_response = ask_ai_failover(prompt)
+    ai_response = ask_ethafri_ceo(ceo_prompt)
     if not ai_response:
-        return "❌ ሁሉም AI ሞተሮች እምቢ አሉ። API ቁልፎችን ያረጋግጡ።"
+        return "❌ AI ሞተሮች አልሰሩም። API ቁልፎችን አረጋግጥ።"
 
     try:
+        # JSONን መለየት
         match = re.search(r'\{.*\}', ai_response, re.DOTALL)
         data = json.loads(match.group(0))
 
-        count = 0
-        for entry in data.get('categories', []):
-            name = entry['name'].strip()
-            # 1. ካቴጎሪውን ይፈልጋል ወይም ይፈጥራል
-            cat, _ = Category.objects.get_or_create(name=name)
-            
-            # 2. እቃው አስቀድሞ መኖሩን ያረጋግጣል (ተመሳሳይ እቃ እንዳይደገም)
-            if not Product.objects.filter(title=entry['product'], category=cat).exists():
-                Product.objects.create(
-                    seller=admin_user,
-                    title=entry['product'],
-                    description=entry['desc'],
-                    price=0,
-                    category=cat,
-                    location="ኢትዮጵያ",
-                    is_active=True
-                )
-                count += 1
-        
-        for kw in data.get('seo', []): UserSearch.objects.get_or_create(query=kw.strip())
-        
-        MarketTrend.objects.create(
-            niche_name=f"Auto Evolution {now.strftime('%H:%M')}",
-            demand_level=99,
-            ai_suggestion=data.get('advice', '')
+        # --- 1. ዲዛይን ኦቶሜሽን ---
+        SiteConfig.objects.update_or_create(
+            key="DYNAMIC_UI",
+            defaults={'value': data.get('ui_design', {})}
         )
-        return f"✅ EthAfri Evolved: {count} new entries created."
+
+        # --- 2. የገበያ እና የቋንቋ ዕድገት ---
+        entry = data.get('market_entry', {})
+        cat, _ = Category.objects.get_or_create(name=entry.get('category', 'General'))
+        
+        # ምስል ከ Unsplash በራሱ ማገናኘት
+        img_q = entry.get('img_keywords', 'marketplace')
+        image_url = f"https://source.unsplash.com/800x600/?{img_q}"
+
+        product = Product.objects.create(
+            seller=admin_user,
+            category=cat,
+            title=entry.get('title_am', 'New Growth Item'),
+            description=entry.get('translations', {}).get('am', 'በ AI የተጠቆመ'),
+            price=entry.get('price', 0),
+            image_url=image_url,
+            location="Global / ኢትዮጵያ",
+            is_active=True,
+            ai_tags=data.get('seo_keywords', [])
+        )
+
+        # በ 7 ቋንቋዎች መመዝገብ
+        trans = entry.get('translations', {})
+        ProductTranslation.objects.create(
+            product=product,
+            am=trans.get('am', ''),
+            en=trans.get('en', ''),
+            om=trans.get('om', ''),
+            ar=trans.get('ar', ''),
+            so=trans.get('so', ''),
+            ti=trans.get('ti', ''),
+            fr=trans.get('fr', '')
+        )
+
+        # --- 3. SEO እና Task Logging ---
+        for kw in data.get('seo_keywords', []):
+            UserSearch.objects.get_or_create(query=kw.strip())
+
+        AISystemTask.objects.create(
+            task_name=f"CEO Autonomous Update: {cat.name}",
+            priority_reason=data.get('priority_decision', 'Daily Growth'),
+            status='Completed'
+        )
+
+        return f"✅ EthAfri Evolved: CEO Priority - {data.get('priority_decision')[:60]}..."
+
     except Exception as e:
-        return f"⚠️ Logic Error: {str(e)} | Raw: {ai_response[:50]}"
+        return f"⚠️ CEO Logic Error: {str(e)} | AI Raw: {ai_response[:50]}"

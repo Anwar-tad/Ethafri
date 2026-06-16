@@ -1,0 +1,11 @@
+{% extends 'marketplace/base.html' %}
+{% block content %}
+<div class="form-container shadow p-4 rounded-4 bg-white" style="max-width: 400px; margin: auto;">
+    <h3 class="text-center mb-4">ይመዝገቡ</h3>
+    <form method="POST">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-success w-100 rounded-pill">ይመዝገቡ</button>
+    </form>
+</div>
+{% endblock %}

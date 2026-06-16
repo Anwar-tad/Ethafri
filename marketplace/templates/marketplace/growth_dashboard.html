@@ -1,0 +1,46 @@
+{% extends 'marketplace/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header bg-dark text-white rounded-top-4 py-3">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i> EthAfri AI የዕድገት መቆጣጠሪያ</h5>
+            </div>
+            <div class="card-body p-4">
+                <p class="lead">እዚህ ጋር የኢቲአፍሪ AI በየሰዓቱ የሚያከናውናቸውን ስራዎች እና የገበያ ትንተናዎች መከታተል ትችላለህ።</p>
+                <hr>
+                
+                <h6 class="fw-bold text-primary mb-3">የቅርብ ጊዜ የገበያ ጥናቶች (Market Trends)</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ሰዓት</th>
+                                <th>የጥናቱ ስም</th>
+                                <th>ተፈላጊነት (Demand)</th>
+                                <th>የ AI ምክር (Strategy)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trend in trends %}
+                            <tr>
+                                <td class="small">{{ trend.last_updated|date:"M d, H:i" }}</td>
+                                <td class="fw-bold">{{ trend.niche_name }}</td>
+                                <td>
+                                    <div class="progress" style="height: 10px;">
+                                        <div class="progress-bar bg-success" style="width: {{ trend.demand_level }}%"></div>
+                                    </div>
+                                    <small>{{ trend.demand_level }}%</small>
+                                </td>
+                                <td class="small">{{ trend.ai_suggestion|truncatewords:20 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

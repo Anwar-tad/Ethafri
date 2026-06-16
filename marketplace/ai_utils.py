@@ -1,17 +1,17 @@
+# EthAfri/marketplace/ai_utils.py
+
 import google.generativeai as genai
 from groq import Groq
-import json
+import json, re
 from django.conf import settings
 
 def call_gemini(prompt):
-    """Google Gemini 2.0 Flash ን በመጠቀም"""
+    """Google Gemini 2.5 Flash ን በመጠቀም መረጃ ማውጣት"""
     try:
-        if not settings.GEMINI_API_KEY:
-            return "ERROR: GEMINI_API_KEY is missing"
-            
+        if not settings.GEMINI_API_KEY: return None
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        # ወደ አዲሱ 2.0 flash ቀይረነዋል
-        model = genai.GenerativeModel('gemini-2.0-flash') 
+        # በእርስዎ መመሪያ መሰረት 'gemini-2.5-flash' ጥቅም ላይ ውሏል
+        model = genai.GenerativeModel('gemini-2.5-flash') 
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -19,14 +19,12 @@ def call_gemini(prompt):
         return None
 
 def call_groq(prompt):
-    """Groq Llama 3 AI (እንደ አማራጭ)"""
+    """Gemini ካልሰራ Groq (Llama 3.3) እንደ አማራጭ ይጠቀማል"""
     try:
-        if not settings.GROQ_API_KEY:
-            return "ERROR: GROQ_API_KEY is missing"
-            
+        if not settings.GROQ_API_KEY: return None
         client = Groq(api_key=settings.GROQ_API_KEY)
         completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", # በጣም አዲሱና ጠንካራው ሞዴል
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
         )
         return completion.choices[0].message.content
@@ -35,30 +33,20 @@ def call_groq(prompt):
         return None
 
 def clean_and_parse_json(text):
-    if not text or "ERROR" in text:
-        return None
+    """ከ AI መልስ ውስጥ JSON ዳታን ብቻ ለይቶ ያወጣል"""
+    if not text: return None
     try:
-        clean_content = text.strip().replace('```json', '').replace('```', '')
-        # አንዳንድ ጊዜ AIው መግቢያ ጽሁፍ ከጨመረ እሱን ለማጽዳት
-        start_idx = clean_content.find('{')
-        end_idx = clean_content.rfind('}') + 1
-        return json.loads(clean_content[start_idx:end_idx])
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        return None
     except Exception as e:
         print(f"⚠️ JSON Parsing Error: {e}")
         return None
 
 def analyze_product_smartly(title, description, price):
-    prompt = f"""
-    አንተ የ EthAfri AI ነህ። እቃ: {title}, መግለጫ: {description}, ዋጋ: {price} ETB
-    መረጃውን በዚህ JSON ብቻ መልስ:
-    {{
-      "category": "ምድብ",
-      "specs": {{"ቁልፍ": "እሴት"}},
-      "tags": ["tag1", "tag2"],
-      "valuation": "Fair/Cheap/Expensive",
-      "marketing_tip": "ምክር በአማርኛ"
-    }}
-    """
+    """እቃ ሲለጠፍ በ AI መርምሮ ምድብ ለመስጠት"""
+    prompt = f"Product: {title}, Desc: {description}, Price: {price}. Categorize this for a marketplace in one JSON object with 'category' and 'tags' keys."
     raw_response = call_gemini(prompt)
     if not raw_response:
         raw_response = call_groq(prompt)
