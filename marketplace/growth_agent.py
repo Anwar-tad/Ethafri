@@ -1,115 +1,122 @@
 import google.generativeai as genai
 from groq import Groq
-import json
-import datetime
-import re # JSONን ለይቶ ለማውጣት
+from mistralai import Mistral
+import json, datetime, re, requests
 from django.utils.text import slugify
 from django.conf import settings
 from .models import MarketTrend, Category, UserSearch, Product
 from django.contrib.auth.models import User
 
 # ---------------------------------------------------------
-# 1. AI ሞተሮች (Gemini 2.0 Flash + Groq)
+# 1. ባለ ብዙ ሰንሰለት AI ሞተሮች (Failover Chain)
 # ---------------------------------------------------------
 
-def ask_ai(prompt):
-    """Gemini 2.0 Flash ን ይጠቀማል፣ ካልሰራ ወደ Groq ይቀይራል"""
+def ask_ai_failover(prompt):
+    """ጀሚኒ 2.0 -> Groq -> Mistral -> OpenRouter"""
     
-    # 1. Gemini 2.0 Flash ሙከራ
+    # 1. Google Gemini (User Preferred)
     try:
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.0-flash') 
+            # የሞዴሉን ስም እዚህ ጋር 'gemini-1.5-flash' ወይም 'gemini-2.0-flash' ማድረግ ትችላለህ
+            model = genai.GenerativeModel('gemini-2.5-flash') 
             response = model.generate_content(prompt)
-            if response and response.text:
-                return response.text
-    except Exception as e:
-        print(f"⚠️ Gemini Error: {str(e)}")
+            if response and response.text: return response.text
+    except Exception as e: print(f"Gemini Fail: {e}")
 
-    # 2. Groq (Llama 3.3) Fallback
+    # 2. Groq (Fast Backup)
     try:
         if settings.GROQ_API_KEY:
             client = Groq(api_key=settings.GROQ_API_KEY)
-            completion = client.chat.completions.create(
+            resp = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
             )
-            return completion.choices[0].message.content
-    except Exception as e:
-        print(f"⚠️ Groq Error: {str(e)}")
-    
+            return resp.choices[0].message.content
+    except Exception as e: print(f"Groq Fail: {e}")
+
+    # 3. Mistral AI (Stable Backup)
+    try:
+        MISTRAL_KEY = getattr(settings, 'MISTRAL_API_KEY', None)
+        if MISTRAL_KEY:
+            client = Mistral(api_key=MISTRAL_KEY)
+            resp = client.chat.complete(
+                model="mistral-small-latest",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return resp.choices[0].message.content
+    except Exception as e: print(f"Mistral Fail: {e}")
+
+    # 4. OpenRouter (The Ultimate Backup - ጀሚኒን በሌላ መንገድ ይሞክራል)
+    try:
+        OPENROUTER_KEY = getattr(settings, 'OPENROUTER_API_KEY', None)
+        if OPENROUTER_KEY:
+            resp = requests.post(
+                url="https://openrouter.ai/api/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENROUTER_KEY}"},
+                json={
+                    "model": "google/gemini-2.0-flash-001:free",
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+            )
+            return resp.json()['choices'][0]['message']['content']
+    except Exception as e: print(f"OpenRouter Fail: {e}")
+
     return None
 
 # ---------------------------------------------------------
-# 2. ዋናው የዕድገት ሞተር
+# 2. የዕድገት ሞተር (The Brain)
 # ---------------------------------------------------------
 
 def run_daily_market_analysis():
     now = datetime.datetime.now()
     admin_user = User.objects.filter(is_superuser=True).first()
-    if not admin_user:
-        return "❌ ስህተት፡ አድሚን ተጠቃሚ አልተገኘም።"
+    if not admin_user: return "❌ አድሚን አልተገኘም።"
 
     prompt = f"""
-    አንተ የ EthAfri (ኢቲአፍሪ) ራስ-ገዝ CEO ነህ። ዛሬ {now} ነው።
+    አንተ የ EthAfri Smart Marketplace CEO ነህ። ዛሬ {now} ነው።
     ተግባርህ፦
     1. በኢትዮጵያ አሁን በጣም ተፈላጊ የሆኑ 3 አዳዲስ የገበያ ዘርፎችን (Categories) ለይ።
-    2. ለእያንዳንዱ ዘርፍ 1 ማራኪ የእቃ ርዕስ (Product Title) እና መግለጫ ፍጠር።
-    3. ለጎግል ፍለጋ የሚረዱ 5 ቁልፍ ቃላትን (SEO Keywords) አውጣ።
-
-    መልስህን በዚህ የ JSON ቅርጽ ብቻ አቅርብ (ምንም ሌላ ጽሁፍ አትጨምር)፦
+    2. ለእያንዳንዱ ዘርፍ 1 ናሙና እቃ ፍጠር።
+    3. ለጎግል ፍለጋ 5 ቁልፍ ቃላትን አውጣ።
+    መልስህን በዚህ JSON ብቻ አቅርብ፡
     {{
-      "categories": [
-        {{ "name": "ምድብ ስም", "sample_product": "የእቃ ስም", "sample_desc": "መግለጫ" }}
-      ],
-      "seo_keywords": ["keyword1", "keyword2"],
-      "strategy": "ምክር በአማርኛ"
+      "categories": [{{ "name": "ምድብ", "product": "ስም", "desc": "መግለጫ" }}],
+      "seo": ["ቃል1", "ቃል2"],
+      "advice": "ምክር"
     }}
     """
 
-    ai_response = ask_ai(prompt)
-    
+    ai_response = ask_ai_failover(prompt)
     if not ai_response:
-        return "❌ ሁለቱም AI ሞተሮች አልሰሩም። ኢንተርኔት ወይም API ቁልፎችን ያረጋግጡ።"
+        return "❌ ሁሉም AI ሞተሮች (Gemini, Groq, Mistral, OpenRouter) እምቢ አሉ።"
 
     try:
-        # --- ወሳኝ ማሻሻያ፡ JSONን በ Regex ለይቶ ማውጣት ---
-        # ይህ ከ JSON ውጭ ያሉ ጽሁፎችን (ለምሳሌ 'Here is the JSON:') ያጠፋል
+        # JSONን ከጽሁፍ ውስጥ ለይቶ ማውጣት
         match = re.search(r'\{.*\}', ai_response, re.DOTALL)
-        if not match:
-            return f"⚠️ AIው የላከው መልስ JSON አይደለም: {ai_response[:50]}..."
-        
-        clean_json = match.group(0)
-        data = json.loads(clean_json)
+        data = json.loads(match.group(0))
 
-        new_items_count = 0
+        count = 0
         for entry in data.get('categories', []):
-            cat_name = entry.get('name', '').strip()
-            if cat_name:
-                cat, _ = Category.objects.get_or_create(name=cat_name)
-                
-                # ናሙና እቃ መፍጠር
-                Product.objects.create(
-                    seller=admin_user,
-                    title=entry.get('sample_product', f"የሚፈለግ፡ {cat_name}"),
-                    description=entry.get('sample_desc', "በ AI የተጠቆመ የገበያ ዕድል"),
-                    price=0,
-                    category=cat,
-                    location="ኢትዮጵያ",
-                    is_active=True
-                )
-                new_items_count += 1
-
-        for kw in data.get('seo_keywords', []):
-            UserSearch.objects.get_or_create(query=kw.strip())
-
+            cat, _ = Category.objects.get_or_create(name=entry['name'].strip())
+            Product.objects.create(
+                seller=admin_user,
+                title=entry['product'],
+                description=entry['desc'],
+                price=0,
+                category=cat,
+                location="ኢትዮጵያ",
+                is_active=True
+            )
+            count += 1
+        
+        for kw in data.get('seo', []): UserSearch.objects.get_or_create(query=kw.strip())
+        
         MarketTrend.objects.create(
-            niche_name=f"Auto-Update {now.strftime('%H:%M')}",
-            demand_level=98,
-            ai_suggestion=data.get('strategy', 'ምንም ምክር የለም')
+            niche_name=f"Evolution {now.strftime('%H:%M')}",
+            demand_level=99,
+            ai_suggestion=data.get('advice', '')
         )
-
-        return f"✅ EthAfri Evolved: {new_items_count} new entries created."
-
+        return f"✅ EthAfri Evolved: {count} new niches added by AI."
     except Exception as e:
-        return f"⚠️ Processing Error: {str(e)} | Raw: {ai_response[:50]}..."
+        return f"⚠️ Logic Error: {str(e)}"
