@@ -2,20 +2,21 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils.text import slugify
 
+import uuid # ይህን ከላይ ጨምረው
+
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=150, unique=True, blank=True)
     description = models.TextField(blank=True, default='')
     icon = models.CharField(blank=True, default='', max_length=50)
 
-    # ይህ ክፍል ነው Slugን በራሱ የሚፈጥረው
     def save(self, *args, **kwargs):
         if not self.slug:
+            # መጀመሪያ ስሙን ወደ እንግሊዝኛ ለመቀየር ይሞክራል
             self.slug = slugify(self.name)
-            # ስሙ በአማርኛ ከሆነ slugify ባዶ ሊመልስ ስለሚችል በጊዜያዊነት በ ID እንተካዋለን
+            # ስሙ አማርኛ ከሆነ slugify ባዶ ስለሚሆን በፍጹም የማይደገም አጭር ኮድ ይጨምራል
             if not self.slug:
-                import time
-                self.slug = f"cat-{int(time.time())}"
+                self.slug = f"cat-{uuid.uuid4().hex[:8]}" 
         super().save(*args, **kwargs)
 
     def __str__(self):

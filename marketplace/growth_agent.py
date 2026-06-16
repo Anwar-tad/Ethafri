@@ -100,17 +100,22 @@ def run_daily_market_analysis():
 
         count = 0
         for entry in data.get('categories', []):
-            cat, _ = Category.objects.get_or_create(name=entry['name'].strip())
-            Product.objects.create(
-                seller=admin_user,
-                title=entry['product'],
-                description=entry['desc'],
-                price=0,
-                category=cat,
-                location="ኢትዮጵያ",
-                is_active=True
-            )
-            count += 1
+            name = entry['name'].strip()
+            # 1. ካቴጎሪውን ይፈልጋል ወይም ይፈጥራል
+            cat, _ = Category.objects.get_or_create(name=name)
+            
+            # 2. እቃው አስቀድሞ መኖሩን ያረጋግጣል (ተመሳሳይ እቃ እንዳይደገም)
+            if not Product.objects.filter(title=entry['product'], category=cat).exists():
+                Product.objects.create(
+                    seller=admin_user,
+                    title=entry['product'],
+                    description=entry['desc'],
+                    price=0,
+                    category=cat,
+                    location="ኢትዮጵያ",
+                    is_active=True
+                )
+                count += 1
         
         for kw in data.get('seo', []): UserSearch.objects.get_or_create(query=kw.strip())
         
