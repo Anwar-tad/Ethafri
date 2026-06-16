@@ -1,14 +1,14 @@
+# EthAfri/marketplace/migrations/0003_ceo_updates.py
 from django.db import migrations, models
 import django.db.models.deletion
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0001_initial'), # ከመጀመሪያው ሚግሬሽን ቀጥሎ እንዲሄድ
+        ('marketplace', '0002_auto_fix'), # ከቀድሞው ስህተት ማስተካከያ ቀጥሎ እንዲሄድ
     ]
 
     operations = [
-        # 1. AI የሰራቸውን ስራዎች መመዝገቢያ ሰንጠረዥ መፍጠር
         migrations.CreateModel(
             name='AISystemTask',
             fields=[
@@ -19,8 +19,6 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
             ],
         ),
-        
-        # 2. የዌብሳይቱን ዲዛይን በ AI ለመቀየር የሚያስችል ሰንጠረዥ መፍጠር
         migrations.CreateModel(
             name='SiteConfig',
             fields=[
@@ -30,8 +28,6 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True)),
             ],
         ),
-
-        # 3. በምርት (Product) ሞዴል ላይ የሚደረጉ ማሻሻያዎች
         migrations.AddField(
             model_name='product',
             name='image_url',
@@ -47,12 +43,11 @@ class Migration(migrations.Migration):
             name='price',
             field=models.DecimalField(decimal_places=2, default=0, max_digits=20),
         ),
-
-        # 4. ምርቶችን በ 7 ቋንቋዎች ለማከማቸት ሰንጠረዥ መፍጠር
         migrations.CreateModel(
             name='ProductTranslation',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('product', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='translations', to='marketplace.product')),
                 ('en', models.TextField(blank=True, verbose_name='English')),
                 ('am', models.TextField(blank=True, verbose_name='Amharic')),
                 ('om', models.TextField(blank=True, verbose_name='Oromo')),
@@ -60,7 +55,6 @@ class Migration(migrations.Migration):
                 ('so', models.TextField(blank=True, verbose_name='Somali')),
                 ('ti', models.TextField(blank=True, verbose_name='Tigrinya')),
                 ('fr', models.TextField(blank=True, verbose_name='French')),
-                ('product', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='translations', to='marketplace.product')),
             ],
         ),
     ]
