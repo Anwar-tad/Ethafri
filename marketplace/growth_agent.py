@@ -1,6 +1,5 @@
 import google.generativeai as genai
 from groq import Groq
-from mistralai import Mistral
 import json, datetime, re, requests
 from django.utils.text import slugify
 from django.conf import settings
@@ -12,19 +11,18 @@ from django.contrib.auth.models import User
 # ---------------------------------------------------------
 
 def ask_ai_failover(prompt):
-    """ጀሚኒ 2.0 -> Groq -> Mistral -> OpenRouter"""
+    """Gemini -> Groq -> Mistral (Direct API) -> OpenRouter"""
     
-    # 1. Google Gemini (User Preferred)
+    # 1. Google Gemini
     try:
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            # የሞዴሉን ስም እዚህ ጋር 'gemini-1.5-flash' ወይም 'gemini-2.0-flash' ማድረግ ትችላለህ
             model = genai.GenerativeModel('gemini-2.5-flash') 
             response = model.generate_content(prompt)
             if response and response.text: return response.text
     except Exception as e: print(f"Gemini Fail: {e}")
 
-    # 2. Groq (Fast Backup)
+    # 2. Groq
     try:
         if settings.GROQ_API_KEY:
             client = Groq(api_key=settings.GROQ_API_KEY)
@@ -35,19 +33,23 @@ def ask_ai_failover(prompt):
             return resp.choices[0].message.content
     except Exception as e: print(f"Groq Fail: {e}")
 
-    # 3. Mistral AI (Stable Backup)
+    # 3. Mistral AI (Direct Call - No Library Needed)
     try:
         MISTRAL_KEY = getattr(settings, 'MISTRAL_API_KEY', None)
         if MISTRAL_KEY:
-            client = Mistral(api_key=MISTRAL_KEY)
-            resp = client.chat.complete(
-                model="mistral-small-latest",
-                messages=[{"role": "user", "content": prompt}],
+            resp = requests.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {MISTRAL_KEY}"},
+                json={
+                    "model": "mistral-small-latest",
+                    "messages": [{"role": "user", "content": prompt}]
+                },
+                timeout=10
             )
-            return resp.choices[0].message.content
-    except Exception as e: print(f"Mistral Fail: {e}")
+            return resp.json()['choices'][0]['message']['content']
+    except Exception as e: print(f"Mistral API Fail: {e}")
 
-    # 4. OpenRouter (The Ultimate Backup - ጀሚኒን በሌላ መንገድ ይሞክራል)
+    # 4. OpenRouter
     try:
         OPENROUTER_KEY = getattr(settings, 'OPENROUTER_API_KEY', None)
         if OPENROUTER_KEY:
@@ -57,7 +59,8 @@ def ask_ai_failover(prompt):
                 json={
                     "model": "google/gemini-2.0-flash-001:free",
                     "messages": [{"role": "user", "content": prompt}]
-                }
+                },
+                timeout=10
             )
             return resp.json()['choices'][0]['message']['content']
     except Exception as e: print(f"OpenRouter Fail: {e}")
@@ -79,7 +82,7 @@ def run_daily_market_analysis():
     1. በኢትዮጵያ አሁን በጣም ተፈላጊ የሆኑ 3 አዳዲስ የገበያ ዘርፎችን (Categories) ለይ።
     2. ለእያንዳንዱ ዘርፍ 1 ናሙና እቃ ፍጠር።
     3. ለጎግል ፍለጋ 5 ቁልፍ ቃላትን አውጣ።
-    መልስህን በዚህ JSON ብቻ አቅርብ፡
+    መልስህን በዚህ JSON ብቻ አቅርብ (መግቢያ ወሬ አትጨምር)፦
     {{
       "categories": [{{ "name": "ምድብ", "product": "ስም", "desc": "መግለጫ" }}],
       "seo": ["ቃል1", "ቃል2"],
@@ -89,10 +92,9 @@ def run_daily_market_analysis():
 
     ai_response = ask_ai_failover(prompt)
     if not ai_response:
-        return "❌ ሁሉም AI ሞተሮች (Gemini, Groq, Mistral, OpenRouter) እምቢ አሉ።"
+        return "❌ ሁሉም AI ሞተሮች እምቢ አሉ። API ቁልፎችን ያረጋግጡ።"
 
     try:
-        # JSONን ከጽሁፍ ውስጥ ለይቶ ማውጣት
         match = re.search(r'\{.*\}', ai_response, re.DOTALL)
         data = json.loads(match.group(0))
 
@@ -113,10 +115,10 @@ def run_daily_market_analysis():
         for kw in data.get('seo', []): UserSearch.objects.get_or_create(query=kw.strip())
         
         MarketTrend.objects.create(
-            niche_name=f"Evolution {now.strftime('%H:%M')}",
+            niche_name=f"Auto Evolution {now.strftime('%H:%M')}",
             demand_level=99,
             ai_suggestion=data.get('advice', '')
         )
-        return f"✅ EthAfri Evolved: {count} new niches added by AI."
+        return f"✅ EthAfri Evolved: {count} new entries created."
     except Exception as e:
-        return f"⚠️ Logic Error: {str(e)}"
+        return f"⚠️ Logic Error: {str(e)} | Raw: {ai_response[:50]}"

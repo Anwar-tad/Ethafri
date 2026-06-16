@@ -11,4 +11,3 @@ django-cloudinary-storage
 cloudinary
 Pillow
 groq
-mistralai>=1.0.0
