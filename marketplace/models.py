@@ -93,3 +93,21 @@ class SelfHealingLog(models.Model):
 
     def __str__(self):
         return f"Healed: {self.error_message[:30]}..."
+        
+# EthAfri/marketplace/models.py
+
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils.text import slugify
+import uuid
+
+# ... የቀድሞዎቹ ሞዴሎች (Category, Product, ProductTranslation, SiteConfig, UserSearch, MarketTrend, AISystemTask, SelfHealingLog) እንዳሉ ሆነው በፋይሉ መጨረሻ ላይ ይህንን ይጨምሩ፦
+
+class OwnerDirective(models.Model):
+    """የዌብሳይቱ ባለቤት (አንተ) ለ AI የምትሰጠው ቀጥተኛ ትዕዛዝ እና አቅጣጫ"""
+    instruction = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Directive: {self.instruction[:30]}..."

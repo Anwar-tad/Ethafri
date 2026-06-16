@@ -112,12 +112,21 @@ def trigger_evolution(request):
         raise Http404("ገጹ አልተገኘም")
 
 # 6. የዕድገት ዴሽቦርድ
+
 def admin_growth_dashboard(request):
+    """የ AI ዕድገትና የገበያ ጥናቶች ታሪክ ማሳያ ዴሽቦርድ"""
     if not request.user.is_staff:
         return redirect('home')
+        
     trends = MarketTrend.objects.all().order_by('-last_updated')
-    return render(request, 'marketplace/growth_dashboard.html', {'trends': trends})
-
+    
+    # ⚠️ አዲሱን የ AI ውሳኔዎች ታሪክ ከዳታቤዝ መሳብ (ስህተቱን ይፈታል)
+    tasks = AISystemTask.objects.all().order_by('-created_at')
+    
+    return render(request, 'marketplace/growth_dashboard.html', {
+        'trends': trends,
+        'tasks': tasks # ወደ ቴምፕሌቱ ያስተላልፈዋል
+    })
 # Auth views (Signup, Login, Logout)
 def signup_view(request):
     if request.method == 'POST':
@@ -144,3 +153,24 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect('home')
+
+# EthAfri/marketplace/views.py
+
+from .models import OwnerDirective
+
+@login_required
+def owner_directive_view(request):
+    """የዌብሳይቱ ባለቤት ለ AI ትዕዛዝ የሚሰጥበት ማዕከል"""
+    if not request.user.is_staff:
+        return redirect('home')
+        
+    if request.method == "POST":
+        instruction = request.POST.get('instruction')
+        if instruction:
+            # የድሮዎቹን ትዕዛዞች ማጥፋት
+            OwnerDirective.objects.all().update(is_active=False)
+            # አዲሱን ትዕዛዝ መመዝገብ
+            OwnerDirective.objects.create(instruction=instruction, is_active=True)
+            return HttpResponse("<script>alert('መመሪያዎ ለ AI ደርሷል!'); window.location.href='/';</script>")
+
+    return render(request, 'marketplace/owner_directive.html')

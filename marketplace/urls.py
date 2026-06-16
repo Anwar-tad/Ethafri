@@ -22,4 +22,5 @@ urlpatterns = [
     
     # የዕድገት መቆጣጠሪያ ዴሽቦርድ (ለአስተዳዳሪው ብቻ)
     path('growth-dashboard/', views.admin_growth_dashboard, name='growth_dashboard'),
+    path('owner-directive/', views.owner_directive_view, name='owner_directive'),
 ]

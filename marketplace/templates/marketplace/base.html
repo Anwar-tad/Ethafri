@@ -89,7 +89,12 @@
             </a>
             <div class="d-flex align-items-center">
                 {% if user.is_staff %}
-                    <span class="badge bg-warning text-dark me-3"><i class="fas fa-user-shield me-1"></i>Admin</span>
+                    <span class="badge bg-warning text-dark me-2"><i class="fas fa-user-shield me-1"></i>Admin</span>
+                    
+                    <!-- ⚠️ የባለቤት መመሪያ (Owner Directive) በተን - ለአድሚን ብቻ የሚታይ -->
+                    <a href="{% url 'owner_directive' %}" class="btn btn-sm btn-outline-warning me-3">
+                        <i class="fas fa-crown me-1"></i>AI መመሪያ
+                    </a>
                 {% endif %}
                 
                 <!-- የቋንቋ መምረጫ -->
