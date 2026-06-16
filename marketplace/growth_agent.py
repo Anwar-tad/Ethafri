@@ -9,22 +9,34 @@ from django.contrib.auth.models import User
 
 # AI Engines
 def ask_ai(prompt):
-    """Gemini 2.0 ሞክር፣ ካልሰራ Groq ተጠቀም"""
+    """Gemini 2.0 Flash ን ይጠቀማል፣ ካልሰራ ወደ Groq ይቀይራል"""
+    
+    # 1. Gemini 2.0 Flash ሙከራ
     try:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash') # Gemini 2.0-flash ካለህ እሱን ተካው
-        response = model.generate_content(prompt)
-        return response.text
-    except:
-        try:
+        if settings.GEMINI_API_KEY:
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            # እዚህ ጋር ሞዴሉን ወደ gemini-2.0-flash ቀይረነዋል
+            model = genai.GenerativeModel('gemini-2.0-flash') 
+            response = model.generate_content(prompt)
+            if response and response.text:
+                return response.text
+    except Exception as gemini_err:
+        print(f"⚠️ Gemini 2.0 Error: {str(gemini_err)}")
+
+    # 2. Gemini 2.0 ካልሰራ -> Groq (Llama 3.3) ሙከራ
+    print("🔄 Gemini 2.0 አልሰራም፣ ወደ Groq AI በመቀየር ላይ...")
+    try:
+        if settings.GROQ_API_KEY:
             client = Groq(api_key=settings.GROQ_API_KEY)
             completion = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama-3.3-70b-versatile", # እጅግ ፈጣን እና አዲስ ሞዴል
                 messages=[{"role": "user", "content": prompt}],
             )
             return completion.choices[0].message.content
-        except:
-            return None
+    except Exception as groq_err:
+        return f"❌ ሁለቱም AI ሞተሮች አልሰሩም። Groq Error: {str(groq_err)}"
+    
+    return "❌ ምንም አይነት API Key አልተገኘም ወይም አልሰራም።"
 
 def run_daily_market_analysis():
     now = datetime.datetime.now()
