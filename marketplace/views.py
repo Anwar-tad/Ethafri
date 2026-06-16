@@ -6,8 +6,6 @@ from django.http import HttpResponse, Http404
 from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib.auth.models import User
-
-# እዚህ ጋር AISystemTask መጨመሩን ያረጋግጡ
 from .models import Product, Category, MarketTrend, UserSearch, SiteConfig, ProductTranslation, AISystemTask
 from .ai_utils import analyze_product_smartly
 from .growth_agent import run_daily_market_analysis
@@ -76,15 +74,29 @@ def post_product(request):
 def post_success(request):
     return render(request, 'marketplace/post_success.html')
 
-# 5. ራስ-ሰር የዕድገት መቀስቀሻ (Trigger) - አሁን ስህተቱ እዚህ ነበር የተፈጠረው
+# 5. ራስ-ሰር የዕድገት መቀስቀሻ (Trigger - በአዲስ መልክ የተስተካከለ)
 def trigger_evolution(request):
+    """
+    ይህ URL ሲነካ የ AI ሙከራውን ያካሂዳል፤ 
+    ከተሳካ ብቻ የስኬት ገጽ ያሳያል፤ ካልተሳካ ግን ስህተቱን ያሳያል።
+    """
     secret_key = "evolve-now-secret-123"
     
     if request.user.is_staff or secret_key in request.path:
-        # AIውን ያሰራዋል
+        # AIውን ያስነሳል
         result = run_daily_market_analysis()
         
-        # የቅርብ ጊዜውን የ AI ስራ ዝርዝር ያወጣል (አሁን AISystemTask ይታወቃል)
+        # ⚠️ ስህተት ካጋጠመው አረንጓዴውን ገጽ ሳያሳይ ስህተቱን በቀጥታ ያሳያል
+        if not result.startswith("✅"):
+            return HttpResponse(
+                f"<div style='padding:30px; font-family:sans-serif; color:red;'>"
+                f"<h2>❌ የ AI ዕድገት አልተሳካም!</h2>"
+                f"<p><b>ምክንያት፦</b> {result}</p>"
+                f"<p><a href='/'>ወደ ዋና ገጽ ተመለስ</a></p></div>", 
+                status=400
+            )
+        
+        # ከተሳካ የቅርብ ጊዜውን ሪፖርት ያወጣል
         try:
             latest_task = AISystemTask.objects.latest('created_at')
         except AISystemTask.DoesNotExist:
