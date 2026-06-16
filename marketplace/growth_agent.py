@@ -12,8 +12,8 @@ from django.contrib.auth.models import User
 MODEL_NAME = 'gemini-2.5-flash' 
 
 def ask_ethafri_ceo(prompt):
-    """Gemini 2.5 Flash ን ይጠቀማል፣ ካልሰራ ወደ Groq ይቀይራል"""
-    # 1. Gemini 2.5 Flash ሙከራ
+    """Gemini 2.5 Flash ን ይጠቀማል፣ ካልሰራ ወደ Groq ይቀይራል (Failover)"""
+    # 1. Try Gemini 2.5 Flash
     try:
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
@@ -24,7 +24,7 @@ def ask_ethafri_ceo(prompt):
     except Exception as e:
         print(f"⚠️ Gemini 2.5 Error: {e}")
 
-    # 2. Groq (Llama 3.3) እንደ ቤካፕ
+    # 2. Try Groq (Llama 3.3) as Backup
     try:
         if settings.GROQ_API_KEY:
             client = Groq(api_key=settings.GROQ_API_KEY)
@@ -39,42 +39,42 @@ def ask_ethafri_ceo(prompt):
 
 def run_daily_market_analysis():
     """
-    EthAfri Autonomous CEO: ራሱን የሚገነባ፣ ዲዛይን የሚቀይር እና ገበያ የሚያጠና ሞተር
+    EthAfri Autonomous CEO: ራሱን የሚገነባ፣ ዲዛይን የሚቀይር እና ገበያ የሚያጠና ዋና ሞተር
     """
     now = datetime.datetime.now()
     admin_user = User.objects.filter(is_superuser=True).first()
+    
     if not admin_user:
-        return "❌ አድሚን አልተገኘም። እባክዎ መጀመሪያ create_admin.py ይኑር።"
+        return "❌ አድሚን አልተገኘም። መጀመሪያ Superuser መፈጠሩን ያረጋግጡ።"
 
+    # AIው ስራዎችን በቅደም ተከተል እንዲያከናውን የሚሰጥ ዝርዝር ትዕዛዝ
     ceo_prompt = f"""
-    አንተ የ EthAfri (ኢቲአፍሪ) ራስ-ገዝ CEO እና ዲዛይነር ነህ። ዛሬ {now} ነው።
-    ዌብሳይቱ 'ከመርፌ እስከ መርከብ' የሚሸጥበት ግሎባል ማርኬት እንዲሆን ነው አላማው።
-
+    አንተ የ EthAfri.com ራስ-ገዝ CEO እና ዲዛይነር ነህ። ዛሬ {now} ነው።
     ተግባርህ፦
-    1. ቅድሚያ የሚሰጠውን ስራ ወስን (ዲዛይን ማሻሻል፣ አዲስ ገበያ ማጥናት፣ ወይም ቋንቋ ማስፋፋት)።
-    2. የዌብሳይቱን UI (Logo Text, Banner, Primary Color) የሚቀይር አዲስ JSON አዘጋጅ።
-    3. አንድ አዲስ ምርት መርጠህ በ 7 ቋንቋዎች (AM, EN, OM, AR, SO, TI, FR) መግለጫ ጻፍ።
-    4. ለእቃው የሚሆን Unsplash Image Search Keywords ስጠኝ።
+    1. የዌብሳይቱን ወቅታዊ ሁኔታ መርምርና ቅድሚያ የሚሰጠውን ስራ ወስን (Design, Market Study, or Language Expansion)።
+    2. የዲዛይን ለውጥ ካለ (Logo text, Banner, Theme color) አዲስ JSON ዳታ ስጠኝ።
+    3. አንድ ትርፋማ ምርት መርጠህ በ 7 ቋንቋዎች (AM, EN, OM, AR, SO, TI, FR) መግለጫ ጻፍ።
+    4. ለምርቱ የሚሆን Unsplash Image Search Keywords ስጠኝ።
 
-    መልስህን በዚህ JSON ብቻ አቅርብ (መግቢያ ወሬ አትጨምር)፦
+    መልስህን በዚህ JSON ብቻ አቅርብ (ከJSON ውጭ ምንም ጽሁፍ አትጨምር)፦
     {{
-      "priority_decision": "ለምን ይህ ስራ እንደቀደመ ማብራሪያ",
-      "ui_design": {{
-          "banner_title": "ማራኪ ባነር ጽሁፍ",
+      "task": "የተግባሩ ስም",
+      "priority_reason": "ይህ ተግባር ለምን እንደቀደመ ማብራሪያ",
+      "ui_config": {{
+          "banner_title": "ባነር ጽሁፍ",
           "banner_sub": "ንዑስ ጽሁፍ",
           "theme_color": "#1a2a6c",
           "logo_text": "EthAfri Smart"
       }},
       "market_entry": {{
-          "category": "ምድብ ስም",
-          "title_am": "የእቃው ስም በአማርኛ",
-          "price": 500,
-          "img_keywords": "product keywords for image",
+          "category": "ምድብ",
+          "title_am": "ርዕስ",
+          "price": 0,
+          "img_keywords": "product keywords",
           "translations": {{
               "am": "...", "en": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."
           }}
-      }},
-      "seo_keywords": ["keyword1", "keyword2"]
+      }}
     }}
     """
 
@@ -83,24 +83,27 @@ def run_daily_market_analysis():
         return "❌ AI ሞተሮች አልሰሩም። API ቁልፎችን አረጋግጥ።"
 
     try:
-        # JSONን መለየት
+        # JSONን ከጽሁፉ ውስጥ ፈልጎ ማውጣት
         match = re.search(r'\{.*\}', ai_response, re.DOTALL)
         data = json.loads(match.group(0))
 
-        # --- 1. ዲዛይን ኦቶሜሽን ---
+        # --- 1. ዲዛይን ኦቶሜሽን (Dynamic UI) ---
+        ui_data = data.get('ui_config', {})
         SiteConfig.objects.update_or_create(
             key="DYNAMIC_UI",
-            defaults={'value': data.get('ui_design', {})}
+            defaults={'value': ui_data}
         )
 
         # --- 2. የገበያ እና የቋንቋ ዕድገት ---
         entry = data.get('market_entry', {})
-        cat, _ = Category.objects.get_or_create(name=entry.get('category', 'General'))
+        cat_name = entry.get('category', 'General').strip()
+        cat, _ = Category.objects.get_or_create(name=cat_name)
         
         # ምስል ከ Unsplash በራሱ ማገናኘት
-        img_q = entry.get('img_keywords', 'marketplace')
+        img_q = entry.get('img_keywords', 'marketplace').replace(" ", ",")
         image_url = f"https://source.unsplash.com/800x600/?{img_q}"
 
+        # ምርቱን መፍጠር
         product = Product.objects.create(
             seller=admin_user,
             category=cat,
@@ -109,34 +112,27 @@ def run_daily_market_analysis():
             price=entry.get('price', 0),
             image_url=image_url,
             location="Global / ኢትዮጵያ",
-            is_active=True,
-            ai_tags=data.get('seo_keywords', [])
+            is_active=True
         )
 
         # በ 7 ቋንቋዎች መመዝገብ
         trans = entry.get('translations', {})
         ProductTranslation.objects.create(
             product=product,
-            am=trans.get('am', ''),
-            en=trans.get('en', ''),
-            om=trans.get('om', ''),
-            ar=trans.get('ar', ''),
-            so=trans.get('so', ''),
-            ti=trans.get('ti', ''),
+            am=trans.get('am', ''), en=trans.get('en', ''), om=trans.get('om', ''),
+            ar=trans.get('ar', ''), so=trans.get('so', ''), ti=trans.get('ti', ''),
             fr=trans.get('fr', '')
         )
 
-        # --- 3. SEO እና Task Logging ---
-        for kw in data.get('seo_keywords', []):
-            UserSearch.objects.get_or_create(query=kw.strip())
-
+        # --- 3. ዝርዝር ተግባር መመዝገብ (ለሪፖርት ገጹ) ---
+        log_reason = f"ውሳኔ፦ {data.get('priority_reason')}\n\nየተቀየረ ኮድ፦ {json.dumps(ui_data, indent=2)}"
         AISystemTask.objects.create(
-            task_name=f"CEO Autonomous Update: {cat.name}",
-            priority_reason=data.get('priority_decision', 'Daily Growth'),
+            task_name=data.get('task', 'EthAfri System Update'),
+            priority_reason=log_reason,
             status='Completed'
         )
 
-        return f"✅ EthAfri Evolved: CEO Priority - {data.get('priority_decision')[:60]}..."
+        return f"✅ EthAfri Evolved: Priority set to '{data.get('task')}'. New item added with image."
 
     except Exception as e:
-        return f"⚠️ CEO Logic Error: {str(e)} | AI Raw: {ai_response[:50]}"
+        return f"⚠️ CEO Logic Error: {str(e)} | Raw: {ai_response[:50]}"
