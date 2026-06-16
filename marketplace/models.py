@@ -81,3 +81,15 @@ class AISystemTask(models.Model):
     priority_reason = models.TextField()
     status = models.CharField(max_length=50, default='Completed')
     created_at = models.DateTimeField(auto_now_add=True)
+    
+# ከዚህ በፊት የነበሩት ሞዴሎች እንዳሉ ሆነው፣ ይህንን በፋይሉ መጨረሻ ላይ ጨምረው፦
+
+class SelfHealingLog(models.Model):
+    """AI በራሱ የፈወሳቸውን የዳታቤዝ እና የሲስተም ስህተቶች መዝገብ"""
+    error_message = models.TextField()
+    solution_sql = models.TextField(blank=True, null=True)
+    resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Healed: {self.error_message[:30]}..."

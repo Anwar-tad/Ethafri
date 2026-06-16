@@ -234,8 +234,18 @@ def run_daily_market_analysis():
 
         return f"✅ EthAfri Evolved: {data.get('task_name')} completed successfully."
 
+    # growth_agent.py መጨረሻ ላይ ያለውን የ exception አያያዝ በዚህ ይቀይሩት፡
+
     except Exception as e:
         # ቆልፉን መፍታት
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}
         lock_config.save()
-        return f"⚠️ Error: {str(e)}"
+        
+        # ⚠️ ራስ-አራሚውን (Database Doctor) መጥራት
+        error_msg = str(e)
+        if "relation" in error_msg or "column" in error_msg or "violates" in error_msg:
+            from .self_doctor import heal_database_error
+            heal_result = heal_database_error(error_msg)
+            return f"⚠️ System had an error but auto-healed: {heal_result}"
+            
+        return f"⚠️ Error: {error_msg}"
