@@ -7,3 +7,6 @@ python manage.py migrate
 
 # አድሚን እንዲፈጥር ትዕዛዝ መስጠት
 python create_admin.py
+
+# ከዚህ በፊት የነበረውን python manage.py migrate አጥፋና ይህንን ተካው
+python manage.py migrate --fake marketplace 0002_auto_fix
