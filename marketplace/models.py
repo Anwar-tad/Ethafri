@@ -33,6 +33,8 @@ class Product(models.Model):
     image_url = models.URLField(blank=True, null=True) # በ AI የሚመጡ ምስሎች ሊንክ
     image = models.ImageField(upload_to='products/', blank=True, null=True) # ተጠቃሚ የሚጭነው ምስል
     location = models.CharField(max_length=255, default='Global / ኢትዮጵያ')
+    specifications = models.JSONField(default=dict, blank=True) 
+    
     is_active = models.BooleanField(default=True)
     ai_tags = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
