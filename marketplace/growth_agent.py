@@ -9,39 +9,16 @@ from .models import MarketTrend, Category, UserSearch, Product, ProductTranslati
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+# በእርስዎ መመሪያ መሰረት የሚሰራው ብቸኛው ሞዴል (Gemini 2.5 Flash ለግሩም አማርኛ)
 MODEL_NAME = 'gemini-2.5-flash' 
 
-# ---------------------------------------------------------
-# 1. የ API Cooldown (እረፍት) እና የ Lock አያያዝ
-# ---------------------------------------------------------
-
-def is_api_on_cooldown(provider_name):
-    """ዳታቤዝን በመፈተሽ ኤፒአይው በእረፍት ላይ መሆኑን ያረጋግጣል (Timezone-safe)"""
-    config = SiteConfig.objects.filter(key=f"COOLDOWN_{provider_name}").first()
-    if config:
-        cooldown_until_str = config.value.get('until', '')
-        if cooldown_until_str:
-            cooldown_until = datetime.datetime.fromisoformat(cooldown_until_str)
-            if timezone.is_naive(cooldown_until):
-                cooldown_until = timezone.make_aware(cooldown_until)
-            if timezone.now() < cooldown_until:
-                return True
-    return False
-
-def set_api_cooldown(provider_name, hours=24):
-    """ኤፒአይው ሲከሽፍ ለተወሰነ ሰዓት እረፍት እንዲሰጠው ይመዘግባል"""
-    until_time = timezone.now() + datetime.timedelta(hours=hours)
-    SiteConfig.objects.update_or_create(
-        key=f"COOLDOWN_{provider_name}",
-        defaults={'value': {'until': until_time.isoformat()}}
-    )
-
-# ---------------------------------------------------------
-# 2. ባለ 4 ሰንሰለት AI ሞተሮች
-# ---------------------------------------------------------
-
 def ask_ai_failover(prompt):
-    """Gemini 2.5 -> Groq -> Mistral -> OpenRouter"""
+    """
+    1. Gemini 2.5 Flash (በአማርኛ ወደር የለውም)
+    2. Groq (Llama 3.3)
+    3. Mistral (Direct REST)
+    4. OpenRouter
+    """
     # 1. Google Gemini 2.5 Flash
     if not is_api_on_cooldown("GEMINI"):
         try:
@@ -112,9 +89,24 @@ def ask_ai_failover(prompt):
 
     return None
 
-# ---------------------------------------------------------
-# 3. የዕድገት ሞተር (The Brain)
-# ---------------------------------------------------------
+def is_api_on_cooldown(provider_name):
+    config = SiteConfig.objects.filter(key=f"COOLDOWN_{provider_name}").first()
+    if config:
+        cooldown_until_str = config.value.get('until', '')
+        if cooldown_until_str:
+            cooldown_until = datetime.datetime.fromisoformat(cooldown_until_str)
+            if timezone.is_naive(cooldown_until):
+                cooldown_until = timezone.make_aware(cooldown_until)
+            if timezone.now() < cooldown_until:
+                return True
+    return False
+
+def set_api_cooldown(provider_name, hours=24):
+    until_time = timezone.now() + datetime.timedelta(hours=hours)
+    SiteConfig.objects.update_or_create(
+        key=f"COOLDOWN_{provider_name}",
+        defaults={'value': {'until': until_time.isoformat()}}
+    )
 
 def run_daily_market_analysis():
     now = datetime.datetime.now()
@@ -135,41 +127,45 @@ def run_daily_market_analysis():
     lock_config.value = {'status': 'running', 'since': now.isoformat()}
     lock_config.save()
 
-    prompt = f"""
-    አንተ የ EthAfri Smart Marketplace CEO ነህ። ዛሬ {now} ነው።
+    # በአማርኛ ጥራት ላይ ያተኮረ ትዕዛዝ (Prompt)
+    ceo_prompt = f"""
+    አንተ የ EthAfri (ኢቲአፍሪ) ራስ-ገዝ CEO እና ዋና ዲዛይነር ነህ። ዛሬ {now} ነው።
+    የእያንዳንዱን ምርት መግለጫ እና የዌብሳይት ባነር ጽሁፎችን ፍጹም እና ማራኪ በሆነ የሀገር ውስጥ የአማርኛ ቋንቋ አወቃቀር አዘጋጅ።
+
     ተግባርህ፦
     1. በኢትዮጵያ አሁን በዚህ ሰዓት በጣም ተፈላጊ የሆኑ 3 አዳዲስ የገበያ ዘርፎችን (Categories) ለይ።
     2. ለእያንዳንዱ ዘርፍ 1 ማራኪ የእቃ ርዕስ (Product Title) እና መግለጫ ፍጠር።
     3. የዌብሳይቱን UI (Logo text, Banner, Theme color) የሚቀይር አዲስ JSON አዘጋጅ።
     4. ምርቱ ፎቶ እንዲኖረው 3 የእንግሊዝኛ ፎቶ Keywords ስጠኝ።
-    5. ለዌብሳይቱ እድገት የሚሆን 1 የስትራቴጂ ምክር በአማርኛ ስጠኝ።
 
     መልስህን በዚህ የ JSON ቅርጽ ብቻ አቅርብ (መግቢያ ወሬ አትጨምር)፦
     {{
-      "task_name": "የተግባሩ ስም",
-      "priority_reason": "ማብራሪያ",
+      "task_name": "የተግባሩ ስም በአማርኛ",
+      "priority_reason": "ለምን ይህ ስራ እንደቀደመ ዝርዝር ማብራሪያ በአማርኛ",
       "ui": {{
-          "banner_title": "ባነር ጽሁፍ", "banner_sub": "ንዑስ ጽሁፍ", "color": "#1a2a6c", "logo": "EthAfri"
+          "banner_title": "ባነር ጽሁፍ በአማርኛ", 
+          "banner_sub": "ንዑስ ጽሁፍ በአማርኛ", 
+          "color": "#1a2a6c", 
+          "logo": "EthAfri Smart"
       }},
       "item": {{
-          "cat": "ምድብ", 
-          "title": "ርዕስ", 
+          "cat": "ምድብ በአማርኛ", 
+          "title": "ርዕስ በአማርኛ", 
           "price": 1000, 
-          "img_key": "keywords",
+          "img_key": "keywords for photo in english",
           "desc": {{"am": "መግለጫ በአማርኛ", "en": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."}}
-      }}
+      }},
+      "seo_keywords": ["keyword1", "keyword2"]
     }}
     """
 
-    ai_response = ask_ai_failover(prompt)
+    ai_response = ask_ai_failover(ceo_prompt)
     if not ai_response:
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}
         lock_config.save()
         return "❌ ሁሉም AI ሞተሮች እምቢ አሉ።"
 
     try:
-        # --- ⚠️ ማሻሻያ 1 (Extra Data Fix) ---
-        # ከ JSON ውጭ ያሉ ተጨማሪ ጽሁፎችን (Extra data) ለመቁረጥ የመጀመሪያውን { እና የመጨረሻውን } ብቻ መውሰድ
         start_idx = ai_response.find('{')
         end_idx = ai_response.rfind('}') + 1
         
@@ -200,14 +196,12 @@ def run_daily_market_analysis():
         k = it.get('img_key', 'shopping').replace(" ", ",")
         image_url = f"https://loremflickr.com/800/600/{k}"
 
-        # --- ⚠️ ማሻሻያ 2 (Null Title Fix) ---
-        # AIው 'title' የሚለውን ስም ቢረሳው እንኳ ኮዱ በራሱ ተለዋጭ ስም እንዲፈጥር (Self-Healing)
         product_title = it.get('title') or it.get('title_am') or f"አዲስ ምርት - {cat_name}"
 
         product = Product.objects.create(
             seller=admin_user, 
             category=cat, 
-            title=product_title, # አሁን በፍጹም null አይሆንም!
+            title=product_title,
             description=it.get('desc', {}).get('am', 'በ AI የተጠቆመ የገበያ ዕድል'),
             price=it.get('price', 0), 
             image_url=image_url, 
@@ -225,9 +219,12 @@ def run_daily_market_analysis():
         )
 
         # --- 3. ዝርዝር ተግባር መመዝገብ ---
+        # ⚠️ እዚህ ጋር ensure_ascii=False ጨምሬበታለሁ፤ ይህ አማርኛውን ያድነዋል!
+        log_reason = f"ውሳኔ፦ {data.get('priority_reason')}\n\nUI Config: {json.dumps(ui, indent=2, ensure_ascii=False)}"
+        
         AISystemTask.objects.create(
             task_name=data.get('task_name', 'EthAfri Update'),
-            priority_reason=f"ውሳኔ፦ {data.get('priority_reason')}\n\nUI Config: {json.dumps(ui, indent=2)}",
+            priority_reason=log_reason,
             status='Completed'
         )
 
