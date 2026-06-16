@@ -35,6 +35,9 @@ class Product(models.Model):
     location = models.CharField(max_length=255, default='Global / ኢትዮጵያ')
     specifications = models.JSONField(default=dict, blank=True) 
     
+    # ⚠️ ይህ መስመር በላክኸው ፋይል ውስጥ ጠፍቶ ስለነበር ተመልሷል (ስህተቱን ይፈታል)
+    market_value_status = models.CharField(max_length=50, blank=True, default='Unknown')
+    
     is_active = models.BooleanField(default=True)
     ai_tags = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

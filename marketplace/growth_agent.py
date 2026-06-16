@@ -206,7 +206,8 @@ def run_daily_market_analysis():
         product = Product.objects.create(
             seller=admin_user, category=cat, title=it.get('title'),
             description=it.get('desc', {}).get('am', 'በ AI የተጠቆመ'),
-            price=it.get('price', 0), image_url=image_url, is_active=True
+            price=it.get('price', 0), image_url=image_url, market_value_status='Unknown', # ⚠️ ይህ መስመር ተጨምሯል
+            is_active=True
         )
 
         # በ 7 ቋንቋዎች መመዝገብ
