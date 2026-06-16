@@ -40,70 +40,53 @@ def ask_groq(prompt):
 # ---------------------------------------------------------
 
 def run_daily_market_analysis():
-    """
-    ስሙ 'run_daily_market_analysis' ቢሆንም ስራው ግን በየሰዓቱ 
-    ራሱን የሚያሳድግ (Autonomous Evolution) ነው።
-    """
     now = datetime.datetime.now()
     
-    # AIው የኢትዮጵያን ገበያ አጥንቶ እንዲመልስ የሚሰጠው ትዕዛዝ
     prompt = f"""
-    አንተ የ EthAfri (ኢቲአፍሪ) ራስ-ገዝ ስትራቴጂስት እና CEO ነህ። ዛሬ ቀኑ {now} ነው።
-    ኢቲአፍሪ 'ከመርፌ እስከ መርከብ' የሚሸጥበት የአፍሪካ ግዙፍ ማርኬት ፕሌስ ነው።
-    
+    አንተ የ EthAfri (ኢቲአፍሪ) ራስ-ገዝ CEO ነህ። ዛሬ {now} ነው።
     ተግባርህ፦
-    1. በኢትዮጵያና በአፍሪካ አሁን በከፍተኛ ሁኔታ የሚፈለጉ 3 አዳዲስ ዘርፎችን (Niches) ለይ።
-    2. ለእነዚህ ዘርፎች ሰዎች ጎግል ላይ ሊፈልጓቸው የሚችሉ 5 ቁልፍ ቃላትን (SEO Keywords) አውጣ።
-    3. ለዌብሳይቱ እድገት የሚሆን 1 የስትራቴጂ ምክር ስጥ።
-
-    መልስህን በዚህ የ JSON ቅርጽ ብቻ ስጠኝ (ምንም ሌላ ጽሁፍ አትጨምር)፦
+    1. በኢትዮጵያ አሁን በጣም ተፈላጊ የሆኑ 3 አዳዲስ ዘርፎችን (Niches) ለይ።
+    2. ለእነዚህ ዘርፎች 5 ቁልፍ ቃላትን (SEO Keywords) አውጣ።
+    መልስህን በዚህ JSON ብቻ ስጠኝ፦
     {{
-      "categories": ["Category Name 1", "Category Name 2"],
-      "seo_keywords": ["keyword1", "keyword2", "keyword3"],
-      "strategy_report": "የገበያ ትንተና ሪፖርት በአማርኛ"
+      "categories": ["ዘርፍ 1", "ዘርፍ 2"],
+      "seo_keywords": ["ቃል 1", "ቃል 2"],
+      "strategy_report": "ምክር በአማርኛ"
     }}
     """
 
-    # --- AI ምርጫ ሂደት ---
     ai_response = ask_gemini(prompt)
-    
     if not ai_response:
-        print("⚠️ Gemini አልሰራም፣ ወደ Groq AI በመቀየር ላይ...")
         ai_response = ask_groq(prompt)
 
     if not ai_response:
-        return "❌ ሁለቱም AI ሞተሮች አልሰሩም። ዕድገት ለጊዜው ቆሟል።"
+        return "❌ AI ሞተሮች አልሰሩም።"
 
-    # --- መረጃውን ወደ ተግባር የመለወጥ ሂደት (Action) ---
     try:
-        # JSON መረጃውን ማጽዳት እና መተርጎም
         clean_data = ai_response.strip().replace('```json', '').replace('```', '')
         data = json.loads(clean_data)
 
-        # 1. አዳዲስ ምድቦችን (Categories) በራሱ መክፈት
         created_cats = []
         for cat_name in data.get('categories', []):
-            cat, created = Category.objects.get_or_create(
-                name=cat_name, 
-                defaults={'slug': slugify(cat_name)}
-            )
-            if created:
-                created_cats.append(cat_name)
+            name = cat_name.strip()
+            if name: # ባዶ ካልሆነ ብቻ
+                # እዚህ ጋር ስህተቱን ለመከላከል 'defaults' ውስጥ slug አንሰጥም
+                # ይልቁንም በ models.py ውስጥ በራሱ እንዲመነጭ እናደርጋለን
+                cat, created = Category.objects.get_or_create(name=name)
+                if created:
+                    created_cats.append(name)
 
-        # 2. የ SEO ፍላጎት (UserSearch) በራሱ መመዝገብ
-        # ይህ ጎግል ዌብሳይቱን እንደ 'Trending' እንዲቆጥረው ይረዳዋል
         for kw in data.get('seo_keywords', []):
-            UserSearch.objects.get_or_create(query=kw)
+            if kw.strip():
+                UserSearch.objects.get_or_create(query=kw.strip())
 
-        # 3. የገበያ ትንተናውን በዳታቤዝ ማስቀመጥ
         MarketTrend.objects.create(
-            niche_name=f"Autonomous Update {now.strftime('%H:%M')}",
+            niche_name=f"Update {now.strftime('%H:%M')}",
             demand_level=98,
-            ai_suggestion=data.get('strategy_report', 'ምንም ምክር አልተሰጠም')
+            ai_suggestion=data.get('strategy_report', 'ምንም ምክር የለም')
         )
 
-        log_msg = f"✅ EthAfri Evolved: {len(created_cats)} new categories added. SEO keywords updated."
-        return log_msg
+        return f"✅ EthAfri Evolved: {len(created_cats)} new categories. {len(data.get('seo_keywords', []))} SEO keywords."
 
     except Exception as e:
-        return f"⚠️ JSON Parsing Error: {str(e)}"
+        return f"⚠️ JSON Error: {str(e)}"

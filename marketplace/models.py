@@ -1,11 +1,22 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils.text import slugify
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
-    slug = models.SlugField(unique=True)
-    description = models.TextField(blank=True)
-    icon = models.CharField(max_length=50, blank=True) # ለምሳሌ 'fa-car'
+    slug = models.SlugField(max_length=150, unique=True, blank=True)
+    description = models.TextField(blank=True, default='')
+    icon = models.CharField(blank=True, default='', max_length=50)
+
+    # ይህ ክፍል ነው Slugን በራሱ የሚፈጥረው
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+            # ስሙ በአማርኛ ከሆነ slugify ባዶ ሊመልስ ስለሚችል በጊዜያዊነት በ ID እንተካዋለን
+            if not self.slug:
+                import time
+                self.slug = f"cat-{int(time.time())}"
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
