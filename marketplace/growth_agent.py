@@ -15,8 +15,6 @@ MODEL_NAME = 'gemini-2.5-flash'
 # 1. የ API Cooldown (እረፍት) እና የ Lock አያያዝ
 # ---------------------------------------------------------
 
-# growth_agent.py አናት ላይ ያለውን ይህን ፈንክሽን ብቻ ቀይረው፡
-
 def is_api_on_cooldown(provider_name):
     """ዳታቤዝን በመፈተሽ ኤፒአይው በእረፍት ላይ መሆኑን ያረጋግጣል (Timezone-safe)"""
     config = SiteConfig.objects.filter(key=f"COOLDOWN_{provider_name}").first()
@@ -24,13 +22,10 @@ def is_api_on_cooldown(provider_name):
         cooldown_until_str = config.value.get('until', '')
         if cooldown_until_str:
             cooldown_until = datetime.datetime.fromisoformat(cooldown_until_str)
-            
-            # ⚠️ ሰዓቱ የሰዓት ቀጠና (Timezone) ከሌለው ብቻ ቀጠና እንዲኖረው ያደርጋል (ስህተቱን ይፈታል)
             if timezone.is_naive(cooldown_until):
                 cooldown_until = timezone.make_aware(cooldown_until)
-                
             if timezone.now() < cooldown_until:
-                return True # በእረፍት ላይ ነው (ይዘለላል)
+                return True
     return False
 
 def set_api_cooldown(provider_name, hours=24):
@@ -42,13 +37,11 @@ def set_api_cooldown(provider_name, hours=24):
     )
 
 # ---------------------------------------------------------
-# 2. ባለ 4 ሰንሰለት AI ሞተሮች (ከ Cooldown እና Lock ጋር)
+# 2. ባለ 4 ሰንሰለት AI ሞተሮች
 # ---------------------------------------------------------
 
 def ask_ai_failover(prompt):
-    """
-    ኤፒአይዎችን በ Cooldown ቼክ በየተራ መጥራት
-    """
+    """Gemini 2.5 -> Groq -> Mistral -> OpenRouter"""
     # 1. Google Gemini 2.5 Flash
     if not is_api_on_cooldown("GEMINI"):
         try:
@@ -60,11 +53,10 @@ def ask_ai_failover(prompt):
                     return response.text
         except Exception as e: 
             print(f"Gemini 2.5 Fail: {e}")
-            # የቀን ኮታ ካለቀ (Quota/429) ለ 24 ሰዓት እረፍት ይሰጠዋል
             if "429" in str(e) or "quota" in str(e).lower():
                 set_api_cooldown("GEMINI", hours=24)
             else:
-                set_api_cooldown("GEMINI", hours=1) # ለጊዜያዊ ስህተት 1 ሰዓት
+                set_api_cooldown("GEMINI", hours=1)
 
     # 2. Groq (Llama 3.3)
     if not is_api_on_cooldown("GROQ"):
@@ -97,12 +89,10 @@ def ask_ai_failover(prompt):
                 )
                 if resp.status_code == 200:
                     return resp.json()['choices'][0]['message']['content']
-                elif resp.status_code == 429:
-                    set_api_cooldown("MISTRAL", hours=12)
         except Exception as e: 
             print(f"Mistral API Fail: {e}")
 
-    # 4. OpenRouter (The Ultimate Backup)
+    # 4. OpenRouter
     try:
         OPENROUTER_KEY = getattr(settings, 'OPENROUTER_API_KEY', None)
         if OPENROUTER_KEY:
@@ -132,55 +122,62 @@ def run_daily_market_analysis():
     if not admin_user: 
         return "❌ አድሚን አልተገኘም።"
 
-    # --- ሀ. Concurrency Lock (የስራ መደራረብ መከላከያ) ---
+    # --- Concurrency Lock ---
     lock_config, _ = SiteConfig.objects.get_or_create(
         key="EVOLUTION_LOCK",
         defaults={'value': {'status': 'idle', 'since': now.isoformat()}}
     )
-    
     if lock_config.value.get('status') == 'running':
-        # የመጨረሻው ስራ የጀመረበትን ሰዓት ማረጋገጥ (ከ 10 ደቂቃ በላይ ከቆየ ግን ቆልፉን ሰብሮ ይገባል - ለደህንነት)
         since_time = datetime.datetime.fromisoformat(lock_config.value.get('since'))
         if (now - since_time).seconds < 600:
-            return "⚠️ Skip: የቀድሞው የ AI ዑደት ገና አልተጠናቀቀም (መደራረብ ተከልክሏል)።"
+            return "⚠️ Skip: የቀድሞው ዑደት ገና አልተጠናቀቀም።"
 
-    # ቆልፉን መቆለፍ (Locking)
     lock_config.value = {'status': 'running', 'since': now.isoformat()}
     lock_config.save()
 
+    prompt = f"""
+    አንተ የ EthAfri Smart Marketplace CEO ነህ። ዛሬ {now} ነው።
+    ተግባርህ፦
+    1. በኢትዮጵያ አሁን በዚህ ሰዓት በጣም ተፈላጊ የሆኑ 3 አዳዲስ የገበያ ዘርፎችን (Categories) ለይ።
+    2. ለእያንዳንዱ ዘርፍ 1 ማራኪ የእቃ ርዕስ (Product Title) እና መግለጫ ፍጠር።
+    3. የዌብሳይቱን UI (Logo text, Banner, Theme color) የሚቀይር አዲስ JSON አዘጋጅ።
+    4. ምርቱ ፎቶ እንዲኖረው 3 የእንግሊዝኛ ፎቶ Keywords ስጠኝ።
+    5. ለዌብሳይቱ እድገት የሚሆን 1 የስትራቴጂ ምክር በአማርኛ ስጠኝ።
+
+    መልስህን በዚህ የ JSON ቅርጽ ብቻ አቅርብ (መግቢያ ወሬ አትጨምር)፦
+    {{
+      "task_name": "የተግባሩ ስም",
+      "priority_reason": "ማብራሪያ",
+      "ui": {{
+          "banner_title": "ባነር ጽሁፍ", "banner_sub": "ንዑስ ጽሁፍ", "color": "#1a2a6c", "logo": "EthAfri"
+      }},
+      "item": {{
+          "cat": "ምድብ", 
+          "title": "ርዕስ", 
+          "price": 1000, 
+          "img_key": "keywords",
+          "desc": {{"am": "መግለጫ በአማርኛ", "en": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."}}
+      }}
+    }}
+    """
+
+    ai_response = ask_ai_failover(prompt)
+    if not ai_response:
+        lock_config.value = {'status': 'idle', 'since': now.isoformat()}
+        lock_config.save()
+        return "❌ ሁሉም AI ሞተሮች እምቢ አሉ።"
+
     try:
-        prompt = f"""
-        አንተ የ EthAfri Smart Marketplace CEO ነህ። ዛሬ {now} ነው።
-        ተግባርህ፦
-        1. በኢትዮጵያ አሁን በጣም ተፈላጊ የሆኑ 3 አዳዲስ የገበያ ዘርፎችን (Categories) ለይ።
-        2. ለእያንዳንዱ ዘርፍ 1 ናሙና እቃ ፍጠር።
-        3. የዌብሳይቱን UI (Logo text, Banner, Theme color) የሚቀይር አዲስ JSON አዘጋጅ።
-        4. ምርቱ ፎቶ እንዲኖረው 3 የእንግሊዝኛ ፎቶ Keywords (ለምሳሌ፦ 'red toyota car') ስጠኝ።
-        5. ለዌብሳይቱ እድገት የሚሆን 1 የስትራቴጂ ምክር በአማርኛ ስጠኝ።
-
-        መልስህን በዚህ የ JSON ቅርጽ ብቻ አቅርብ (መግቢያ ወሬ አትጨምር)፦
-        {{
-          "task_name": "የተግባሩ ስም",
-          "priority_reason": "ማብራሪያ",
-          "ui": {{
-              "banner_title": "ባነር ጽሁፍ", "banner_sub": "ንዑስ ጽሁፍ", "color": "#1a2a6c", "logo": "EthAfri"
-          }},
-          "item": {{
-              "cat": "ምድብ", "title": "ርዕስ", "price": 1000, "img_key": "keywords",
-              "desc": {{"am": "መግለጫ በአማርኛ", "en": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."}}
-          }}
-        }}
-        """
-
-        ai_response = ask_ai_failover(prompt)
-        if not ai_response:
-            # ቆልፉን መፍታት (Unlocking on Failure)
-            lock_config.value = {'status': 'idle', 'since': now.isoformat()}
-            lock_config.save()
-            return "❌ ሁሉም AI ሞተሮች እምቢ አሉ።"
-
-        match = re.search(r'\{.*\}', ai_response, re.DOTALL)
-        data = json.loads(match.group(0))
+        # --- ⚠️ ማሻሻያ 1 (Extra Data Fix) ---
+        # ከ JSON ውጭ ያሉ ተጨማሪ ጽሁፎችን (Extra data) ለመቁረጥ የመጀመሪያውን { እና የመጨረሻውን } ብቻ መውሰድ
+        start_idx = ai_response.find('{')
+        end_idx = ai_response.rfind('}') + 1
+        
+        if start_idx == -1 or end_idx <= start_idx:
+            raise ValueError("ትክክለኛ የ JSON መዋቅር አልተገኘም")
+            
+        clean_json = ai_response[start_idx:end_idx]
+        data = json.loads(clean_json)
 
         # --- 1. ዲዛይን ማዘመን (Site Config) ---
         ui = data.get('ui', {})
@@ -199,14 +196,22 @@ def run_daily_market_analysis():
         cat_name = it.get('cat', 'General').strip()
         cat, _ = Category.objects.get_or_create(name=cat_name)
         
-        # ፎቶ ከ loremflickr (ፈጣን እና እጅግ አስተማማኝ)
+        # ፎቶ ከ loremflickr
         k = it.get('img_key', 'shopping').replace(" ", ",")
         image_url = f"https://loremflickr.com/800/600/{k}"
 
+        # --- ⚠️ ማሻሻያ 2 (Null Title Fix) ---
+        # AIው 'title' የሚለውን ስም ቢረሳው እንኳ ኮዱ በራሱ ተለዋጭ ስም እንዲፈጥር (Self-Healing)
+        product_title = it.get('title') or it.get('title_am') or f"አዲስ ምርት - {cat_name}"
+
         product = Product.objects.create(
-            seller=admin_user, category=cat, title=it.get('title'),
-            description=it.get('desc', {}).get('am', 'በ AI የተጠቆመ'),
-            price=it.get('price', 0), image_url=image_url, market_value_status='Unknown', # ⚠️ ይህ መስመር ተጨምሯል
+            seller=admin_user, 
+            category=cat, 
+            title=product_title, # አሁን በፍጹም null አይሆንም!
+            description=it.get('desc', {}).get('am', 'በ AI የተጠቆመ የገበያ ዕድል'),
+            price=it.get('price', 0), 
+            image_url=image_url, 
+            market_value_status='Unknown',
             is_active=True
         )
 
@@ -226,14 +231,14 @@ def run_daily_market_analysis():
             status='Completed'
         )
 
-        # ቆልፉን መፍታት (Unlocking on Success)
+        # ቆልፉን መፍታት
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}
         lock_config.save()
 
         return f"✅ EthAfri Evolved: {data.get('task_name')} completed successfully."
 
     except Exception as e:
-        # ቆልፉን መፍታት (Unlocking on Exception)
+        # ቆልፉን መፍታት
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}
         lock_config.save()
         return f"⚠️ Error: {str(e)}"
