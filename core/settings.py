@@ -102,7 +102,10 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # 7. AI Keys
-GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
-GROQ_API_KEY = env('GROQ_API_KEY', default='')
+# ከታች የነበረውን GEMINI_API_KEY እና GROQ_API_KEY አጥፍተህ በዚህ ተካው (በቀጥታ ከሲስተሙ ያነባል)
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
+MISTRAL_API_KEY = os.environ.get('MISTRAL_API_KEY', '')
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

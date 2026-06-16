@@ -7,58 +7,95 @@ from django.utils.text import slugify
 from django.conf import settings
 from .models import MarketTrend, Category, UserSearch, Product, ProductTranslation, SiteConfig, AISystemTask
 from django.contrib.auth.models import User
+from django.utils import timezone
 
-# የእርስዎ ኤፒአይ የሚቀበለው ብቸኛው የስሪት ስም
-MODEL_NAME = 'gemini-2.5-flash'
+MODEL_NAME = 'gemini-2.5-flash' 
 
 # ---------------------------------------------------------
-# 1. ባለ 4 ሰንሰለት AI ሞተሮች (Failover Chain)
+# 1. የ API Cooldown (እረፍት) እና የ Lock አያያዝ
+# ---------------------------------------------------------
+
+def is_api_on_cooldown(provider_name):
+    """ዳታቤዝን በመፈተሽ ኤፒአይው በእረፍት ላይ መሆኑን ያረጋግጣል"""
+    config = SiteConfig.objects.filter(key=f"COOLDOWN_{provider_name}").first()
+    if config:
+        cooldown_until_str = config.value.get('until', '')
+        if cooldown_until_str:
+            cooldown_until = datetime.datetime.fromisoformat(cooldown_until_str)
+            if timezone.now() < timezone.make_aware(cooldown_until):
+                return True # በእረፍት ላይ ነው (ይዘለላል)
+    return False
+
+def set_api_cooldown(provider_name, hours=24):
+    """ኤፒአይው ሲከሽፍ ለተወሰነ ሰዓት እረፍት እንዲሰጠው ይመዘግባል"""
+    until_time = timezone.now() + datetime.timedelta(hours=hours)
+    SiteConfig.objects.update_or_create(
+        key=f"COOLDOWN_{provider_name}",
+        defaults={'value': {'until': until_time.isoformat()}}
+    )
+
+# ---------------------------------------------------------
+# 2. ባለ 4 ሰንሰለት AI ሞተሮች (ከ Cooldown እና Lock ጋር)
 # ---------------------------------------------------------
 
 def ask_ai_failover(prompt):
-    """ጀሚኒ 2.5 -> Groq -> Mistral (Direct Call) -> OpenRouter"""
-    
+    """
+    ኤፒአይዎችን በ Cooldown ቼክ በየተራ መጥራት
+    """
     # 1. Google Gemini 2.5 Flash
-    try:
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel(MODEL_NAME) 
-            response = model.generate_content(prompt)
-            if response and response.text: 
-                return response.text
-    except Exception as e: 
-        print(f"Gemini 2.5 Fail: {e}")
+    if not is_api_on_cooldown("GEMINI"):
+        try:
+            if settings.GEMINI_API_KEY:
+                genai.configure(api_key=settings.GEMINI_API_KEY)
+                model = genai.GenerativeModel(MODEL_NAME)
+                response = model.generate_content(prompt)
+                if response and response.text: 
+                    return response.text
+        except Exception as e: 
+            print(f"Gemini 2.5 Fail: {e}")
+            # የቀን ኮታ ካለቀ (Quota/429) ለ 24 ሰዓት እረፍት ይሰጠዋል
+            if "429" in str(e) or "quota" in str(e).lower():
+                set_api_cooldown("GEMINI", hours=24)
+            else:
+                set_api_cooldown("GEMINI", hours=1) # ለጊዜያዊ ስህተት 1 ሰዓት
 
     # 2. Groq (Llama 3.3)
-    try:
-        if settings.GROQ_API_KEY:
-            client = Groq(api_key=settings.GROQ_API_KEY)
-            resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return resp.choices[0].message.content
-    except Exception as e: 
-        print(f"Groq Fail: {e}")
+    if not is_api_on_cooldown("GROQ"):
+        try:
+            if settings.GROQ_API_KEY:
+                client = Groq(api_key=settings.GROQ_API_KEY)
+                resp = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                if resp.choices[0].message.content:
+                    return resp.choices[0].message.content
+        except Exception as e: 
+            print(f"Groq Fail: {e}")
+            set_api_cooldown("GROQ", hours=1)
 
-    # 3. Mistral AI (Direct API Call)
-    try:
-        MISTRAL_KEY = getattr(settings, 'MISTRAL_API_KEY', None)
-        if MISTRAL_KEY:
-            resp = requests.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {MISTRAL_KEY}"},
-                json={
-                    "model": "mistral-small-latest",
-                    "messages": [{"role": "user", "content": prompt}]
-                },
-                timeout=10
-            )
-            return resp.json()['choices'][0]['message']['content']
-    except Exception as e: 
-        print(f"Mistral API Fail: {e}")
+    # 3. Mistral AI (Direct REST Call)
+    if not is_api_on_cooldown("MISTRAL"):
+        try:
+            MISTRAL_KEY = getattr(settings, 'MISTRAL_API_KEY', None)
+            if MISTRAL_KEY:
+                resp = requests.post(
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {MISTRAL_KEY}"},
+                    json={
+                        "model": "mistral-small-latest",
+                        "messages": [{"role": "user", "content": prompt}]
+                    },
+                    timeout=10
+                )
+                if resp.status_code == 200:
+                    return resp.json()['choices'][0]['message']['content']
+                elif resp.status_code == 429:
+                    set_api_cooldown("MISTRAL", hours=12)
+        except Exception as e: 
+            print(f"Mistral API Fail: {e}")
 
-    # 4. OpenRouter (Universal Backup)
+    # 4. OpenRouter (The Ultimate Backup)
     try:
         OPENROUTER_KEY = getattr(settings, 'OPENROUTER_API_KEY', None)
         if OPENROUTER_KEY:
@@ -66,90 +103,103 @@ def ask_ai_failover(prompt):
                 url="https://openrouter.ai/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {OPENROUTER_KEY}"},
                 json={
-                    "model": "google/gemini-2.0-flash-001:free",
+                    "model": "google/gemini-2.5-flash",
                     "messages": [{"role": "user", "content": prompt}]
                 },
                 timeout=10
             )
-            return resp.json()['choices'][0]['message']['content']
+            if resp.status_code == 200:
+                return resp.json()['choices'][0]['message']['content']
     except Exception as e: 
         print(f"OpenRouter Fail: {e}")
 
     return None
 
 # ---------------------------------------------------------
-# 2. የዕድገት ሞተር (The Brain)
+# 3. የዕድገት ሞተር (The Brain)
 # ---------------------------------------------------------
 
 def run_daily_market_analysis():
-    """
-    EthAfri CEO: በየሰዓቱ በየተራ AIዎችን በመጥራት ዌብሳይቱን የሚያሳድግ
-    """
     now = datetime.datetime.now()
     admin_user = User.objects.filter(is_superuser=True).first()
     if not admin_user: 
         return "❌ አድሚን አልተገኘም።"
 
-    prompt = f"""
-    አንተ የ EthAfri Smart Marketplace CEO ነህ። ዛሬ {now} ነው።
-    ተግባርህ፦
-    1. ቅድሚያ የሚሰጠውን ስራ ወስን (Design, Market Study, or Language Expansion)።
-    2. የዲዛይን ለውጥ ካለ (Logo text, Banner, Theme color) አዲስ JSON ዳታ ስጠኝ።
-    3. አንድ ምርት መርጠህ በ 7 ቋንቋዎች (AM, EN, OM, AR, SO, TI, FR) መግለጫ ጻፍ።
-    4. ለምርቱ የሚሆን 3 የእንግሊዝኛ ፎቶ Keywords (ለምሳሌ፦ 'red toyota car') ስጠኝ።
+    # --- ሀ. Concurrency Lock (የስራ መደራረብ መከላከያ) ---
+    lock_config, _ = SiteConfig.objects.get_or_create(
+        key="EVOLUTION_LOCK",
+        defaults={'value': {'status': 'idle', 'since': now.isoformat()}}
+    )
+    
+    if lock_config.value.get('status') == 'running':
+        # የመጨረሻው ስራ የጀመረበትን ሰዓት ማረጋገጥ (ከ 10 ደቂቃ በላይ ከቆየ ግን ቆልፉን ሰብሮ ይገባል - ለደህንነት)
+        since_time = datetime.datetime.fromisoformat(lock_config.value.get('since'))
+        if (now - since_time).seconds < 600:
+            return "⚠️ Skip: የቀድሞው የ AI ዑደት ገና አልተጠናቀቀም (መደራረብ ተከልክሏል)።"
 
-    መልስህን በዚህ JSON ብቻ አቅርብ (መግቢያ ወሬ አትጨምር)፦
-    {{
-      "task_name": "የተግባሩ ስም",
-      "priority_reason": "ዝርዝር ማብራሪያ",
-      "ui": {{
-          "banner_title": "ባነር", "banner_sub": "ንዑስ ጽሁፍ", "color": "#1a2a6c", "logo": "EthAfri"
-      }},
-      "item": {{
-          "cat": "ምድብ", "title": "ርዕስ", "price": 100, "img_key": "keywords",
-          "desc": {{"am": "...", "en": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."}}
-      }}
-    }}
-    """
-
-    ai_response = ask_ai_failover(prompt)
-    if not ai_response:
-        return "❌ ሁሉም AI ሞተሮች (Gemini 2.5, Groq, Mistral, OpenRouter) እምቢ አሉ።"
+    # ቆልፉን መቆለፍ (Locking)
+    lock_config.value = {'status': 'running', 'since': now.isoformat()}
+    lock_config.save()
 
     try:
-        # JSONን ከ AI መልስ ውስጥ ለይቶ ማውጣት
+        prompt = f"""
+        አንተ የ EthAfri Smart Marketplace CEO ነህ። ዛሬ {now} ነው።
+        ተግባርህ፦
+        1. በኢትዮጵያ አሁን በጣም ተፈላጊ የሆኑ 3 አዳዲስ የገበያ ዘርፎችን (Categories) ለይ።
+        2. ለእያንዳንዱ ዘርፍ 1 ናሙና እቃ ፍጠር።
+        3. የዌብሳይቱን UI (Logo text, Banner, Theme color) የሚቀይር አዲስ JSON አዘጋጅ።
+        4. ምርቱ ፎቶ እንዲኖረው 3 የእንግሊዝኛ ፎቶ Keywords (ለምሳሌ፦ 'red toyota car') ስጠኝ።
+        5. ለዌብሳይቱ እድገት የሚሆን 1 የስትራቴጂ ምክር በአማርኛ ስጠኝ።
+
+        መልስህን በዚህ የ JSON ቅርጽ ብቻ አቅርብ (መግቢያ ወሬ አትጨምር)፦
+        {{
+          "task_name": "የተግባሩ ስም",
+          "priority_reason": "ማብራሪያ",
+          "ui": {{
+              "banner_title": "ባነር ጽሁፍ", "banner_sub": "ንዑስ ጽሁፍ", "color": "#1a2a6c", "logo": "EthAfri"
+          }},
+          "item": {{
+              "cat": "ምድብ", "title": "ርዕስ", "price": 1000, "img_key": "keywords",
+              "desc": {{"am": "መግለጫ በአማርኛ", "en": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."}}
+          }}
+        }}
+        """
+
+        ai_response = ask_ai_failover(prompt)
+        if not ai_response:
+            # ቆልፉን መፍታት (Unlocking on Failure)
+            lock_config.value = {'status': 'idle', 'since': now.isoformat()}
+            lock_config.save()
+            return "❌ ሁሉም AI ሞተሮች እምቢ አሉ።"
+
         match = re.search(r'\{.*\}', ai_response, re.DOTALL)
         data = json.loads(match.group(0))
 
-        # --- ሀ. ዲዛይን ማዘመን ---
+        # --- 1. ዲዛይን ማዘመን (Site Config) ---
         ui = data.get('ui', {})
         SiteConfig.objects.update_or_create(
             key="DYNAMIC_UI",
             defaults={'value': {
-                'banner_title': ui.get('banner_title'),
-                'banner_sub': ui.get('banner_sub'),
-                'theme_color': ui.get('color'),
-                'logo_text': ui.get('logo')
+                'banner_title': ui.get('banner_title', 'እንኳን ደህና መጡ'),
+                'banner_sub': ui.get('banner_sub', 'በ AI የሚመራው ግዙፍ የአፍሪካ ገበያ'),
+                'theme_color': ui.get('color', '#1a2a6c'),
+                'logo_text': ui.get('logo', 'EthAfri')
             }}
         )
 
-        # --- ለ. ምርት እና ፎቶ ማግኘት ---
+        # --- 2. ምርት እና ፎቶ ማስተካከል ---
         it = data.get('item', {})
-        cat, _ = Category.objects.get_or_create(name=it.get('cat', 'General'))
+        cat_name = it.get('cat', 'General').strip()
+        cat, _ = Category.objects.get_or_create(name=cat_name)
         
-        # ፎቶ ከ loremflickr (ፈጣን እና አስተማማኝ)
+        # ፎቶ ከ loremflickr (ፈጣን እና እጅግ አስተማማኝ)
         k = it.get('img_key', 'shopping').replace(" ", ",")
         image_url = f"https://loremflickr.com/800/600/{k}"
 
-        # ምርቱን መፍጠር
         product = Product.objects.create(
-            seller=admin_user, 
-            category=cat, 
-            title=it.get('title'),
-            description=it.get('desc', {}).get('am', 'AI Item'),
-            price=it.get('price', 0), 
-            image_url=image_url, 
-            is_active=True
+            seller=admin_user, category=cat, title=it.get('title'),
+            description=it.get('desc', {}).get('am', 'በ AI የተጠቆመ'),
+            price=it.get('price', 0), image_url=image_url, is_active=True
         )
 
         # በ 7 ቋንቋዎች መመዝገብ
@@ -161,14 +211,21 @@ def run_daily_market_analysis():
             fr=trans.get('fr', '')
         )
 
-        # --- ሐ. ሪፖርት መመዝገብ (ባዶ እንዳይሆን) ---
+        # --- 3. ዝርዝር ተግባር መመዝገብ ---
         AISystemTask.objects.create(
             task_name=data.get('task_name', 'EthAfri Update'),
-            priority_reason=data.get('priority_reason', 'Normal growth'),
+            priority_reason=f"ውሳኔ፦ {data.get('priority_reason')}\n\nUI Config: {json.dumps(ui, indent=2)}",
             status='Completed'
         )
 
-        return f"✅ EthAfri Evolved: {data.get('task_name')}."
+        # ቆልፉን መፍታት (Unlocking on Success)
+        lock_config.value = {'status': 'idle', 'since': now.isoformat()}
+        lock_config.save()
+
+        return f"✅ EthAfri Evolved: {data.get('task_name')} completed successfully."
 
     except Exception as e:
-        return f"⚠️ Error: {str(e)} | Raw: {ai_response[:100]}"
+        # ቆልፉን መፍታት (Unlocking on Exception)
+        lock_config.value = {'status': 'idle', 'since': now.isoformat()}
+        lock_config.save()
+        return f"⚠️ Error: {str(e)}"
