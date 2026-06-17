@@ -6,17 +6,20 @@ from django.http import HttpResponse, Http404
 from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib.auth.models import User
-from django.utils.translation import get_language
-from .models import Product, Category, MarketTrend, UserSearch, SiteConfig, ProductTranslation, OwnerDirective, AISystemTask
+from django.utils.translation import get_language, gettext_lazy as _
+import uuid
+
+from .models import (
+    Product, Category, MarketTrend, UserSearch, SiteConfig, 
+    ProductTranslation, OwnerDirective, AISystemTask, TranslationQueue
+)
 from .ai_utils import analyze_product_smartly
 from .growth_agent import run_daily_market_analysis
 from .self_coder import self_heal_failed_build 
-# 📌 🛠️ አዲሱን የዲዛይን፣ የኮድ እና የዳታቤዝ ሐኪም ማገናኘት
 from .self_doctor import heal_any_system_error, discover_and_heal_ui_design
 
 # 1. የ AI ዲዛይን ቅንብርን ለሁሉም ገጾች የሚያቀርብ (Context Processor)
 def theme_context(request):
-    """AIው የወሰነውን የዌብሳይት ዲዛይን ዳታ (ቀለም፣ ባነር ወዘተ) ለሁሉም ገጾች ያዳርሳል።"""
     config = SiteConfig.objects.filter(key="DYNAMIC_UI").first()
     return {'theme': config.value if config else {}}
 
@@ -34,7 +37,6 @@ def home(request):
         else:
             products = Product.objects.filter(is_active=True).order_by('-created_at')
     except Exception as db_err:
-        # 📌 🛠️ በዋናው ገጽ ላይ የዳታቤዝ ስህተት ቢፈጠር ሐኪሙ ራሱ በጀርባ ያክመዋል
         heal_any_system_error('DATABASE', str(db_err), f"Home View Filter Query: {query or category_id}")
         products = Product.objects.none()
 
@@ -53,15 +55,14 @@ def product_detail(request, pk):
     try:
         product = Product.objects.get(pk=pk)
     except Product.DoesNotExist:
-        raise Http404("እቃው አልተገኘም")
+        raise Http404(_("Item not found"))
     return render(request, 'marketplace/product_detail.html', {'product': product})
 
-# 4. እቃ መለጠፊያ (Anonymous Posting + 5 limit)
+# 4. እቃ መለጠፊያ (Anonymous Posting + 5 limit + ⚠️ Template Crash Protection)
 def post_product(request):
     """ተጠቃሚዎች እስከ 5 እቃ ያለ ሎግኢን መለጠፍ ይችላሉ። ከ 5 በላይ ሲሆን ግን እንዲመዘገቡ ይጠየቃሉ።"""
     post_count = request.session.get('post_count', 0)
     
-    # 📌 🛠️ የደኅንነት ማጠናከሪያ፦ ተጠቃሚው ሳይመዘገብ 5 እቃ ከለጠፈ በ GET ጭምር ገጹን እንዳያገኘው መከልከል
     if not request.user.is_authenticated and post_count >= 5:
         return redirect('signup')
 
@@ -73,36 +74,57 @@ def post_product(request):
         image = request.FILES.get('image')
 
         try:
-            if request.user.is_authenticated:
-                seller = request.user
-            else:
-                seller, _ = User.objects.get_or_create(
-                    username='guest_user', 
-                    defaults={'email': 'guest@ethafri.com'}
-                )
+            # ዩኒክ እንግዳ አካውንት መፍጠር
+            seller = request.user if request.user.is_authenticated else User.objects.create_user(
+                username=f'guest_{uuid.uuid4().hex[:8]}', 
+                password=uuid.uuid4().hex
+            )
 
             product = Product.objects.create(
                 seller=seller, title=title, description=description,
-                price=price if price else 0, location=location, image=image
+                price=price or 0, location=location, image=image
             )
 
-            # AI ትንተና (የእቃ ምድብ መለያ)
+            # AI ትንተና (ለትርጉም)
             ai_data = analyze_product_smartly(title, description, price)
+            
             if ai_data:
-                cat_name = ai_data.get('category', 'General')
-                cat, _ = Category.objects.get_or_create(name=cat_name)
+                trans = ai_data.get('translations', {})
+                ProductTranslation.objects.create(
+                    product=product,
+                    en=trans.get('en', f"{title} ||| {description}"),
+                    am=trans.get('am', ''), om=trans.get('om', ''),
+                    ar=trans.get('ar', ''), so=trans.get('so', ''),
+                    ti=trans.get('ti', ''), fr=trans.get('fr', '')
+                )
+                cat, _ = Category.objects.get_or_create(name=ai_data.get('category', 'General'))
                 product.category = cat
                 product.ai_tags = ai_data.get('tags', [])
                 product.save()
+            else:
+                # ⚠️ ራስ-ጥበቃ (Template Crash Protection)፦
+                # የጀሚኒ ኮታ ካለቀ ባዶ የትርጉም ሰንጠረዥ በ fallback እንፈጥራለን። 
+                # ይህ ካልተደረገ ዌብሳይቱ ላይ 'translations' የሚለው OneToOne ግንኙነት ባዶ ስለሚሆን ቴምፕሌቱ ይሰነጠቃል (500 Error)።
+                combined_fallback = f"{title} ||| {description}"
+                ProductTranslation.objects.create(
+                    product=product,
+                    en=combined_fallback,
+                    am=combined_fallback, # ጀሚኒ እስኪከፈት በእንግሊዝኛ ያልፋል
+                    om='', ar='', so='', ti='', fr=''
+                )
+                
+                # ⚠️ የጀሚኒ ኮታ ካለቀ በወረፋ (Queue) መመዝገብ
+                TranslationQueue.objects.create(
+                    product=product, 
+                    target_languages=['am', 'om', 'ar', 'so', 'ti', 'fr']
+                )
 
-            # በሴሽን ውስጥ የለጠፉትን ቁጥር መጨመር
             request.session['post_count'] = post_count + 1
             return redirect('post_success')
             
         except Exception as exec_err:
-            # 📌 🛠️ ምርት በሚለጠፍበት ወቅት የኮድ ወይም የሎጂክ ክራሽ ቢፈጠር ራሱን የማከም ዑደት
-            heal_any_system_error('CODE_EXECUTION', str(exec_err), f"Post Product Crash: Title={title}")
-            return HttpResponse("⚠️ System experienced a glitch. Auto-healing triggered, please retry.", status=500)
+            heal_any_system_error('CODE_EXECUTION', str(exec_err), f"Post Product Crash")
+            return HttpResponse(_("System busy, retry later."), status=500)
     
     return render(request, 'marketplace/post_product.html', {'post_count': post_count})
 
@@ -112,18 +134,13 @@ def post_success(request):
 
 # 6. ራስ-ሰር የዕድገት መቀስቀሻ (Core Evolution Engine)
 def trigger_evolution(request):
-    """ይህ URL በየ 5 ደቂቃው ሲቀሰቀስ የገበያ ጥናት፣ የኮድ ጥገና እና የዲዛይን አሰሳ በአንድ ላይ ይከናወናል።"""
     secret_key = "evolve-now-secret-123"
     
     if request.user.is_staff or secret_key in request.path:
-        # ሀ. የገበያ ጥናት እና የዲዛይን ለውጥ ሞተር
         result = run_daily_market_analysis()
-        
-        # ለ. ራስ-ኮድ ጥገና ሞተር
         heal_result = self_heal_failed_build()
         print(f"Self-Coder Status: {heal_result}")
         
-        # 📌 🛠️ ሐ. የዲዛይን አሰሳ እና የ UI ውበት ዝግመተ ለውጥ (ደጋግሞ እንዳይሰራ ትውስታን ይጠቀማል)
         config = SiteConfig.objects.filter(key="DYNAMIC_UI").first()
         current_color = config.value.get('theme_color', '#1a2a6c') if config else '#1a2a6c'
         discover_and_heal_ui_design(current_color, trend_context="Modern African E-Commerce Trend")
@@ -142,16 +159,16 @@ def trigger_evolution(request):
         else:
             return HttpResponse(
                 f"<div style='padding:30px; font-family:sans-serif; color:red;'>"
-                f"<h2>❌ የ AI ዕድገት አልተሳካም!</h2>"
-                f"<p><b>ምክንያት፦</b> {result}</p>"
-                f"<p><b>የኮድ ጥገና ሁኔታ፦</b> {heal_result}</p>"
-                f"<p><a href='/'>ወደ ዋና ገጽ ተመለስ</a></p></div>", 
+                f"<h2>❌ AI Evolution Failed!</h2>"
+                f"<p><b>Reason:</b> {result}</p>"
+                f"<p><b>Self-Coder Status:</b> {heal_result}</p>"
+                f"<p><a href='/'>Back to Home</a></p></div>", 
                 status=400
             )
             
         return HttpResponse(f"Success: {result} | Coder: {heal_result}")
     else:
-        raise Http404("ገጹ አልተገኘም")
+        raise Http404(_("Page not found"))
 
 # 7. የዕድገት ዴሽቦርድ
 def admin_growth_dashboard(request):
@@ -174,7 +191,7 @@ def owner_directive_view(request):
         if instruction:
             OwnerDirective.objects.all().update(is_active=False)
             OwnerDirective.objects.create(instruction=instruction, is_active=True)
-            return HttpResponse("<script>alert('መመሪያዎ ለ AI ደርሷል!'); window.location.href='/';</script>")
+            return HttpResponse("<script>alert('Directive sent to AI successfully!'); window.location.href='/';</script>")
     return render(request, 'marketplace/owner_directive.html')
 
 # Auth views (Signup, Login, Logout)

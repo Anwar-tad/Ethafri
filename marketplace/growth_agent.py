@@ -1,7 +1,12 @@
 # EthAfri/marketplace/growth_agent.py
+
 import google.generativeai as genai
 from groq import Groq
-import json, datetime, re, requests
+import json
+import datetime
+import re
+import requests
+import os
 from bs4 import BeautifulSoup
 from django.utils.text import slugify
 from django.conf import settings
@@ -10,12 +15,29 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.files.base import ContentFile
 
-# Gemini 2.5 Flash
 MODEL_NAME = 'gemini-2.5-flash' 
 
 # ---------------------------------------------------------
-# 1. የ API Cooldown (እረፍት) እና የ Lock አያያዝ
+# 1. ባለብዙ ኤፒአይ ኪይ ሎድ ባላንሰር (Load Balancing & Cooldown)
 # ---------------------------------------------------------
+
+def get_gemini_keys_by_pool(pool_type):
+    """
+    ⚠️ 4ቱን ቁልፎች ለየብቻ ለሁለት የሥራ ክፍሎች ይመድባል፦
+    - translation: ጀሚኒ 1 እና ጀሚኒ 2
+    - coding: ጀሚኒ 3 እና ጀሚኒ 4
+    """
+    if pool_type == "translation":
+        keys = [
+            os.environ.get('GEMINI_API_KEY', ''),
+            os.environ.get('GEMINI_API_KEY_2', ''),
+        ]
+    else:  # coding / CEO tasks
+        keys = [
+            os.environ.get('GEMINI_API_KEY_3', ''),
+            os.environ.get('GEMINI_API_KEY_4', ''),
+        ]
+    return [k for k in keys if k]
 
 def is_api_on_cooldown(provider_name):
     config = SiteConfig.objects.filter(key=f"COOLDOWN_{provider_name}").first()
@@ -36,28 +58,47 @@ def set_api_cooldown(provider_name, hours=24):
         defaults={'value': {'until': until_time.isoformat()}}
     )
 
-# ---------------------------------------------------------
-# 2. ባለ 4 ሰንሰለት AI ሞተሮች (Failover Chain)
-# ---------------------------------------------------------
+def ask_gemini_with_rotation(prompt, pool_type="translation"):
+    """የተመደበውን የቁልፍ ክፍል (Pool) በመጠቀም በየተራ እየቀያየረ ይጠይቃል"""
+    keys = get_gemini_keys_by_pool(pool_type)
+    if not keys:
+        return None
 
-def ask_ethafri_ceo(prompt):
-    # 1. Google Gemini 2.5 Flash
-    if not is_api_on_cooldown("GEMINI"):
+    config, _ = SiteConfig.objects.get_or_create(
+        key=f"GEMINI_KEY_INDEX_{pool_type.upper()}",
+        defaults={'value': {'index': 0}}
+    )
+    current_index = config.value.get('index', 0)
+
+    for attempt in range(len(keys)):
+        idx = (current_index + attempt) % len(keys)
+        active_key = keys[idx]
+
+        if is_api_on_cooldown(f"GEMINI_{pool_type.upper()}_KEY_{idx}"):
+            continue
+
         try:
-            if settings.GEMINI_API_KEY:
-                genai.configure(api_key=settings.GEMINI_API_KEY)
-                model = genai.GenerativeModel(MODEL_NAME)
-                response = model.generate_content(prompt)
-                if response and response.text: 
-                    return response.text
-        except Exception as e: 
-            print(f"Gemini 2.5 Fail: {e}")
+            genai.configure(api_key=active_key)
+            model = genai.GenerativeModel(MODEL_NAME)
+            response = model.generate_content(
+                prompt,
+                generation_config={"response_mime_type": "application/json"}
+            )
+            if response and response.text:
+                config.value = {'index': idx}
+                config.save()
+                return response.text
+        except Exception as e:
+            print(f"Gemini {pool_type} Key {idx} failed: {e}")
             if "429" in str(e) or "quota" in str(e).lower():
-                set_api_cooldown("GEMINI", hours=24)
+                set_api_cooldown(f"GEMINI_{pool_type.upper()}_KEY_{idx}", hours=24)
             else:
-                set_api_cooldown("GEMINI", hours=1)
+                set_api_cooldown(f"GEMINI_{pool_type.upper()}_KEY_{idx}", hours=1)
 
-    # 2. Groq (Llama 3.3)
+    return None
+
+def ask_groq_fast(prompt):
+    """Groq Llama 3.3 - ለዲዛይንና ለአሰሳ ፈጣን ምላሽ ሰጪ"""
     if not is_api_on_cooldown("GROQ"):
         try:
             if settings.GROQ_API_KEY:
@@ -65,54 +106,20 @@ def ask_ethafri_ceo(prompt):
                 resp = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"}
                 )
                 if resp.choices[0].message.content:
                     return resp.choices[0].message.content
-        except Exception as e: 
+        except Exception as e:
             print(f"Groq Fail: {e}")
             set_api_cooldown("GROQ", hours=1)
-
-    # 3. Mistral AI
-    if not is_api_on_cooldown("MISTRAL"):
-        try:
-            MISTRAL_KEY = getattr(settings, 'MISTRAL_API_KEY', None)
-            if MISTRAL_KEY:
-                resp = requests.post(
-                    "https://api.mistral.ai/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {MISTRAL_KEY}"},
-                    json={
-                        "model": "mistral-small-latest",
-                        "messages": [{"role": "user", "content": prompt}]
-                    },
-                    timeout=10
-                )
-                if resp.status_code == 200:
-                    return resp.json()['choices'][0]['message']['content']
-        except Exception as e: 
-            print(f"Mistral API Fail: {e}")
-
-    # 4. OpenRouter
-    try:
-        OPENROUTER_KEY = getattr(settings, 'OPENROUTER_API_KEY', None)
-        if OPENROUTER_KEY:
-            resp = requests.post(
-                url="https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {OPENROUTER_KEY}"},
-                json={
-                    "model": "google/gemini-2.5-flash",
-                    "messages": [{"role": "user", "content": prompt}]
-                },
-                timeout=10
-            )
-            if resp.status_code == 200:
-                return resp.json()['choices'][0]['message']['content']
-    except Exception as e: 
-        print(f"OpenRouter Fail: {e}")
-
     return None
 
+def ask_ethafri_ceo(prompt):
+    return ask_gemini_with_rotation(prompt, pool_type="coding")
+
 # ---------------------------------------------------------
-# 3. Telegram Scraper
+# 2. እውነተኛ ምርቶችን መቃኛ (Telegram Scraper)
 # ---------------------------------------------------------
 
 def scrape_real_ethiopian_products():
@@ -150,13 +157,14 @@ def scrape_real_ethiopian_products():
     return items
 
 # ---------------------------------------------------------
-# 4. ዋናው የዕድገት ሞተር (The Brain)
+# 3. ዋናው የዕድገት ሞተር (The Brain)
 # ---------------------------------------------------------
 
 def run_daily_market_analysis():
-    now = datetime.datetime.now()
+    now = timezone.now()
     admin_user = User.objects.filter(is_superuser=True).first()
-    if not admin_user: return "❌ Admin user not found."
+    if not admin_user: 
+        return "❌ Admin user not found."
 
     # --- Concurrency Lock ---
     lock_config, _ = SiteConfig.objects.get_or_create(
@@ -164,7 +172,9 @@ def run_daily_market_analysis():
         defaults={'value': {'status': 'idle', 'since': now.isoformat()}}
     )
     if lock_config.value.get('status') == 'running':
-        since_time = datetime.datetime.fromisoformat(lock_config.value.get('since'))
+        since_time = timezone.datetime.fromisoformat(lock_config.value.get('since'))
+        if timezone.is_naive(since_time):
+            since_time = timezone.make_aware(since_time)
         if (now - since_time).total_seconds() < 300:
             return "⚠️ Skip: Concurrency Lock active."
 
@@ -191,9 +201,8 @@ def run_daily_market_analysis():
     Your Tasks:
     1. Select exactly ONE feature from 'Unbuilt Features' to build.
     2. Extract 1 real product from the 'Real Scraped Data'. If empty, research a high-demand product.
-    3. Generate localized descriptions for this product in 7 languages: Amharic (am), English (en), Oromo (om), Arabic (ar), Somali (so), Tigrinya (ti), French (fr).
-    4. Provide exactly 3 English keywords for photo matching.
-    5. Draft an automated "Outreach/Invitation Message" in Amharic to be sent to the seller of this product.
+    3. Provide exactly 3 English keywords for photo matching.
+    4. Draft an automated "Outreach/Invitation Message" in Amharic to be sent to the seller of this product.
 
     Return your response strictly as a raw JSON object (no markdown):
     {{
@@ -211,23 +220,19 @@ def run_daily_market_analysis():
           "cat": "Category in Amharic", 
           "title_en": "Product title in ENGLISH",
           "price": 1000, 
-          "img_key": "strictly english keywords for photo",
-          "translations": {{
-              "am": "Amharic Title ||| Amharic Description",
-              "en": "English Title ||| English Description",
-              "om": "Oromo Title ||| Oromo Description",
-              "ar": "Arabic Title ||| Arabic Description",
-              "so": "Somali Title ||| Somali Description",
-              "ti": "Tigrinya Title ||| Tigrinya Description",
-              "fr": "French Title ||| French Description"
-          }}
+          "img_key": "strictly english keywords for photo"
       }},
       "outreach_invite": "ግብዣ ማስታወቂያ ለአቅራቢው በአማርኛ",
       "seo_keywords": ["keyword1", "keyword2"]
     }}
     """
 
-    ai_response = ask_ethafri_ceo(prompt)
+    # --- የዲዛይንና አሰሳ ስራዎችን በ Groq ይሞክራል፣ ከከሸፈ በ ኮዲንግ ጀሚኒ ፑል ያነሳል ---
+    ai_response = ask_groq_fast(prompt)
+    if not ai_response:
+        print("🔄 Groq አልሰራም፣ ወደ ጀሚኒ ኮዲንግ ፑል በመቀየር ላይ...")
+        ai_response = ask_gemini_with_rotation(prompt, pool_type="coding")
+
     if not ai_response:
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}
         lock_config.save()
@@ -254,9 +259,7 @@ def run_daily_market_analysis():
         )
 
         # --- 2. አገልግሎት መገንባት ---
-        # 📌 🛠️ የቁልፍ ማስተካከያ (ከፕሮምፕቱ ጋር እንዲናበብ ከ 'feature_to_build' ወደ 'task_name' ተቀይሯል)
-        task_name_raw = data.get('task_name', 'Built: General Growth')
-        feature = task_name_raw.replace("Built:", "").strip()
+        feature = data.get('task_name', 'Built: General Growth').replace("Built:", "").strip()
         SiteConfig.objects.update_or_create(
             key=f"FEATURE_{slugify(feature)}",
             defaults={'value': {'enabled': True}}
@@ -267,11 +270,8 @@ def run_daily_market_analysis():
         cat_name = it.get('cat', 'General').strip()
         cat, _ = Category.objects.get_or_create(name=cat_name)
         
-        # 📌 🛠️ የቁልፍ ማስተካከያ (በፕሮምፕቱ ውስጥ 'desc' የነበረው በኮዱ ጥያቄ መሠረት ወደ 'translations' ጸንቷል)
-        trans = it.get('translations', {})
-        en_payload = trans.get('en', 'Product ||| Description')
-        en_title = en_payload.split("|||")[0].strip() if "|||" in en_payload else it.get('title_en', 'New Product')
-        en_desc = en_payload.split("|||")[1].strip() if "|||" in en_payload else 'No English description.'
+        en_title = it.get('title_en', 'New Product')
+        en_desc = f"High quality {en_title} available now."
 
         image_url = f"https://loremflickr.com/800/600/{it.get('img_key', 'product').replace(' ', ',')}"
 
@@ -285,28 +285,64 @@ def run_daily_market_analysis():
             img_res = requests.get(image_url, timeout=10)
             if img_res.status_code == 200:
                 product.image.save(f"real_prod_{product.id}.jpg", ContentFile(img_res.content), save=True)
-        except: pass
+        except: 
+            pass
 
-        # በ 7 ቋንቋዎች መመዝገብ
+        # --- ⚠️ 4. የጀሚኒ 2.5 ፎርማት ትርጉም (በጄሚኒ የትርጉም ፑል - ጀሚኒ 1 እና 2 ብቻ) ---
+        translate_prompt = f"""
+        Translate this product title and description into 6 languages: Amharic (am), Oromo (om), Arabic (ar), Somali (so), Tigrinya (ti), French (fr).
+        Title: {en_title}
+        Description: {en_desc}
+
+        Format each language strictly as: "Translated Title ||| Translated Description" inside the JSON:
+        {{
+          "am": "Amharic Title ||| Amharic Description",
+          "om": "Oromo Title ||| Oromo Description",
+          "ar": "Arabic Title ||| Arabic Description",
+          "so": "Somali Title ||| Somali Description",
+          "ti": "Tigrinya Title ||| Tigrinya Description",
+          "fr": "French Title ||| French Description"
+        }}
+        """
+        
+        # ⚠️ የትርጉም ጀሚኒ ፑልን (1 እና 2) ብቻ ይጠይቃል
+        gemini_response = ask_gemini_with_rotation(translate_prompt, pool_type="translation")
+        
+        trans_data = {}
+        if gemini_response:
+            try:
+                g_start = gemini_response.find('{')
+                g_end = gemini_response.rfind('}') + 1
+                trans_data = json.loads(gemini_response[g_start:g_end])
+            except: 
+                pass
+
+        # የትዕግስት ዑደት (Smart Fallback - ጀሚኒ ፌል ቢያደርግም ዳታቤዙ ባዶ ሆኖ እንዳይቀረው መዝጋት)
+        combined_fallback = f"{en_title} ||| {en_desc}"
         ProductTranslation.objects.create(
             product=product,
-            am=trans.get('am', ''), en=trans.get('en', ''), om=trans.get('om', ''),
-            ar=trans.get('ar', ''), so=trans.get('so', ''), ti=trans.get('ti', ''),
-            fr=trans.get('fr', '')
+            en=combined_fallback,
+            am=trans_data.get('am', combined_fallback),
+            om=trans_data.get('om', combined_fallback),
+            ar=trans_data.get('ar', combined_fallback),
+            so=trans_data.get('so', combined_fallback),
+            ti=trans_data.get('ti', combined_fallback),
+            fr=trans_data.get('fr', combined_fallback)
         )
 
-        # --- 4. ዝርዝር ተግባር መመዝገብ ---
+        # 5. ዝርዝር ተግባር መመዝገብ
         log_reason = f"ውሳኔ፦ {data.get('priority_reason')}\n\nየአቅራቢዎች ግብዣ መልዕክት፦ {data.get('outreach_invite')}"
         AISystemTask.objects.create(
-            task_name=task_name_raw,
+            task_name=data.get('task_name', 'System Update'),
             priority_reason=f"{log_reason}\n\nUI Config: {json.dumps(ui, indent=2, ensure_ascii=False)}",
             status='Completed'
         )
 
+        # ቆልፉን መፍታት
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}
         lock_config.save()
 
-        return f"✅ EthAfri Evolved: {task_name_raw} completed successfully."
+        return f"✅ EthAfri Evolved: {data.get('task_name')} completed successfully."
 
     except Exception as e:
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}

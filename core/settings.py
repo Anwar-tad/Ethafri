@@ -118,7 +118,13 @@ CLOUDINARY_STORAGE = {
 }
 
 # 7. AI & Render Keys (በቀጥታ ከሲስተሙ ያነባል)
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+# 7. AI & Render Keys (ባለ 4ቱ የጀሚኒ ኪዮች ለትርጉም እና ለኮዲንግ)
+# እነዚህ ኪዮች በ Render/PythonAnywhere Environment Variables ውስጥ መግባት አለባቸው
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')     # Translation Pool 1
+GEMINI_API_KEY_2 = os.environ.get('GEMINI_API_KEY_2', '') # Translation Pool 2
+GEMINI_API_KEY_3 = os.environ.get('GEMINI_API_KEY_3', '') # Coding Pool 1
+GEMINI_API_KEY_4 = os.environ.get('GEMINI_API_KEY_4', '') # Coding Pool 2
+
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 MISTRAL_API_KEY = os.environ.get('MISTRAL_API_KEY', '')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
@@ -126,5 +132,6 @@ OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
 RENDER_SERVICE_ID = os.environ.get('RENDER_SERVICE_ID', '')
 RENDER_API_KEY = os.environ.get('RENDER_API_KEY', '')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
+
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

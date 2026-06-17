@@ -11,3 +11,4 @@ django-cloudinary-storage
 cloudinary
 Pillow
 groq
+polib
