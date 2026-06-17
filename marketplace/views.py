@@ -90,7 +90,7 @@ def post_product(request):
             )
 
             # ⚠️ እቃው ወዲያውኑ ይመዘገባል (ምድቡ ለጊዜው General ይሆናል)
-            cat, _ = Category.objects.get_or_create(name='General')
+            cat, created = Category.objects.get_or_create(name='General')
             product = Product.objects.create(
                 seller=seller, category=cat, title=title, description=description,
                 price=price if price else 0, location=location, image=image,
