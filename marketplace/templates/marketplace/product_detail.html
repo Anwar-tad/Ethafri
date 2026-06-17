@@ -1,46 +1,71 @@
-<!-- EthAfri/marketplace/templates/marketplace/product_detail.html -->
+{# EthAfri/marketplace/templates/marketplace/product_detail.html #}
 {% extends 'marketplace/base.html' %}
-{% block content %}
-<div class="row g-4 mb-5">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-            {% if product.image_url %}
-                <img src="{{ product.image_url }}" class="img-fluid w-100" style="max-height: 400px; object-fit: cover;" onerror="this.src='https://loremflickr.com/640/480/product'">
-            {% elif product.image %}
-                <img src="{{ product.image.url }}" class="img-fluid w-100" style="max-height: 400px; object-fit: cover;">
-            {% else %}
-                <div class="bg-light text-center py-5"><i class="fas fa-image fa-4x text-muted"></i></div>
-            {% endif %}
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
-            <span class="badge bg-light text-primary border mb-2 align-self-start">{{ product.category.name }}</span>
-            <h1 class="fw-bold text-dark h2 mb-2">{{ product.title }}</h1>
-            <p class="text-danger fw-bold fs-3 mb-3">{% if product.price > 0 %}{{ product.price|floatformat:2 }} ETB{% else %}ዋጋው ለድርድር{% endif %}</p>
-            <p class="text-muted small mb-4"><i class="fas fa-map-marker-alt"></i> {{ product.location }} | የተለጠፈበት ሰዓት፡ {{ product.created_at|date:"M d, Y" }}</p>
-            
-            <h6 class="fw-bold text-secondary">መግለጫ (Description)</h6>
-            <p class="text-secondary mb-4" style="white-space: pre-line;">{{ product.description }}</p>
+{% load i18n %}
 
-            <!-- በ 7 ቋንቋዎች የተተረጎመው መግለጫ -->
-            {% if product.translations %}
-            <div class="mt-4 pt-4 border-top">
-                <h6 class="fw-bold text-dark mb-3"><i class="fas fa-language text-warning"></i> በሌሎች ቋንቋዎች አንብብ (Translations)</h6>
-                <ul class="nav nav-tabs mb-3" id="langTabs" role="tablist">
-                    <li class="nav-item"><button class="nav-link active small" data-bs-toggle="tab" data-bs-target="#en">English</button></li>
-                    <li class="nav-item"><button class="nav-link small" data-bs-toggle="tab" data-bs-target="#om">Oromo</button></li>
-                    <li class="nav-item"><button class="nav-link small" data-bs-toggle="tab" data-bs-target="#ar">Arabic</button></li>
-                    <li class="nav-item"><button class="nav-link small" data-bs-toggle="tab" data-bs-target="#so">Somali</button></li>
-                </ul>
-                <div class="tab-content p-3 bg-light rounded-4">
-                    <div class="tab-pane fade show active small text-secondary" id="en">{{ product.translations.en|default:"Translation pending..." }}</div>
-                    <div class="tab-pane fade small text-secondary" id="om">{{ product.translations.om|default:"Translation pending..." }}</div>
-                    <div class="tab-pane fade small text-secondary" id="ar">{{ product.translations.ar|default:"Translation pending..." }}</div>
-                    <div class="tab-pane fade small text-secondary" id="so">{{ product.translations.so|default:"Translation pending..." }}</div>
-                </div>
+{% block content %}
+<div class="container py-4">
+    <a href="{% url 'home' %}" class="btn btn-light border rounded-pill px-4 mb-4 shadow-sm text-decoration-none text-dark small fw-bold">
+        <i class="fas fa-arrow-left me-2 text-primary"></i> {% translate "Back to Home" %}
+    </a>
+
+    <div class="row g-4 mb-5">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+                {% if product.image_url %}
+                    <img src="{{ product.image_url }}" class="img-fluid w-100" style="max-height: 400px; object-fit: cover;" onerror="this.src='https://loremflickr.com/640/480/product'">
+                {% elif product.image %}
+                    <img src="{{ product.image.url }}" class="img-fluid w-100" style="max-height: 400px; object-fit: cover;">
+                {% else %}
+                    <div class="bg-light text-center py-5"><i class="fas fa-image fa-4x text-muted"></i></div>
+                {% endif %}
             </div>
-            {% endif %}
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 p-4 h-100 bg-white">
+                <span class="badge bg-light text-primary border mb-2 align-self-start py-2 px-3 rounded-pill fw-bold">{{ product.category.name }}</span>
+                <h1 class="fw-bold text-dark h3 mb-2">{{ product.title }}</h1>
+                
+                <p class="text-danger fw-bold fs-3 mb-3">
+                    {% if product.price > 0 %}{{ product.price|floatformat:0 }} ETB{% else %}{% translate "Negotiable" %}{% endif %}
+                </p>
+                
+                <p class="text-muted small mb-4">
+                    <i class="fas fa-map-marker-alt text-danger"></i> {{ product.location }} | 
+                    <i class="fas fa-clock ms-2 text-secondary"></i> {% translate "Posted on" %}: {{ product.created_at|date:"M d, Y" }}
+                </p>
+                
+                <h6 class="fw-bold text-secondary border-bottom pb-2">{% translate "Product Description" %}</h6>
+                <p class="text-secondary mb-4 lh-base" style="white-space: pre-line;">{{ product.description }}</p>
+
+                {% if product.translations %}
+                <div class="mt-4 pt-4 border-top">
+                    <h6 class="fw-bold text-dark mb-3">
+                        <i class="fas fa-language text-warning me-2"></i>{% translate "Read in other languages" %}
+                    </h6>
+                    <ul class="nav nav-tabs mb-3 border-0 gap-1" id="langTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active small rounded-pill border-0 px-3 bg-light" id="en-tab" data-bs-toggle="tab" data-bs-target="#en" type="button" role="tab">English</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link small rounded-pill border-0 px-3 bg-light" id="om-tab" data-bs-toggle="tab" data-bs-target="#om" type="button" role="tab">Oromo</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link small rounded-pill border-0 px-3 bg-light" id="ar-tab" data-bs-toggle="tab" data-bs-target="#ar" type="button" role="tab">Arabic</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link small rounded-pill border-0 px-3 bg-light" id="so-tab" data-bs-toggle="tab" data-bs-target="#so" type="button" role="tab">Somali</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content p-3 bg-light rounded-4 border-0">
+                        <div class="tab-pane fade show active small text-secondary" id="en" role="tabpanel">{{ product.translations.en|default:"Translation pending..." }}</div>
+                        <div class="tab-pane fade small text-secondary" id="om" role="tabpanel">{{ product.translations.om|default:"Translation pending..." }}</div>
+                        <div class="tab-pane fade small text-secondary" id="ar" role="tabpanel">{{ product.translations.ar|default:"Translation pending..." }}</div>
+                        <div class="tab-pane fade small text-secondary" id="so" role="tabpanel">{{ product.translations.so|default:"Translation pending..." }}</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>

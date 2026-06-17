@@ -1,0 +1,125 @@
+/* EthAfri/static/css/global.css */
+
+/* የ AI ቀለሞችን እና የዲዛይን መሰረቶችን መቆጣጠሪያ */
+:root {
+    /* 📌 ነባሪ ቀለማት - በ base.html ላይ በ AI በኩል በቋሚነት override ይደረጋሉ */
+    --primary-color: #1a2a6c;
+    --accent-purple: #4e085e;
+    --light-bg: #f4f7f6;
+    --text-dark: #2d3436;
+    --border-color: #e2e8f0;
+}
+
+body {
+    background-color: var(--light-bg);
+    color: var(--text-dark);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding-bottom: 100px; /* ለሞባይል ቦተም ናቭ የተተወ ቦታ */
+    scroll-behavior: smooth;
+}
+
+/* Navbar ስታይል */
+.navbar {
+    background-color: var(--primary-color) !important;
+    transition: background-color 0.4s ease-in-out;
+}
+
+/* Dynamic Hero Banner */
+.hero-banner {
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-purple));
+    color: #ffffff;
+    padding: 50px 0;
+    border-radius: 0 0 40px 40px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: background 0.4s ease-in-out;
+}
+
+/* የጋራ የምርት ካርድ ዲዛይን (በሁሉም የምርት ገጾች ላይ በጋራ የሚያገለግል) */
+.product-card { 
+    transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.4s ease; 
+    border: none; 
+    border-radius: 24px;
+    background: #ffffff; 
+    overflow: hidden;
+}
+.product-card:hover { 
+    transform: translateY(-10px); 
+    box-shadow: 0 20px 40px rgba(0,0,0,0.12) !important; 
+}
+
+.img-container { 
+    height: 200px; 
+    overflow: hidden; 
+    position: relative; 
+    background-color: #e2e8f0;
+}
+.img-container img { 
+    width: 100%; 
+    height: 100%; 
+    object-fit: cover; 
+    transition: transform 0.5s ease;
+}
+.product-card:hover .img-container img {
+    transform: scale(1.08); /* ስውር የማሳያ አኒሜሽን */
+}
+
+/* የዋጋ መለያ ባጅ በካርዱ ላይ */
+.price-tag {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background-color: rgba(255, 255, 255, 0.95);
+    color: #d63031;
+    font-weight: 800;
+    padding: 5px 14px;
+    border-radius: 50px;
+    font-size: 13px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.category-badge { 
+    background-color: #ffffff; 
+    color: #333; 
+    border: 1px solid #eee; 
+    transition: 0.3s ease-in-out; 
+    cursor: pointer; 
+    font-weight: 600; 
+    font-size: 14px; 
+    display: inline-block; 
+    margin-right: 8px; 
+}
+.category-badge:hover, .category-badge.active { 
+    background-color: var(--primary-color) !important; 
+    color: white !important; 
+    transform: scale(1.05);
+}
+
+/* የጋራ የ AI አዝራር (Button) ስታይል */
+.btn-ai {
+    background-color: var(--primary-color) !important;
+    color: #ffffff !important;
+    border-radius: 50px !important;
+    transition: all 0.3s ease-in-out;
+}
+.btn-ai:hover {
+    background-color: var(--text-dark) !important;
+    opacity: 0.9;
+}
+
+/* ስማርት የሞባይል ቦተም ናቭ ዲዛይን */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #ffffff;
+    display: flex;
+    justify-content: space-around;
+    padding: 12px 0;
+    border-top: 2px solid var(--primary-color);
+    box-shadow: 0 -5px 25px rgba(0,0,0,0.08);
+    z-index: 9999;
+}
+.bottom-nav a { text-decoration: none; color: #6c757d; font-size: 12px; text-align: center; flex: 1; font-weight: 600; }
+.bottom-nav i { display: block; font-size: 22px; color: var(--primary-color); margin-bottom: 4px; }
+.bottom-nav a:hover { color: var(--primary-color); }

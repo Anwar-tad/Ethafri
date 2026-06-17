@@ -1,41 +1,58 @@
+{# EthAfri/marketplace/templates/marketplace/post_product.html #}
 {% extends 'marketplace/base.html' %}
+{% load i18n %}
+
 {% block content %}
 <div class="card border-0 shadow-sm rounded-4 p-4" style="max-width: 500px; margin: auto;">
-    <h4 class="text-center fw-bold mb-3">እቃ ይሽጡ</h4>
+    <h4 class="text-center fw-bold mb-3 text-dark">{% translate "Sell Item" %}</h4>
     
     {% if not user.is_authenticated %}
-    <div class="alert alert-info small py-2">
-        <i class="fas fa-info-circle"></i> ያለ ሎግኢን እስከ 5 እቃ መለጠፍ ይችላሉ። (አሁን፡ {{ post_count }}/5)
+    <div class="alert {% if post_count >= 5 %}alert-danger{% else %}alert-info{% endif %} small py-2 rounded-3">
+        <i class="fas fa-info-circle"></i> 
+        {% if post_count >= 5 %}
+            <strong>{% translate "Post limit reached!" %}</strong> {% translate "Please register to post more items." %}
+        {% else %}
+            {% translate "You can post up to 5 items without logging in." %} ({% translate "Current" %}: {{ post_count }}/5)
+        {% endif %}
     </div>
     {% endif %}
 
     <form method="POST" enctype="multipart/form-data">
         {% csrf_token %}
         <div class="mb-3">
-            <label class="form-label small fw-bold">የእቃው ስም</label>
-            <input type="text" name="title" class="form-control rounded-pill" required>
+            <label class="form-label small fw-bold">{% translate "Item Title" %}</label>
+            <input type="text" name="title" class="form-control rounded-pill" required {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
         </div>
         <div class="mb-3">
-            <label class="form-label small fw-bold">መግለጫ</label>
-            <textarea name="description" class="form-control rounded-4" rows="3" required></textarea>
+            <label class="form-label small fw-bold">{% translate "Description" %}</label>
+            <textarea name="description" class="form-control rounded-4" rows="3" required {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}></textarea>
         </div>
         <div class="row">
             <div class="col-6 mb-3">
-                <label class="form-label small fw-bold">ዋጋ</label>
-                <input type="number" name="price" class="form-control rounded-pill">
+                <label class="form-label small fw-bold">{% translate "Price" %}</label>
+                <input type="number" name="price" class="form-control rounded-pill" {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
             </div>
             <div class="col-6 mb-3">
-                <label class="form-label small fw-bold">ቦታ</label>
-                <input type="text" name="location" class="form-control rounded-pill">
+                <label class="form-label small fw-bold">{% translate "Location" %}</label>
+                <input type="text" name="location" class="form-control rounded-pill" {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
             </div>
         </div>
         <div class="mb-4">
-            <label class="form-label small fw-bold">ምስል</label>
-            <input type="file" name="image" class="form-control rounded-pill">
+            <label class="form-label small fw-bold">{% translate "Image" %}</label>
+            <input type="file" name="image" class="form-control rounded-pill" {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
         </div>
+        
+        {% if not user.is_authenticated and post_count >= 5 %}
+        <a href="{% url 'signup' %}" class="btn btn-danger w-100 py-2 fw-bold shadow rounded-pill text-decoration-none text-center">
+            <i class="fas fa-user-plus me-2"></i>{% translate "Register Now to Post" %}
+        </a>
+        {% else %}
         <button type="submit" class="btn btn-ai w-100 py-2 fw-bold shadow">
-            <i class="fas fa-magic me-2"></i>በ AI አማካኝነት ይለጥፉ
+            <i class="fas fa-magic me-2"></i>{% translate "Post with AI" %}
         </button>
+        {% endif %}
     </form>
 </div>
+
+<div class="mb-5 py-4"></div>
 {% endblock %}

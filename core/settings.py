@@ -11,6 +11,7 @@ try:
     env = Env()
     Env.read_env()
 except ImportError:
+    # ፓኬጁ ተርሙክስ ላይ ባይኖር እንኳን ኮዱ እንዳይሰበር (ከ os.environ ያነባል)
     class Env:
         def __call__(self, key, default=None): return os.environ.get(key, default)
         def bool(self, key, default=False): return os.environ.get(key, str(default)).lower() == 'true'
@@ -18,12 +19,13 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = env('SECRET_KEY', default='django-insecure-ethafri-autonomous-key-2026')
+# 2. Security
+SECRET_KEY = env('SECRET_KEY', default='django-insecure-ethafri-key-2026')
 DEBUG = env.bool('DEBUG', default=True)
 ALLOWED_HOSTS = ['*']
 CSRF_TRUSTED_ORIGINS = ['https://*.onrender.com', 'https://*.pythonanywhere.com']
 
-# 2. Application Definition
+# 3. Application Definition
 INSTALLED_APPS = [
     'cloudinary_storage', # ከ 'django.contrib.staticfiles' በፊት መሆን አለበት
     'django.contrib.admin',
@@ -32,14 +34,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'marketplace', 
+    'marketplace',
     'cloudinary',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', 
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    # ⚠️ 1. የቋንቋ መቀያየሪያ ሚድልዌር (LocaleMiddleware) ተጨምሯል (ለ i18n ወሳኝ ነው)
+    'django.middleware.locale.LocaleMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -60,7 +64,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'marketplace.views.theme_context', # የ AI ቴምፕሌት ማንቂያ
+                # የ AI ዲዛይን ለውጥን (Theme) በሁሉም ገጾች ላይ እንዲገኝ የሚያደርግ
+                'marketplace.views.theme_context', 
             ],
         },
     },
@@ -68,20 +73,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# 3. Database (Supabase Pooler 6543)
+# 4. Database
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
-        conn_max_age=0,
+        conn_max_age=600,
         ssl_require=True
     )
 }
 
-# 4. Internationalization (7 Languages)
-LANGUAGE_CODE = 'am'
+# 5. Internationalization (ነባሪ ቋንቋው ወደ እንግሊዝኛ ተቀይሯል)
+LANGUAGE_CODE = 'en' # ነባሪ ቋንቋ እንግሊዝኛ እንዲሆን
+
 LANGUAGES = [
+    ('en', _('English')), # እንግሊዝኛ ቀዳሚ ምርጫ ሆኗል
     ('am', _('Amharic')),
-    ('en', _('English')),
     ('om', _('Oromo')),
     ('ar', _('Arabic')),
     ('so', _('Somali')),
@@ -90,15 +96,28 @@ LANGUAGES = [
 ]
 TIME_ZONE = 'Africa/Addis_Ababa'
 USE_I18N = True
+# ⚠️ 2. USE_L10N ተወግዷል (በአዲሱ Django 6.0.6 ስሪት ውስጥ ስለማይደገፍ ስህተት ይፈጥራል)
 USE_TZ = True
 
-# 5. Static & Media (Cloudinary)
+# 3. የትርጉም ፋይሎች የሚቀመጡበት ፎልደር (Locale Path) ተጨምሯል
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, 'locale'),
+]
+
+# 6. Static & Media
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-# ⚠️ 6. AI & Render/GitHub Keys (በቀጥታ ከሲስተሙ እንዲያነብ የተስተካከለ - ስህተቱን ይፈታል!)
+# ⚠️ 4. የCloudinary ማከማቻ ቅንብር ተጨምሯል (ምስሎች እንዳይጠፉ በ os.environ ያነባል)
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', ''),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', ''),
+}
+
+# 7. AI & Render Keys (በቀጥታ ከሲስተሙ ያነባል)
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 MISTRAL_API_KEY = os.environ.get('MISTRAL_API_KEY', '')

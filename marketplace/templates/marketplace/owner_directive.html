@@ -1,18 +1,23 @@
-<!-- EthAfri/marketplace/templates/marketplace/owner_directive.html -->
+{# EthAfri/marketplace/templates/marketplace/owner_directive.html #}
 {% extends 'marketplace/base.html' %}
+{% load i18n %}
+
 {% block content %}
-<div class="card border-0 shadow-sm rounded-4 p-4 mx-auto" style="max-width: 600px;">
-    <h3 class="fw-bold text-dark text-center mb-3"><i class="fas fa-crown text-warning"></i> የባለቤት መመሪያ ማዕከል</h3>
-    <p class="text-muted text-center small mb-4">እዚህ ጋር ለ EthAfri AI ትዕዛዝ መስጠት ትችላለህ። AIው በሚቀጥለው ዑደት (በየ 5 ደቂቃው) ላይ ያንተን መመሪያ ቀድሞ ይፈጽማል።</p>
+<div class="card border-0 shadow-sm rounded-4 p-4 mx-auto bg-white" style="max-width: 600px;">
+    <h3 class="fw-bold text-dark text-center mb-3"><i class="fas fa-crown text-warning me-2"></i> {% translate "Owner Directive Center" %}</h3>
+    <p class="text-muted text-center small mb-4">
+        {% translate "Directly issue strategic orders to EthAfri AI. The system will execute your instructions during its next autonomous cycle (every 5 minutes)." %}
+    </p>
     
     <form method="POST">
         {% csrf_token %}
         <div class="mb-3">
-            <label class="form-label fw-bold small">የ AI መመሪያ (Directive)</label>
-            <textarea name="instruction" class="form-control rounded-4" rows="5" placeholder="ምሳሌ፦ 'ዛሬ የዲጂታል ክፍያ ሲስተም ገጽታን ገንባ' ወይም 'የፌስቡክ እቃዎችን ቃኝ'..." required></textarea>
+            <label class="form-label fw-bold small text-secondary">{% translate "AI Instruction / Directive" %}</label>
+            <textarea name="instruction" class="form-control rounded-4 p-3 fs-6" rows="5" 
+                      placeholder="{% translate "Example: 'Build a digital checkout interface today' or 'Scan regional marketplace listings'..." %}" required></textarea>
         </div>
-        <button type="submit" class="btn btn-warning w-100 py-2 rounded-pill fw-bold shadow">
-            <i class="fas fa-paper-plane me-2"></i>መመሪያውን ለ AI ላክ
+        <button type="submit" class="btn btn-warning text-dark w-100 py-2.5 rounded-pill fw-bold shadow-sm">
+            <i class="fas fa-paper-plane me-2"></i>{% translate "Send Directive to AI" %}
         </button>
     </form>
 </div>

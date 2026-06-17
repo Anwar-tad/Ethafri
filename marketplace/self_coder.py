@@ -3,22 +3,28 @@
 import requests
 import json
 import base64
+import re
 from django.conf import settings
-# ⚠️ ስህተቱን ለመፍታት 'ask_ethafri_ceo' ወደሚለው ስም ተቀይሯል
+# ከgrowth_agent.py ጋር የተስማማው አዲሱ ትክክለኛ የፈንክሽን ስም
 from .growth_agent import ask_ethafri_ceo 
 
 def get_render_deploy_status():
     """የሬንደርን የቅርብ ጊዜ መጫን ሂደት ሁኔታ ያነባል"""
     service_id = getattr(settings, 'RENDER_SERVICE_ID', None)
     api_key = getattr(settings, 'RENDER_API_KEY', None)
+    
+    # ቁልፎቹ ከሌሉ ስራውን ያለምንም ስህተት ያቆማል (የደህንነት ቼክ)
     if not service_id or not api_key:
         return None
         
     url = f"https://api.render.com/v1/services/{service_id}/deploys"
-    headers = {"Authorization": f"Bearer {api_key}"}
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json"
+    }
     try:
         response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
+        if response.status_code == 200 and len(response.json()) > 0:
             latest_deploy = response.json()[0]['deploy']
             return {
                 "id": latest_deploy['id'],
@@ -46,9 +52,9 @@ def push_code_to_github(file_path, file_content, commit_message):
     sha = ""
     res = requests.get(url, headers=headers, timeout=10)
     if res.status_code == 200:
-        sha = res.json()['sha']
+        sha = res.json().get('sha', '')
 
-    # 2. ፋይሉን በ Base64 ኢንኮድ ማድረግ
+    # 2. ፋይሉን በ Base64 ኢንኮድ ማድረግ (የጊትሃብ የደህንነት ህግ ነው)
     encoded_content = base64.b64encode(file_content.encode('utf-8')).decode('utf-8')
 
     # 3. ወደ ጊትሃብ መግፋት (Push)
@@ -68,25 +74,32 @@ def self_heal_failed_build():
     """ሬንደር ላይ ቢከሽፍ AIው ራሱ መዝገቡን አንብቦ ኮዱን የሚጠግንበት ዑደት"""
     status_info = get_render_deploy_status()
     if not status_info:
-        return "No status retrieved."
+        return "Render Status Check Skipped (Keys missing)."
 
+    # ሬንደር ላይ መጫኑ ከከሸፈ (build_failed) ራሱን የማከም ስรา ይጀምራል
     if status_info['status'] == "build_failed":
         print("⚠️ Render Build Failed! Starting Self-Correction...")
         
         # 1. ስህተቱን ለ AI ማብራራት
         prompt = f"""
-        አንተ የ EthAfri ራስ-ገዝ CEO ነህ። የጻፍከው የቅርብ ጊዜ ኮድ ሬንደር ሰርቨር ላይ ሲጫን 'Build Failed' ሆኗል።
-        የከሸፈው የኮሚት መለያ (Commit ID) ይህ ነው፦ {status_info['commit_id']}
-        
-        እባክህ የጻፍከውን ኮድ እና በዳታቤዝ ውስጥ ያሉትን የቅርብ ጊዜ የኮድ ለውጦች መርምረህ ስህተቱን አስተካክል።
-        የተስተካከለውን ሙሉ የፓይተን ኮድ ብቻ ስጠኝ።
+        You are the Autonomous CEO of EthAfri. Your latest code deployment on Render has FAILED.
+        The Render commit ID is: {status_info['commit_id']}.
+        Please analyze your recent python code in 'marketplace/growth_agent.py', identify the syntax or logical bug, and correct it.
+        Return ONLY the complete, corrected python code for 'marketplace/growth_agent.py'. Do not include any extra text, only the code starting from the imports.
         """
         
-        # ⚠️ እዚህ ጋር ትክክለኛው 'ask_ethafri_ceo' ተጠርቷል
+        # እዚህ ጋር አዲሱ 'ask_ethafri_ceo' ተጠርቷል
         corrected_code = ask_ethafri_ceo(prompt)
         if corrected_code:
-            # 2. የተስተካከለውን ኮድ በቀጥታ ወደ ጊትሃብ መግፋት (ይህ ሬንደርን በራሱ መልሶ እንዲጭን ያደርገዋል)
-            push_result = push_code_to_github("marketplace/growth_agent.py", corrected_code, "AI: Self-Corrected Build Error")
+            # 📌 🛠️ የ AI ማርክዳውን ማጽጃ ማጠናከሪያ (Regex በመጠቀም ኬዝ-ኢንሴንሲቲቭ በሆነ መንገድ ያጸዳል)
+            clean_code = re.sub(r'^```[pP]ython\s*|^```\s*|```$', '', corrected_code.strip(), flags=re.MULTILINE)
+            
+            # 2. የተስተካከለውን ኮድ በቀጥታ ወደ ጊትሃብ መግፋት
+            push_result = push_code_to_github(
+                "marketplace/growth_agent.py", 
+                clean_code, 
+                f"AI: Self-Corrected Build Error on Commit {status_info['commit_id'][:7]}"
+            )
             return f"Heal Attempted: {push_result}"
             
     return f"System status is normal: {status_info['status']}"
