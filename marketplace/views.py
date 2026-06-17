@@ -26,28 +26,24 @@ def theme_context(request):
 # 2. ዋና ገጽ (ማጣሪያ የተገጠመለት)
 from django.db.models import Prefetch
 
+# views.py ውስጥ ያለውን የ 'home' ፈንክሽን ብቻ በዚህ ተካው (እጅግ በጣም ያፈጥነዋል!)
+
 def home(request):
     query = request.GET.get('q')
     category_id = request.GET.get('category')
 
     try:
-        # 1. select_related ለ Foreign Key (Category)
-        # 2. prefetch_related ለ OneToOne/Many (Translations)
-        products = Product.objects.select_related('category') \
-            .prefetch_related('translations') \
-            .filter(is_active=True)
-
+        # ⚠️ select_related('translations', 'category') ተጨምሯል
+        # ይህ በአንድ ጥያቄ ብቻ ምርቱን፣ ምድቡንና ትርጉሙን በአንድ ጊዜ ከዳታቤዝ ይጎትታል (N+1 ፈዋሽ ነው!)
         if query:
-            products = products.filter(title__icontains=query)
-            # የፍለጋ መዝገብን ከዋናው Query ለይተን እንስራ (Performance improvement)
-            # UserSearch.objects.create(query=query, results_count=products.count())
+            products = Product.objects.select_related('translations', 'category').filter(title__icontains=query)
+            UserSearch.objects.create(query=query, results_count=products.count())
         elif category_id:
-            products = products.filter(category_id=category_id)
-            
-        products = products.order_by('-created_at')[:20]
-
+            products = Product.objects.select_related('translations', 'category').filter(category_id=category_id, is_active=True).order_by('-created_at')
+        else:
+            products = Product.objects.select_related('translations', 'category').filter(is_active=True).order_by('-created_at')
     except Exception as db_err:
-        heal_any_system_error('DATABASE', str(db_err), f"Home View Filter")
+        heal_any_system_error('DATABASE', str(db_err), f"Home View Filter Query: {query or category_id}")
         products = Product.objects.none()
 
     categories = Category.objects.all()
@@ -71,7 +67,10 @@ def product_detail(request, pk):
 
 # 4. እቃ መለጠፊያ (Anonymous Posting + 5 limit + ⚠️ Template Crash Protection)
 def post_product(request):
-    """ተጠቃሚዎች እስከ 5 እቃ ያለ ሎግኢን መለጠፍ ይችላሉ። ከ 5 በላይ ሲሆን ግን እንዲመዘገቡ ይጠየቃሉ።"""
+    """
+    እቃ መለጠፍን እጅግ ፈጣን ያደርጋል። ተጠቃሚው የ AI መልስን ሳይጠብቅ 
+    በሰከንድ 0.1 ውስጥ እቃውን ይለጥፋል (AIው በጀርባ በየ 5 ደቂቃው ይመድበዋል)።
+    """
     post_count = request.session.get('post_count', 0)
     
     if not request.user.is_authenticated and post_count >= 5:
@@ -85,53 +84,34 @@ def post_product(request):
         image = request.FILES.get('image')
 
         try:
-            # ዩኒክ እንግዳ አካውንት መፍጠር
             seller = request.user if request.user.is_authenticated else User.objects.create_user(
                 username=f'guest_{uuid.uuid4().hex[:8]}', 
                 password=uuid.uuid4().hex
             )
 
+            # ⚠️ እቃው ወዲያውኑ ይመዘገባል (ምድቡ ለጊዜው General ይሆናል)
+            cat, _ = Category.objects.get_or_create(name='General')
             product = Product.objects.create(
-                seller=seller, title=title, description=description,
-                price=price or 0, location=location, image=image
+                seller=seller, category=cat, title=title, description=description,
+                price=price if price else 0, location=location, image=image,
+                market_value_status='Unknown', is_active=True
             )
 
-            # AI ትንተና (ለትርጉም)
-            ai_data = analyze_product_smartly(title, description, price)
-            
-            if ai_data:
-                trans = ai_data.get('translations', {})
-                ProductTranslation.objects.create(
-                    product=product,
-                    en=trans.get('en', f"{title} ||| {description}"),
-                    am=trans.get('am', ''), om=trans.get('om', ''),
-                    ar=trans.get('ar', ''), so=trans.get('so', ''),
-                    ti=trans.get('ti', ''), fr=trans.get('fr', '')
-                )
-                cat, _ = Category.objects.get_or_create(name=ai_data.get('category', 'General'))
-                product.category = cat
-                product.ai_tags = ai_data.get('tags', [])
-                product.save()
-            else:
-                # ⚠️ ራስ-ጥበቃ (Template Crash Protection)፦
-                # የጀሚኒ ኮታ ካለቀ ባዶ የትርጉም ሰንጠረዥ በ fallback እንፈጥራለን። 
-                # ይህ ካልተደረገ ዌብሳይቱ ላይ 'translations' የሚለው OneToOne ግንኙነት ባዶ ስለሚሆን ቴምፕሌቱ ይሰነጠቃል (500 Error)።
-                combined_fallback = f"{title} ||| {description}"
-                ProductTranslation.objects.create(
-                    product=product,
-                    en=combined_fallback,
-                    am=combined_fallback, # ጀሚኒ እስኪከፈት በእንግሊዝኛ ያልፋል
-                    om='', ar='', so='', ti='', fr=''
-                )
-                
-                # ⚠️ የጀሚኒ ኮታ ካለቀ በወረፋ (Queue) መመዝገብ
-                TranslationQueue.objects.create(
-                    product=product, 
-                    target_languages=['am', 'om', 'ar', 'so', 'ti', 'fr']
-                )
+            # ⚠️ የትርጉም አጽም መፍጠር (Template crash ለመከላከል)
+            combined_fallback = f"{title} ||| {description}"
+            ProductTranslation.objects.create(
+                product=product, en=combined_fallback, am=combined_fallback
+            )
+
+            # የ AI ትንተናውን በጀርባ (Background) እንዲሠራ ለወረፋ መመዝገብ
+            # ይህ ተጠቃሚው የ AI ምላሽ እስኪመጣ 10 ሰከንድ እንዳይጠብቅ ያደርገዋል
+            TranslationQueue.objects.create(
+                product=product, 
+                target_languages=['am', 'om', 'ar', 'so', 'ti', 'fr']
+            )
 
             request.session['post_count'] = post_count + 1
-            return redirect('post_success')
+            return redirect('post_success') # 🚀 ወዲያውኑ ገጹ ይከፈታል!
             
         except Exception as exec_err:
             heal_any_system_error('CODE_EXECUTION', str(exec_err), f"Post Product Crash")
