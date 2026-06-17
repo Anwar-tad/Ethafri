@@ -4,7 +4,8 @@ import requests
 import json
 import base64
 from django.conf import settings
-from .growth_agent import ask_ethafri_brain
+# ⚠️ ስህተቱን ለመፍታት 'ask_ethafri_ceo' ወደሚለው ስም ተቀይሯል
+from .growth_agent import ask_ethafri_ceo 
 
 def get_render_deploy_status():
     """የሬንደርን የቅርብ ጊዜ መጫን ሂደት ሁኔታ ያነባል"""
@@ -73,7 +74,6 @@ def self_heal_failed_build():
         print("⚠️ Render Build Failed! Starting Self-Correction...")
         
         # 1. ስህተቱን ለ AI ማብራራት
-        # (እዚህ ጋር የሬንደርን ስህተት መዝገብ አውርዶ እንዲያነበው እናደርገዋለን)
         prompt = f"""
         አንተ የ EthAfri ራስ-ገዝ CEO ነህ። የጻፍከው የቅርብ ጊዜ ኮድ ሬንደር ሰርቨር ላይ ሲጫን 'Build Failed' ሆኗል።
         የከሸፈው የኮሚት መለያ (Commit ID) ይህ ነው፦ {status_info['commit_id']}
@@ -82,7 +82,8 @@ def self_heal_failed_build():
         የተስተካከለውን ሙሉ የፓይተን ኮድ ብቻ ስጠኝ።
         """
         
-        corrected_code = ask_ethafri_brain(prompt)
+        # ⚠️ እዚህ ጋር ትክክለኛው 'ask_ethafri_ceo' ተጠርቷል
+        corrected_code = ask_ethafri_ceo(prompt)
         if corrected_code:
             # 2. የተስተካከለውን ኮድ በቀጥታ ወደ ጊትሃብ መግፋት (ይህ ሬንደርን በራሱ መልሶ እንዲጭን ያደርገዋል)
             push_result = push_code_to_github("marketplace/growth_agent.py", corrected_code, "AI: Self-Corrected Build Error")
