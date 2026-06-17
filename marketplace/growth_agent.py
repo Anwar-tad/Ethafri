@@ -3,6 +3,7 @@
 import google.generativeai as genai
 from groq import Groq
 import json, datetime, re, requests
+from bs4 import BeautifulSoup # ⚠️ በ Scraping ወቅት ስህተት እንዳይፈጠር ተጨምሯል
 from django.utils.text import slugify
 from django.conf import settings
 from .models import MarketTrend, Category, UserSearch, Product, ProductTranslation, SiteConfig, AISystemTask, OwnerDirective
@@ -17,10 +18,8 @@ MODEL_NAME = 'gemini-2.5-flash'
 # 1. የ API Cooldown (እረፍት) እና የ Lock አያያዝ
 # ---------------------------------------------------------
 
-MODEL_NAME = 'gemini-2.5-flash' 
-
-
 def is_api_on_cooldown(provider_name):
+    """ዳታቤዝን በመፈተሽ ኤፒአይው በእረፍት ላይ መሆኑን ያረጋግጣል (Timezone-safe)"""
     config = SiteConfig.objects.filter(key=f"COOLDOWN_{provider_name}").first()
     if config:
         cooldown_until_str = config.value.get('until', '')
@@ -33,6 +32,7 @@ def is_api_on_cooldown(provider_name):
     return False
 
 def set_api_cooldown(provider_name, hours=24):
+    """ኤፒአይው ሲከሽፍ ለተወሰነ ሰዓት እረፍት እንዲሰጠው ይመዘግባል"""
     until_time = timezone.now() + datetime.timedelta(hours=hours)
     SiteConfig.objects.update_or_create(
         key=f"COOLDOWN_{provider_name}",
@@ -42,25 +42,64 @@ def set_api_cooldown(provider_name, hours=24):
 # ---------------------------------------------------------
 # 2. ባለ 4 ሰንሰለት AI ሞተሮች (Failover Chain)
 # ---------------------------------------------------------
-def ask_ai_failover(prompt):
-    try:
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel(MODEL_NAME)
-            response = model.generate_content(prompt)
-            if response and response.text: return response.text
-    except Exception as e: print(f"Gemini Error: {e}")
 
-    try:
-        if settings.GROQ_API_KEY:
-            client = Groq(api_key=settings.GROQ_API_KEY)
-            resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return resp.choices[0].message.content
-    except Exception as e: print(f"Groq Error: {e}")
+def ask_ai_failover(prompt):
+    """ጀሚኒ 2.5 -> Groq -> Mistral -> OpenRouter"""
+    # 1. Google Gemini 2.5 Flash
+    if not is_api_on_cooldown("GEMINI"):
+        try:
+            if settings.GEMINI_API_KEY:
+                genai.configure(api_key=settings.GEMINI_API_KEY)
+                model = genai.GenerativeModel(MODEL_NAME)
+                response = model.generate_content(prompt)
+                if response and response.text: 
+                    return response.text
+        except Exception as e: 
+            print(f"Gemini 2.5 Fail: {e}")
+            if "429" in str(e) or "quota" in str(e).lower():
+                set_api_cooldown("GEMINI", hours=24)
+            else:
+                set_api_cooldown("GEMINI", hours=1)
+
+    # 2. Groq (Llama 3.3)
+    if not is_api_on_cooldown("GROQ"):
+        try:
+            if settings.GROQ_API_KEY:
+                client = Groq(api_key=settings.GROQ_API_KEY)
+                resp = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                if resp.choices[0].message.content:
+                    return resp.choices[0].message.content
+        except Exception as e: 
+            print(f"Groq Fail: {e}")
+            set_api_cooldown("GROQ", hours=1)
+
+    # 3. Mistral AI (Direct REST Call)
+    if not is_api_on_cooldown("MISTRAL"):
+        try:
+            MISTRAL_KEY = getattr(settings, 'MISTRAL_API_KEY', None)
+            if MISTRAL_KEY:
+                resp = requests.post(
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {MISTRAL_KEY}"},
+                    json={
+                        "model": "mistral-small-latest",
+                        "messages": [{"role": "user", "content": prompt}]
+                    },
+                    timeout=10
+                )
+                if resp.status_code == 200:
+                    return resp.json()['choices'][0]['message']['content']
+        except Exception as e: 
+            print(f"Mistral API Fail: {e}")
+
     return None
+
+# ⚠️ self_coder.py የሚፈልገውን የኢምፖርት ስም ስህተት ለመፍታት የተደረገ ውህደት
+ask_ethafri_ceo = ask_ai_failover
+
 # ---------------------------------------------------------
 # 3. እውነተኛ ምርቶችን መቃኛ (Telegram Scraper)
 # ---------------------------------------------------------
@@ -99,10 +138,6 @@ def scrape_real_ethiopian_products():
 # ---------------------------------------------------------
 # 4. ዋናው የዕድገት ሞተር (The Brain)
 # ---------------------------------------------------------
-
-# EthAfri/marketplace/growth_agent.py
-
-
 
 def run_daily_market_analysis():
     now = datetime.datetime.now()
@@ -191,7 +226,7 @@ def run_daily_market_analysis():
             title=it.get('title'),
             description=it.get('desc', {}).get('am', 'በ AI የተጠቆመ የገበያ ዕድል'),
             price=it.get('price', 0), 
-            image_url=image_url, # ⚠️ እዚህ ጋር አሁን ፎቶው በቋሚነት ይመዘገባል!
+            image_url=image_url,
             market_value_status='Unknown',
             is_active=True
         )
