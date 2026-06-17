@@ -16,18 +16,26 @@ def theme_context(request):
     return {'theme': config.value if config else {}}
 
 # 2. ዋና ገጽ
+# views.py ውስጥ ያለውን የ 'home' ፈንክሽን ብቻ በዚህ ተካው፡
+
 def home(request):
     query = request.GET.get('q')
+    category_id = request.GET.get('category') # የካቴጎሪ ማጣሪያ
+
     if query:
         products = Product.objects.filter(title__icontains=query)
         UserSearch.objects.create(query=query, results_count=products.count())
+    elif category_id:
+        # በተመረጠው ካቴጎሪ ብቻ ፊልተር ማድረግ
+        products = Product.objects.filter(category_id=category_id, is_active=True).order_by('-created_at')
     else:
         products = Product.objects.filter(is_active=True).order_by('-created_at')
 
     categories = Category.objects.all()
     return render(request, 'marketplace/home.html', {
         'products': products,
-        'categories': categories
+        'categories': categories,
+        'active_category': int(category_id) if category_id else None # ንቁውን ለመለየት
     })
 
 # 3. እቃ መለጠፊያ (ከ Anonymous Posting Logic ጋር)
