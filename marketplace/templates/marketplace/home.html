@@ -72,7 +72,8 @@
             <div class="card h-100 product-card shadow-sm" style="{% if theme.theme_color %}border-top: 3px solid {{ theme.theme_color }};{% endif %}">
                 <div class="img-container">
                     {% if product.image %}
-                        <img src="{{ product.image.url }}" alt="{{ product.get_translated_title }}">
+                        <img src="{{ product.image.url }}" loading="lazy" width="300" height="200" alt="{{ product.title }}">
+
                     {% elif product.image_url %}
                         <img src="{{ product.image_url }}" alt="{{ product.get_translated_title }}" onerror="this.src='https://loremflickr.com/400/300/product'">
                     {% endif %}

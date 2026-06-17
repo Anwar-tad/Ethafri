@@ -24,20 +24,30 @@ def theme_context(request):
     return {'theme': config.value if config else {}}
 
 # 2. ዋና ገጽ (ማጣሪያ የተገጠመለት)
+from django.db.models import Prefetch
+
 def home(request):
     query = request.GET.get('q')
     category_id = request.GET.get('category')
 
     try:
+        # 1. select_related ለ Foreign Key (Category)
+        # 2. prefetch_related ለ OneToOne/Many (Translations)
+        products = Product.objects.select_related('category') \
+            .prefetch_related('translations') \
+            .filter(is_active=True)
+
         if query:
-            products = Product.objects.filter(title__icontains=query)
-            UserSearch.objects.create(query=query, results_count=products.count())
+            products = products.filter(title__icontains=query)
+            # የፍለጋ መዝገብን ከዋናው Query ለይተን እንስራ (Performance improvement)
+            # UserSearch.objects.create(query=query, results_count=products.count())
         elif category_id:
-            products = Product.objects.filter(category_id=category_id, is_active=True).order_by('-created_at')
-        else:
-            products = Product.objects.filter(is_active=True).order_by('-created_at')
+            products = products.filter(category_id=category_id)
+            
+        products = products.order_by('-created_at')[:20]
+
     except Exception as db_err:
-        heal_any_system_error('DATABASE', str(db_err), f"Home View Filter Query: {query or category_id}")
+        heal_any_system_error('DATABASE', str(db_err), f"Home View Filter")
         products = Product.objects.none()
 
     categories = Category.objects.all()
@@ -49,6 +59,7 @@ def home(request):
         'active_category': int(category_id) if category_id else None,
         'active_lang': active_lang
     })
+
 
 # 3. የእቃ ዝርዝር ገጽ
 def product_detail(request, pk):
