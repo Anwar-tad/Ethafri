@@ -9,24 +9,23 @@ from django.contrib.auth.models import User
 from .models import Product, Category, MarketTrend, UserSearch, SiteConfig, ProductTranslation, AISystemTask
 from .ai_utils import analyze_product_smartly
 from .growth_agent import run_daily_market_analysis
+# ⚠️ አዲሱን የራስ-ኮድ ጥገና ሞተር እዚህ ጋር አስገባነው
+from .self_coder import self_heal_failed_build 
 
 # 1. የ AI ዲዛይን ቅንብርን ለሁሉም ገጾች የሚያቀርብ (Context Processor)
 def theme_context(request):
     config = SiteConfig.objects.filter(key="DYNAMIC_UI").first()
     return {'theme': config.value if config else {}}
 
-# 2. ዋና ገጽ
-# views.py ውስጥ ያለውን የ 'home' ፈንክሽን ብቻ በዚህ ተካው፡
-
+# 2. ዋና ገጽ (ማጣሪያ የተገጠመለት)
 def home(request):
     query = request.GET.get('q')
-    category_id = request.GET.get('category') # የካቴጎሪ ማጣሪያ
+    category_id = request.GET.get('category')
 
     if query:
         products = Product.objects.filter(title__icontains=query)
         UserSearch.objects.create(query=query, results_count=products.count())
     elif category_id:
-        # በተመረጠው ካቴጎሪ ብቻ ፊልተር ማድረግ
         products = Product.objects.filter(category_id=category_id, is_active=True).order_by('-created_at')
     else:
         products = Product.objects.filter(is_active=True).order_by('-created_at')
@@ -35,10 +34,18 @@ def home(request):
     return render(request, 'marketplace/home.html', {
         'products': products,
         'categories': categories,
-        'active_category': int(category_id) if category_id else None # ንቁውን ለመለየት
+        'active_category': int(category_id) if category_id else None
     })
 
-# 3. እቃ መለጠፊያ (ከ Anonymous Posting Logic ጋር)
+# 3. የእቃ ዝርዝር ገጽ
+def product_detail(request, pk):
+    try:
+        product = Product.objects.get(pk=pk)
+    except Product.DoesNotExist:
+        raise Http404("እቃው አልተገኘም")
+    return render(request, 'marketplace/product_detail.html', {'product': product})
+
+# 4. እቃ መለጠፊያ (Anonymous Posting + 5 limit)
 def post_product(request):
     post_count = request.session.get('post_count', 0)
     if request.method == "POST":
@@ -78,63 +85,78 @@ def post_product(request):
     
     return render(request, 'marketplace/post_product.html', {'post_count': post_count})
 
-# 4. የስኬት ገጽ
+# 5. የስኬት ገጽ
 def post_success(request):
     return render(request, 'marketplace/post_success.html')
 
-# 5. ራስ-ሰር የዕድገት መቀስቀሻ (Trigger - በአዲስ መልክ የተስተካከለ)
+# 6. ራስ-ሰር የዕድገት መቀስቀሻ (ይህ ነው ሁለቱንም የሚያነቃቃው!)
 def trigger_evolution(request):
     """
-    ይህ URL ሲነካ የ AI ሙከራውን ያካሂዳል፤ 
-    ከተሳካ ብቻ የስኬት ገጽ ያሳያል፤ ካልተሳካ ግን ስህተቱን ያሳያል።
+    ይህ URL በየ 5 ደቂቃው ሲቀሰቀስ፡
+    1. በየሰዓቱ የገበያ ጥናት ያደርጋል።
+    2. የሬንደርን የመጫን ሁኔታ አይቶ፣ ከተበላሸ AIው ራሱ ኮዱን አርሞ ወደ ጊትሃብ ይልካል።
     """
     secret_key = "evolve-now-secret-123"
     
     if request.user.is_staff or secret_key in request.path:
-        # AIውን ያስነሳል
+        # ሀ. የገበያ ጥናት እና የዲዛይን ለውጥ ሞተር
         result = run_daily_market_analysis()
         
-        # ⚠️ ስህተት ካጋጠመው አረንጓዴውን ገጽ ሳያሳይ ስህተቱን በቀጥታ ያሳያል
-        if not result.startswith("✅"):
+        # ለ. ⚠️ ራስ-ኮድ ጥገና ሞተር (አሁን በየ 5 ደቂቃው በጀርባ ይፈትሻል!)
+        heal_result = self_heal_failed_build()
+        print(f"Self-Coder Status: {heal_result}")
+        
+        # ስኬታማ ከሆነ የቅርብ ጊዜውን ሪፖርት ያወጣል
+        if result.startswith("✅"):
+            try:
+                latest_task = AISystemTask.objects.latest('created_at')
+            except AISystemTask.DoesNotExist:
+                latest_task = None
+
+            if request.user.is_staff:
+                return render(request, 'marketplace/evolution_result.html', {
+                    'status': f"{result} | Coder: {heal_result}",
+                    'task': latest_task
+                })
+        else:
+            # AIው እምቢ ካለ ስህተቱን በቀጥታ ያሳያል
             return HttpResponse(
                 f"<div style='padding:30px; font-family:sans-serif; color:red;'>"
                 f"<h2>❌ የ AI ዕድገት አልተሳካም!</h2>"
                 f"<p><b>ምክንያት፦</b> {result}</p>"
+                f"<p><b>የኮድ ጥገና ሁኔታ፦</b> {heal_result}</p>"
                 f"<p><a href='/'>ወደ ዋና ገጽ ተመለስ</a></p></div>", 
                 status=400
             )
-        
-        # ከተሳካ የቅርብ ጊዜውን ሪፖርት ያወጣል
-        try:
-            latest_task = AISystemTask.objects.latest('created_at')
-        except AISystemTask.DoesNotExist:
-            latest_task = None
-
-        if request.user.is_staff:
-            return render(request, 'marketplace/evolution_result.html', {
-                'status': result,
-                'task': latest_task
-            })
-        return HttpResponse(f"Success: {result}")
+            
+        return HttpResponse(f"Success: {result} | Coder: {heal_result}")
     else:
         raise Http404("ገጹ አልተገኘም")
 
-# 6. የዕድገት ዴሽቦርድ
-
+# 7. የዕድገት ዴሽቦርድ
 def admin_growth_dashboard(request):
-    """የ AI ዕድገትና የገበያ ጥናቶች ታሪክ ማሳያ ዴሽቦርድ"""
     if not request.user.is_staff:
         return redirect('home')
-        
     trends = MarketTrend.objects.all().order_by('-last_updated')
-    
-    # ⚠️ አዲሱን የ AI ውሳኔዎች ታሪክ ከዳታቤዝ መሳብ (ስህተቱን ይፈታል)
     tasks = AISystemTask.objects.all().order_by('-created_at')
-    
     return render(request, 'marketplace/growth_dashboard.html', {
         'trends': trends,
-        'tasks': tasks # ወደ ቴምፕሌቱ ያስተላልፈዋል
+        'tasks': tasks
     })
+
+# 8. የባለቤት መመሪያ ገጽ
+@login_required
+def owner_directive_view(request):
+    if not request.user.is_staff:
+        return redirect('home')
+    if request.method == "POST":
+        instruction = request.POST.get('instruction')
+        if instruction:
+            OwnerDirective.objects.all().update(is_active=False)
+            OwnerDirective.objects.create(instruction=instruction, is_active=True)
+            return HttpResponse("<script>alert('መመሪያዎ ለ AI ደርሷል!'); window.location.href='/';</script>")
+    return render(request, 'marketplace/owner_directive.html')
+
 # Auth views (Signup, Login, Logout)
 def signup_view(request):
     if request.method == 'POST':
@@ -161,33 +183,3 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect('home')
-
-# EthAfri/marketplace/views.py
-
-from .models import OwnerDirective
-
-@login_required
-def owner_directive_view(request):
-    """የዌብሳይቱ ባለቤት ለ AI ትዕዛዝ የሚሰጥበት ማዕከል"""
-    if not request.user.is_staff:
-        return redirect('home')
-        
-    if request.method == "POST":
-        instruction = request.POST.get('instruction')
-        if instruction:
-            # የድሮዎቹን ትዕዛዞች ማጥፋት
-            OwnerDirective.objects.all().update(is_active=False)
-            # አዲሱን ትዕዛዝ መመዝገብ
-            OwnerDirective.objects.create(instruction=instruction, is_active=True)
-            return HttpResponse("<script>alert('መመሪያዎ ለ AI ደርሷል!'); window.location.href='/';</script>")
-
-    return render(request, 'marketplace/owner_directive.html')
-# EthAfri/marketplace/views.py (የተወሰደ ክፍል - ይህንን ብቻ ጨምረው)
-
-def product_detail(request, pk):
-    """የእቃውን ዝርዝር ገጽ መረጃ ከትርጉሞቹ ጋር ያሳያል"""
-    try:
-        product = Product.objects.get(pk=pk)
-    except Product.DoesNotExist:
-        raise Http404("እቃው አልተገኘም")
-    return render(request, 'marketplace/product_detail.html', {'product': product})
