@@ -65,7 +65,6 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 # የ AI ዲዛይን ለውጥን (Theme) በሁሉም ገጾች ላይ እንዲገኝ የሚያደርግ
-                (marketplace.views.theme_context)
                 'marketplace.views.theme_context', 
             ],
         },
