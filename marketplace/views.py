@@ -174,3 +174,12 @@ def owner_directive_view(request):
             return HttpResponse("<script>alert('መመሪያዎ ለ AI ደርሷል!'); window.location.href='/';</script>")
 
     return render(request, 'marketplace/owner_directive.html')
+# EthAfri/marketplace/views.py (የተወሰደ ክፍል - ይህንን ብቻ ጨምረው)
+
+def product_detail(request, pk):
+    """የእቃውን ዝርዝር ገጽ መረጃ ከትርጉሞቹ ጋር ያሳያል"""
+    try:
+        product = Product.objects.get(pk=pk)
+    except Product.DoesNotExist:
+        raise Http404("እቃው አልተገኘም")
+    return render(request, 'marketplace/product_detail.html', {'product': product})

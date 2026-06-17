@@ -107,5 +107,8 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 MISTRAL_API_KEY = os.environ.get('MISTRAL_API_KEY', '')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
-
+# ⚠️ እነዚህን በ settings.py መጨረሻ ላይ ጨምር
+RENDER_SERVICE_ID = os.environ.get('RENDER_SERVICE_ID', '')
+RENDER_API_KEY = os.environ.get('RENDER_API_KEY', '')
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
