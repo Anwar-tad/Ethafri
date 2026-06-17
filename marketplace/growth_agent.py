@@ -3,7 +3,7 @@
 import google.generativeai as genai
 from groq import Groq
 import json, datetime, re, requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup # ⚠️ በ Scraping ወቅት ስህተት እንዳይፈጠር ተጨምሯል
 from django.utils.text import slugify
 from django.conf import settings
 from .models import MarketTrend, Category, UserSearch, Product, ProductTranslation, SiteConfig, AISystemTask, OwnerDirective
@@ -11,10 +11,42 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.files.base import ContentFile
 
+# በእርስዎ መመሪያ መሰረት የሚሰራው ብቸኛው ሞዴል
 MODEL_NAME = 'gemini-2.5-flash' 
 
-def ask_ai_failover(prompt):
-    """Gemini 2.5 -> Groq -> Mistral -> OpenRouter"""
+# ---------------------------------------------------------
+# 1. የ API Cooldown (እረፍት) እና የ Lock አያያዝ
+# ---------------------------------------------------------
+
+def is_api_on_cooldown(provider_name):
+    """ዳታቤዝን በመፈተሽ ኤፒአይው በእረፍት ላይ መሆኑን ያረጋግጣል (Timezone-safe)"""
+    config = SiteConfig.objects.filter(key=f"COOLDOWN_{provider_name}").first()
+    if config:
+        cooldown_until_str = config.value.get('until', '')
+        if cooldown_until_str:
+            cooldown_until = datetime.datetime.fromisoformat(cooldown_until_str)
+            if timezone.is_naive(cooldown_until):
+                cooldown_until = timezone.make_aware(cooldown_until)
+            if timezone.now() < cooldown_until:
+                return True
+    return False
+
+def set_api_cooldown(provider_name, hours=24):
+    """ኤፒአይው ሲከሽፍ ለተወሰነ ሰዓት እረፍት እንዲሰጠው ይመዘግባል"""
+    until_time = timezone.now() + datetime.timedelta(hours=hours)
+    SiteConfig.objects.update_or_create(
+        key=f"COOLDOWN_{provider_name}",
+        defaults={'value': {'until': until_time.isoformat()}}
+    )
+
+# ---------------------------------------------------------
+# 2. ባለ 4 ሰንሰለት AI ሞተሮች (Failover Chain)
+# ---------------------------------------------------------
+
+# ⚠️ ስህተቱን በቋሚነት ለመፍታት ቀጥታ 'ask_ethafri_ceo' ተብሎ ተሰይሟል
+def ask_ethafri_ceo(prompt):
+    """ጀሚኒ 2.5 -> Groq -> Mistral -> OpenRouter"""
+    # 1. Google Gemini 2.5 Flash
     if not is_api_on_cooldown("GEMINI"):
         try:
             if settings.GEMINI_API_KEY:
@@ -30,6 +62,7 @@ def ask_ai_failover(prompt):
             else:
                 set_api_cooldown("GEMINI", hours=1)
 
+    # 2. Groq (Llama 3.3)
     if not is_api_on_cooldown("GROQ"):
         try:
             if settings.GROQ_API_KEY:
@@ -44,66 +77,65 @@ def ask_ai_failover(prompt):
             print(f"Groq Fail: {e}")
             set_api_cooldown("GROQ", hours=1)
 
+    # 3. Mistral AI (Direct REST Call)
+    if not is_api_on_cooldown("MISTRAL"):
+        try:
+            MISTRAL_KEY = getattr(settings, 'MISTRAL_API_KEY', None)
+            if MISTRAL_KEY:
+                resp = requests.post(
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {MISTRAL_KEY}"},
+                    json={
+                        "model": "mistral-small-latest",
+                        "messages": [{"role": "user", "content": prompt}]
+                    },
+                    timeout=10
+                )
+                if resp.status_code == 200:
+                    return resp.json()['choices'][0]['message']['content']
+        except Exception as e: 
+            print(f"Mistral API Fail: {e}")
+
     return None
 
-def is_api_on_cooldown(provider_name):
-    config = SiteConfig.objects.filter(key=f"COOLDOWN_{provider_name}").first()
-    if config:
-        cooldown_until_str = config.value.get('until', '')
-        if cooldown_until_str:
-            cooldown_until = datetime.datetime.fromisoformat(cooldown_until_str)
-            if timezone.is_naive(cooldown_until):
-                cooldown_until = timezone.make_aware(cooldown_until)
-            if timezone.now() < cooldown_until:
-                return True
-    return False
-
-def set_api_cooldown(provider_name, hours=24):
-    until_time = timezone.now() + datetime.timedelta(hours=hours)
-    SiteConfig.objects.update_or_create(
-        key=f"COOLDOWN_{provider_name}",
-        defaults={'value': {'until': until_time.isoformat()}}
-    )
+# ---------------------------------------------------------
+# 3. እውነተኛ ምርቶችን መቃኛ (Telegram Scraper)
+# ---------------------------------------------------------
 
 def scrape_real_ethiopian_products():
     """
-    በኢትዮጵያ ውስጥ ካሉ ታዋቂ የሽያጭ ቴሌግራም ቻናሎች የድር ገጽ 
-    እውነተኛ ምርቶችን፣ ዋጋዎችን እና ፎቶዎችን ይቃኛል (Scrapes)
+    በኢትዮጵያ ውስጥ ካሉ የሽያጭ ቴሌግራም ቻናሎች 
+    እውነተኛ እቃዎችን፣ ዋጋዎችን እና ፎቶዎችን ይቃኛል (Scrapes)
     """
-    # ⚠️ የተሻሻለ የቴሌግራም ቻናል ዝርዝር
-    channels = ["qefiraethiopia", "merkatogroup", "Mercato_Ethiopia"]
+    url = "https://t.me/s/merkatogroup"
     items = []
-    
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    
-    for channel in channels:
-        url = f"https://t.me/s/{channel}"
-        try:
-            response = requests.get(url, headers=headers, timeout=8)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                messages = soup.find_all('div', class_='tgme_widget_message_bubble')
-                
-                for msg in messages:
-                    text_div = msg.find('div', class_='tgme_widget_message_text')
-                    img_div = msg.find('a', class_='tgme_widget_message_photo_wrap')
-                    
-                    if text_div and len(text_div.text.strip()) > 20: # አጭር መረጃዎችን መተው
-                        raw_text = text_div.text.strip()
-                        image_url = ""
-                        if img_div and 'style' in img_div.attrs:
-                            style = img_div['style']
-                            url_match = re.search(r"background-image:url\('(.+)'\)", style)
-                            if url_match:
-                                image_url = url_match.group(1)
-                        
-                        items.append({"text": raw_text, "image": image_url})
-                        if len(items) >= 5: # 5 ምርቶችን ብቻ መውሰድ
-                            return items
-        except Exception as e:
-            print(f"Scraper Error for {channel}: {e}")
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            messages = soup.find_all('div', class_='tgme_widget_message_bubble')
             
+            for msg in messages[:3]: # የመጨረሻዎቹን 3 እቃዎች መውሰድ
+                text_div = msg.find('div', class_='tgme_widget_message_text')
+                img_div = msg.find('a', class_='tgme_widget_message_photo_wrap')
+                
+                if text_div:
+                    raw_text = text_div.text
+                    image_url = ""
+                    if img_div and 'style' in img_div.attrs:
+                        style = img_div['style']
+                        url_match = re.search(r"background-image:url\('(.+)'\)", style)
+                        if url_match:
+                            image_url = url_match.group(1)
+                    
+                    items.append({"text": raw_text, "image": image_url})
+    except Exception as e:
+        print(f"Scraper Error: {e}")
     return items
+
+# ---------------------------------------------------------
+# 4. ዋናው የዕድገት ሞተር (The Brain)
+# ---------------------------------------------------------
 
 def run_daily_market_analysis():
     now = datetime.datetime.now()
@@ -123,12 +155,14 @@ def run_daily_market_analysis():
     lock_config.value = {'status': 'running', 'since': now.isoformat()}
     lock_config.save()
 
+    # የባለቤቱን መመሪያ ማንበብ
     latest_directive = OwnerDirective.objects.filter(is_active=True).last()
     directive_context = latest_directive.instruction if latest_directive else "ምንም ተጨማሪ መመሪያ የለም።"
 
+    # እውነተኛ ምርቶችን መቃኘት
     real_scraped_data = scrape_real_ethiopian_products()
 
-    # የዌብሳይቱ የጎደሉ ክፍሎች ዝርዝር (AIው እንዲገነባቸው)
+    # የጎደሉ አገልግሎቶች
     unbuilt_features = ["Multi-language Selector UI", "Detailed Footer Section", "User Terms Page", "Admin Contact Portal", "Dynamic Top Navigation Menu"]
     completed_tasks = list(AISystemTask.objects.values_list('task_name', flat=True))
 
@@ -137,7 +171,7 @@ def run_daily_market_analysis():
     Anwar (Owner) issued this directive: "{directive_context}"
     Completed Tasks: {completed_tasks}
     Unbuilt Features: {unbuilt_features}
-    Real Scraped Data: {real_scraped_data[:2]}
+    Real Scraped Data: {real_scraped_data[:1]}
 
     Your Tasks:
     1. Select exactly ONE feature from 'Unbuilt Features' to build.
@@ -145,25 +179,22 @@ def run_daily_market_analysis():
     3. Generate localized descriptions for this product in 7 languages: Amharic (am), English (en), Oromo (om), Arabic (ar), Somali (so), Tigrinya (ti), French (fr).
     4. Provide exactly 3 English keywords for photo matching.
 
-    Return your response strictly as a raw JSON object:
+    Return your response strictly as a raw JSON object (no markdown):
     {{
-      "feature_to_build": "ከተረፈው ዝርዝር ውስጥ የተመረጠ 1 አዲስ አገልግሎት",
+      "task_name": "Built: [Feature Name]",
       "priority_reason": "ማብራሪያ በአማርኛ",
       "ui": {{
-          "banner_title": "ባነር ጽሁፍ በአማርኛ", "banner_sub": "ንዑስ ጽሁፍ በአማርኛ", "color": "#1a2a6c", "logo": "EthAfri"
+          "banner_title": "ባነር", "banner_sub": "ንዑስ ጽሁፍ", "color": "#1a2a6c", "logo": "EthAfri"
       }},
       "item": {{
-          "cat": "ምድብ በአማርኛ", 
-          "title": "የእቃው ስም በአማርኛ", 
-          "price": 2000, 
-          "img_key": "strictly english keywords for photo",
-          "desc": {{"am": "መግለጫ በአማርኛ", "en": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."}}
-      }},
-      "seo_keywords": ["keyword1", "keyword2"]
+          "cat": "ምድብ", "title": "ርዕስ", "price": 1000, "img_key": "keywords",
+          "desc": {{"am": "...", "en": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."}}
+      }}
     }}
     """
 
-    ai_response = ask_ai_failover(prompt)
+    # ⚠️ እዚህ ጋር አሁን 'ask_ethafri_ceo' በቀጥታ ተጠርቷል
+    ai_response = ask_ethafri_ceo(prompt)
     if not ai_response:
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}
         lock_config.save()
@@ -187,25 +218,17 @@ def run_daily_market_analysis():
             }}
         )
 
-        # --- 2. አገልግሎት መገንባት (Feature Enable) ---
-        feature = data.get('feature_to_build', 'General Growth')
-        SiteConfig.objects.update_or_create(
-            key=f"FEATURE_{slugify(feature)}",
-            defaults={'value': {'enabled': True}}
-        )
-
-        # --- 3. እውነተኛ ምርት እና ፎቶ መቆለፊያ ---
+        # --- 2. ምርት እና ፎቶ ማስተካከል ---
         it = data.get('item', {})
-        cat_name = it.get('cat', 'General').strip()
-        cat, _ = Category.objects.get_or_create(name=cat_name)
+        cat, _ = Category.objects.get_or_create(name=it.get('cat', 'General').strip())
         
-        # ⚠️ ራስ-አራሚ ርዕስ (የምስል መደጋገምን ይፈታል)
-        desc_am = it.get('desc', {}).get('am', '')
-        product_title = it.get('title') or (desc_am[:40] if desc_am else None) or f"ምርት - {cat_name}"
+        # ፎቶ ከ loremflickr
+        k = it.get('img_key', 'shopping').replace(" ", ",")
+        image_url = f"https://loremflickr.com/800/600/{k}"
 
-        # ፎቶ ማግኛ (አስተማማኝ ሎጂክ)
-        img_q = it.get('img_key', product_title).replace(" ", ",")
-        image_url = f"https://loremflickr.com/800/600/{img_q}"
+        # ራስ-አራሚ ርዕስ (ስሙ ባዶ እንዳይሆን)
+        desc_am = it.get('desc', {}).get('am', '')
+        product_title = it.get('title') or (desc_am[:40] if desc_am else None) or f"ምርት - {cat.name}"
 
         product = Product.objects.create(
             seller=admin_user, 
@@ -223,8 +246,8 @@ def run_daily_market_analysis():
             img_res = requests.get(image_url, timeout=10)
             if img_res.status_code == 200:
                 product.image.save(f"real_prod_{product.id}.jpg", ContentFile(img_res.content), save=True)
-        except:
-            pass
+        except Exception as img_err:
+            print(f"Image Error: {img_err}")
 
         # በ 7 ቋንቋዎች መመዝገብ
         trans = it.get('desc', {})
@@ -235,10 +258,10 @@ def run_daily_market_analysis():
             fr=trans.get('fr', '')
         )
 
-        # --- 4. ዝርዝር ተግባር መመዝገብ ---
-        log_reason = f"ውሳኔ፦ {data.get('priority_reason')}\n\nየተገነባ አገልግሎት፦ {feature}"
+        # --- 3. ዝርዝር ተግባር መመዝገብ ---
+        log_reason = f"ውሳኔ፦ {data.get('priority_reason')}\n\nየተገነባ አገልግሎት፦ {data.get('task_name')}"
         AISystemTask.objects.create(
-            task_name=f"Built: {feature}",
+            task_name=data.get('task_name', 'System Update'),
             priority_reason=log_reason,
             status='Completed'
         )
@@ -247,7 +270,7 @@ def run_daily_market_analysis():
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}
         lock_config.save()
 
-        return f"✅ EthAfri Evolved: {feature} built."
+        return f"✅ EthAfri Evolved: {data.get('task_name')} completed successfully."
 
     except Exception as e:
         lock_config.value = {'status': 'idle', 'since': now.isoformat()}
