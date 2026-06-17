@@ -64,8 +64,13 @@
         <div class="container">
             {% get_current_language as LANG %}
             <h1 class="display-6 fw-bold mb-2">
-                {% if LANG == 'am' %}{{ theme.banner_title_am|default:theme.banner_title }}{% else %}{{ theme.banner_title_en|default:theme.banner_title }}{% endif %}
-            </h1>
+    {% if theme %}
+        {% if LANG == 'am' %}{{ theme.banner_title_am|default:theme.banner_title }}{% else %}{{ theme.banner_title_en|default:theme.banner_title }}{% endif %}
+    {% else %}
+        EthAfri Market
+    {% endif %}
+</h1>
+
             <p class="lead mb-0 opacity-90">
                 {% translate "The Smart Global African Marketplace Driven by AI" %}
             </p>
