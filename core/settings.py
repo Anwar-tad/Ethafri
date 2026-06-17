@@ -11,7 +11,6 @@ try:
     env = Env()
     Env.read_env()
 except ImportError:
-    # ፓኬጁ ተርሙክስ ላይ ባይኖር እንኳን ኮዱ እንዳይሰበር (ከ os.environ ያነባል)
     class Env:
         def __call__(self, key, default=None): return os.environ.get(key, default)
         def bool(self, key, default=False): return os.environ.get(key, str(default)).lower() == 'true'
@@ -19,28 +18,27 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# 2. Security
-SECRET_KEY = env('SECRET_KEY', default='django-insecure-ethafri-key-2026')
+SECRET_KEY = env('SECRET_KEY', default='django-insecure-ethafri-autonomous-key-2026')
 DEBUG = env.bool('DEBUG', default=True)
 ALLOWED_HOSTS = ['*']
 CSRF_TRUSTED_ORIGINS = ['https://*.onrender.com', 'https://*.pythonanywhere.com']
 
-# 3. Application Definition
+# 2. Application Definition
 INSTALLED_APPS = [
-    'cloudinary_storage',
+    'cloudinary_storage', # ከ 'django.contrib.staticfiles' በፊት መሆን አለበት
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'marketplace',
+    'marketplace', 
     'cloudinary',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -62,8 +60,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                # የ AI ዲዛይን ለውጥን (Theme) በሁሉም ገጾች ላይ እንዲገኝ የሚያደርግ
-                'marketplace.views.theme_context', 
+                'marketplace.views.theme_context', # የ AI ቴምፕሌት ማንቂያ
             ],
         },
     },
@@ -71,16 +68,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# 4. Database
+# 3. Database (Supabase Pooler 6543)
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
+        conn_max_age=0,
         ssl_require=True
     )
 }
 
-# 5. Internationalization (7 Languages)
+# 4. Internationalization (7 Languages)
 LANGUAGE_CODE = 'am'
 LANGUAGES = [
     ('am', _('Amharic')),
@@ -95,20 +92,20 @@ TIME_ZONE = 'Africa/Addis_Ababa'
 USE_I18N = True
 USE_TZ = True
 
-# 6. Static & Media
+# 5. Static & Media (Cloudinary)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-# 7. AI Keys
-# ከታች የነበረውን GEMINI_API_KEY እና GROQ_API_KEY አጥፍተህ በዚህ ተካው (በቀጥታ ከሲስተሙ ያነባል)
+# ⚠️ 6. AI & Render/GitHub Keys (በቀጥታ ከሲስተሙ እንዲያነብ የተስተካከለ - ስህተቱን ይፈታል!)
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 MISTRAL_API_KEY = os.environ.get('MISTRAL_API_KEY', '')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
-# ⚠️ እነዚህን በ settings.py መጨረሻ ላይ ጨምር
+
 RENDER_SERVICE_ID = os.environ.get('RENDER_SERVICE_ID', '')
 RENDER_API_KEY = os.environ.get('RENDER_API_KEY', '')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
