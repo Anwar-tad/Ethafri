@@ -13,15 +13,15 @@
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- ⚠️ ህግ 4፡ የጋራ ስታይል ፋይል (Global CSS) ግንኙነት ተጨምሯል -->
+    <!-- የጋራ ስታይል ፋይል (Global CSS) ግንኙነት -->
     <link rel="stylesheet" href="{% static 'css/global.css' %}">
     
-    <!-- ⚠️ ህግ 4፡ ለአንድ ፔጅ ብቻ የሚያገለግል CSS መጫኛ (Page-Specific CSS Block) -->
+    <!-- ለአንድ ፔጅ ብቻ የሚያገለግል CSS መጫኛ -->
     {% block extra_css %}{% endblock %}
 </head>
 <body>
 
-    <!-- የ AI ማስታወቂያ ሰሌዳ (የነቃ ከሆነ ብቻ ይወጣል) -->
+    <!-- የ AI ማስታወቂያ ሰሌዳ -->
     {% if theme.show_announcement %}
     <div class="announcement-bar text-center py-2 px-3 shadow-sm bg-dark text-white" style="font-size: 14px; font-weight: 500;">
         <i class="fas fa-bullhorn text-warning me-2"></i>{{ theme.announcement_text }}
@@ -64,15 +64,19 @@
         <div class="container">
             {% get_current_language as LANG %}
             <h1 class="display-6 fw-bold mb-2">
-    {% if theme %}
-        {% if LANG == 'am' %}{{ theme.banner_title_am|default:theme.banner_title }}{% else %}{{ theme.banner_title_en|default:theme.banner_title }}{% endif %}
-    {% else %}
-        EthAfri Market
-    {% endif %}
-</h1>
-
+                <!-- ⚠️ ስህተቱን በቋሚነት ለመፍታት ቋሚ Fallback ጽሁፎች ተተክተዋል -->
+                {% if LANG == 'am' %}
+                    {{ theme.banner_title_am|default:"አዳዲስ የገበያ ዘርፎች በእጅዎ" }}
+                {% else %}
+                    {{ theme.banner_title_en|default:"Welcome to EthAfri" }}
+                {% endif %}
+            </h1>
             <p class="lead mb-0 opacity-90">
-                {% translate "The Smart Global African Marketplace Driven by AI" %}
+                {% if LANG == 'am' %}
+                    {{ theme.banner_sub_am|default:"በቀላሉ ይፈልጉ፣ በቀላሉ ያግኙ" }}
+                {% else %}
+                    {{ theme.banner_sub_en|default:"The Smart Global African Marketplace" }}
+                {% endif %}
             </p>
         </div>
     </div>
@@ -97,10 +101,10 @@
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- ⚠️ ህግ 4፡ የጋራ ጃቫስክሪፕት (Global JS) -->
+    <!-- የጋራ ጃቫስክሪፕት -->
     <script src="{% static 'js/global.js' %}"></script>
     
-    <!-- ⚠️ ህግ 4፡ ለአንድ ገጽ ብቻ የሚያገለግል ጃቫስክሪፕት መጫኛ (Page-Specific JS Block) -->
+    <!-- ለአንድ ፔጅ ብቻ የሚያገለግል ጃቫስክሪፕት መጫኛ -->
     {% block extra_js %}{% endblock %}
 </body>
 </html>
