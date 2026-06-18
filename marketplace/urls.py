@@ -22,7 +22,10 @@ urlpatterns = [
     # 🧠 የባለቤት ዕዝ ማዕከል (Control & Growth Dashboard)
     path('growth-dashboard/', views.admin_growth_dashboard, name='growth_dashboard'),
     
-    # ⚙️ የዕድገት መቀስቀሻ በእጅ ማዘዣ (Update AI Now) - ከስህተት የጸዳ እንዲሆን ተጨምሯል
+    # 👑 የባለቤት መመሪያ ገጽ (Owner Directive Panel)
+    path('owner-directive/', views.owner_directive_view, name='owner_directive'),
+    
+    # ⚙️ የዕድገት መቀስቀሻ በእጅ ማዘዣ (Update AI Now)
     path('trigger-evolution/', views.trigger_evolution, name='trigger_evolution'),
     
     # 🌐 ከ cron-job.org የሚመጣን ውጫዊ ጥሪ ተቀብሎ የዕድገት ሞተሩን የሚያስነሳው ዋናው በር

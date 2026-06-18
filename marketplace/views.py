@@ -1,23 +1,26 @@
 # EthAfri/marketplace/views.py
 
+import logging
+import uuid
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, Http404, JsonResponse  # ⚠️ JsonResponse ተጨምሯል
-from django.views.decorators.csrf import csrf_exempt  # ⚠️ csrf_exempt ተጨምሯል
+from django.contrib.auth.decorators import login_required, staff_member_required  # ⚠️ የተጨመረ
+from django.http import HttpResponse, Http404, JsonResponse  # ⚠️ የተጨመረ
+from django.views.decorators.csrf import csrf_exempt  # ⚠️ የተጨመረ
 from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib.auth.models import User
 from django.utils.translation import get_language, gettext_lazy as _
 from django.contrib import messages
-from django.utils import timezone
-from django.db.models import Prefetch
-import uuid
+from django.utils import timezone  # ⚠️ የተጨመረ
 
-# አዲሶቹ የባክሎግ፣ የኢቮሉሽን ታሪክ እና የአድሚን ትዕዛዝ ሞዴሎች ተካተዋል
+# ሎገሩን በሞጁል ደረጃ ማዋቀር
+logger = logging.getLogger(__name__)
+
+# አዲሶቹ የባክሎግ፣ የኢቮሉሽን ታሪክ እና የአድሚን ትዕዛዝ ሞዴሎች
 from .models import (
-    Product, Category, MarketTrend, UserSearch, SiteConfig, 
-    ProductTranslation, TranslationQueue,
-    AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction
+    Product, Category, UserSearch, ProductTranslation, 
+    SiteConfig, MarketTrend, AISystemTask, OwnerDirective, SelfHealingLog,
+    AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction, TranslationQueue
 )
 from .ai_utils import analyze_product_smartly
 from .growth_agent import run_daily_market_analysis
@@ -30,12 +33,14 @@ def theme_context(request):
     return {'theme': config.value if config else {}}
 
 # 2. ዋና ገጽ (ማጣሪያ የተገጠመለት)
+from django.db.models import Prefetch
+
 def home(request):
     query = request.GET.get('q')
     category_id = request.GET.get('category')
 
     try:
-        # ⚠️ select_related በመጠቀም የዳታቤዝ ፍጥነትን ማሳደግ
+        # select_related('translations', 'category')
         if query:
             products = Product.objects.select_related('translations', 'category').filter(title__icontains=query)
             UserSearch.objects.create(query=query, results_count=products.count())
@@ -57,6 +62,7 @@ def home(request):
         'active_lang': active_lang
     })
 
+
 # 3. የእቃ ዝርዝር ገጽ
 def product_detail(request, pk):
     try:
@@ -65,7 +71,7 @@ def product_detail(request, pk):
         raise Http404(_("Item not found"))
     return render(request, 'marketplace/product_detail.html', {'product': product})
 
-# 4. እቃ መለጠፊያ (⚠️ ሕግ 1፦ መጀመሪያ በነባሪነት በእንግሊዝኛ ይመዘገባል)
+# 4. እቃ መለጠፊያ (Anonymous Posting + 5 limit + Template Crash Protection)
 def post_product(request):
     post_count = request.session.get('post_count', 0)
     
@@ -93,13 +99,13 @@ def post_product(request):
                 market_value_status='Unknown', is_active=True
             )
 
-            # የትርጉም አጽም መፍጠር (Template crash ለመከላከል)
+            # የትርጉም አጽም መፍጠር
             combined_fallback = f"{title} ||| {description}"
             ProductTranslation.objects.create(
                 product=product, en=combined_fallback, am=combined_fallback
             )
 
-            # የ AI ትንተናውንና የብዙ ቋንቋ ትርጉሙን በጀርባ ለወረፋ መመዝገብ
+            # የ AI ትንተናውን በጀርባ እንዲሠራ ለወረፋ መመዝገብ
             TranslationQueue.objects.create(
                 product=product, 
                 target_languages=['am', 'om', 'ar', 'so', 'ti', 'fr']
@@ -118,9 +124,41 @@ def post_product(request):
 def post_success(request):
     return render(request, 'marketplace/post_success.html')
 
-# 6. የዕድገት ዴሽቦርድ (የባለቤት ልዕለ-ዕዝ ማዕከል)
-# EthAfri/marketplace/views.py (የተስተካከለው የፈንክሽን ክፍል ብቻ)
 
+# ⚙️ 6. ራስ-ሰር የዕድገት መቀስቀሻ (Core Evolution Engine)
+@staff_member_required  # ⚠️ የደህንነት ማጠንከሪያ ዲኮሬተር ተተክሏል
+def trigger_evolution(request):
+    result = run_daily_market_analysis()
+    heal_result = self_heal_failed_build()
+    print(f"Self-Coder Status: {heal_result}")
+    
+    config = SiteConfig.objects.filter(key="DYNAMIC_UI").first()
+    current_color = config.value.get('theme_color', '#1a2a6c') if config else '#1a2a6c'
+    discover_and_heal_ui_design(current_color, trend_context="Modern African E-Commerce Trend")
+
+    if result.startswith("✅") or result.startswith("🎉"):
+        try:
+            latest_task = AISystemTask.objects.latest('created_at')
+        except AISystemTask.DoesNotExist:
+            latest_task = None
+
+        return render(request, 'marketplace/evolution_result.html', {
+            'status': f"{result} | Coder: {heal_result}",
+            'task': latest_task
+        })
+    else:
+        return HttpResponse(
+            f"<div style='padding:30px; font-family:sans-serif; color:red;'>"
+            f"<h2>❌ AI Evolution Failed!</h2>"
+            f"<p><b>Reason:</b> {result}</p>"
+            f"<p><b>Self-Coder Status:</b> {heal_result}</p>"
+            f"<p><a href='/'>Back to Home</a></p></div>", 
+            status=400
+        )
+
+
+# 7. የዕድገት ዴሽቦርድ (የባለቤት ዕዝ ማዕከል)
+@login_required
 def admin_growth_dashboard(request):
     if not request.user.is_staff:
         return redirect('home')
@@ -133,7 +171,7 @@ def admin_growth_dashboard(request):
         if action == "trigger_agent":
             result = run_daily_market_analysis()
             messages.info(request, f"የኤጀንት አፈጻጸም ውጤት፦ {result}")
-            return redirect("growth_dashboard")  # ⚠️ ወደ 'growth_dashboard' ተስተካክሏል
+            return redirect("growth_dashboard")
             
         # ለ. ለተወሰነ ስራ ወይም ለአጠቃላይ ሲስተሙ ቀጥተኛ የባለቤት መመሪያ (Override) ለመስጠት
         elif action == "create_override":
@@ -162,7 +200,7 @@ def admin_growth_dashboard(request):
                 messages.success(request, "የባለቤት መመሪያህ ተመዝግቧል። ኤጀንቱ በቀጣይ ዑደት ላይ ተግባራዊ ያደርገዋል።")
             else:
                 messages.error(request, "እባክህ መመሪያውን ባዶ አታድርገው።")
-            return redirect("growth_dashboard")  # ⚠️ ወደ 'growth_dashboard' ተስተካክሏል
+            return redirect("growth_dashboard")
             
         # ሐ. የባክሎግ ስራዎችን ሁኔታ ወይም ቅድሚያ በቀጥታ ለመቀየር
         elif action == "update_task":
@@ -177,7 +215,7 @@ def admin_growth_dashboard(request):
                 task.status = new_status
             task.save()
             messages.success(request, f"ስራ '{task.task_name}' በተሳካ ሁኔታ ተሻሽሏል።")
-            return redirect("growth_dashboard")  # ⚠️ ወደ 'growth_dashboard' ተስተካክሏል
+            return redirect("growth_dashboard")
 
     # === ለገጹ የሚያስፈልጉ መረጃዎችን መሰብሰብ (GET) ===
     trends = MarketTrend.objects.all().order_by('-last_updated')
@@ -200,6 +238,21 @@ def admin_growth_dashboard(request):
         'active_overrides': active_overrides,
         'status_info': status_info,
     })
+
+
+# 8. የባለቤት መመሪያ ገጽ
+@login_required
+def owner_directive_view(request):
+    if not request.user.is_staff:
+        return redirect('home')
+    if request.method == "POST":
+        instruction = request.POST.get('instruction')
+        if instruction:
+            OwnerDirective.objects.all().update(is_active=False)
+            OwnerDirective.objects.create(instruction=instruction, is_active=True)
+            return HttpResponse("<script>alert('Directive sent to AI successfully!'); window.location.href='/';</script>")
+    return render(request, 'marketplace/owner_directive.html')
+
 
 # Auth views (Signup, Login, Logout)
 def signup_view(request):
@@ -229,15 +282,13 @@ def logout_view(request):
     return redirect('home')
     
 
-# ⚠️ ከ cron-job.org የሚመጣን ውጫዊ ጥሪ ተቀብሎ ሞተሩን የሚያስነሳው ዋናው በር
+# ⚠️ ከ cron-job.org የሚመጣን ጥሪ ተቀብሎ ሞተሩን የሚያስነሳ
 @csrf_exempt
 def trigger_autonomous_evolution(request):
-    # ከደህንነት አንፃር የምስጢር ቁልፍ ማረጋገጫ ማከል ትችላለህ
+    logger.info("🌐 External Cron ping received! Starting evolutionary cycle...")
     try:
-        # አዲሱን አውቶኖመስ የአሰሳና የኮዲንግ ሞተር መቀስቀስ
         result_message = run_daily_market_analysis()
         
-        # የሴፍቲኔት ክር እንዲያውቀው የፒንግ ሰዓቱን በቋሚነት መመዝገብ
         SiteConfig.objects.update_or_create(
             key="LAST_SUCCESSFUL_CRON_PING", 
             defaults={'value': {'time': timezone.now().isoformat()}}
@@ -245,4 +296,5 @@ def trigger_autonomous_evolution(request):
         
         return JsonResponse({"status": "success", "message": result_message}, status=200)
     except Exception as e:
+        logger.error(f"❌ External Cron Trigger Error: {e}")
         return JsonResponse({"status": "failed", "error": str(e)}, status=500)
