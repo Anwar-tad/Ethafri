@@ -1,32 +1,50 @@
 # EthAfri/marketplace/ai_utils.py
 
-import json, re
+import json
+import re
+import logging
 from .growth_agent import ask_ai_with_failover
 
+logger = logging.getLogger(__name__)
+
 def clean_and_parse_json(text):
-    """ከ AI መልስ ውስጥ JSON ዳታን ብቻ ለይቶ ያወጣል"""
+    """የ AI መልስን አጽድቶ ወደ ትክክለኛ የፓይተን ዲክሽነሪ ይቀይራል"""
+    if isinstance(text, dict): return text  # ቀድሞውንም ዲክሽነሪ ከሆነ
+    
     if not text: return None
     try:
-        # የ JSON መጀመሪያ እና መጨረሻ ምልክቶችን አጽድቶ ለማውጣት (Robust Parsing)
-        match = re.search(r'\{.*\}', text, re.DOTALL)
+        # ለተጨማሪ ደህንነት ማርክዳውን ብሎኮችን ያስወግዳል
+        clean_text = re.sub(r'^```json\s*|^```\s*|```$', '', str(text).strip(), flags=re.MULTILINE)
+        match = re.search(r'\{.*\}', clean_text, re.DOTALL)
         if match:
             return json.loads(match.group(0))
-        return json.loads(text)
+        return json.loads(clean_text)
     except Exception as e:
-        print(f"⚠️ JSON Parsing Error: {e}")
+        logger.error(f"⚠️ JSON Parsing Error: {e} | Raw Data: {text}")
         return None
 
 def analyze_product_smartly(title, description, price):
-    """እቃ ሲለጠፍ በ AI መርምሮ ምድብ ለመስጠት (በFailover Chain የተደገፈ)"""
-    prompt = f"""
-    Categorize the following product and provide exactly 3 tags for photo matching.
-    Product: {title}
-    Desc: {description}
-    Price: {price}
+    """እቃ ሲለጠፍ በ AI መርምሮ ምድብ ለመስጠት እና ወደ 7 ቋንቋዎች ለመተርጎም"""
     
-    Return as pure JSON (no extra text):
+    # 🛡️ ፕሮምፕቱን ሕግ 1ን እንዲያከብር እና ጥብቅ የ JSON መመለሻ እንዲኖረው ማጠንከር
+    prompt = f"""
+    [CRITICAL DIRECTIVE]
+    You are the EthAfri AI Categorization & Translation Engine.
+    Analyze the following product:
+    Title: {title}
+    Description: {description}
+    Price: {price}
+
+    Task:
+    1. Determine the best category.
+    2. Generate 3 specific search tags.
+    3. Translate the title and description into Amharic, Oromo, Arabic, Somali, Tigrinya, and French.
+
+    Output Constraint:
+    Return ONLY a pure JSON object. No markdown, no explanations. 
+    Strict JSON format:
     {{
-        "category": "Category Name",
+        "category": "String",
         "tags": ["tag1", "tag2", "tag3"],
         "translations": {{
             "en": "...", "am": "...", "om": "...", "ar": "...", "so": "...", "ti": "...", "fr": "..."
@@ -34,8 +52,7 @@ def analyze_product_smartly(title, description, price):
     }}
     """
     
-    # ⚠️ አሁን የጠየቅከውን Failover ሎጂክ በሙሉ ይይዛል
-    # ይህ አንድ መስመር ጀሚኒ -> ግሮቅ -> ኦፕንራውተር -> ሚስትራልን በቅደም ተከተል ይፈትሻል
+    # የ Failover ሎጂክን ይጠቀማል (Translation Pool -> Gemini first)
     raw_response = ask_ai_with_failover(prompt, pool_type="translation")
         
     return clean_and_parse_json(raw_response)

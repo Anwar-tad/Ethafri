@@ -7,7 +7,7 @@ urlpatterns = [
     # 🏠 ዋና ገጽ እና ምርት መፈለጊያ
     path('', views.home, name='home'),
     
-    # 📦 ምርት መለጠፊያ እና የስኬት ገጽ (የእንግዳ ተጠቃሚ 5 ገደብ መቆጣጠሪያን ጨምሮ)
+    # 📦 ምርት መለጠፊያ እና የስኬት ገጽ
     path('post/', views.post_product, name='post_product'),
     path('success/', views.post_success, name='post_success'),
     
@@ -19,10 +19,12 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     
-    # 🧠 የ AI ራስ-ገዝ አስተዳደር እና የባለቤት መመሪያዎች (Control & Growth Dashboard)
-    path('owner-directive/', views.owner_directive_view, name='owner_directive'),
+    # 🧠 የባለቤት ዕዝ ማዕከል (Control & Growth Dashboard)
     path('growth-dashboard/', views.admin_growth_dashboard, name='growth_dashboard'),
     
-    # 🚦 የ 5 ደቂቃ ራስ-ሰር የዕድገት እና የኮድ/ዳታቤዝ ጥገና መቀስቀሻ (Core Evolution Endpoint)
-    path('evolve-now-secret-123/', views.trigger_evolution, name='trigger_evolution'),
+    # ⚙️ የዕድገት መቀስቀሻ በእጅ ማዘዣ (Update AI Now) - ከስህተት የጸዳ እንዲሆን ተጨምሯል
+    path('trigger-evolution/', views.trigger_evolution, name='trigger_evolution'),
+    
+    # 🌐 ከ cron-job.org የሚመጣን ውጫዊ ጥሪ ተቀብሎ የዕድገት ሞተሩን የሚያስነሳው ዋናው በር
+    path('evolve-now-secret-123/', views.trigger_autonomous_evolution, name='trigger_autonomous_evolution'),
 ]

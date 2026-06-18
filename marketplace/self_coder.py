@@ -40,7 +40,7 @@ def push_code_to_github(file_path, file_content, commit_message):
     github_token = getattr(settings, 'GITHUB_TOKEN', None)
     repo = "Anwar-tad/Ethafri" # የአንተ የጊትሃብ አካውንት
     if not github_token:
-        return "❌ GITHUB_TOKEN አልተገኘም"
+        return "❌ GITHUB_TOKEN Missing from settings."
 
     url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {
@@ -76,16 +76,24 @@ def self_heal_failed_build():
     if not status_info:
         return "Render Status Check Skipped (Keys missing)."
 
-    # ሬንደር ላይ መጫኑ ከከሸፈ (build_failed) ራሱን የማከም ስรา ይጀምራል
+    # ሬንደር ላይ መጫኑ ከከሸፈ (build_failed) ራሱን የማከም ስራ ይጀምራል
     if status_info['status'] == "build_failed":
         print("⚠️ Render Build Failed! Starting Self-Correction...")
         
-        # 1. ስህተቱን ለ AI ማብራራት
+        # 🛡️ ሕግ 1፦ የኤአይ ግንኙነት ፍጹም በሆነ እንግሊዝኛ ብቻ እንዲሆን ፕሮምፕቱን ይበልጥ ማጥበቅ
         prompt = f"""
+        [CRITICAL DIRECTIVE] 
         You are the Autonomous CEO of EthAfri. Your latest code deployment on Render has FAILED.
-        The Render commit ID is: {status_info['commit_id']}.
-        Please analyze your recent python code in 'marketplace/growth_agent.py', identify the syntax or logical bug, and correct it.
-        Return ONLY the complete, corrected python code for 'marketplace/growth_agent.py'. Do not include any extra text, only the code starting from the imports.
+        The Render commit ID that caused the crash is: {status_info['commit_id']}.
+        
+        Task instructions:
+        1. Scan and analyze recent logic in 'marketplace/growth_agent.py'.
+        2. Identify syntax errors, unhandled exceptions, missing imports, or database connection leaks.
+        3. Correct the bugs completely while strictly maintaining all existing system safety rules and quota limits.
+        
+        Output Constraint:
+        Return ONLY the complete, raw, production-ready Python code for 'marketplace/growth_agent.py'. 
+        Do NOT include any introduction, explanations, markdown blocks, or notes. Start directly from the imports.
         """
         
         # እዚህ ጋር አዲሱ 'ask_ethafri_ceo' ተጠርቷል

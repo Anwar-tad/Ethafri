@@ -5,14 +5,12 @@ import re
 import traceback
 from django.db import connection
 from django.conf import settings
-from django.utils.text import slugify # ⚠️ ይህ መስመር ስህተቱን ለመከላከል ተጨምሯል
+from django.utils.text import slugify
 from .models import SelfHealingLog, SiteConfig
 from .growth_agent import ask_ethafri_ceo 
 
-MODEL_NAME = 'gemini-2.5-flash'
-
 def generalize_error_message(error_msg):
-    """የተለያዩ ተለዋዋጭ እሴቶችን በማጥፋት ስህተቱን ወደ አጠቃላይ አሻራ ይቀይራል"""
+    """የተለያዩ ተለዋዋጭ እሴቶችን በማጥፋት ስህተቱን ወደ አጠቃላይ አሻራ (Signature) ይቀይራል"""
     clean_msg = re.sub(r"'\d+'|\d+", "[NUM]", error_msg)
     clean_msg = re.sub(r'"[^"]+"', "[IDENTIFIER]", clean_msg)
     return clean_msg.strip()
@@ -27,7 +25,7 @@ def validate_css_syntax(css_content):
 
 def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minimalist"):
     """
-    📌 አዳዲስና የተሻሉ የዲዛይን ስታይሎችን ያሰሳል设计፣ ስህተቶች ሲኖሩም ራሱን ያክማል።
+    📌 አዳዲስና የተሻሉ የዲዛይን ስታይሎችን ያሰሳል፣ ስህተቶች ሲኖሩም ራሱን ያክማል።
     ይህ ሲስተሙ ደጋግሞ ዲዛይን በመስራት ቢዚ እንዳይሆን ይከላከላል።
     """
     style_key = f"DESIGN_STYLE_{slugify(trend_context)}"
@@ -40,23 +38,34 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
 
     # 2. 🤖 የአካባቢው መዝገብ ከሌለ አዲስ የተሻለ የዲዛይን ስታይል ከ AI ይጠይቃል
     prompt = f"""
+    [CRITICAL DIRECTIVE]
     You are the Chief UI/UX Architect of EthAfri.
     Current Theme Color: {current_theme_color}
     Target Trend Direction: {trend_context}
 
+    Task:
     Generate an optimized CSS variable block and smart design adjustments to enhance the marketplace visual appeal.
     Ensure to fix any common scaling or border-radius overflow bugs on product cards.
-    Return ONLY a valid JSON string with two keys: 'theme_color' and 'custom_css'. No markdown, no explanations.
+
+    Output Constraint:
+    Return ONLY a valid JSON string with exactly two keys: 'theme_color' and 'custom_css'. 
+    Do NOT include markdown blockticks (```json), formatting, or explanations. Just the raw JSON object.
+    Example format:
     {{
-       "theme_color": "#hex_code",
-       "custom_css": ":root {{ --primary-color: #hex; }} .product-card {{ border-radius: 20px; }}"
+       "theme_color": "#1a2a6c",
+       "custom_css": ":root {{ --primary-color: #1a2a6c; }} .product-card {{ border-radius: 20px; }}"
     }}
     """
     
     try:
         ai_response = ask_ethafri_ceo(prompt)
+        # የ JSON ዳታውን ከፅሁፍ ውስጥ ፈልቅቆ ማውጣት
         start_idx = ai_response.find('{')
         end_idx = ai_response.rfind('}') + 1
+        
+        if start_idx == -1 or end_idx == 0:
+            raise ValueError("No valid JSON object found in AI response.")
+            
         clean_json = ai_response[start_idx:end_idx]
         design_data = json.loads(clean_json)
         
@@ -72,7 +81,7 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
         # ስኬታማነቱን በሎግ መመዝገብ
         SelfHealingLog.objects.create(
             error_message=f"UI_EVOLUTION: Applied {trend_context} style",
-            solution_sql=design_data.get('custom_css'),
+            solution_sql=design_data.get('custom_css', ''),
             resolved=True
         )
         return design_data
@@ -101,24 +110,41 @@ def heal_any_system_error(error_category, error_msg, target_context=None):
                 with connection.cursor() as cursor:
                     cursor.execute(past_solution.solution_sql)
                 return f"✅ Database Healed using Local Memory!"
-            except Exception as e: pass
+            except Exception as e: 
+                pass
         elif error_category == 'CODE_EXECUTION':
             return past_solution.solution_sql
 
+    # የ AI መመሪያ (Prompt) ማጠንከሪያ
     if error_category == 'DATABASE':
-        prompt = f"You are the Autonomous Database Doctor of EthAfri. Fix this PostgreSQL error: {error_msg} for query: {target_context}. Return raw SQL ONLY."
+        prompt = f"""
+        [CRITICAL DIRECTIVE]
+        You are the Autonomous Database Doctor of EthAfri. 
+        Fix this PostgreSQL error: {error_msg} 
+        For query/context: {target_context}. 
+        Return ONLY raw SQL statements to fix the issue. No markdown blocks, no explanations.
+        """
     else:
-        prompt = f"You are the Lead Systems Engineer of EthAfri. Fix this python runtime error: {error_msg} in context: {target_context}. Return raw code ONLY."
+        prompt = f"""
+        [CRITICAL DIRECTIVE]
+        You are the Lead Systems Engineer of EthAfri. 
+        Fix this Python runtime error: {error_msg} 
+        In context: {target_context}. 
+        Return ONLY the corrected raw Python code. No markdown blocks, no explanations.
+        """
 
     try:
         ai_response = ask_ethafri_ceo(prompt)
-        if not ai_response: return "❌ AI Failover chain failed."
-        clean_solution = re.sub(r'^```[a-zA-Z]*\s*|^```\s*|```$', '', ai_response.strip(), flags=re.MULTILINE)
+        if not ai_response: 
+            return "❌ AI Failover chain failed."
+            
+        clean_solution = re.sub(r'^```[a-zA-Z]*\s*|^```\s*|```$', '', ai_response.strip(), flags=re.MULTILINE).strip()
 
         if error_category == 'DATABASE':
             with connection.cursor() as cursor:
                 cursor.execute(clean_solution)
         elif error_category == 'CODE_EXECUTION':
+            # ማስጠንቀቂያ፡ ይህ በቀጥታ ኮድ ስለሚያስፈጽም (exec) ከፍተኛ ጥንቃቄ ይፈልጋል
             compile(clean_solution, '<string>', 'exec')
 
         SelfHealingLog.objects.create(
@@ -131,7 +157,7 @@ def heal_any_system_error(error_category, error_msg, target_context=None):
     except Exception as heal_err:
         SelfHealingLog.objects.create(
             error_message=f"Category: {error_category} | Error: {general_error} | Failed with: {str(heal_err)}",
-            solution_sql=clean_solution if 'clean_solution' in locals() else "No solution",
+            solution_sql=clean_solution if 'clean_solution' in locals() else "No solution generated",
             resolved=False
         )
         return f"❌ Auto-Healing Failed: {str(heal_err)}"

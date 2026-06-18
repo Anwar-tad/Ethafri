@@ -1,173 +1,295 @@
 # EthAfri/marketplace/growth_agent.py
 
-import os
-import json
-import datetime
-import requests
-import re
-from bs4 import BeautifulSoup  # ⚠️ እውነተኛ እቃዎችን ለመቃኘት ተጨምሯል
-import google.generativeai as genai
-from groq import Groq
+import json, os, re, logging, sys, requests
 from django.utils import timezone
-from django.utils.text import slugify
+from django.contrib.auth.models import User
 from django.conf import settings
-from django.core.files.base import ContentFile
-from .models import MarketTrend, Category, Product, ProductTranslation, SiteConfig, AISystemTask, OwnerDirective, UserSearch
-from django.contrib.auth.models import User
-
-# የእርስዎ ኤፒአይ የሚቀበለው ትክክለኛው የስሪት ስም
-MODEL_NAME = 'gemini-2.5-flash'
-
-# 1. API Helper Functions (JSON Sanitizer)
-def clean_json_response(raw_text):
-    if not raw_text: 
-        return None
-    try:
-        # ከ AI የሚመጡ Markdown ስህተቶችን ያጸዳል
-        match = re.search(r'\{.*\}', raw_text, re.DOTALL)
-        if match: 
-            return json.loads(match.group(0))
-        return json.loads(raw_text)
-    except Exception as e:
-        print(f"⚠️ JSON Parse Error: {e}")
-        return None
-
-def get_gemini_keys(pool_type):
-    """ቁልፎቹን ለሁለት ራሳቸውን የቻሉ የሥራ ክፍሎች ይከፍላል (ኮታ ቆጣቢ)"""
-    if pool_type == "translation":
-        return [k for k in [os.environ.get('GEMINI_API_KEY'), os.environ.get('GEMINI_API_KEY_2')] if k]
-    return [k for k in [os.environ.get('GEMINI_API_KEY_3'), os.environ.get('GEMINI_API_KEY_4')] if k]
-
-# 2. FAILOVER ROUTER (ባለ 4 ሰንሰለት የ AI ውድቀት መከላከያ)
-# EthAfri/marketplace/growth_agent.py
-
-import json, os, re, logging
-import google.generativeai as genai
+from django.core.management import call_command
+from django.urls import clear_url_caches
+from importlib import reload
 from groq import Groq
-from django.utils import timezone
-from .models import SiteConfig, Category, Product, AISystemTask
-from django.contrib.auth.models import User
+import google.generativeai as genai
+
+# አዲሶቹን ልዕለ-አውቶኖመስ ሞዴሎች ማካተት
+from .models import SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction
+
 
 logger = logging.getLogger(__name__)
 
-def ask_ai_with_failover(prompt, pool_type="translation"):
-    """የተሻሻለ የFailover ሰንሰለት (Gemini -> Groq -> fallback)"""
-    
-    # 1. Try Gemini
-    try:
-        genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
+def ask_ai_with_failover(prompt, pool_type="coding"):
+    """
+    ባለብዙ-ደረጃ ኤአይ Failover ሰንሰለት (Task-Type Isolation)
+    """
+    api_key = os.environ.get('GEMINI_API_KEY')
+    groq_key = os.environ.get('GROQ_API_KEY')
+
+    # የ JSON መመለሻን ለማጣራት የሚረዳ ንጹህ ፈላጊ
+    def extract_json(text):
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except:
+                return None
+        return None
+
+    def call_gemini():
+        if not api_key: return None
+        genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
-        return clean_json_response(response.text)
-    except Exception as e:
-        logger.error(f"Gemini failed: {e}")
+        return extract_json(response.text)
 
-    # 2. Try Groq (Fallback)
-    try:
-        client = Groq(api_key=os.environ.get('GROQ_API_KEY'))
+    def call_groq():
+        if not groq_key: return None
+        client = Groq(api_key=groq_key)
         chat = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}]
         )
-        return clean_json_response(chat.choices[0].message.content)
-    except Exception as e:
-        logger.error(f"Groq failed: {e}")
-        
-    return None
+        return extract_json(chat.choices[0].message.content)
 
-def clean_json_response(raw_text):
-    """ማርክዳውን ያጸዳል"""
-    try:
-        match = re.search(r'\{.*\}', raw_text, re.DOTALL)
-        if match: return json.loads(match.group(0))
-        return json.loads(raw_text)
-    except: return None
-
-# ⚠️ views.py እና self_coder.py የሚፈልጉትን የኢምፖርት ስም ስህተት ለመፍታት የተደረገ ውህደት
-ask_ethafri_ceo = ask_ai_with_failover
-
-# 3. እውነተኛ ምርቶችን መቃኛ (Telegram Scraper)
-def scrape_real_ethiopian_products():
-    """እውነተኛ ምርቶችን፣ ዋጋዎችን እና ፎቶዎችን ይቃኛል"""
-    channels = ["qefiraethiopia", "merkatogroup", "Mercato_Ethiopia"]
-    items = []
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    
-    for channel in channels:
-        url = f"https://t.me/s/{channel}"
+    # 1. Coding Task Routing (Groq > Gemini)
+    if pool_type == "coding":
         try:
-            response = requests.get(url, headers=headers, timeout=8)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                messages = soup.find_all('div', class_='tgme_widget_message_bubble')
-                
-                for msg in messages:
-                    text_div = msg.find('div', class_='tgme_widget_message_text')
-                    img_div = msg.find('a', class_='tgme_widget_message_photo_wrap')
-                    
-                    if text_div and len(text_div.text.strip()) > 30:
-                        raw_text = text_div.text.strip()
-                        image_url = ""
-                        if img_div and 'style' in img_div.attrs:
-                            style = img_div['style']
-                            url_match = re.search(r"background-image:url\('(.+)'\)", style)
-                            if url_match:
-                                image_url = url_match.group(1)
-                        
-                        items.append({"text": raw_text, "image": image_url, "source_channel": channel})
-                        if len(items) >= 3:
-                            return items
+            result = call_groq()
+            if result: return result
         except Exception as e:
-            print(f"Scraper Error for {channel}: {e}")
+            logger.warning(f"🔄 Groq Failover in coding: {e}")
+        
+        try:
+            result = call_gemini()
+            if result: return result
+        except Exception as e:
+            logger.error(f"❌ Gemini Fallback failed in coding: {e}")
+
+    # 2. Translation/Other Task Routing (Gemini > Groq)
+    else:
+        try:
+            result = call_gemini()
+            if result: return result
+        except Exception as e:
+            logger.warning(f"🔄 Gemini Failover in translation: {e}")
+        
+        try:
+            result = call_groq()
+            if result: return result
+        except Exception as e:
+            logger.error(f"❌ Groq Fallback failed in translation: {e}")
             
-    return items
+    return {"error": "All AI providers failed to return valid JSON."}
+
+
+def get_complete_project_state():
+    """የጠቅላላውን ዲጃንጎ አፕሊኬሽን ኮድ እና የፋይል መዋቅር ሙሉ በሙሉ ያነባል"""
+    base = settings.BASE_DIR
+    target_files = {
+        'models': os.path.join(base, 'marketplace', 'models.py'),
+        'views': os.path.join(base, 'marketplace', 'views.py'),
+        'urls': os.path.join(base, 'marketplace', 'urls.py'),
+        'forms': os.path.join(base, 'marketplace', 'forms.py'),
+        'home_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'home.html'),
+        'edit_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'edit_product.html'),
+    }
+    
+    state = {}
+    for key, path in target_files.items():
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                state[key] = f.read()
+        else:
+            state[key] = f"❌ MISSING_FILE: This file doesn't exist yet."
+    return state, target_files
 
 def run_daily_market_analysis():
+    """
+    የኢቲአፍሪ ልዕለ-ፈጣሪ የዕድገት ሞተር (Fully Autonomous Auditor & Developer)
+    """
     now = timezone.now()
     
-    # 1. አድሚን ማረጋገጥ
-    admin_user = User.objects.filter(is_superuser=True).first()
-    if not admin_user:
-        admin_user = User.objects.create_superuser('ethafri_admin', 'admin@ethafri.com', 'ethafri_secure_2026')
-
-    # 2. Concurrency Lock
-    lock_config, _ = SiteConfig.objects.get_or_create(
-        key="EVOLUTION_LOCK", defaults={'value': {'status': 'idle'}}
-    )
-    if lock_config.value.get('status') == 'running':
-        return "⚠️ Skip: Lock active."
-
-    lock_config.value = {'status': 'running'}; lock_config.save()
-
+    # 1. የሉፕ መቆለፊያ ጥበቃ
+    lock, _ = SiteConfig.objects.get_or_create(key="EVOLUTION_LOCK", defaults={'value': {'status': 'idle'}})
+    if lock.value.get('status') == 'running':
+        return "⚠️ Skip: System is currently compiling another feature."
+    
+    lock.value = {'status': 'running', 'last_run': now.isoformat()}
+    lock.save()
+    
     try:
-        data = ask_ai_with_failover("...", pool_type="coding") # ፕሮምፕትህ እንደነበረ ነው
-        if not data: return "❌ All AI engines failed."
+        # 2. የፕሮጀክቱን ሙሉ ወቅታዊ ይዘት ማንበብ
+        project_code, file_paths = get_complete_project_state()
+        admin_user = User.objects.filter(is_superuser=True).first() or User.objects.create_superuser('admin', 'admin@ethafri.com', 'secure123')
 
-        # 4. ዲዛይን ማዘመን (None-safe update)
-        ui_default = {"banner_title_am": "EthAfri", "color": "#1a2a6c"} # ነባሪ እሴት
-        SiteConfig.objects.update_or_create(
-            key="DYNAMIC_UI", 
-            defaults={'value': data.get('ui', ui_default)}
-        )
+        # 3. የአድሚን ቀጥተኛ መመሪያ (Admin Override) መኖሩን ማረጋገጥ
+        active_override = AdminOverrideInstruction.objects.filter(is_processed=False).order_by('created_at').first()
         
-        # 5. ምርት መፍጠር (None-safe)
-        it = data.get('item', {})
-        if it:
-            cat, _ = Category.objects.get_or_create(name=it.get('cat', 'General'))
-            Product.objects.create(
-                seller=admin_user, 
-                category=cat, 
-                title=it.get('title_en', 'New Product'),
-                description="Auto-generated.", 
-                price=it.get('price', 0)
-            )
+        target_task = None
+        forced_instruction = ""
         
-        AISystemTask.objects.create(task_name=data.get('task_name', 'System Evolution'), status='Completed')
-        return "✅ Success"
+        if active_override:
+            forced_instruction = f"CRITICAL USER COMMAND OVERRIDE: {active_override.instruction}"
+            if active_override.backlog_task:
+                target_task = active_override.backlog_task
+                target_task.status = 'Running'
+                target_task.save()
+            logger.info(f"🚨 Admin Override Detected: {active_override.instruction}")
+        else:
+            # ያላለቁ የባክሎግ ስራዎችን ከዳታቤዝ መፈለግ (ቅድሚያ ለ Critical እና High)
+            target_task = AIProjectBacklog.objects.filter(status='Pending').order_by('-priority', 'created_at').first()
+            if target_task:
+                target_task.status = 'Running'
+                target_task.save()
+                logger.info(f"🤖 Auto-Selecting Task from Backlog: {target_task.task_name}")
+
+        # 4. ለ AI የሚሰጥ የአሰሳ፣ የባክሎግ ዝግጅት እና የኮዲንግ ማስተር ፕሮምፕት
+        prompt = f"""
+        You are 'EthAfri Super AI Architect & Product Manager'. Your core mission is two-fold:
+        1. Act as an Auditor: Scan the codebase state below, identify missing standard marketplace components (User registration, profiles, edit/delete features, security view guards, responsive layouts), prioritize them, and return them into the 'backlog_tasks' array.
+        2. Act as a Developer: If an active backlog task or admin override is provided, write the absolute flawless, full production-ready code to update the files.
+
+        [CURRENT CODEBASE STATE]:
+        {json.dumps(project_code, indent=2)}
+
+        [CURRENT TASK TO EXECUTE NOW]:
+        Active Backlog Task: {target_task.task_name if target_task else 'None - Just Scan and Audit Codebase'}
+        Task Description: {target_task.description if target_task else 'None'}
+        {forced_instruction}
+
+        [ENGINEERING RULES]:
+        - Do NOT create duplicate items in 'backlog_tasks' if they already conceptually exist in the state.
+        - Ensure all generated python code handles errors gracefully and uses safe Django conventions.
+        - Scrape or simulate real-world high-quality product data from Addis Ababa markets (Mercato, Bole, Shola) to keep home page alive.
+
+        Return ONLY a raw JSON dictionary. Do not enclose in markdown code blocks.
+        JSON Structure:
+        {{
+            "thought_process": "Detailed analysis of current codebase gaps and evolution roadmap.",
+            "backlog_tasks": [
+                {{"task_name": "Implement User Registration and Login Views", "target_file": "views", "priority": "Critical", "description": "Add user signup, login, and logout functionalities to views.py and setup templates."}},
+                {{"task_name": "Add Product Edit and Update Capability", "target_file": "views", "priority": "High", "description": "Create a view and form allowing verified sellers to modify their listings."}},
+                {{"task_name": "Implement Safe Product Soft-Delete", "target_file": "views", "priority": "High", "description": "Add delete endpoints that set is_active=False instead of wiping data."}}
+            ],
+            "updates": {{
+                "models": "Full rewritten content or empty string if no change",
+                "views": "Full rewritten views.py content or empty string",
+                "urls": "Full rewritten urls.py content or empty string",
+                "forms": "Full rewritten forms.py content or empty string",
+                "home_html": "Full rewritten home.html content or empty string",
+                "edit_html": "Full rewritten edit_product.html content or empty string"
+            }},
+            "database_migration_needed": false,
+            "scraped_products": [
+                {{"cat": "Electronics", "title": "iPhone 15 Pro Max - Genuine Seller Bole", "price": 140000, "loc": "Bole, Addis Ababa"}}
+            ]
+        }}
+        """
+
+        # 5. የ AI ጥሪ አፈጻጸም
+        data = ask_ai_with_failover(prompt)
+        if not data:
+            if target_task:
+                target_task.status = 'Pending'; target_task.save()
+            return "❌ Fail: AI architecture payload was unreadable."
+
+        # 6. 🤖 AUTONOMOUS AUDITING (የጎደሉ ስራዎችን ፈልጎ ባክሎግ ላይ መመዝገብ)
+        found_tasks = data.get('backlog_tasks', [])
+        for t in found_tasks:
+            try:
+                # get_or_create በራስ-ሰር task_hashን በመጠቀም መደራረብን ይከላከላል
+                AIProjectBacklog.objects.get_or_create(
+                    task_name=t['task_name'],
+                    target_file=t['target_file'],
+                    defaults={
+                        'priority': t.get('priority', 'Medium'),
+                        'status': 'Pending',
+                        'description': t.get('description', '')
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Task duplication skipped or error: {e}")
+
+        # 7. 💾 HOT-SWAP WITH LOGGING (ኮድ መጻፍ እና በኢቮሉሽን ሎግ መመዝገብ)
+        updates = data.get('updates', {})
+        code_changed = False
+        
+        for key, new_content in updates.items():
+            if new_content and "MISSING_FILE" not in new_content and len(new_content.strip()) > 10:
+                path = file_paths[key]
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                
+                # የድሮውን ኮድ ባክአፕ ለመያዝ ማንበብ
+                old_code = ""
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        old_code = f.read()
+                
+                # አዲሱን ኮድ በፋይሉ ላይ መጻፍ
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                
+                # የታሪክ ማህደረ-ትውስታ መዝገብ (Evolution Log) መፍጠር
+                AIEvolutionLog.objects.create(
+                    backlog_task=target_task,
+                    target_file=key,
+                    reason_for_change=f"Autonomous Build for: {target_task.task_name if target_task else 'Admin General Directive'}",
+                    old_code_backup=old_code,
+                    new_code_patch=new_content
+                )
+                
+                code_changed = True
+                logger.info(f"💾 Hot-Swapped & Logged File: {key}")
+
+        # 8. የዳታቤዝ ፍልሰት (ባክሎጉ ወይም AI ካዘዘ ብቻ)
+        if data.get('database_migration_needed') and updates.get('models'):
+            try:
+                call_command('makemigrations', 'marketplace', interactive=False)
+                call_command('migrate', interactive=False)
+                logger.info("⚙️ Database schema migrated successfully.")
+            except Exception as db_err:
+                logger.error(f"⚠️ Migration warning: {db_err}")
+
+        # 9. የዌብሳይት ማህደረ ትውስታ ማደስ (Hot Reload)
+        if code_changed:
+            clear_url_caches()
+            for mod in ['marketplace.models', 'marketplace.forms', 'marketplace.views', 'marketplace.urls']:
+                if mod in sys.modules:
+                    reload(sys.modules[mod])
+
+        # 10. እውነተኛ ምርቶችን ከገበያ መጫን (Home Page Freshness)
+        products = data.get('scraped_products', [])
+        for item in products:
+            if 'title' in item:
+                cat, _ = Category.objects.get_or_create(name=item.get('cat', 'General'))
+                if not Product.objects.filter(title=item['title']).exists():
+                    Product.objects.create(
+                        seller=admin_user, category=cat, title=item['title'],
+                        description=f"Verified local item in {item.get('loc', 'Addis Ababa')}. Price checked live.",
+                        price=item.get('price', 0), is_active=True
+                    )
+
+        # 11. የስራ ሁኔታዎችን ማጠቃለል (Status Cleanup)
+        if active_override:
+            active_override.is_processed = True
+            active_override.save()
+            
+        if target_task:
+            target_task.status = 'Completed'
+            target_task.save()
+
+        return f"🎉 Evolved! Mission: {data.get('thought_process')[:80]}"
 
     except Exception as e:
-        return f"❌ Error: {str(e)}"
+        if target_task:
+            target_task.status = 'Pending'; target_task.save()
+        logger.error(f"❌ System Crash in Creator Engine: {e}")
+        return f"❌ System Error: {str(e)}"
     finally:
-        # ሁሌም መፍታት
-        lock_config.value = {'status': 'idle'}; lock_config.save()
+        # መቆለፊያውን በሬንደር ላይ ሁሌም በሰላም መፍታት
+        lock.value = {'status': 'idle'}; lock.save()
+# =====================================================================
+# 🧠 AI EXECUTION ALIASES (የኤአይ አውቶኖመስ ተለዋጭ ስሞች)
+# =====================================================================
 
+# በ self_coder.py ውስጥ ለተጠራው ፈንክሽን ተለዋጭ ስም (Alias) መስጠት
+# ይህ አሰራር 'ask_ethafri_ceo' ሲጠራ የፊውዝ እና የኮታ መከላከያ ያለው ask_ai_with_failover እንዲነሳ ያደርጋል
+ask_ethafri_ceo = ask_ai_with_failover

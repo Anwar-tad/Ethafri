@@ -3,7 +3,7 @@
 
 {% block extra_css %}
 <style>
-    /* የካቴጎሪ ተንሸራታች ስታይል (በጣም ኦፕቲማይዝድ ነው) */
+    /* የካቴጎሪ ተንሸራታች ስታይል (በተንቀሳቃሽ ስልኮች ላይ በጣም ፈጣን ነው) */
     .scroll-categories {
         display: flex;
         overflow-x: auto;
@@ -14,7 +14,7 @@
     }
     .scroll-categories::-webkit-scrollbar { display: none; }
     
-    /* ነባሪ የካቴጎሪ ባጅ ስታይል (AI CSS ካልመጣ መከላከያ ይሆናል) */
+    /* ነባሪ የካቴጎሪ ባጅ ስታይል (የ AI CSS ካልተጫነ መከላከያ ይሆናል) */
     .category-badge {
         background-color: #f8f9fa;
         color: #333;
@@ -38,6 +38,7 @@
 {% block content %}
 
 {% if user.is_staff %}
+<!-- ⚠️ የ 'trigger_evolution' አድራሻ በ urls.py ስለተመዘገበ አሁን ያለምንም ስህተት ይሰራል -->
 <div class="alert alert-dark border-0 shadow-sm rounded-4 p-3 mb-4 d-flex justify-content-between align-items-center bg-dark text-white">
     <div>
         <h6 class="mb-1 fw-bold"><i class="fas fa-robot text-warning me-2"></i> {% translate "AI Growth Center" %}</h6>
@@ -73,9 +74,11 @@
                 <div class="img-container">
                     {% if product.image %}
                         <img src="{{ product.image.url }}" loading="lazy" width="300" height="200" alt="{{ product.title }}">
-
                     {% elif product.image_url %}
                         <img src="{{ product.image_url }}" alt="{{ product.get_translated_title }}" onerror="this.src='https://loremflickr.com/400/300/product'">
+                    {% else %}
+                        <!-- ⚠️ በ AIም ሆነ በተጠቃሚ ምስል ላልተሰቀለላቸው ምርቶች የ fallback ምስል ጥበቃ -->
+                        <img src="https://loremflickr.com/400/300/product" alt="{{ product.title }}">
                     {% endif %}
                     
                     <span class="price-tag" style="{% if theme.theme_color %}background-color: {{ theme.theme_color }};{% endif %}">

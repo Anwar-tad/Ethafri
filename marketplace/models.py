@@ -3,8 +3,9 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.text import slugify
-from django.utils.translation import get_language  # ⚠️ የቋንቋ መለያ (ለ i18n)
+from django.utils.translation import get_language
 import uuid
+import hashlib
 
 class Category(models.Model):
     """በ AI የሚፈጠሩ እና የሚደራጁ የምርት ምድቦች"""
@@ -15,9 +16,7 @@ class Category(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            # መጀመሪያ ስሙን ወደ እንግሊዝኛ ለመቀየር ይሞክራል
             self.slug = slugify(self.name)
-            # ስሙ አማርኛ ከሆነ slugify ባዶ ስለሚሆን በፍጹም የማይደገም አጭር ኮድ ይጨምራል
             if not self.slug:
                 self.slug = f"cat-{uuid.uuid4().hex[:8]}"
         super().save(*args, **kwargs)
@@ -29,11 +28,11 @@ class Product(models.Model):
     """የማርኬት ፕሌሱ ዋና የምርት መረጃ መያዣ"""
     seller = models.ForeignKey(User, on_delete=models.CASCADE)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
-    title = models.CharField(max_length=255)  # ነባሪው በእንግሊዝኛ ይገባል
-    description = models.TextField()  # ነባሪው በእንግሊዝኛ ይገባል
+    title = models.CharField(max_length=255)
+    description = models.TextField()
     price = models.DecimalField(max_digits=20, decimal_places=2, default=0)
-    image_url = models.URLField(blank=True, null=True)  # በ AI የሚመጡ ምስሎች ሊንክ
-    image = models.ImageField(upload_to='products/', blank=True, null=True)  # ተጠቃሚ የሚጭነው ምስል
+    image_url = models.URLField(blank=True, null=True)
+    image = models.ImageField(upload_to='products/', blank=True, null=True)
     location = models.CharField(max_length=255, default='Global / ኢትዮጵያ')
     specifications = models.JSONField(default=dict, blank=True) 
     market_value_status = models.CharField(max_length=50, blank=True, default='Unknown')
@@ -41,17 +40,12 @@ class Product(models.Model):
     ai_tags = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # ⚠️ 1. የብዙ ቋንቋ ትርጉም በራሱ የሚለይበት ስማርት ሎጂክ (ምንም የዳታቤዝ ለውጥ ሳይፈልግ)
     def get_translated_title(self):
         lang = get_language()
-        # ነባሪው ቋንቋ እንግሊዝኛ ከሆነ በቀጥታ ያሳያል
         if lang == 'en':
             return self.title
-        
-        # ወደ ሌሎች ቋንቋዎች ከተተረጎመ 'Title ||| Description' የሚለውን ሰብሮ ያወጣል
         translation = getattr(self, 'translations', None)
         if translation:
-            # በቋንቋው ኮድ (am, om, ar, so) የተቀመጠውን ፅሁፍ ይፈልጋል
             lang_text = getattr(translation, lang, '')
             if lang_text and "|||" in lang_text:
                 return lang_text.split("|||")[0].strip()
@@ -61,7 +55,6 @@ class Product(models.Model):
         lang = get_language()
         if lang == 'en':
             return self.description
-        
         translation = getattr(self, 'translations', None)
         if translation:
             lang_text = getattr(translation, lang, '')
@@ -73,7 +66,7 @@ class Product(models.Model):
         return self.title
 
 class ProductTranslation(models.Model):
-    """ምርቶችን በ 7 ቋንቋዎች በራስ-ሰር ተርጉሞ ለማከማቸት (በ 'Title ||| Description' ፎርማት)"""
+    """ምርቶችን በ 7 ቋንቋዎች በራስ-ሰር ተርጉሞ ለማከማቸት"""
     product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='translations')
     en = models.TextField(blank=True, verbose_name="English")
     am = models.TextField(blank=True, verbose_name="Amharic")
@@ -86,11 +79,10 @@ class ProductTranslation(models.Model):
     def __str__(self):
         return f"Translations for: {self.product.title}"
 
-# ⚠️ 1. የትርጉም ወረፋ ሰንጠረዥ ተጨምሯል (የጀሚኒ ኮታ ሲያልቅ ምርቶችን በወረፋ ይዞ ቆይቶ ለመተርጎም)
 class TranslationQueue(models.Model):
-    """በቀን ገደብ (Quota) ምክንያት ሳይተረጎሙ የቀሩ ምርቶችን በወረፋ ይዞ ቆይቶ ለመተርጎም"""
+    """በቀን ገደብ ምክንያት ሳይተረጎሙ የቀሩ ምርቶችን በወረፋ ይዞ ቆይቶ ለመተርጎም"""
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='pending_translations')
-    target_languages = models.JSONField(default=list) # e.g., ['am', 'om', 'ar']
+    target_languages = models.JSONField(default=list)
     is_processed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -98,8 +90,8 @@ class TranslationQueue(models.Model):
         return f"Queue: {self.product.title} ({len(self.target_languages)} languages pending)"
 
 class SiteConfig(models.Model):
-    """የዌብሳይቱን ዲዛይን (Logo, Banner, Color) በ AI ለመቀየር"""
-    key = models.CharField(max_length=100, unique=True)  # ምሳሌ፦ 'DYNAMIC_UI'
+    """የዌብሳይቱን ዲዛይን በ AI ለመቀየር"""
+    key = models.CharField(max_length=100, unique=True)
     value = models.JSONField(default=dict)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -117,14 +109,14 @@ class MarketTrend(models.Model):
     last_updated = models.DateTimeField(auto_now=True)
 
 class AISystemTask(models.Model):
-    """AI ራሱን ለመገንባት ቅድሚያ የሰጣቸውን ስራዎች መቆጣጠሪያ"""
+    """[DEPRECATED] ለታሪክ ብቻ የተቀመጠ አሮጌ ሞዴል"""
     task_name = models.CharField(max_length=255)
     priority_reason = models.TextField()
     status = models.CharField(max_length=50, default='Completed')
     created_at = models.DateTimeField(auto_now_add=True)
 
 class OwnerDirective(models.Model):
-    """የዌብሳይቱ ባለቤት ለ AI የሚሰጠው ቀጥተኛ መመሪያ መመዝገቢያ"""
+    """[DEPRECATED] ለታሪክ ብቻ የተቀመጠ አሮጌ መመሪያ ሞዴል"""
     instruction = models.TextField()
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -138,3 +130,97 @@ class SelfHealingLog(models.Model):
 
     def __str__(self):
         return f"Healed: {self.error_message[:30]}..."
+
+
+# =====================================================================
+# 🛠️ አዲሱ ልዕለ-አውቶኖመስ የማህደረ-ትውስታ እና የቁጥጥር መዋቅር (NEW ARCHITECTURE)
+# =====================================================================
+
+class AIProjectBacklog(models.Model):
+    """ኤጀንቱ ራሱ ፈልጎ ያገኛቸውን የጎደሉ ስራዎች እና ማሻሻያዎችን የሚይዝ ሰሌዳ"""
+    PRIORITY_CHOICES = [
+        ('Critical', 'Critical'),
+        ('High', 'High'),
+        ('Medium', 'Medium'),
+        ('Low', 'Low'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Running', 'Running'),
+        ('Completed', 'Completed'),
+        ('Overridden', 'Overridden'),
+    ]
+
+    task_name = models.CharField(max_length=255)
+    target_file = models.CharField(max_length=255, help_text="የሚሻሻለው ወይም የሚመረመረው የኮድ ፋይል ስም")
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='Medium')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    description = models.TextField(blank=True, default='', help_text="የስራው ዝርዝር መግለጫ እና ቅድሚያ የተሰጠበት ምክንያት")
+    
+    # 🛡️ ተደጋጋሚ ስራዎችን ለመከላከል የተገጠመ ልዩ መለያ
+    task_hash = models.CharField(
+        max_length=64, 
+        unique=True, 
+        blank=True, 
+        help_text="የስራ መደራረብን ለመከላከል በራስ-ሰር የሚመነጭ ልዩ ሃሽ"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        # ፋይሉንና የስራውን ስም በማገናኘት ልዩ ሃሽ ያመነጫል
+        if not self.task_hash:
+            raw_string = f"{self.target_file}:{self.task_name}"
+            self.task_hash = hashlib.sha256(raw_string.encode('utf-8')).hexdigest()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"[{self.priority}] {self.task_name} ({self.status})"
+
+
+class AIEvolutionLog(models.Model):
+    """የተለወጡ ኮዶች ታሪክ፣ የተለወጠበት ምክንያት እና የድሮው ኮድ ባክአፕ መመዝገቢያ"""
+    # 🔗 ከዋናው ባክሎግ ስራ ጋር ማገናኛ (ስራው በራሱ ከቆመ ሊጠፋ ስለሚችል null=True ይፈቀዳል)
+    backlog_task = models.ForeignKey(
+        AIProjectBacklog,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='evolution_logs'
+    )
+    target_file = models.CharField(max_length=255)
+    reason_for_change = models.TextField()
+    old_code_backup = models.TextField(blank=True, null=True, help_text="የነበረው የድሮው ኮድ")
+    new_code_patch = models.TextField(blank=True, null=True, help_text="የተተካው አዲሱ ኮድ")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Evolution on {self.target_file} at {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+
+
+class AdminOverrideInstruction(models.Model):
+    """የዌብሳይቱ ባለቤት (አድሚን) 'ይህ ይቅደም' ወይም 'ይህ ይሻሻል' ሲል ለኤጀንቱ የሚሰጠው የቁጥጥር ትዕዛዝ"""
+    backlog_task = models.ForeignKey(
+        AIProjectBacklog, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='overrides',
+        help_text="ይህ መመሪያ የሚመለከተው የተወሰነ የባክሎግ ስራ ካለ (ባዶ ከሆነ ለአጠቃላይ ሲስተም ያገለግላል)"
+    )
+    instruction = models.TextField(help_text="ለኤጀንቱ የሚተላለፈው የባለቤት ትዕዛዝ")
+    priority_override = models.CharField(
+        max_length=20, 
+        choices=AIProjectBacklog.PRIORITY_CHOICES, 
+        blank=True, 
+        null=True,
+        help_text="የስራውን ቅድሚያ ደረጃ ለመቀየር ከተፈለገ"
+    )
+    is_processed = models.BooleanField(default=False, help_text="ኤጀንቱ መመሪያውን አንብቦ ተግባራዊ አድርጎታል?")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        task_info = f" for {self.backlog_task.task_name}" if self.backlog_task else " (Global Directive)"
+        return f"Admin Override{task_info} - Applied: {self.is_processed}"

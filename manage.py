@@ -18,5 +18,6 @@ def main():
     execute_from_command_line(sys.argv)
 
 
+# ⚠️ ሙሉ በሙሉ ወደ ግራ (ያለ ክፍተት) እንዲቀመጥ ተስተካክሏል
 if __name__ == '__main__':
     main()
