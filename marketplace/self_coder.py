@@ -4,9 +4,11 @@ import requests
 import json
 import base64
 import re
+import logging
 from django.conf import settings
-# ከgrowth_agent.py ጋር የተስማማው አዲሱ ትክክለኛ የፈንክሽን ስም
 from .growth_agent import ask_ethafri_ceo 
+
+logger = logging.getLogger(__name__)
 
 def get_render_deploy_status():
     """የሬንደርን የቅርብ ጊዜ መጫን ሂደት ሁኔታ ያነባል"""
@@ -80,7 +82,7 @@ def self_heal_failed_build():
     if status_info['status'] == "build_failed":
         print("⚠️ Render Build Failed! Starting Self-Correction...")
         
-        # 🛡️ ሕግ 1፦ የኤአይ ግንኙነት ፍጹም በሆነ እንግሊዝኛ ብቻ እንዲሆን ፕሮምፕቱን ይበልጥ ማጥበቅ
+        # 🛡️ 1. AIው ምላሹን በ JSON format እንዲያዘጋጅ ፕሮምፕቱ ተሻሽሏል
         prompt = f"""
         [CRITICAL DIRECTIVE] 
         You are the Autonomous CEO of EthAfri. Your latest code deployment on Render has FAILED.
@@ -92,22 +94,50 @@ def self_heal_failed_build():
         3. Correct the bugs completely while strictly maintaining all existing system safety rules and quota limits.
         
         Output Constraint:
-        Return ONLY the complete, raw, production-ready Python code for 'marketplace/growth_agent.py'. 
-        Do NOT include any introduction, explanations, markdown blocks, or notes. Start directly from the imports.
+        Provide your response in a valid JSON format with a single key 'code' containing the complete, raw, production-ready Python code for 'marketplace/growth_agent.py'.
+        Example:
+        {{
+           "code": "import json\\nimport os\\n..."
+        }}
         """
         
-        # እዚህ ጋር አዲሱ 'ask_ethafri_ceo' ተጠርቷል
-        corrected_code = ask_ethafri_ceo(prompt)
-        if corrected_code:
-            # 📌 🛠️ የ AI ማርክዳውን ማጽጃ ማጠናከሪያ (Regex በመጠቀም ኬዝ-ኢንሴንሲቲቭ በሆነ መንገድ ያጸዳል)
-            clean_code = re.sub(r'^```[pP]ython\s*|^```\s*|```$', '', corrected_code.strip(), flags=re.MULTILINE)
-            
-            # 2. የተስተካከለውን ኮድ በቀጥታ ወደ ጊትሃብ መግፋት
-            push_result = push_code_to_github(
-                "marketplace/growth_agent.py", 
-                clean_code, 
-                f"AI: Self-Corrected Build Error on Commit {status_info['commit_id'][:7]}"
+        ai_response = ask_ethafri_ceo(prompt)
+        if not ai_response:
+            return "❌ Self-Healing Failed: No response from AI."
+
+        # 🛡️ 2. Dictionary/String ዓይነት ፍተሻ (AttributeError መከላከያ)
+        raw_code = ""
+        if isinstance(ai_response, dict):
+            if "error" in ai_response:
+                return f"❌ Self-Healing Skipped: AI failover returned error: {ai_response['error']}"
+            # የኮድ ፋይሉን ከቁልፎች ውስጥ ፈልቅቆ ማውጣት
+            raw_code = (
+                ai_response.get('code') or 
+                ai_response.get('solution') or 
+                list(ai_response.values())[0]
             )
-            return f"Heal Attempted: {push_result}"
+        else:
+            raw_code = ai_response
+
+        if not raw_code or len(raw_code.strip()) < 100:
+            return "❌ Self-Healing Aborted: Extracted code is too short or empty."
+
+        # የ AI ማርክዳውን ማጽጃ ማጠናከሪያ (Regex)
+        clean_code = re.sub(r'^```[pP]ython\s*|^```\s*|```$', '', raw_code.strip(), flags=re.MULTILINE).strip()
+        
+        # 🛡️ 3. የሲንታክስ ምርመራ ምርመራ (Uptime Protection - compile test before GitHub push!)
+        try:
+            compile(clean_code, 'test_growth_agent.py', 'exec')
+            print("✅ Self-Healed code passed compilation test! Safe to push.")
+        except SyntaxError as syntax_err:
+            return f"❌ Self-Healing Aborted: AI generated invalid Python code: {syntax_err}"
+        
+        # 4. የተስተካከለውን ኮድ በቀጥታ ወደ ጊትሃብ መግፋት (Push)
+        push_result = push_code_to_github(
+            "marketplace/growth_agent.py", 
+            clean_code, 
+            f"AI: Self-Corrected Build Error on Commit {status_info['commit_id'][:7]}"
+        )
+        return f"Heal Attempted: {push_result}"
             
     return f"System status is normal: {status_info['status']}"

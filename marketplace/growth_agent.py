@@ -5,8 +5,8 @@ import os
 import re
 import logging
 import sys
-import requests  # ለ Mistral እና OpenRouter ኤፒአይ ጥሪዎች
-import hashlib   # ⚠️ ለ SHA256 የይዘት ካሼ (Caching Layer) የተጨመረ
+import requests  # ለ Mistral፣ OpenRouter፣ Hugging Face እና GitHub ኤፒአይ ጥሪዎች
+import hashlib   # ለ SHA256 የይዘት ካሼ (Caching Layer)
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -15,6 +15,7 @@ from django.urls import clear_url_caches
 from importlib import reload
 from groq import Groq
 from google import genai  # የዘመነ የጉግል ኤስዲኬ (Google GenAI SDK)
+from django.db import models  # ለ Exists እና OuterRef ንዑስ ኳኤሪዎች
 
 # አዲሶቹን አውቶኖመስ ሞዴሎች ማካተት
 from .models import SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction
@@ -23,15 +24,19 @@ logger = logging.getLogger(__name__)
 
 def ask_ai_with_failover(prompt, pool_type="coding"):
     """
-    ባለብዙ-ደረጃ እና ባለብዙ-ኤአይ Failover ሰንሰለት (Task Sharing & Routing)
-    - translation ከሆነ፦ Gemini 2.5 -> OpenRouter (Fallback) -> Groq
-    - coding ከሆነ፦ Mistral (Codestral) -> Groq (Llama) -> OpenRouter (Claude/DeepSeek) -> Gemini
-    - healing/other ከሆነ፦ Groq -> Mistral -> OpenRouter -> Gemini
+    ባለብዙ-ደረጃ እና ባለብዙ-ኤአይ Failover ሰንሰለት (Task Sharing & API Key Rotation)
+    - translation ከሆነ፦ Gemini 2.5 -> GitHub (GPT-4o-mini) -> OpenRouter -> Hugging Face -> Groq -> Mistral
+    - coding ከሆነ፦ Mistral (Codestral) -> GitHub (Llama-405B) -> Groq (Llama-70B) -> OpenRouter -> Hugging Face -> Gemini
+    - healing/other ከሆነ፦ Groq -> Mistral -> GitHub -> Hugging Face -> OpenRouter -> Gemini
     """
-    api_key = os.environ.get('GEMINI_API_KEY')
+    # በሰርቨሩ ላይ በ 'GEMINI_API_KEY' የሚጀምሩትን ሁሉንም ቁልፎች በራስ-ሰር ፈልጎ መመዝገብ
+    gemini_keys = [val for key, val in os.environ.items() if key.startswith("GEMINI_API_KEY") and val]
+    
     groq_key = os.environ.get('GROQ_API_KEY')
     mistral_key = os.environ.get('MISTRAL_API_KEY')
     openrouter_key = os.environ.get('OPENROUTER_API_KEY')
+    huggingface_key = os.environ.get('HUGGINGFACE_API_KEY') or os.environ.get('HF_TOKEN')
+    github_token = os.environ.get('GITHUB_TOKEN')
 
     # የ JSON መመለሻን ለማጣራት የሚረዳ ንጹህ ፈላጊ
     def extract_json(text):
@@ -44,18 +49,54 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
                 return None
         return None
 
-    # ኤአይ 1፦ Gemini (Multilingual Specialist)
+    # ኤአይ 1፦ Gemini (ከቁልፎች ዑደት / Key Rotation ጋር የተዋቀረ)
     def call_gemini():
-        if not api_key: return None
-        client = genai.Client(api_key=api_key)
-        # አዲሱ gemini-2.5-flash ነጻ ሞዴል አጠቃቀም
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt
-        )
-        return extract_json(response.text)
+        if not gemini_keys:
+            return None
+        
+        # ያሉትን ሁሉንም የጀሚኒ ቁልፎች በየተራ በመሞከር ስህተት ሲፈጠር ማሽከርከር
+        for idx, key in enumerate(gemini_keys):
+            try:
+                client = genai.Client(api_key=key)
+                # gemini-2.5-flash ነጻ ሞዴል አጠቃቀም
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt
+                )
+                result = extract_json(response.text)
+                if result and "error" not in result:
+                    return result
+            except Exception as e:
+                # ጀሚኒ የኮታ ገደብ (429) ሲመልስ ወደ ቀጣዩ ቁልፍ ይሸጋገራል
+                logger.warning(f"🔄 Gemini Key {idx+1} failed or exhausted: {e}. Trying next available key...")
+                
+        return None
 
-    # ኤአይ 2፦ Groq (Speed Specialist)
+    # ኤአይ 2፦ GitHub Models (ያለ የቀን ገደብ በነፃ የሚሰራ) [1.2.4]
+    def call_github():
+        if not github_token:
+            return None
+        # GitHub Models የኢንፈረንስ ኤፒአይ መድረሻ [1.2.6]
+        url = "https://models.inference.ai.azure.com/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {github_token}",
+            "Content-Type": "application/json"
+        }
+        # ትርጉም ከሆነ gpt-4o-mini፣ ኮዲንግ ከሆነ meta-llama-3.1-405b-instruct እንጠቀማለን [1.2.4, 1.2.7]
+        model_name = "azure-openai/gpt-4o-mini" if pool_type == "translation" else "meta-llama-3.1-405b-instruct"
+        payload = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        try:
+            res = requests.post(url, headers=headers, json=payload, timeout=20)
+            if res.status_code == 200:
+                return extract_json(res.json()['choices'][0]['message']['content'])
+        except Exception as e:
+            logger.warning(f"🔄 GitHub Models API Connection Failed: {e}")
+        return None
+
+    # ኤአይ 3፦ Groq (Speed Specialist)
     def call_groq():
         if not groq_key: return None
         client = Groq(api_key=groq_key)
@@ -65,7 +106,7 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
         )
         return extract_json(chat.choices[0].message.content)
 
-    # ኤአይ 3፦ Mistral (Coding & Syntax Specialist)
+    # ኤአይ 4፦ Mistral (Coding & Logic Specialist)
     def call_mistral():
         if not mistral_key: return None
         url = "https://api.mistral.ai/v1/chat/completions"
@@ -88,10 +129,10 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
             logger.warning(f"🔄 Mistral API Connection Failed: {e}")
         return None
 
-    # ኤአይ 4፦ OpenRouter (The Ultimate Global Fallback - Claude / DeepSeek)
+    # ኤአይ 5፦ OpenRouter (Ultimate Fallback - Claude / DeepSeek)
     def call_openrouter():
         if not openrouter_key: return None
-        url = "https://openrouter.ai/api/v1/chat/completions"
+        url = "https://api.openrouter.ai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {openrouter_key}",
             "Content-Type": "application/json"
@@ -109,13 +150,48 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
             logger.warning(f"🔄 OpenRouter API Connection Failed: {e}")
         return None
 
+    # ኤአይ 6፦ Hugging Face (የቀን ገደብ የሌለው የሮድማፕ ፎልባክ)
+    def call_huggingface():
+        if not huggingface_key: return None
+        # Qwen/Qwen2.5-72B-Instruct ለኮዲንግና ለትርጉም እጅግ የረቀቀ ሞዴል ነው
+        url = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {huggingface_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "Qwen/Qwen2.5-72B-Instruct",
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        try:
+            res = requests.post(url, headers=headers, json=payload, timeout=25)
+            if res.status_code == 200:
+                return extract_json(res.json()['choices'][0]['message']['content'])
+        except Exception as e:
+            logger.warning(f"🔄 HuggingFace API Connection Failed: {e}")
+        return None
+
     # --- 🤖 ስልታዊ የስራ ክፍፍል (Strategic Task Routing) ---
-    if pool_type == "translation":
-        providers = [call_gemini, call_openrouter, call_groq, call_mistral]
+    
+    # ሀ. የትርጉም ስራዎች (Gemini -> GitHub -> OpenRouter -> HuggingFace -> Groq -> Mistral)
+    # ሀ. የትርጉም ስራዎች (ዙር-ተኮር የጥሪ ማመጣጠኛን ያካተተ)
+    if pool_type == "translation_github":
+        # ጊትሃብን ያስቀድማል
+        providers = [call_github, call_huggingface, call_gemini, call_openrouter, call_groq, call_mistral]
+    elif pool_type == "translation_huggingface":
+        # ሀጊንግፌስን ያስቀድማል
+        providers = [call_huggingface, call_github, call_gemini, call_openrouter, call_groq, call_mistral]
+    elif pool_type == "translation":
+        # ነባሪው አሠራር
+        providers = [call_gemini, call_github, call_openrouter, call_huggingface, call_groq, call_mistral]
+        
+    # ለ. የኮዲንግ እና የዕድገት ስራዎች (Mistral -> GitHub -> Groq -> OpenRouter -> HuggingFace -> Gemini)
     elif pool_type == "coding":
-        providers = [call_mistral, call_groq, call_openrouter, call_gemini]
+        providers = [call_mistral, call_github, call_groq, call_openrouter, call_huggingface, call_gemini]
+        
+    # ሐ. የራስ-ጥገና እና የዲዛይን ስራዎች (Groq -> Mistral -> GitHub -> HuggingFace -> OpenRouter -> Gemini)
     else:
-        providers = [call_groq, call_mistral, call_openrouter, call_gemini]
+        providers = [call_groq, call_mistral, call_github, call_huggingface, call_openrouter, call_gemini]
 
     # የ Failover ሰንሰለቱን በደረጃ ማስፈጸም
     for call_provider in providers:
@@ -128,7 +204,7 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
 
     return {"error": "All AI providers failed to return valid JSON."}
 
-# ለ self_coder.py እና self_doctor.py ምቾት የተሠራ ተለዋጭ ስም (Alias)
+# ለ self_coder.py እና self_doctor.py ምቾት የተሠራ ተለዋጭ ስም
 ask_ethafri_ceo = ask_ai_with_failover
 
 def get_complete_project_state():
@@ -158,7 +234,24 @@ def run_daily_market_analysis():
     """
     now = timezone.now()
     
-    # የሉፕ መቆለፊያ ጥበቃ
+    # 🛡️ 1. የራስ-መገደብ ፍተሻ (Adaptive Throttling / Hibernation Check)
+    retry_config, _ = SiteConfig.objects.get_or_create(
+        key="NEXT_ALLOWED_RUN_TIME", 
+        defaults={'value': {'time': '2000-01-01T00:00:00'}}
+    )
+    
+    try:
+        next_run = timezone.datetime.fromisoformat(retry_config.value.get('time'))
+        if timezone.is_naive(next_run):
+            next_run = timezone.make_aware(next_run)
+        
+        if now < next_run:
+            logger.info(f"💤 Sleeping: Quota exhausted. Hibernating. Will retry at {next_run}")
+            return f"💤 Sleeping: Quota exhausted. Will retry at {next_run}"
+    except Exception as parse_err:
+        logger.warning(f"⚠️ NEXT_ALLOWED_RUN_TIME parse error: {parse_err}")
+    
+    # 2. የሉፕ መቆለፊያ ጥበቃ (የማያቋርጥ ግንባታ እንዳይደራረብ ይከላከላል)
     lock, _ = SiteConfig.objects.get_or_create(key="EVOLUTION_LOCK", defaults={'value': {'status': 'idle'}})
     if lock.value.get('status') == 'running':
         return "⚠️ Skip: System is currently compiling another feature."
@@ -167,11 +260,11 @@ def run_daily_market_analysis():
     lock.save()
     
     try:
-        # የፕሮጀክቱን ሙሉ ወቅታዊ ይዘት ማንበብ
+        # 3. የፕሮጀክቱን ሙሉ ወቅታዊ ይዘት ማንበብ
         project_code, file_paths = get_complete_project_state()
         admin_user = User.objects.filter(is_superuser=True).first() or User.objects.create_superuser('admin', 'admin@ethafri.com', 'secure123')
 
-        # 🛡️ ሀ. የካሼ ንብርብር ፍተሻ (Caching Layer - SHA256 Checksum)
+        # 🛡️ 4. የካሼ ንብርብር ፍተሻ (Caching Layer - SHA256 Checksum)
         state_string = json.dumps(project_code, sort_keys=True)
         current_state_hash = hashlib.sha256(state_string.encode('utf-8')).hexdigest()
         
@@ -180,7 +273,6 @@ def run_daily_market_analysis():
             defaults={'value': {'hash': ''}}
         )
         
-        # የአድሚን ቀጥተኛ መመሪያ (Admin Override) መኖሩን ማረጋገጥ
         active_override = AdminOverrideInstruction.objects.filter(is_processed=False).order_by('created_at').first()
         has_pending_tasks = AIProjectBacklog.objects.filter(status='Pending').exists()
         
@@ -202,8 +294,20 @@ def run_daily_market_analysis():
                 target_task.save()
             logger.info(f"🚨 Admin Override Detected: {active_override.instruction}")
         else:
-            # ያላለቁ የባክሎግ ስራዎችን ከዳታቤዝ መፈለግ (ቅድሚያ ለ Critical እና High)
-            target_task = AIProjectBacklog.objects.filter(status='Pending').order_by('-priority', 'created_at').first()
+            # 🛡️ ያላለቁ የባክሎግ ስራዎችን ከዳታቤዝ መፈለግ (ቅድሚያ ለ Critical እና High - ጥገኝነትን በመፈተሽ)
+            target_task = AIProjectBacklog.objects.filter(
+                status='Pending'
+            ).annotate(
+                has_unfinished_dependency=models.Exists(
+                    AIProjectBacklog.objects.filter(
+                        pk=models.OuterRef('dependency_id'),
+                        status__in=['Pending', 'Running']
+                    )
+                )
+            ).filter(
+                has_unfinished_dependency=False
+            ).order_by('-priority', 'created_at').first()
+            
             if target_task:
                 target_task.status = 'Running'
                 target_task.save()
@@ -254,11 +358,24 @@ def run_daily_market_analysis():
 
         # የ AI ጥሪ አፈጻጸም
         data = ask_ai_with_failover(prompt, pool_type="coding")
+        
+        # 🛡️ 5. የራስ-መገደብ አተገባበር (429 Quota Exhausted Catching)
         if not data or "error" in data:
+            err_msg = data.get('error') if data else 'Empty'
+            if "429" in str(err_msg) or "RESOURCE_EXHAUSTED" in str(err_msg) or "quota" in str(err_msg).lower():
+                next_retry = now + timezone.timedelta(hours=24)
+                retry_config.value = {'time': next_retry.isoformat()}
+                retry_config.save()
+                logger.info(f"🚨 Quota hit: Engine set to hibernate for 24 hours. Will retry at {next_retry}")
+            
             if target_task:
                 target_task.status = 'Pending'
                 target_task.save()
-            return f"❌ Fail: AI architecture payload was unreadable. Detail: {data.get('error') if data else 'Empty'}"
+            return f"❌ Fail: AI execution failed or quota exhausted. Detail: {err_msg}"
+
+        if retry_config.value.get('time') != '2000-01-01T00:00:00':
+            retry_config.value = {'time': '2000-01-01T00:00:00'}
+            retry_config.save()
 
         # 🤖 AUTONOMOUS AUDITING (የጎደሉ ስራዎችን ፈልጎ ባክሎግ ላይ መመዝገብ)
         found_tasks = data.get('backlog_tasks', [])

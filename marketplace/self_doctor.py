@@ -59,15 +59,20 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
     
     try:
         ai_response = ask_ethafri_ceo(prompt)
-        # የ JSON ዳታውን ከፅሁፍ ውስጥ ፈልቅቆ ማውጣት
-        start_idx = ai_response.find('{')
-        end_idx = ai_response.rfind('}') + 1
         
-        if start_idx == -1 or end_idx == 0:
-            raise ValueError("No valid JSON object found in AI response.")
+        # 🛡️ 1. Dictionary/String ዓይነት ፍተሻ (AttributeError መከላከያ)
+        if isinstance(ai_response, dict):
+            design_data = ai_response
+        else:
+            # የ JSON ዳታውን ከፅሁፍ ውስጥ ፈልቅቆ ማውጣት
+            start_idx = ai_response.find('{')
+            end_idx = ai_response.rfind('}') + 1
             
-        clean_json = ai_response[start_idx:end_idx]
-        design_data = json.loads(clean_json)
+            if start_idx == -1 or end_idx == 0:
+                raise ValueError("No valid JSON object found in AI response.")
+                
+            clean_json = ai_response[start_idx:end_idx]
+            design_data = json.loads(clean_json)
         
         # የ CSS ሲንታክስ ደህንነት ምርመራ
         validate_css_syntax(design_data.get('custom_css', ''))
@@ -134,11 +139,27 @@ def heal_any_system_error(error_category, error_msg, target_context=None):
         """
 
     try:
-        ai_response = ask_ethafri_ceo(prompt)
+        # ለሲስተም ፈውስ የኮዲንግ መስመር ጥሪ ማድረግ
+        ai_response = ask_ethafri_ceo(prompt, pool_type="healing")
         if not ai_response: 
             return "❌ AI Failover chain failed."
             
-        clean_solution = re.sub(r'^```[a-zA-Z]*\s*|^```\s*|```$', '', ai_response.strip(), flags=re.MULTILINE).strip()
+        # 🛡️ 2. Dictionary/String ዓይነት ፍተሻ (የኮድ ፈውስ AttributeError መከላከያ)
+        raw_solution = ""
+        if isinstance(ai_response, dict):
+            if "error" in ai_response:
+                return "❌ AI Failover chain failed."
+            # የፈውስ ኮዱን ከቁልፎች ውስጥ ፈልቅቆ ማውጣት
+            raw_solution = (
+                ai_response.get('solution') or 
+                ai_response.get('code') or 
+                list(ai_response.values())[0]
+            )
+        else:
+            raw_solution = ai_response
+
+        # የኮድ ማርክዳውን ማጽዳት
+        clean_solution = re.sub(r'^```[a-zA-Z]*\s*|^```\s*|```$', '', raw_solution.strip(), flags=re.MULTILINE).strip()
 
         if error_category == 'DATABASE':
             with connection.cursor() as cursor:

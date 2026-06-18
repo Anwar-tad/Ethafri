@@ -6,7 +6,7 @@ from django.conf import settings
 from marketplace.growth_agent import ask_ai_with_failover
 import polib
 import os
-import json  # ⚠️ የባች ዳታዎችን ወደ JSON ለመለወጥ የተጨመረ
+import json  # የባች ዳታዎችን ወደ JSON ለመለወጥ የተጨመረ
 import shutil  # gettext መኖሩን ለመፈተሽ የተጨመረ
 import logging
 
@@ -72,7 +72,17 @@ class Command(BaseCommand):
                     f"Dictionary: {json.dumps(translation_payload, ensure_ascii=False)}"
                 )
                 
-                translated_data = ask_ai_with_failover(prompt, pool_type="translation")
+                # 🛡️ የዙር-ተኮር የጥሪ ማመጣጠኛ ሎጂክ (Round-Robin Load Balancing)
+                # በእያንዳንዱ ባች ላይ የጥሪ ጫናውን በ 50/50 ለመክፈል ጊትሃብን እና ሀጊንግፌስን ያፈራርቃል
+                current_batch_index = i // batch_size
+                if current_batch_index % 2 == 0:
+                    pool_choice = "translation_github"
+                    self.stdout.write(f"  ➡️ Batch {current_batch_index + 1}: Routing primary to GitHub Models (GPT-4o-mini)...")
+                else:
+                    pool_choice = "translation_huggingface"
+                    self.stdout.write(f"  ➡️ Batch {current_batch_index + 1}: Routing primary to Hugging Face (Qwen-2.5)...")
+
+                translated_data = ask_ai_with_failover(prompt, pool_type=pool_choice)
                 
                 # የባች ትርጉም ውጤትን በትክክል መፈተሽ እና መተርጎም
                 if isinstance(translated_data, dict) and "error" not in translated_data:
