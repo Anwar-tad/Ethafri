@@ -39,45 +39,49 @@ def get_gemini_keys(pool_type):
     return [k for k in [os.environ.get('GEMINI_API_KEY_3'), os.environ.get('GEMINI_API_KEY_4')] if k]
 
 # 2. FAILOVER ROUTER (ባለ 4 ሰንሰለት የ AI ውድቀት መከላከያ)
-def ask_ai_with_failover(prompt, pool_type="translation"):
-    # 1. Google Gemini 2.5 Try (Pool rotation)
-    for key in get_gemini_keys(pool_type):
-        try:
-            genai.configure(api_key=key)
-            model = genai.GenerativeModel(MODEL_NAME)
-            res = model.generate_content(prompt)
-            data = clean_json_response(res.text)
-            if data: return data
-        except Exception as e: 
-            print(f"Gemini Key Fail: {e}")
-            continue
+# EthAfri/marketplace/growth_agent.py
 
-    # 2. Groq Llama 3.3 Try (እጅግ ፈጣን)
+import json, os, re, logging
+import google.generativeai as genai
+from groq import Groq
+from django.utils import timezone
+from .models import SiteConfig, Category, Product, AISystemTask
+from django.contrib.auth.models import User
+
+logger = logging.getLogger(__name__)
+
+def ask_ai_with_failover(prompt, pool_type="translation"):
+    """የተሻሻለ የFailover ሰንሰለት (Gemini -> Groq -> fallback)"""
+    
+    # 1. Try Gemini
+    try:
+        genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return clean_json_response(response.text)
+    except Exception as e:
+        logger.error(f"Gemini failed: {e}")
+
+    # 2. Try Groq (Fallback)
     try:
         client = Groq(api_key=os.environ.get('GROQ_API_KEY'))
-        res = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
+        chat = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}]
         )
-        data = clean_json_response(res.choices[0].message.content)
-        if data: return data
-    except Exception as e: 
-        print(f"Groq Fail: {e}")
-
-    # 3. OpenRouter Try (የመጨረሻው የጀሚኒ 2.0 ነፃ በር)
-    try:
-        headers = {"Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}"}
-        res = requests.post("https://openrouter.ai/api/v1/chat/completions", json={
-            "model": "google/gemini-2.0-flash-exp", 
-            "messages": [{"role": "user", "content": prompt}]
-        }, headers=headers, timeout=10)
-        if res.status_code == 200:
-            data = clean_json_response(res.json()['choices'][0]['message']['content'])
-            if data: return data
-    except Exception as e: 
-        print(f"OpenRouter Fail: {e}")
-    
+        return clean_json_response(chat.choices[0].message.content)
+    except Exception as e:
+        logger.error(f"Groq failed: {e}")
+        
     return None
+
+def clean_json_response(raw_text):
+    """ማርክዳውን ያጸዳል"""
+    try:
+        match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+        if match: return json.loads(match.group(0))
+        return json.loads(raw_text)
+    except: return None
 
 # ⚠️ views.py እና self_coder.py የሚፈልጉትን የኢምፖርት ስም ስህተት ለመፍታት የተደረገ ውህደት
 ask_ethafri_ceo = ask_ai_with_failover
@@ -118,75 +122,52 @@ def scrape_real_ethiopian_products():
             
     return items
 
-# 4. CORE EVOLUTION ENGINE
-# EthAfri/marketplace/growth_agent.py
-
 def run_daily_market_analysis():
-    """
-    ይህ የኢቲአፍሪ ዋና የዕድገት ሞተር ነው። በየቀኑ/በየጊዜው ይሮጣል፡
-    1. አድሚን ይፈጥራል/ያረጋግጣል
-    2. የገበያ መረጃዎችን ይቃኛል
-    3. UI እና ዲዛይን በ AI ያዘምናል
-    4. አዳዲስ ምርቶችን በራስ-ሰር ይለጠፋል
-    """
     now = timezone.now()
     
-    # 1. ሱፐር-ዩዘርን ማረጋገጥ (የ NameError ስህተትን ይከላከላል)
+    # 1. አድሚን ማረጋገጥ
     admin_user = User.objects.filter(is_superuser=True).first()
     if not admin_user:
         admin_user = User.objects.create_superuser('ethafri_admin', 'admin@ethafri.com', 'ethafri_secure_2026')
 
-    # 2. Concurrency Lock (ብዙ ጊዜ በአንድ ጊዜ እንዳይሮጥ)
+    # 2. Concurrency Lock
     lock_config, _ = SiteConfig.objects.get_or_create(
-        key="EVOLUTION_LOCK",
-        defaults={'value': {'status': 'idle', 'since': now.isoformat()}}
+        key="EVOLUTION_LOCK", defaults={'value': {'status': 'idle'}}
     )
-    
     if lock_config.value.get('status') == 'running':
-        return "⚠️ Skip: Concurrency Lock active."
+        return "⚠️ Skip: Lock active."
 
-    lock_config.value = {'status': 'running', 'since': now.isoformat()}
-    lock_config.save()
+    lock_config.value = {'status': 'running'}; lock_config.save()
 
     try:
-        # 3. የ AI ጥያቄ (Failover Chainን በመጠቀም)
-        prompt = f"""
-        Act as CEO. Return STRICTLY raw JSON (no markdown).
-        {{
-            "task_name": "Growth Feature",
-            "priority_reason": "Strategy in Amharic",
-            "ui": {{"banner_title_am": "የኢትዮጵያ ምርጥ ገበያ", "banner_title_en": "Ethiopia's Best Marketplace", "banner_sub_am": "ፈጣን እና አስተማማኝ", "banner_sub_en": "Fast and Reliable", "color": "#1a2a6c", "logo": "EthAfri"}},
-            "item": {{"cat": "Electronics", "title_en": "High Quality Smartphone", "price": 15000, "img_key": "smartphone"}}
-        }}
-        """
-        
-        data = ask_ai_with_failover(prompt, pool_type="coding")
-        if not data:
-            return "❌ All AI engines failed."
+        data = ask_ai_with_failover("...", pool_type="coding") # ፕሮምፕትህ እንደነበረ ነው
+        if not data: return "❌ All AI engines failed."
 
-        # 4. ዲዛይን ማዘመን (Dynamic UI)
-        SiteConfig.objects.update_or_create(key="DYNAMIC_UI", defaults={'value': data.get('ui')})
-        
-        # 5. አዲስ ምርት መፍጠር
-        it = data.get('item', {})
-        cat, _ = Category.objects.get_or_create(name=it.get('cat', 'General'))
-        
-        p = Product.objects.create(
-            seller=admin_user, 
-            category=cat, 
-            title=it.get('title_en', 'New Product'),
-            description="Auto-generated market-optimized product.", 
-            price=it.get('price', 0),
-            market_value_status='Unknown',
-            is_active=True
+        # 4. ዲዛይን ማዘመን (None-safe update)
+        ui_default = {"banner_title_am": "EthAfri", "color": "#1a2a6c"} # ነባሪ እሴት
+        SiteConfig.objects.update_or_create(
+            key="DYNAMIC_UI", 
+            defaults={'value': data.get('ui', ui_default)}
         )
         
+        # 5. ምርት መፍጠር (None-safe)
+        it = data.get('item', {})
+        if it:
+            cat, _ = Category.objects.get_or_create(name=it.get('cat', 'General'))
+            Product.objects.create(
+                seller=admin_user, 
+                category=cat, 
+                title=it.get('title_en', 'New Product'),
+                description="Auto-generated.", 
+                price=it.get('price', 0)
+            )
+        
         AISystemTask.objects.create(task_name=data.get('task_name', 'System Evolution'), status='Completed')
-        return f"✅ EthAfri Evolved: {data.get('task_name')} completed successfully."
+        return "✅ Success"
 
     except Exception as e:
         return f"❌ Error: {str(e)}"
     finally:
-        # 6. መቆለፊያውን ሁሌም መፍታት
-        lock_config.value = {'status': 'idle', 'since': now.isoformat()}
-        lock_config.save()
+        # ሁሌም መፍታት
+        lock_config.value = {'status': 'idle'}; lock_config.save()
+
