@@ -3,7 +3,8 @@
 import logging
 import uuid
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required, staff_member_required  # ⚠️ የተጨመረ
+from django.contrib.auth.decorators import login_required
+from django.contrib.admin.views.decorators import staff_member_required # ⚠️ ትክክለኛው መንገድ
 from django.http import HttpResponse, Http404, JsonResponse  # ⚠️ የተጨመረ
 from django.views.decorators.csrf import csrf_exempt  # ⚠️ የተጨመረ
 from django.contrib.auth import login, authenticate, logout
