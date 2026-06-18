@@ -1,7 +1,7 @@
 django
 gunicorn
 whitenoise
-google-generativeai
+google-genai  # ⚠️ የዘመነው የጉግል ኤስዲኬ (google-generativeai በዚህ ተተክቷል)
 django-environ
 dj-database-url
 psycopg2-binary

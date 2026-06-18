@@ -1,6 +1,11 @@
 # EthAfri/marketplace/growth_agent.py
 
-import json, os, re, logging, sys, requests
+import json
+import os
+import re
+import logging
+import sys
+import requests
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -8,17 +13,18 @@ from django.core.management import call_command
 from django.urls import clear_url_caches
 from importlib import reload
 from groq import Groq
-import google.generativeai as genai
+from google import genai  # ⚠️ አዲሱ የዘመነ የጉግል ኤስዲኬ (Google GenAI SDK)
 
-# አዲሶቹን ልዕለ-አውቶኖመስ ሞዴሎች ማካተት
+# አዲሶቹን አውቶኖመስ ሞዴሎች ማካተት
 from .models import SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction
-
 
 logger = logging.getLogger(__name__)
 
 def ask_ai_with_failover(prompt, pool_type="coding"):
     """
     ባለብዙ-ደረጃ ኤአይ Failover ሰንሰለት (Task-Type Isolation)
+    - coding ከሆነ፦ ቅድሚያ ለ Groq (የጀሚኒን ኮታ ለመቆጠብ)፣ ካልሰራ ወደ Gemini
+    - translation ከሆነ፦ ቅድሚያ ለ Gemini (ለትርጉም ጥራት)፣ ካልሰራ ወደ Groq
     """
     api_key = os.environ.get('GEMINI_API_KEY')
     groq_key = os.environ.get('GROQ_API_KEY')
@@ -29,19 +35,26 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
         if match:
             try:
                 return json.loads(match.group(0))
-            except:
+            except Exception as json_err:
+                logger.warning(f"⚠️ Extract JSON decode error: {json_err}")
                 return None
         return None
 
     def call_gemini():
-        if not api_key: return None
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
+        if not api_key:
+            return None
+        # ⚠️ አዲሱ የጉግል ኤስዲኬ አነሳስ (Unified client)
+        client = genai.Client(api_key=api_key)
+        # ⚠️ ትክክለኛው የሞዴል ጥሪ (gemini-2.5-flash) - በነጻው ደረጃ ይሰራል
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
         return extract_json(response.text)
 
     def call_groq():
-        if not groq_key: return None
+        if not groq_key:
+            return None
         client = Groq(api_key=groq_key)
         chat = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -53,13 +66,15 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
     if pool_type == "coding":
         try:
             result = call_groq()
-            if result: return result
+            if result:
+                return result
         except Exception as e:
             logger.warning(f"🔄 Groq Failover in coding: {e}")
         
         try:
             result = call_gemini()
-            if result: return result
+            if result:
+                return result
         except Exception as e:
             logger.error(f"❌ Gemini Fallback failed in coding: {e}")
 
@@ -67,18 +82,22 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
     else:
         try:
             result = call_gemini()
-            if result: return result
+            if result:
+                return result
         except Exception as e:
             logger.warning(f"🔄 Gemini Failover in translation: {e}")
         
         try:
             result = call_groq()
-            if result: return result
+            if result:
+                return result
         except Exception as e:
             logger.error(f"❌ Groq Fallback failed in translation: {e}")
             
     return {"error": "All AI providers failed to return valid JSON."}
 
+# ⚠️ ለ self_coder.py እና self_doctor.py ምቾት ሲባል የተሠራው የፈንክሽን ተለዋጭ ስም (Alias)
+ask_ethafri_ceo = ask_ai_with_failover
 
 def get_complete_project_state():
     """የጠቅላላውን ዲጃንጎ አፕሊኬሽን ኮድ እና የፋይል መዋቅር ሙሉ በሙሉ ያነባል"""
@@ -107,7 +126,7 @@ def run_daily_market_analysis():
     """
     now = timezone.now()
     
-    # 1. የሉፕ መቆለፊያ ጥበቃ
+    # 1. የሉፕ መቆለፊያ ጥበቃ (የማያቋርጥ ግንባታ እንዳይደራረብ ይከላከላል)
     lock, _ = SiteConfig.objects.get_or_create(key="EVOLUTION_LOCK", defaults={'value': {'status': 'idle'}})
     if lock.value.get('status') == 'running':
         return "⚠️ Skip: System is currently compiling another feature."
@@ -184,12 +203,13 @@ def run_daily_market_analysis():
         }}
         """
 
-        # 5. የ AI ጥሪ አፈጻጸም
-        data = ask_ai_with_failover(prompt)
-        if not data:
+        # 5. የ AI ጥሪ አፈጻጸም (የኮዲንግ ስራዎችን ስለሚሠራ የ Groq ኮታዎችን ያስቀድማል)
+        data = ask_ai_with_failover(prompt, pool_type="coding")
+        if not data or "error" in data:
             if target_task:
-                target_task.status = 'Pending'; target_task.save()
-            return "❌ Fail: AI architecture payload was unreadable."
+                target_task.status = 'Pending'
+                target_task.save()
+            return f"❌ Fail: AI architecture payload was unreadable. Detail: {data.get('error') if data else 'Empty'}"
 
         # 6. 🤖 AUTONOMOUS AUDITING (የጎደሉ ስራዎችን ፈልጎ ባክሎግ ላይ መመዝገብ)
         found_tasks = data.get('backlog_tasks', [])
@@ -280,16 +300,11 @@ def run_daily_market_analysis():
 
     except Exception as e:
         if target_task:
-            target_task.status = 'Pending'; target_task.save()
+            target_task.status = 'Pending'
+            target_task.save()
         logger.error(f"❌ System Crash in Creator Engine: {e}")
         return f"❌ System Error: {str(e)}"
     finally:
-        # መቆለፊያውን በሬንደር ላይ ሁሌም በሰላም መፍታት
-        lock.value = {'status': 'idle'}; lock.save()
-# =====================================================================
-# 🧠 AI EXECUTION ALIASES (የኤአይ አውቶኖመስ ተለዋጭ ስሞች)
-# =====================================================================
-
-# በ self_coder.py ውስጥ ለተጠራው ፈንክሽን ተለዋጭ ስም (Alias) መስጠት
-# ይህ አሰራር 'ask_ethafri_ceo' ሲጠራ የፊውዝ እና የኮታ መከላከያ ያለው ask_ai_with_failover እንዲነሳ ያደርጋል
-ask_ethafri_ceo = ask_ai_with_failover
+        # መቆለፊያውን ሁሌም በሰላም መፍታት (Idle)
+        lock.value = {'status': 'idle'}
+        lock.save()
