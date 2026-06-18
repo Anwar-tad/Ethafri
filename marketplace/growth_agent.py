@@ -5,7 +5,8 @@ import os
 import re
 import logging
 import sys
-import requests
+import requests  # ለ Mistral እና OpenRouter ኤፒአይ ጥሪዎች
+import hashlib   # ⚠️ ለ SHA256 የይዘት ካሼ (Caching Layer) የተጨመረ
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -13,7 +14,7 @@ from django.core.management import call_command
 from django.urls import clear_url_caches
 from importlib import reload
 from groq import Groq
-from google import genai  # ⚠️ አዲሱ የዘመነ የጉግል ኤስዲኬ (Google GenAI SDK)
+from google import genai  # የዘመነ የጉግል ኤስዲኬ (Google GenAI SDK)
 
 # አዲሶቹን አውቶኖመስ ሞዴሎች ማካተት
 from .models import SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction
@@ -22,12 +23,15 @@ logger = logging.getLogger(__name__)
 
 def ask_ai_with_failover(prompt, pool_type="coding"):
     """
-    ባለብዙ-ደረጃ ኤአይ Failover ሰንሰለት (Task-Type Isolation)
-    - coding ከሆነ፦ ቅድሚያ ለ Groq (የጀሚኒን ኮታ ለመቆጠብ)፣ ካልሰራ ወደ Gemini
-    - translation ከሆነ፦ ቅድሚያ ለ Gemini (ለትርጉም ጥራት)፣ ካልሰራ ወደ Groq
+    ባለብዙ-ደረጃ እና ባለብዙ-ኤአይ Failover ሰንሰለት (Task Sharing & Routing)
+    - translation ከሆነ፦ Gemini 2.5 -> OpenRouter (Fallback) -> Groq
+    - coding ከሆነ፦ Mistral (Codestral) -> Groq (Llama) -> OpenRouter (Claude/DeepSeek) -> Gemini
+    - healing/other ከሆነ፦ Groq -> Mistral -> OpenRouter -> Gemini
     """
     api_key = os.environ.get('GEMINI_API_KEY')
     groq_key = os.environ.get('GROQ_API_KEY')
+    mistral_key = os.environ.get('MISTRAL_API_KEY')
+    openrouter_key = os.environ.get('OPENROUTER_API_KEY')
 
     # የ JSON መመለሻን ለማጣራት የሚረዳ ንጹህ ፈላጊ
     def extract_json(text):
@@ -40,21 +44,20 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
                 return None
         return None
 
+    # ኤአይ 1፦ Gemini (Multilingual Specialist)
     def call_gemini():
-        if not api_key:
-            return None
-        # ⚠️ አዲሱ የጉግል ኤስዲኬ አነሳስ (Unified client)
+        if not api_key: return None
         client = genai.Client(api_key=api_key)
-        # ⚠️ ትክክለኛው የሞዴል ጥሪ (gemini-2.5-flash) - በነጻው ደረጃ ይሰራል
+        # አዲሱ gemini-2.5-flash ነጻ ሞዴል አጠቃቀም
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt
         )
         return extract_json(response.text)
 
+    # ኤአይ 2፦ Groq (Speed Specialist)
     def call_groq():
-        if not groq_key:
-            return None
+        if not groq_key: return None
         client = Groq(api_key=groq_key)
         chat = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -62,41 +65,70 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
         )
         return extract_json(chat.choices[0].message.content)
 
-    # 1. Coding Task Routing (Groq > Gemini)
-    if pool_type == "coding":
+    # ኤአይ 3፦ Mistral (Coding & Syntax Specialist)
+    def call_mistral():
+        if not mistral_key: return None
+        url = "https://api.mistral.ai/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {mistral_key}"
+        }
+        model_name = "codestral-latest" if pool_type == "coding" else "mistral-large-latest"
+        payload = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"}
+        }
         try:
-            result = call_groq()
-            if result:
-                return result
+            res = requests.post(url, headers=headers, json=payload, timeout=20)
+            if res.status_code == 200:
+                return extract_json(res.json()['choices'][0]['message']['content'])
         except Exception as e:
-            logger.warning(f"🔄 Groq Failover in coding: {e}")
-        
-        try:
-            result = call_gemini()
-            if result:
-                return result
-        except Exception as e:
-            logger.error(f"❌ Gemini Fallback failed in coding: {e}")
+            logger.warning(f"🔄 Mistral API Connection Failed: {e}")
+        return None
 
-    # 2. Translation/Other Task Routing (Gemini > Groq)
+    # ኤአይ 4፦ OpenRouter (The Ultimate Global Fallback - Claude / DeepSeek)
+    def call_openrouter():
+        if not openrouter_key: return None
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {openrouter_key}",
+            "Content-Type": "application/json"
+        }
+        model_name = "google/gemini-2.5-flash" if pool_type == "translation" else "deepseek/deepseek-chat"
+        payload = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        try:
+            res = requests.post(url, headers=headers, json=payload, timeout=25)
+            if res.status_code == 200:
+                return extract_json(res.json()['choices'][0]['message']['content'])
+        except Exception as e:
+            logger.warning(f"🔄 OpenRouter API Connection Failed: {e}")
+        return None
+
+    # --- 🤖 ስልታዊ የስራ ክፍፍል (Strategic Task Routing) ---
+    if pool_type == "translation":
+        providers = [call_gemini, call_openrouter, call_groq, call_mistral]
+    elif pool_type == "coding":
+        providers = [call_mistral, call_groq, call_openrouter, call_gemini]
     else:
+        providers = [call_groq, call_mistral, call_openrouter, call_gemini]
+
+    # የ Failover ሰንሰለቱን በደረጃ ማስፈጸም
+    for call_provider in providers:
         try:
-            result = call_gemini()
-            if result:
+            result = call_provider()
+            if result and "error" not in result:
                 return result
-        except Exception as e:
-            logger.warning(f"🔄 Gemini Failover in translation: {e}")
-        
-        try:
-            result = call_groq()
-            if result:
-                return result
-        except Exception as e:
-            logger.error(f"❌ Groq Fallback failed in translation: {e}")
-            
+        except Exception as err:
+            logger.warning(f"🔄 Provider Failover: {call_provider.__name__} failed with: {err}")
+
     return {"error": "All AI providers failed to return valid JSON."}
 
-# ⚠️ ለ self_coder.py እና self_doctor.py ምቾት ሲባል የተሠራው የፈንክሽን ተለዋጭ ስም (Alias)
+# ለ self_coder.py እና self_doctor.py ምቾት የተሠራ ተለዋጭ ስም (Alias)
 ask_ethafri_ceo = ask_ai_with_failover
 
 def get_complete_project_state():
@@ -126,7 +158,7 @@ def run_daily_market_analysis():
     """
     now = timezone.now()
     
-    # 1. የሉፕ መቆለፊያ ጥበቃ (የማያቋርጥ ግንባታ እንዳይደራረብ ይከላከላል)
+    # የሉፕ መቆለፊያ ጥበቃ
     lock, _ = SiteConfig.objects.get_or_create(key="EVOLUTION_LOCK", defaults={'value': {'status': 'idle'}})
     if lock.value.get('status') == 'running':
         return "⚠️ Skip: System is currently compiling another feature."
@@ -135,13 +167,30 @@ def run_daily_market_analysis():
     lock.save()
     
     try:
-        # 2. የፕሮጀክቱን ሙሉ ወቅታዊ ይዘት ማንበብ
+        # የፕሮጀክቱን ሙሉ ወቅታዊ ይዘት ማንበብ
         project_code, file_paths = get_complete_project_state()
         admin_user = User.objects.filter(is_superuser=True).first() or User.objects.create_superuser('admin', 'admin@ethafri.com', 'secure123')
 
-        # 3. የአድሚን ቀጥተኛ መመሪያ (Admin Override) መኖሩን ማረጋገጥ
-        active_override = AdminOverrideInstruction.objects.filter(is_processed=False).order_by('created_at').first()
+        # 🛡️ ሀ. የካሼ ንብርብር ፍተሻ (Caching Layer - SHA256 Checksum)
+        state_string = json.dumps(project_code, sort_keys=True)
+        current_state_hash = hashlib.sha256(state_string.encode('utf-8')).hexdigest()
         
+        last_state_config, _ = SiteConfig.objects.get_or_create(
+            key="LAST_PROJECT_STATE_HASH", 
+            defaults={'value': {'hash': ''}}
+        )
+        
+        # የአድሚን ቀጥተኛ መመሪያ (Admin Override) መኖሩን ማረጋገጥ
+        active_override = AdminOverrideInstruction.objects.filter(is_processed=False).order_by('created_at').first()
+        has_pending_tasks = AIProjectBacklog.objects.filter(status='Pending').exists()
+        
+        # ኮዱ ካልተለወጠ፣ አዲስ ስራ ከሌለና የአድሚን መመሪያ ከሌለ የኤአይ ጥሪውን ሙሉ በሙሉ ይዘልላል
+        if last_state_config.value.get('hash') == current_state_hash and not active_override and not has_pending_tasks:
+            logger.info("🧠 Caching: Project state is unchanged, no pending tasks or overrides. Skipping AI analysis.")
+            lock.value = {'status': 'idle'}
+            lock.save()
+            return "🧠 Caching: No changes detected. AI analysis skipped."
+
         target_task = None
         forced_instruction = ""
         
@@ -160,7 +209,7 @@ def run_daily_market_analysis():
                 target_task.save()
                 logger.info(f"🤖 Auto-Selecting Task from Backlog: {target_task.task_name}")
 
-        # 4. ለ AI የሚሰጥ የአሰሳ፣ የባክሎግ ዝግጅት እና የኮዲንግ ማስተር ፕሮምፕት
+        # ለ AI የሚሰጥ የአሰሳ፣ የባክሎግ ዝግጅት እና የኮዲንግ ማስተር ፕሮምፕት
         prompt = f"""
         You are 'EthAfri Super AI Architect & Product Manager'. Your core mission is two-fold:
         1. Act as an Auditor: Scan the codebase state below, identify missing standard marketplace components (User registration, profiles, edit/delete features, security view guards, responsive layouts), prioritize them, and return them into the 'backlog_tasks' array.
@@ -203,7 +252,7 @@ def run_daily_market_analysis():
         }}
         """
 
-        # 5. የ AI ጥሪ አፈጻጸም (የኮዲንግ ስራዎችን ስለሚሠራ የ Groq ኮታዎችን ያስቀድማል)
+        # የ AI ጥሪ አፈጻጸም
         data = ask_ai_with_failover(prompt, pool_type="coding")
         if not data or "error" in data:
             if target_task:
@@ -211,11 +260,10 @@ def run_daily_market_analysis():
                 target_task.save()
             return f"❌ Fail: AI architecture payload was unreadable. Detail: {data.get('error') if data else 'Empty'}"
 
-        # 6. 🤖 AUTONOMOUS AUDITING (የጎደሉ ስራዎችን ፈልጎ ባክሎግ ላይ መመዝገብ)
+        # 🤖 AUTONOMOUS AUDITING (የጎደሉ ስራዎችን ፈልጎ ባክሎግ ላይ መመዝገብ)
         found_tasks = data.get('backlog_tasks', [])
         for t in found_tasks:
             try:
-                # get_or_create በራስ-ሰር task_hashን በመጠቀም መደራረብን ይከላከላል
                 AIProjectBacklog.objects.get_or_create(
                     task_name=t['task_name'],
                     target_file=t['target_file'],
@@ -228,26 +276,43 @@ def run_daily_market_analysis():
             except Exception as e:
                 logger.warning(f"Task duplication skipped or error: {e}")
 
-        # 7. 💾 HOT-SWAP WITH LOGGING (ኮድ መጻፍ እና በኢቮሉሽን ሎግ መመዝገብ)
+        # 💾 HOT-SWAP WITH VALIDATION (የኮድ ምርመራ ንብርብር - Validation Layer)
         updates = data.get('updates', {})
         code_changed = False
         
         for key, new_content in updates.items():
             if new_content and "MISSING_FILE" not in new_content and len(new_content.strip()) > 10:
+                
+                # 🛡️ ለፓይተን ፋይሎች የ compile() ሲንታክስ ፍተሻ ማካሄድ
+                if key in ['models', 'views', 'urls', 'forms']:
+                    try:
+                        compile(new_content, f"test_{key}.py", 'exec')
+                        logger.info(f"✅ Syntax validation passed for: {key}.py")
+                    except SyntaxError as syntax_err:
+                        logger.error(f"❌ Syntax validation failed for {key}.py: {syntax_err}")
+                        # ስህተት ከተገኘ ሰርቨሩን እንዳያበላሸው ግንባታውን አቁሞ ባክሎግ ላይ መመዝገብ
+                        AIProjectBacklog.objects.get_or_create(
+                            task_name=f"Fix Syntax Error in {key}.py",
+                            target_file=key,
+                            defaults={
+                                'priority': 'Critical',
+                                'status': 'Pending',
+                                'description': f"Auto-detected syntax compilation error: {syntax_err}. Please review the generated code."
+                            }
+                        )
+                        continue  # ይህንን የተበላሸ ፋይል ሳይጽፍ ይዘልለዋል (Uptime Protection!)
+
                 path = file_paths[key]
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 
-                # የድሮውን ኮድ ባክአፕ ለመያዝ ማንበብ
                 old_code = ""
                 if os.path.exists(path):
                     with open(path, 'r', encoding='utf-8') as f:
                         old_code = f.read()
                 
-                # አዲሱን ኮድ በፋይሉ ላይ መጻፍ
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(new_content)
                 
-                # የታሪክ ማህደረ-ትውስታ መዝገብ (Evolution Log) መፍጠር
                 AIEvolutionLog.objects.create(
                     backlog_task=target_task,
                     target_file=key,
@@ -259,7 +324,7 @@ def run_daily_market_analysis():
                 code_changed = True
                 logger.info(f"💾 Hot-Swapped & Logged File: {key}")
 
-        # 8. የዳታቤዝ ፍልሰት (ባክሎጉ ወይም AI ካዘዘ ብቻ)
+        # የዳታቤዝ ፍልሰት
         if data.get('database_migration_needed') and updates.get('models'):
             try:
                 call_command('makemigrations', 'marketplace', interactive=False)
@@ -268,14 +333,14 @@ def run_daily_market_analysis():
             except Exception as db_err:
                 logger.error(f"⚠️ Migration warning: {db_err}")
 
-        # 9. የዌብሳይት ማህደረ ትውስታ ማደስ (Hot Reload)
+        # የዌብሳይት ማህደረ ትውስታ ማደስ (Hot Reload)
         if code_changed:
             clear_url_caches()
             for mod in ['marketplace.models', 'marketplace.forms', 'marketplace.views', 'marketplace.urls']:
                 if mod in sys.modules:
                     reload(sys.modules[mod])
 
-        # 10. እውነተኛ ምርቶችን ከገበያ መጫን (Home Page Freshness)
+        # እውነተኛ ምርቶችን ከገበያ መጫን (Home Page Freshness)
         products = data.get('scraped_products', [])
         for item in products:
             if 'title' in item:
@@ -287,7 +352,14 @@ def run_daily_market_analysis():
                         price=item.get('price', 0), is_active=True
                     )
 
-        # 11. የስራ ሁኔታዎችን ማጠቃለል (Status Cleanup)
+        # 🛡️ ሻርፕ የይዘት አሻሻያ ካሼ መቆለፊያ (Update Cache State after success)
+        project_code_after, _ = get_complete_project_state()
+        state_string_after = json.dumps(project_code_after, sort_keys=True)
+        new_state_hash = hashlib.sha256(state_string_after.encode('utf-8')).hexdigest()
+        last_state_config.value = {'hash': new_state_hash}
+        last_state_config.save()
+
+        # የስራ ሁኔታዎችን ማጠቃለል
         if active_override:
             active_override.is_processed = True
             active_override.save()

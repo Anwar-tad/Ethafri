@@ -1,4 +1,4 @@
-# marketplace/apps.py
+# EthAfri/marketplace/apps.py
 
 from django.apps import AppConfig
 import threading
@@ -13,8 +13,11 @@ class MarketplaceConfig(AppConfig):
 
     def ready(self):
         # ሰርቨሩ በትክክል መነሳቱን ማረጋገጫ (በአስተማማኝ ሁኔታ በሁሉም የዌብ ማስተናገጃዎች ላይ እንዲነቃ)
-        # 'manage.py' ከሚሮጥባቸው እንደ makemigrations ካሉ ትዕዛዞች ውጭ በዌብ ሰርቨር ላይ ብቻ ይነሳል
-        invalid_commands = ['makemigrations', 'migrate', 'collectstatic', 'shell', 'test']
+        # ⚠️ 'evolve_market' እና 'sync_translations' በኮማንድ መልክ ሲሮጡ አላስፈላጊ የጀርባ ክር እንዳይቀሰቅሱ ተጨምረዋል
+        invalid_commands = [
+            'makemigrations', 'migrate', 'collectstatic', 'shell', 'test', 
+            'evolve_market', 'sync_translations'
+        ]
         if not any(cmd in sys.argv for cmd in invalid_commands):
             threading.Thread(target=self.start_safetynet_loop, daemon=True).start()
 

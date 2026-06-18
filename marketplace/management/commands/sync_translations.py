@@ -6,7 +6,8 @@ from django.conf import settings
 from marketplace.growth_agent import ask_ai_with_failover
 import polib
 import os
-import shutil  # ⚠️ gettext መኖሩን ለመፈተሽ የተጨመረ
+import json  # ⚠️ የባች ዳታዎችን ወደ JSON ለመለወጥ የተጨመረ
+import shutil  # gettext መኖሩን ለመፈተሽ የተጨመረ
 import logging
 
 logger = logging.getLogger(__name__)
@@ -51,37 +52,51 @@ class Command(BaseCommand):
                 po.save_as_mofile(mo_file_path)
                 continue
 
-            self.stdout.write(self.style.WARNING(f"🧠 {len(untranslated)} የ {lang_name} ቃላት በ AI በመተርጎም ላይ..."))
+            self.stdout.write(self.style.WARNING(f"🧠 {len(untranslated)} የ {lang_name} ቃላት በ AI በባች (Batch) በመተርጎም ላይ..."))
             
+            # 🛡️ ቃላትን በ 15 chunk ሰብስቦ በአንድ API ጥሪ መተርጎም (የጀሚኒን ኮታ በ 15 እጥፍ ይቆጥባል!)
+            batch_size = 15
+            untranslated_list = list(untranslated)
             count = 0
-            for entry in untranslated:
-                # ጥብቅ የትርጉም መመሪያ
-                prompt = f"[CRITICAL DIRECTIVE] Translate this UI string to {lang_name}. Return ONLY the translation text. No quotes, no markdown: '{entry.msgid}'"
+            
+            for i in range(0, len(untranslated_list), batch_size):
+                batch = untranslated_list[i : i + batch_size]
+                
+                # የቃላቱን ዝርዝር ወደ JSON ማዘጋጀት
+                translation_payload = {entry.msgid: entry.msgid for entry in batch}
+                
+                prompt = (
+                    f"Translate the values of the following JSON dictionary keys into {lang_name}. "
+                    f"Provide the result in a JSON format with a single key 'translations' "
+                    f"which maps the original English key to its {lang_name} translation. "
+                    f"Dictionary: {json.dumps(translation_payload, ensure_ascii=False)}"
+                )
                 
                 translated_data = ask_ai_with_failover(prompt, pool_type="translation")
                 
-                # የትርጉም መልሱን በትክክል መለየት እና ኤረር መከላከል
-                translated_text = None
-                if isinstance(translated_data, dict):
-                    if "error" in translated_data:
-                        translated_text = None
-                    else:
-                        translated_text = translated_data.get(lang_code) or list(translated_data.values())[0]
+                # የባች ትርጉም ውጤትን በትክክል መፈተሽ እና መተርጎም
+                if isinstance(translated_data, dict) and "error" not in translated_data:
+                    # አዲሱ JSON መዋቅር 'translations' ወይም 'translation' በሚል ቁልፍ ሊመጣ ይችላል
+                    translations_map = (
+                        translated_data.get('translations') or 
+                        translated_data.get('translation') or 
+                        translated_data
+                    )
+                    
+                    for entry in batch:
+                        translated_text = translations_map.get(entry.msgid)
+                        if translated_text and len(translated_text.strip()) > 0:
+                            entry.msgstr = translated_text.strip()
+                            count += 1
+                        else:
+                            self.stdout.write(self.style.ERROR(f"❌ Skipping item inside batch: '{entry.msgid}'"))
                 else:
-                    raw_str = str(translated_data).strip()
-                    if "failed to return" not in raw_str:
-                        translated_text = raw_str
-
-                if translated_text and len(translated_text) > 0:
-                    entry.msgstr = translated_text
-                    count += 1
-                else:
-                    self.stdout.write(self.style.ERROR(f"❌ Skipping translation for: '{entry.msgid}'"))
+                    self.stdout.write(self.style.ERROR(f"❌ Batch request failed for {len(batch)} items. Skipping this batch."))
 
             # የ .po ፋይሉን ማስቀመጥ
             po.save()
             
-            # 🛡️ 3. የ .po ፋይሉን በንጹህ ፓይተን (ያለ gettext) ማጠናቀር (PO to MO native compile)
+            # 🛡️ የ .po ፋይሉን በንጹህ ፓይተን (ያለ gettext) ማጠናቀር (PO to MO native compile)
             try:
                 po.save_as_mofile(mo_file_path)
                 self.stdout.write(self.style.SUCCESS(f"✅ {count} የ {lang_name} ቃላት ተተርጎመው በንጹህ ፓይተን ተጠናቅረዋል።"))
