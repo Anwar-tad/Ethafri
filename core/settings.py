@@ -157,3 +157,42 @@ RENDER_API_KEY = env('RENDER_API_KEY', default='')
 GITHUB_TOKEN = env('GITHUB_TOKEN', default='')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# =====================================================================
+# 8. Logging Configuration (DEBUGGING ሎግ እንዲታይ)
+# =====================================================================
+import logging
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',  # ይህንን DEBUG ካደረግከው ሁሉንም መረጃ ያሳያል
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'marketplace': {  # ያንተን የmarketplace አፕሊኬሽን ሎግ በግልጽ ያሳያል
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
