@@ -166,6 +166,16 @@ class AIProjectBacklog(models.Model):
         help_text="የስራ መደራረብን ለመከላከል በራስ-ሰር የሚመነጭ ልዩ ሃሽ"
     )
     
+    # ⚠️ 🛡️ አዲሱ የስራዎች ጥገኝነት ሜዳ (Backlog Dependency Field) - እዚህ ተጨምሯል!
+    dependency = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dependent_tasks',
+        help_text="ይህ ስራ ከመሰራቱ በፊት አስቀድሞ መጠናቀቅ ያለበት ሌላ የባክሎግ ስራ (የስራዎች ጥገኝነት)"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -182,7 +192,7 @@ class AIProjectBacklog(models.Model):
 
 class AIEvolutionLog(models.Model):
     """የተለወጡ ኮዶች ታሪክ፣ የተለወጠበት ምክንያት እና የድሮው ኮድ ባክአፕ መመዝገቢያ"""
-    # 🔗 ከዋናው ባክሎግ ስራ ጋር ማገናኛ (ስራው በራሱ ከቆመ ሊጠፋ ስለሚችል null=True ይፈቀዳል)
+    # 🔗 ከዋናው ባክሎግ ስራ ጋር ማገናኛ
     backlog_task = models.ForeignKey(
         AIProjectBacklog,
         on_delete=models.SET_NULL,

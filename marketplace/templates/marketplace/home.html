@@ -38,7 +38,7 @@
 {% block content %}
 
 {% if user.is_staff %}
-<!-- ⚠️ የ 'trigger_evolution' አድራሻ በ urls.py ስለተመዘገበ አሁን ያለምንም ስህተት ይሰራል -->
+<!-- የ 'trigger_evolution' አድራሻ በ urls.py ስለተመዘገበ አሁን ያለምንም ስህተት ይሰራል -->
 <div class="alert alert-dark border-0 shadow-sm rounded-4 p-3 mb-4 d-flex justify-content-between align-items-center bg-dark text-white">
     <div>
         <h6 class="mb-1 fw-bold"><i class="fas fa-robot text-warning me-2"></i> {% translate "AI Growth Center" %}</h6>
@@ -77,9 +77,8 @@
                     {% elif product.image_url %}
                         <img src="{{ product.image_url }}" alt="{{ product.get_translated_title }}" onerror="this.src='https://loremflickr.com/400/300/product'">
                     {% else %}
-                        <!-- ⚠️ በ AIም ሆነ በተጠቃሚ ምስል ላልተሰቀለላቸው ምርቶች የ fallback ምስል ጥበቃ -->
-                        <!-- በምድቡ ስም (electronics, fashion, furniture) እየፈለገ የተለያየ ምስል በራስ-ሰር ያሳያል -->
-<img src="https://loremflickr.com/400/300/{{ product.category.name|slugify|default:'product' }}" alt="{{ product.title }}">
+                        <!-- ⚠️ 7. የምስሎች መደጋገምን ለመከላከል በምርት ID የተቆለፈና እንደየ ምድቡ የተለየ ምስል የሚያሳይ የተራቀቀ የናሙና ሎጂክ -->
+                        <img src="https://loremflickr.com/400/300/{{ product.category.name|slugify|default:'product' }}?lock={{ product.id }}" alt="{{ product.title }}">
                     {% endif %}
                     
                     <span class="price-tag" style="{% if theme.theme_color %}background-color: {{ theme.theme_color }};{% endif %}">
