@@ -26,6 +26,12 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
     ተሻሻለ የኤአይ ፎልባክ ሞተር፡ ቁልፎችን የመለየት፣ የመመዝገብ እና ዙር-ተኮር (Round-Robin) 
     የጥሪ ማመጣጠኛ አቅም ያለው።
     """
+    # 🚨 አንተ የጨመርከው የቁልፎች መኖር (Debugging) ፍተሻ
+    keys_to_check = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'GITHUB_TOKEN', 'HUGGINGFACE_API_KEY', 'HF_TOKEN', 'MISTRAL_API_KEY', 'OPENROUTER_API_KEY']
+    for k in keys_to_check:
+        val = os.environ.get(k)
+        logger.info(f"🔑 DEBUG: Key {k} exists: {bool(val)}")
+
     # 1. ቁልፎችን ከሰርቨር (Render Environment) ማውጣት
     gemini_keys = [val for key, val in os.environ.items() if key.startswith("GEMINI_API_KEY") and val]
     groq_key = os.environ.get('GROQ_API_KEY')
@@ -34,7 +40,7 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
     huggingface_key = os.environ.get('HUGGINGFACE_API_KEY') or os.environ.get('HF_TOKEN')
     github_token = os.environ.get('GITHUB_TOKEN')
 
-    # 🚨 Render ላይ ቁልፎች መኖራቸውን ማረጋገጫ ሎግ
+    # 🚨 የጎደሉ ቁልፎች ካሉ አጠቃላይ ማሳወቂያ ሎግ
     missing = [k for k, v in {
         "Gemini": gemini_keys, "Groq": groq_key, "Mistral": mistral_key, 
         "GitHub": github_token, "HuggingFace": huggingface_key
