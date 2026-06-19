@@ -78,7 +78,8 @@
                         <img src="{{ product.image_url }}" alt="{{ product.get_translated_title }}" onerror="this.src='https://loremflickr.com/400/300/product'">
                     {% else %}
                         <!-- ⚠️ በ AIም ሆነ በተጠቃሚ ምስል ላልተሰቀለላቸው ምርቶች የ fallback ምስል ጥበቃ -->
-                        <img src="https://loremflickr.com/400/300/product" alt="{{ product.title }}">
+                        <!-- በምድቡ ስም (electronics, fashion, furniture) እየፈለገ የተለያየ ምስል በራስ-ሰር ያሳያል -->
+<img src="https://loremflickr.com/400/300/{{ product.category.name|slugify|default:'product' }}" alt="{{ product.title }}">
                     {% endif %}
                     
                     <span class="price-tag" style="{% if theme.theme_color %}background-color: {{ theme.theme_color }};{% endif %}">
