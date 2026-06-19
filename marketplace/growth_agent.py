@@ -25,9 +25,11 @@ logger = logging.getLogger(__name__)
 def ask_ai_with_failover(prompt, pool_type="coding"):
     """
     ባለብዙ-ደረጃ እና ባለብዙ-ኤአይ Failover ሰንሰለት (Task Sharing & API Key Rotation)
-    - translation ከሆነ፦ Gemini 2.5 -> GitHub (GPT-4o-mini) -> OpenRouter -> Hugging Face -> Groq -> Mistral
-    - coding ከሆነ፦ Mistral (Codestral) -> GitHub (Llama-405B) -> Groq (Llama-70B) -> OpenRouter -> Hugging Face -> Gemini
-    - healing/other ከሆነ፦ Groq -> Mistral -> GitHub -> Hugging Face -> OpenRouter -> Gemini
+    - translation_github ➡️ GitHub Models (GPT-4o-mini) ቀድሞ ይሠራል
+    - translation_huggingface ➡️ Hugging Face (Qwen-2.5) ቀድሞ ይሠራል
+    - translation ➡️ Gemini 2.5 (ከዑደት ጋር) -> GitHub -> OpenRouter -> Hugging Face -> Groq -> Mistral
+    - coding ➡️ Mistral (Codestral) -> GitHub (Llama-405B) -> Groq (Llama-70B) -> OpenRouter -> Hugging Face -> Gemini
+    - healing/other ➡️ Groq -> Mistral -> GitHub -> Hugging Face -> OpenRouter -> Gemini
     """
     # በሰርቨሩ ላይ በ 'GEMINI_API_KEY' የሚጀምሩትን ሁሉንም ቁልፎች በራስ-ሰር ፈልጎ መመዝገብ
     gemini_keys = [val for key, val in os.environ.items() if key.startswith("GEMINI_API_KEY") and val]
@@ -58,7 +60,6 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
         for idx, key in enumerate(gemini_keys):
             try:
                 client = genai.Client(api_key=key)
-                # gemini-2.5-flash ነጻ ሞዴል አጠቃቀም
                 response = client.models.generate_content(
                     model='gemini-2.5-flash',
                     contents=prompt
@@ -67,23 +68,21 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
                 if result and "error" not in result:
                     return result
             except Exception as e:
-                # ጀሚኒ የኮታ ገደብ (429) ሲመልስ ወደ ቀጣዩ ቁልፍ ይሸጋገራል
                 logger.warning(f"🔄 Gemini Key {idx+1} failed or exhausted: {e}. Trying next available key...")
                 
         return None
 
-    # ኤአይ 2፦ GitHub Models (ያለ የቀን ገደብ በነፃ የሚሰራ) [1.2.4]
+    # 🛡️ ኤአይ 2፦ GitHub Models (ያለ የቀን ገደብ በነፃ የሚሰራ እጅግ ኃይለኛ የቁጥጥር በር)
     def call_github():
-        if not github_token:
-            return None
-        # GitHub Models የኢንፈረንስ ኤፒአይ መድረሻ [1.2.6]
+        if not github_token: return None
+        # GitHub Models የኢንፈረንስ ኤፒአይ መድረሻ
         url = "https://models.inference.ai.azure.com/chat/completions"
         headers = {
             "Authorization": f"Bearer {github_token}",
             "Content-Type": "application/json"
         }
-        # ትርጉም ከሆነ gpt-4o-mini፣ ኮዲንግ ከሆነ meta-llama-3.1-405b-instruct እንጠቀማለን [1.2.4, 1.2.7]
-        model_name = "azure-openai/gpt-4o-mini" if pool_type == "translation" else "meta-llama-3.1-405b-instruct"
+        # ትርጉም ከሆነ gpt-4o-mini፣ ኮዲንግ ከሆነ የዓለማችን ግዙፉን meta-llama-3.1-405b-instruct
+        model_name = "azure-openai/gpt-4o-mini" if "translation" in pool_type else "meta-llama-3.1-405b-instruct"
         payload = {
             "model": model_name,
             "messages": [{"role": "user", "content": prompt}]
@@ -132,12 +131,13 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
     # ኤአይ 5፦ OpenRouter (Ultimate Fallback - Claude / DeepSeek)
     def call_openrouter():
         if not openrouter_key: return None
-        url = "https://api.openrouter.ai/v1/chat/completions"
+        # ⚠️ የዩአርኤል ስህተቱ ወደ ትክክለኛው 'openrouter.ai/api/v1' ተስተካክሏል
+        url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {openrouter_key}",
             "Content-Type": "application/json"
         }
-        model_name = "google/gemini-2.5-flash" if pool_type == "translation" else "deepseek/deepseek-chat"
+        model_name = "google/gemini-2.5-flash" if "translation" in pool_type else "deepseek/deepseek-chat"
         payload = {
             "model": model_name,
             "messages": [{"role": "user", "content": prompt}]
@@ -153,7 +153,6 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
     # ኤአይ 6፦ Hugging Face (የቀን ገደብ የሌለው የሮድማፕ ፎልባክ)
     def call_huggingface():
         if not huggingface_key: return None
-        # Qwen/Qwen2.5-72B-Instruct ለኮዲንግና ለትርጉም እጅግ የረቀቀ ሞዴል ነው
         url = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {huggingface_key}",
@@ -173,8 +172,7 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
 
     # --- 🤖 ስልታዊ የስራ ክፍፍል (Strategic Task Routing) ---
     
-    # ሀ. የትርጉም ስራዎች (Gemini -> GitHub -> OpenRouter -> HuggingFace -> Groq -> Mistral)
-    # ሀ. የትርጉም ስራዎች (ዙር-ተኮር የጥሪ ማመጣጠኛን ያካተተ)
+    # ሀ. የትርጉም ስራዎች (ዙር-ተኮር ማመጣጠኛዎችን ጨምሮ)
     if pool_type == "translation_github":
         # ጊትሃብን ያስቀድማል
         providers = [call_github, call_huggingface, call_gemini, call_openrouter, call_groq, call_mistral]
