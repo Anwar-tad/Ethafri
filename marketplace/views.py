@@ -27,7 +27,7 @@ from .models import (
     NotificationQueue, AgentErrorLog
 )
 from .ai_utils import analyze_product_smartly
-from .growth_agent import run_daily_market_analysis, run_daily_market_analysis_for_site
+from .growth_agent import run_daily_market_analysis, run_single_site_analysis  # ⚠️ 'run_single_site_analysis' ተተክቷል
 from .self_coder import self_heal_failed_build 
 from .self_doctor import heal_any_system_error, discover_and_heal_ui_design
 
@@ -304,13 +304,7 @@ def admin_growth_dashboard(request):
             try:
                 if site_id:
                     site = get_object_or_404(SiteRegistry, id=site_id)
-                    result = run_daily_market_analysis_for_site(site)
-                else:
-                    result = run_daily_market_analysis()
-                messages.info(request, f"የኤጀንት አፈጻጸም ውጤት፦ {result[:200]}")
-            except Exception as e:
-                messages.error(request, f"ስህተት፦ {str(e)[:100]}")
-            return redirect("growth_dashboard")
+                    result = run_single_site_analysis(site) # ⚠️ ወደ ትክክለኛው 'run_single_site_analysis' ተስተካክሏል [1]
             
         elif action == "create_override":
             instruction_text = request.POST.get("instruction")
