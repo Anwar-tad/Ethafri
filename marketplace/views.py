@@ -18,7 +18,7 @@ from django.db.models import Prefetch, Count, Sum, Q
 # ሎገሩን በሞጁል ደረጃ ማዋቀር
 logger = logging.getLogger(__name__)
 
-# አዲሶቹን ሞዴሎች ማስመጣት (የጠፋው AISystemTask ሙሉ በሙሉ ተወግዷል)
+# አዲሶቹን ሞዴሎች ማስመጣት
 from .models import (
     Product, Category, UserSearch, ProductTranslation, 
     SiteConfig, MarketTrend, OwnerDirective, SelfHealingLog,
@@ -27,7 +27,7 @@ from .models import (
     NotificationQueue, AgentErrorLog
 )
 from .ai_utils import analyze_product_smartly
-from .growth_agent import run_daily_market_analysis, run_single_site_analysis  # ⚠️ 'run_single_site_analysis' ተተክቷል
+from .growth_agent import run_daily_market_analysis, run_single_site_analysis
 from .self_coder import self_heal_failed_build 
 from .self_doctor import heal_any_system_error, discover_and_heal_ui_design
 
@@ -193,10 +193,12 @@ def trigger_evolution(request):
 
     if result.startswith(SUCCESS_PREFIXES):
         try:
-            # ⚠️ ማሻሻያ፦ አሮጌው AISystemTask በዘመናዊው AIProjectBacklog ተተክቷል
             latest_task = AIProjectBacklog.objects.latest('created_at')
         except AIProjectBacklog.DoesNotExist:
-            latest_task = None
+            try:
+                latest_task = AISystemTask.objects.latest('created_at')
+            except AISystemTask.DoesNotExist:
+                latest_task = None
 
         return render(request, 'marketplace/evolution_result.html', {
             'status': f"{result} | Coder: {heal_result}",
@@ -304,7 +306,13 @@ def admin_growth_dashboard(request):
             try:
                 if site_id:
                     site = get_object_or_404(SiteRegistry, id=site_id)
-                    result = run_single_site_analysis(site) # ⚠️ ወደ ትክክለኛው 'run_single_site_analysis' ተስተካክሏል [1]
+                    result = run_single_site_analysis(site)
+                else:
+                    result = run_daily_market_analysis()
+                messages.info(request, f"የኤጀንት አፈጻጸም ውጤት፦ {result[:200]}")
+            except Exception as e:
+                messages.error(request, f"ስህተት፦ {str(e)[:100]}")
+            return redirect("growth_dashboard")
             
         elif action == "create_override":
             instruction_text = request.POST.get("instruction")
@@ -350,7 +358,7 @@ def admin_growth_dashboard(request):
             if new_status:
                 task.status = new_status
             task.save()
-            messages.success(request, f"ስራ '{task.task_name}' ተሻሽሏል።")
+            messages.success(request, f"ስራ '{task.task_name}' ተሻшሏል።")
             return redirect("growth_dashboard")
         
         elif action == "discover_sites":
