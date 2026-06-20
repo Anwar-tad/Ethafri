@@ -217,6 +217,8 @@ except ImportError:
         def emit(self, record):
             pass
 
+
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -227,10 +229,6 @@ LOGGING = {
         },
         'simple': {
             'format': '{levelname} {message}',
-            'style': '{',
-        },
-        'detailed': {
-            'format': '{levelname} {asctime} {name} {filename}:{lineno} {message}',
             'style': '{',
         },
     },

@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/log_handlers.py
-# 📝 ለውጥ፦ Multi-Site Support + Enhanced Self-Healing Logging
+# 📝 ለውጥ፦ Circular Import Fix — Lazy Import
 # 📅 ቀን፦ 2026-06-20
 # ============================================================
 
@@ -8,7 +8,6 @@ import logging
 import re
 from django.utils import timezone
 from django.db import connection
-from .models import SelfHealingLog, AgentErrorLog, SiteRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 class SelfHealingDBHandler(logging.Handler):
     """
     የሰርቨሩን 404/400/500 access ስህተቶች በራስ-ሰር ጠልፎ ወደ SelfHealingLog የሚመግብ handler
-    አሁን Multi-Site ድጋፍ አለው
+    ⚠️ ሞዴሎችን በዘግይቶ (lazy) ያስመጣል — Circular Import ለመከላከል
     """
     
     def __init__(self):
@@ -28,35 +27,43 @@ class SelfHealingDBHandler(logging.Handler):
             r'^GET /robots.txt',
         ]
     
+    def _get_models(self):
+        """ሞዴሎችን በዘግይቶ ያስመጣል (Lazy Import)"""
+        from .models import SelfHealingLog, AgentErrorLog, SiteRegistry
+        return SelfHealingLog, AgentErrorLog, SiteRegistry
+    
     def emit(self, record):
         """
         የሎግ መዝገብን ተቀብሎ ወደ ዳታቤዝ ይመዘግባል
         """
         try:
-            # 1. መልእክቱን አንብብ
+            # 1. ሞዴሎችን በዘግይቶ አስመጣ
+            SelfHealingLog, AgentErrorLog, SiteRegistry = self._get_models()
+            
+            # 2. መልእክቱን አንብብ
             message = self.format(record)
             if not message:
                 return
             
-            # 2. የማይፈለጉ መልእክቶችን አታስቀምጥ
+            # 3. የማይፈለጉ መልእክቶችን አታስቀምጥ
             for pattern in self.ignore_patterns:
                 if re.search(pattern, message):
                     return
             
-            # 3. ስህተቱን ተንትን
+            # 4. ስህተቱን ተንትን
             error_type = self._detect_error_type(message)
-            error_message = message[:500]  # ረጅም ከሆነ አቆርጥ
+            error_message = message[:500]
             
-            # 4. ጣቢያውን ለይ (ከተቻለ)
-            site = self._detect_site(message)
+            # 5. ጣቢያውን ለይ (ከተቻለ)
+            site = self._detect_site(message, SiteRegistry)
             
-            # 5. ወደ SelfHealingLog መዝግብ
+            # 6. ወደ SelfHealingLog መዝግብ
             SelfHealingLog.objects.create(
                 error_message=error_message,
                 resolved=False
             )
             
-            # 6. ወደ AgentErrorLog መዝግብ (ለኤጀንት ራስ-ጥገና)
+            # 7. ወደ AgentErrorLog መዝግብ (ለኤጀንት ራስ-ጥገና)
             AgentErrorLog.objects.create(
                 task_name="System_Log_Error",
                 error_type=error_type,
@@ -88,7 +95,7 @@ class SelfHealingDBHandler(logging.Handler):
             return 'deployment'
         return 'runtime'
     
-    def _detect_site(self, message):
+    def _detect_site(self, message, SiteRegistry):
         """ስህተቱ የትኛውን ጣቢያ እንደሚመለከት ለይቶ ያገኛል"""
         try:
             # በመልእክቱ ውስጥ የጣቢያ ስም ካለ
@@ -120,29 +127,32 @@ class DeduplicatedLogHandler(logging.Handler):
         super().__init__()
         self.max_entries = max_entries
         self.time_window_minutes = time_window_minutes
-        self._cache = {}  # ጊዜያዊ መሸጎጫ
+        self._cache = {}
+    
+    def _get_models(self):
+        """ሞዴሎችን በዘግይቶ ያስመጣል (Lazy Import)"""
+        from .models import SelfHealingLog
+        return SelfHealingLog
     
     def emit(self, record):
         """
         ተደጋጋሚ ስህተቶችን በማጣራት ወደ ዳታቤዝ ያስገባል
         """
         try:
+            SelfHealingLog = self._get_models()
+            
             message = self.format(record)
             if not message:
                 return
             
-            # የስህተቱን አጠቃላይ አሻራ ፍጠር
             signature = self._create_signature(message)
             
-            # በጊዜ ውስጥ ተመሳሳይ ስህተት ካለ አታስቀምጥ
             if signature in self._cache:
                 last_time, count = self._cache[signature]
                 time_diff = (timezone.now() - last_time).total_seconds() / 60
                 
                 if time_diff < self.time_window_minutes:
-                    # ቆጣሪውን አዘምን
                     self._cache[signature] = (last_time, count + 1)
-                    # የመጨረሻውን ስህተት አዘምን (ጊዜ ብቻ)
                     SelfHealingLog.objects.filter(
                         error_message__icontains=message[:100],
                         resolved=False
@@ -151,16 +161,13 @@ class DeduplicatedLogHandler(logging.Handler):
                     )
                     return
             
-            # አዲስ ስህተት ከሆነ አስቀምጥ
             SelfHealingLog.objects.create(
                 error_message=message[:500],
                 resolved=False
             )
             
-            # መሸጎጫውን አዘምን
             self._cache[signature] = (timezone.now(), 1)
             
-            # መሸጎጫው ከገደብ በላይ ከሆነ አጽዳ
             if len(self._cache) > self.max_entries:
                 self._cleanup_cache()
                 
@@ -169,10 +176,8 @@ class DeduplicatedLogHandler(logging.Handler):
     
     def _create_signature(self, message):
         """የስህተት አሻራ ይፈጥራል"""
-        # ተለዋዋጭ እሴቶችን አስወግድ
         clean = re.sub(r"'\d+'|\d+", "[NUM]", message)
         clean = re.sub(r'"[^"]+"', "[IDENTIFIER]", clean)
-        # የመጀመሪያዎቹን 200 ቁምፊዎች ወስድ
         return clean[:200]
     
     def _cleanup_cache(self):
