@@ -234,3 +234,17 @@ class AdminOverrideInstruction(models.Model):
     def __str__(self):
         task_info = f" for {self.backlog_task.task_name}" if self.backlog_task else " (Global Directive)"
         return f"Admin Override{task_info} - Applied: {self.is_processed}"
+        
+class AgentErrorLog(models.Model):
+    """ኤጀንቱ የኮድ ማሻሻያ ሲያደርግ የሚገጥሙትን ስህተቶች መዝግቦ በመያዝ፣ 
+    ለቀጣይ የራሱ ማስተካከያ (Self-Correction) የሚጠቀምበት የትምህርት መዝገብ።"""
+    
+    task_name = models.CharField(max_length=255)
+    error_message = models.TextField(help_text="የተፈጠረው የስህተት አይነት (Traceback)")
+    code_attempted = models.TextField(help_text="ኤጀንቱ የሞከረው የኮድ ክፍል")
+    correction_applied = models.TextField(null=True, blank=True, help_text="ስህተቱን ለማስተካከል የተጠቀመበት አዲስ ኮድ")
+    resolved = models.BooleanField(default=False, help_text="ችግሩ ተፈቷል?")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Error in {self.task_name} - Resolved: {self.resolved}"

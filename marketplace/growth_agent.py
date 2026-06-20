@@ -312,15 +312,24 @@ def run_daily_market_analysis():
                 defaults={'priority': t.get('priority', 'Medium'), 'status': 'Pending', 'description': t.get('description', '')}
             )
 
+                # 8. የኮድ ማሻሻያ እና ሲንታክስ ምርመራ (Validation)
         updates = data.get('updates', {})
         code_changed = False
+        
         for key, new_content in updates.items():
             if new_content and len(new_content.strip()) > 10:
+                # 🛡️ አዲስ የራስ-አራሚ (Self-Correction) ሎጂክ
                 if key in ['models', 'views', 'urls', 'forms']:
                     try:
                         compile(new_content, f"test_{key}.py", 'exec')
-                    except SyntaxError:
-                        continue
+                    except SyntaxError as e:
+                        logger.error(f"❌ Syntax Error recorded in memory: {e}")
+                        AgentErrorLog.objects.create(
+                            task_name=target_task.task_name if target_task else "Audit",
+                            error_message=str(e),
+                            code_attempted=new_content
+                        )
+                        continue # ስህተት ያለበት ኮድ ወደ ፋይል አይጻፍም
 
                 path = file_paths.get(key)
                 if path:
@@ -334,6 +343,8 @@ def run_daily_market_analysis():
                         old_code_backup=old_code, new_code_patch=new_content
                     )
                     code_changed = True
+
+
 
         if data.get('database_migration_needed') and updates.get('models'):
             try:
