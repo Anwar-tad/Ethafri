@@ -1,8 +1,4 @@
-# ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/migrations/0010_full_business_growth_migration.py
-# 📝 ለውጥ፦ SiteRegistry + Business Growth Models (ሙሉ በሙሉ)
-# 📅 ቀን፦ 2026-06-20
-# ============================================================
+# EthAfri/marketplace/migrations/0010_full_business_growth_migration.py
 
 from django.db import migrations, models
 import django.db.models.deletion
@@ -16,28 +12,20 @@ class Migration(migrations.Migration):
 
     operations = [
         # ============================================================
-        # 1. SiteRegistry ሞዴል መፍጠር (Multi-Site Orchestration)
+        # 1. SiteRegistry ሰንጠረዥን መፍጠር (Multi-Site Orchestration)
         # ============================================================
         migrations.CreateModel(
             name='SiteRegistry',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                
-                # 📌 መሠረታዊ መረጃ
                 ('name', models.CharField(help_text="የጣቢያው ልዩ ስም", max_length=100, unique=True)),
                 ('display_name', models.CharField(help_text="የሚታየው ስም", max_length=200)),
                 ('niche', models.CharField(help_text="የገበያ ኒች", max_length=100)),
                 ('target_market', models.CharField(help_text="ዒላማ ገበያ", max_length=100)),
-                
-                # 📂 የጂት እና ማሰማሪያ
                 ('repo_url', models.URLField(blank=True, help_text="የጂት ሪፖዚቶሪ አድራሻ")),
                 ('repo_path', models.CharField(blank=True, help_text="የአካባቢው የጂት ፎልደር መንገድ", max_length=500)),
                 ('deployment_url', models.URLField(blank=True, help_text="የተሰማራው ድረ-ገጽ አድራሻ")),
-                
-                # 🏆 ተወዳዳሪዎች
                 ('competitor_urls', models.JSONField(default=list, help_text="የተወዳዳሪ ድረ-ገጾች ዝርዝር")),
-                
-                # 🔑 የኤስኢኦ እና የይዘት መረጃ
                 ('primary_keywords', models.JSONField(default=list, help_text="ዋና ቁልፍ ቃላት")),
                 ('target_audience', models.TextField(blank=True, help_text="ዒላማ ተመልካች መግለጫ")),
                 ('content_style', models.CharField(
@@ -51,8 +39,6 @@ class Migration(migrations.Migration):
                     help_text="የይዘት አጻጻፍ ዘይቤ",
                     max_length=50
                 )),
-                
-                # 📊 የንግድ እድገት መለኪያዎች
                 ('growth_level', models.IntegerField(
                     choices=[
                         (1, 'Local'),
@@ -77,8 +63,6 @@ class Migration(migrations.Migration):
                 ('last_traffic_update', models.DateTimeField(blank=True, help_text="የመጨረሻ የትራፊክ መረጃ ማዘመኛ", null=True)),
                 ('last_marketing_campaign', models.DateTimeField(blank=True, help_text="የመጨረሻ ግብይት ካምፔን ቀን", null=True)),
                 ('pending_notifications', models.JSONField(default=list, help_text="ያልተላኩ ማሳወቂያዎች")),
-                
-                # ⚙️ የአሠራር ሁኔታ
                 ('is_active', models.BooleanField(default=True, help_text="ጣቢያው ንቁ ነው?")),
                 ('auto_update_enabled', models.BooleanField(default=True, help_text="ኤጀንቱ በራስ-ሰር ያሻሽለዋል?")),
                 ('auto_marketing_enabled', models.BooleanField(default=True, help_text="ራስ-ሰር ግብይት ያድርግ?")),
@@ -92,7 +76,6 @@ class Migration(migrations.Migration):
                     help_text="ምን ያህል ጊዜ እንደሚሻሻል",
                     max_length=20
                 )),
-                
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
             ],
@@ -132,7 +115,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='product',
             name='view_count',
-            field=models.IntegerField(default=0, help_text="የተመለከቱ ብዛት"),
+            field=models.IntegerField(default=0, help_text="የተመለከተው ብዛት"),
         ),
         migrations.AddField(
             model_name='product',
@@ -180,8 +163,6 @@ class Migration(migrations.Migration):
             name='complexity',
             field=models.IntegerField(default=1, help_text="1-10 (ቀላል እስከ ከባድ)"),
         ),
-        
-        # 🆕 site ፎሬን-ኬይ ለ AIProjectBacklog
         migrations.AddField(
             model_name='aiprojectbacklog',
             name='site',
@@ -194,8 +175,6 @@ class Migration(migrations.Migration):
                 to='marketplace.siteregistry',
             ),
         ),
-        
-        # Status ላይ 'Blocked' አማራጭ ለመጨመር
         migrations.AlterField(
             model_name='aiprojectbacklog',
             name='status',
@@ -224,8 +203,6 @@ class Migration(migrations.Migration):
                 help_text="SEO score, load time, etc."
             ),
         ),
-        
-        # 🆕 site ፎሬን-ኬይ ለ AIEvolutionLog
         migrations.AddField(
             model_name='aievolutionlog',
             name='site',
@@ -256,7 +233,7 @@ class Migration(migrations.Migration):
         ),
 
         # ============================================================
-        # 7. AgentErrorLog ላይ site ፎሬን-ኬይ መጨመር
+        # 7. AgentErrorLog ላይ አዲስ ሜዳዎች (site እና error_type) መጨመር
         # ============================================================
         migrations.AddField(
             model_name='agenterrorlog',
@@ -271,8 +248,8 @@ class Migration(migrations.Migration):
             ),
         ),
         
-        # የ AgentErrorLog error_type ላይ አዲስ አማራጮች
-        migrations.AlterField(
+        # ⚠️ ማሻሻያ፦ 'error_type' ቀደም ሲል በዳታቤዝ ውስጥ ስላልነበረ እዚህ 'AddField' (አዲስ መፍጠሪያ) ተደርጎ ተስተካክሏል! [1]
+        migrations.AddField(
             model_name='agenterrorlog',
             name='error_type',
             field=models.CharField(
