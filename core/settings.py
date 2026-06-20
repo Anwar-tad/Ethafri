@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/core/settings.py
-# 📝 ለውጥ፦ Multi-Site Support + Business Growth Settings
+# 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — Render Free Tier Optimized
 # 📅 ቀን፦ 2026-06-20
 # ============================================================
 
@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from django.utils.translation import gettext_lazy as _
 import dj_database_url
+import logging
 
 # =====================================================================
 # 1. Environment Variable & Base Directory Setup
@@ -18,8 +19,10 @@ try:
     Env.read_env()
 except ImportError:
     class Env:
-        def __call__(self, key, default=None): return os.environ.get(key, default)
-        def bool(self, key, default=False): return os.environ.get(key, str(default)).lower() == 'true'
+        def __call__(self, key, default=None): 
+            return os.environ.get(key, default)
+        def bool(self, key, default=False): 
+            return os.environ.get(key, str(default)).lower() == 'true'
     env = Env()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,11 +31,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # 2. Core Security & Environment Settings
 # =====================================================================
 SECRET_KEY = env('SECRET_KEY', default='django-insecure-ethafri-key-2026')
-DEBUG = env.bool('DEBUG', default=True)
+DEBUG = env.bool('DEBUG', default=False)  # ⚠️ በRender ላይ False ይሁን
 
 ALLOWED_HOSTS = ['*']
 
-CSRF_TRUSTED_ORIGINS = ['https://*.onrender.com', 'https://*.pythonanywhere.com']
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.onrender.com', 
+    'https://*.pythonanywhere.com',
+    'http://localhost:8000',
+]
 
 # =====================================================================
 # 3. Application Definition
@@ -132,8 +139,15 @@ LOCALE_PATHS = [
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# ⚠️ የተሻሻለ — WhiteNoise MissingFileError ለመከላከል
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
+# WhiteNoise ተጨማሪ ቅንብሮች
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = True
+WHITENOISE_MAX_AGE = 31536000  # 1 ዓመት
+
+# Cloudinary Storage
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 CLOUDINARY_STORAGE = {
@@ -146,20 +160,23 @@ CLOUDINARY_STORAGE = {
 # 7. AI API & Server Keys
 # =====================================================================
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
+GEMINI_API_KEY_2 = env('GEMINI_API_KEY_2', default='')
+GEMINI_API_KEY_3 = env('GEMINI_API_KEY_3', default='')
 GROQ_API_KEY = env('GROQ_API_KEY', default='')
 MISTRAL_API_KEY = env('MISTRAL_API_KEY', default='')
 OPENROUTER_API_KEY = env('OPENROUTER_API_KEY', default='')
+HUGGINGFACE_API_KEY = env('HUGGINGFACE_API_KEY', default='')
 
 RENDER_SERVICE_ID = env('RENDER_SERVICE_ID', default='')
 RENDER_API_KEY = env('RENDER_API_KEY', default='')
 GITHUB_TOKEN = env('GITHUB_TOKEN', default='')
 
-# 🆕 Twilio for SMS Marketing
+# Twilio for SMS Marketing
 TWILIO_SID = env('TWILIO_SID', default='')
 TWILIO_TOKEN = env('TWILIO_TOKEN', default='')
 TWILIO_PHONE = env('TWILIO_PHONE', default='')
 
-# 🆕 Email Settings for Marketing
+# Email Settings
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@ethafri.com')
 EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = env('EMAIL_PORT', default=587)
@@ -170,10 +187,9 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # =====================================================================
-# 8. 🆕 Multi-Site Configuration
+# 8. Multi-Site Configuration
 # =====================================================================
 
-# የነባሪ ጣቢያ ቅንብሮች
 DEFAULT_SITE_CONFIG = {
     'name': 'primary',
     'display_name': 'EthAfri Primary',
@@ -185,7 +201,6 @@ DEFAULT_SITE_CONFIG = {
     'auto_marketing_enabled': True,
 }
 
-# የእድገት ደረጃ ወሰኖች
 GROWTH_THRESHOLDS = {
     'LOCAL': 100,
     'CITY': 1000,
@@ -194,30 +209,26 @@ GROWTH_THRESHOLDS = {
     'GLOBAL': 1000000,
 }
 
-# የአውቶማቲክ ማርኬቲንግ ቅንብሮች
 AUTO_MARKETING_CONFIG = {
     'enabled': True,
     'max_campaigns_per_day': 3,
     'max_notifications_per_day': 50,
     'social_media_posting': True,
     'email_marketing': True,
-    'sms_marketing': False,  # Twilio ካለ
+    'sms_marketing': False,
 }
 
 # =====================================================================
-# 9. Logging Configuration (DEBUGGING + Self-Healing)
+# 9. Logging Configuration
 # =====================================================================
-import logging
 
-# ✅ SelfHealingDBHandler በሌለበት ጊዜ እንዳይሰበር
+# 🛡️ SelfHealingDBHandler በሌለበት ጊዜ እንዳይሰበር
 try:
     from marketplace.log_handlers import SelfHealingDBHandler
 except ImportError:
     class SelfHealingDBHandler(logging.Handler):
         def emit(self, record):
             pass
-
-
 
 LOGGING = {
     'version': 1,
@@ -229,6 +240,10 @@ LOGGING = {
         },
         'simple': {
             'format': '{levelname} {message}',
+            'style': '{',
+        },
+        'detailed': {
+            'format': '{levelname} {asctime} {name} {filename}:{lineno} {message}',
             'style': '{',
         },
     },
@@ -255,6 +270,11 @@ LOGGING = {
             'propagate': False,
         },
         'django.request': {
+            'handlers': ['console', 'self_healing_db'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.security': {
             'handlers': ['console', 'self_healing_db'],
             'level': 'WARNING',
             'propagate': False,
