@@ -193,12 +193,10 @@ def trigger_evolution(request):
 
     if result.startswith(SUCCESS_PREFIXES):
         try:
+            # ማሻሻያ፦ አሮጌው AISystemTask በዘமናዊው AIProjectBacklog የተሟላ ታሪክ ተተክቷል
             latest_task = AIProjectBacklog.objects.latest('created_at')
         except AIProjectBacklog.DoesNotExist:
-            try:
-                latest_task = AISystemTask.objects.latest('created_at')
-            except AISystemTask.DoesNotExist:
-                latest_task = None
+            latest_task = None
 
         return render(request, 'marketplace/evolution_result.html', {
             'status': f"{result} | Coder: {heal_result}",
@@ -463,7 +461,45 @@ def marketing_dashboard(request):
 
 
 # ============================================================
-# 11. የባለቤት መመሪያ ገጽ
+# 📱 11. አዲስ ማርኬቲንግ ካምፔን መፍጠሪያ (አዲስ) - ⚠️ ሙሉ በሙሉ እዚህ ተገኝቷል!
+# ============================================================
+@staff_member_required
+def create_marketing_campaign(request):
+    """
+    አዲስ ግብይት ካምፔን መፍጠሪያ [1]
+    """
+    if request.method == "POST":
+        site_id = request.POST.get("site_id")
+        campaign_type = request.POST.get("campaign_type")
+        name = request.POST.get("name")
+        message = request.POST.get("message")
+        subject = request.POST.get("subject", "")
+        
+        if not site_id or not campaign_type or not name or not message:
+            messages.error(request, "ሁሉንም አስፈላጊ መረጃዎች ይሙሉ።")
+            return redirect("marketing_dashboard")
+        
+        site = get_object_or_404(SiteRegistry, id=site_id)
+        
+        campaign = MarketingCampaign.objects.create(
+            site=site,
+            name=name,
+            campaign_type=campaign_type,
+            status='scheduled',
+            subject=subject,
+            message=message,
+            scheduled_at=timezone.now() + timezone.timedelta(hours=1)
+        )
+        
+        messages.success(request, f"✅ ካምፔን '{campaign.name}' በተሳካ ሁኔታ ተፈጥሯል!")
+        return redirect("marketing_dashboard")
+    
+    sites = SiteRegistry.objects.filter(is_active=True)
+    return render(request, 'marketplace/create_campaign.html', {'sites': sites})
+
+
+# ============================================================
+# 12. የባለቤት መመሪያ ገጽ
 # ============================================================
 @staff_member_required
 def owner_directive_view(request):
@@ -477,7 +513,7 @@ def owner_directive_view(request):
 
 
 # ============================================================
-# 12. የተጠቃሚ ማንነት ማረጋገጫ (Authentication Views)
+# 13. የተጠቃሚ ማንነት ማረጋገጫ (Authentication Views)
 # ============================================================
 def signup_view(request):
     if request.method == 'POST':
@@ -507,7 +543,7 @@ def logout_view(request):
 
 
 # ============================================================
-# 13. ውጫዊ መቀስቀሻ (External Cron Webhook Gateway)
+# 14. ውጫዊ መቀስቀሻ (External Cron Webhook Gateway)
 # ============================================================
 @csrf_exempt
 def trigger_autonomous_evolution(request):
