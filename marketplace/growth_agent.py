@@ -850,3 +850,25 @@ def run_daily_market_analysis():
     finally:
         lock.value = {'status': 'idle'}
         lock.save()
+        
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
+# 📝 ለውጥ፦ Fixed `unhashable type: 'slice'` error
+# 📅 ቀን፦ 2026-06-20
+# ============================================================
+
+def extract_json(text):
+    """JSON ከ AI ምላሽ ያወጣል — የተሻሻለ"""
+    if not text or not isinstance(text, str):
+        return None
+    try:
+        # ማርክዳውን ኮድ ብሎኮችን አስወግድ
+        clean_text = re.sub(r'^```json\s*|^```\s*|```$', '', text.strip(), flags=re.MULTILINE)
+        match = re.search(r'\{.*\}', clean_text, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        # ሙሉ ፋይሉ JSON ከሆነ
+        return json.loads(clean_text)
+    except (json.JSONDecodeError, TypeError, AttributeError) as e:
+        logger.warning(f"⚠️ JSON extraction failed: {e}")
+        return None
