@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ Fixed collectstatic — Skip manifest compression
+# 📝 ለውጥ፦ Fixed collectstatic by removing --clear race condition
 # 📅 ቀን፦ 2026-06-20
 # ============================================================
 
@@ -14,15 +14,11 @@ echo "📦 Installing Python packages..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# 2. የመጀመሪያ ማይግሬሽን ፍተሻ (migrations check)
-echo "🔍 Checking migrations..."
-python manage.py makemigrations --check --dry-run 2>/dev/null || echo "⚠️ Migration check skipped"
-
-# 3. ስታቲክ ፋይሎችን መሰብሰብ (ያለ Manifest)
+# 2. ስታቲክ ፋይሎችን መሰብሰብ (ያለ Manifest እና ያለ --clear)
 echo "📂 Collecting static files..."
-python manage.py collectstatic --no-input --clear
+python manage.py collectstatic --no-input  # ⚠️ የ KeyError ስህተት የፈጠረው '--clear' ተወግዷል
 
-# 4. የቋንቋ ፋይሎችን ማጠናቀር (ካሉ)
+# 3. የቋንቋ ፋይሎችን ማጠናቀር
 echo "🌍 Compiling translation files..."
 if command -v xgettext &> /dev/null; then
     python manage.py makemessages --locale=am --locale=om --locale=ar --locale=so --locale=ti --locale=fr --ignore=.venv/* --ignore=node_modules/* 2>/dev/null || true

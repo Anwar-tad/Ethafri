@@ -140,7 +140,7 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # ⚠️ የተሻሻለ — WhiteNoise MissingFileError ለመከላከል
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+#STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 # WhiteNoise ተጨማሪ ቅንብሮች
 WHITENOISE_USE_FINDERS = True
