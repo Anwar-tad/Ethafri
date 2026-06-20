@@ -1,15 +1,26 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/admin.py
-# 📝 ለውጥ፦ Fixed ImportError — Removed deprecated models
+# 📝 ለውጥ፦ Clean imports — All models exist in models.py
 # 📅 ቀን፦ 2026-06-20
 # ============================================================
 
 from django.contrib import admin
 from .models import (
-    Product, Category, UserSearch, ProductTranslation, 
-    SiteConfig, MarketTrend, SelfHealingLog,
-    AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction, AgentErrorLog,
-    SiteRegistry, CustomerAcquisitionLog, MarketingCampaign, SellerProfile, 
+    Product,
+    Category,
+    UserSearch,
+    ProductTranslation,
+    SiteConfig,
+    MarketTrend,
+    SelfHealingLog,
+    AIProjectBacklog,
+    AIEvolutionLog,
+    AdminOverrideInstruction,
+    AgentErrorLog,
+    SiteRegistry,
+    CustomerAcquisitionLog,
+    MarketingCampaign,
+    SellerProfile,
     NotificationQueue
 )
 
@@ -98,38 +109,15 @@ class AgentErrorLogAdmin(admin.ModelAdmin):
 @admin.register(SiteRegistry)
 class SiteRegistryAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'display_name', 'niche', 'target_market', 
+        'name', 'display_name', 'niche', 'target_market',
         'growth_level', 'monthly_visitors', 'is_active', 'created_at'
     )
     list_filter = (
-        'is_active', 'niche', 'target_market', 'growth_level', 
+        'is_active', 'niche', 'target_market', 'growth_level',
         'auto_update_enabled', 'auto_marketing_enabled'
     )
     search_fields = ('name', 'display_name', 'niche', 'target_market')
     readonly_fields = ('created_at', 'updated_at')
-    fieldsets = (
-        ('📌 መሠረታዊ መረጃ', {
-            'fields': ('name', 'display_name', 'niche', 'target_market')
-        }),
-        ('📂 የጂት እና ማሰማሪያ', {
-            'fields': ('repo_url', 'repo_path', 'deployment_url')
-        }),
-        ('🏆 ተወዳዳሪዎች እና SEO', {
-            'fields': ('competitor_urls', 'primary_keywords', 'target_audience', 'content_style')
-        }),
-        ('📊 የንግድ እድገት መለኪያዎች', {
-            'fields': ('growth_level', 'monthly_visitors', 'page_views', 
-                      'total_sellers', 'total_products', 'monthly_revenue',
-                      'last_traffic_update', 'last_marketing_campaign')
-        }),
-        ('⚙️ የአሠራር ሁኔታ', {
-            'fields': ('is_active', 'auto_update_enabled', 'auto_marketing_enabled', 'update_frequency')
-        }),
-        ('🕐 የፍጥረት እና ማዘመኛ', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
 
 
 # ============================================================
@@ -152,21 +140,6 @@ class MarketingCampaignAdmin(admin.ModelAdmin):
     search_fields = ('name', 'subject', 'message')
     readonly_fields = ('created_at', 'updated_at', 'sent_at')
     raw_id_fields = ('site',)
-    fieldsets = (
-        ('📋 የካምፔን መረጃ', {
-            'fields': ('name', 'campaign_type', 'status', 'site')
-        }),
-        ('📝 ይዘት', {
-            'fields': ('subject', 'message', 'target_audience')
-        }),
-        ('📊 ውጤቶች', {
-            'fields': ('total_sent', 'total_opened', 'total_clicked', 'total_converted')
-        }),
-        ('⏰ የጊዜ መረጃ', {
-            'fields': ('scheduled_at', 'sent_at', 'created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
 
 
 @admin.register(SellerProfile)
@@ -176,21 +149,6 @@ class SellerProfileAdmin(admin.ModelAdmin):
     search_fields = ('business_name', 'user__username', 'user__email', 'phone_number')
     readonly_fields = ('joined_at', 'last_active')
     raw_id_fields = ('user', 'site')
-    fieldsets = (
-        ('👤 የሻጭ መረጃ', {
-            'fields': ('user', 'business_name', 'phone_number', 'address', 'website')
-        }),
-        ('📊 የአፈጻጸም መለኪያዎች', {
-            'fields': ('total_products', 'total_sales', 'total_revenue', 'rating')
-        }),
-        ('🕐 የእንቅስቃሴ ጊዜ', {
-            'fields': ('joined_at', 'last_active'),
-            'classes': ('collapse',)
-        }),
-        ('🌐 ጣቢያ', {
-            'fields': ('site',)
-        }),
-    )
 
 
 @admin.register(NotificationQueue)
@@ -205,5 +163,5 @@ class NotificationQueueAdmin(admin.ModelAdmin):
     def mark_as_sent(self, request, queryset):
         from django.utils import timezone
         queryset.update(is_sent=True, sent_at=timezone.now())
-        self.message_user(request, f"{queryset.count()} ማሳወቂያዎች እንደተላኩ ምልክት ተደርጓል።")
-    mark_as_sent.short_description = "የተመረጡትን ማሳወቂያዎች እንደተላኩ ምልክት አድርግ"
+        self.message_user(request, f"{queryset.count()} notifications marked as sent.")
+    mark_as_sent.short_description = "Mark selected notifications as sent"
