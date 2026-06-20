@@ -1,13 +1,13 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/admin.py
-# 📝 ለውጥ፦ አዲሶቹን ሞዴሎች በአድሚን ፓነል ላይ መመዝገብ
+# 📝 ለውጥ፦ Fixed ImportError — Removed deprecated models
 # 📅 ቀን፦ 2026-06-20
 # ============================================================
 
 from django.contrib import admin
 from .models import (
     Product, Category, UserSearch, ProductTranslation, 
-    SiteConfig, MarketTrend, AISystemTask, OwnerDirective, SelfHealingLog,
+    SiteConfig, MarketTrend, SelfHealingLog,
     AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction, AgentErrorLog,
     SiteRegistry, CustomerAcquisitionLog, MarketingCampaign, SellerProfile, 
     NotificationQueue
@@ -46,16 +46,6 @@ class SiteConfigAdmin(admin.ModelAdmin):
 class MarketTrendAdmin(admin.ModelAdmin):
     list_display = ('niche_name', 'demand_level', 'last_updated')
     search_fields = ('niche_name', 'ai_suggestion')
-
-@admin.register(AISystemTask)
-class AISystemTaskAdmin(admin.ModelAdmin):
-    list_display = ('task_name', 'priority_reason', 'status', 'created_at')
-    list_filter = ('status',)
-
-@admin.register(OwnerDirective)
-class OwnerDirectiveAdmin(admin.ModelAdmin):
-    list_display = ('instruction', 'created_at', 'is_active')
-    list_filter = ('is_active',)
 
 @admin.register(SelfHealingLog)
 class SelfHealingLogAdmin(admin.ModelAdmin):
@@ -213,22 +203,7 @@ class NotificationQueueAdmin(admin.ModelAdmin):
     actions = ['mark_as_sent']
 
     def mark_as_sent(self, request, queryset):
+        from django.utils import timezone
         queryset.update(is_sent=True, sent_at=timezone.now())
         self.message_user(request, f"{queryset.count()} ማሳወቂያዎች እንደተላኩ ምልክት ተደርጓል።")
     mark_as_sent.short_description = "የተመረጡትን ማሳወቂያዎች እንደተላኩ ምልክት አድርግ"
-
-
-# ============================================================
-# 6. 📊 የአድሚን ዳሽቦርድ ማጠቃለያ
-# ============================================================
-
-from django.contrib.admin import AdminSite
-from django.utils.translation import gettext_lazy as _
-
-class EthAfriAdminSite(AdminSite):
-    site_header = _('EthAfri Super-Agent Admin')
-    site_title = _('EthAfri Admin')
-    index_title = _('🚀 የኢቲአፍሪ አውቶኖመስ ሲስተም አስተዳደር')
-
-# አስቀድሞ ያለውን admin.site መጠቀም እንቀጥላለን
-# ከፈለግክ ከላይ ያለውን EthAfriAdminSite መጠቀም ትችላለህ
