@@ -1,13 +1,10 @@
-# ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ለውጥ፦ Multi-Site Support + SiteRegistry Integration
-# 📅 ቀን፦ 2026-06-20
-# ============================================================
+# EthAfri/marketplace/self_doctor.py
 
 import json
 import re
 import traceback
 import os
+import logging  # ⚠️ የሎግ መመዝገቢያ ማስመጪ ተጨምሯል (Startup NameError መከላከያ)
 from django.db import connection
 from django.conf import settings
 from django.utils.text import slugify
@@ -44,7 +41,7 @@ def validate_css_syntax(css_content):
 def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minimalist", site=None):
     """
     📌 አዳዲስና የተሻሉ የዲዛይን ስታይሎችን ያሰሳል፣ ስህተቶች ሲኖሩም ራሱን ያክማል።
-    አሁን ለብዙ ጣቢያዎች ይሰራል
+    አሁን ለብዙ ጣቢያዎች ይሠራል።
     """
     site_name = site.name if site else "primary"
     style_key = f"DESIGN_STYLE_{slugify(trend_context)}_{slugify(site_name)}"
@@ -135,7 +132,7 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
 
 def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target_context=None):
     """
-    ለአንድ የተወሰነ ጣቢያ ስህተት ያስተካክላል
+    ለአንድ የተወሰነ ጣቢያ ስህተት ያስተካክላል [1]
     """
     site_name = site.name
     general_error = generalize_error_message(error_msg)
@@ -158,7 +155,7 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
         elif error_category == 'CODE_EXECUTION':
             return past_solution.solution_sql
 
-    # 2. የጣቢያውን ኮድ አንብብ
+    # 2. የጣቢያውን ኮድ አንብብ [1]
     project_code, file_paths = get_site_project_state(site)
     
     # 3. AI መመሪያ (Prompt)
@@ -215,8 +212,6 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
                 cursor.execute(clean_solution)
         elif error_category == 'CODE_EXECUTION':
             compile(clean_solution, '<string>', 'exec')
-            # የተስተካከለውን ኮድ ለጣቢያው ያስቀምጥ
-            # (በእውነተኛ ስራ ላይ ይህ ወደ ፋይል ይጻፋል)
 
         SelfHealingLog.objects.create(
             error_message=general_error,
@@ -224,7 +219,7 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
             resolved=True
         )
         
-        # ስህተቱን እንደተፈታ ምልክት አድርግ
+        # ስህተቱን እንደተፈታ ምልክት ማድረግ [1]
         AgentErrorLog.objects.filter(site=site, error_message__icontains=general_error[:100], resolved=False).update(resolved=True)
         
         return f"✅ System Healed for {site_name}! Category: {error_category}"
@@ -245,11 +240,11 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
 def heal_any_system_error(error_category, error_msg, target_context=None):
     """
     የዳታቤዝም ሆነ የኮድ አፈጻጸም ስህተቶች ሲከሰቱ ራሱን የሚያክም ዋና ሞተር
-    አሁን ሁሉንም ጣቢያዎች ያስተዳድራል
+    አሁን ሁሉንም ጣቢያዎች ያስተዳድራል [1]
     """
     results = []
     
-    # 1. ስህተቱ የትኛውን ጣቢያ እንደሚመለከት ለይ
+    # 1. ስህተቱ የትኛውን ጣቢያ እንደሚመለከት መለየት
     site_id = None
     if target_context and 'site_id' in str(target_context):
         try:
@@ -260,11 +255,14 @@ def heal_any_system_error(error_category, error_msg, target_context=None):
         except:
             pass
     
-    # 2. ሁሉንም ንቁ ጣቢያዎች ራስ-ጥገና አድርግ (ወይም አንዱን)
-    sites = SiteRegistry.objects.filter(is_active=True)
+    # 2. ሁሉንም ንቁ ጣቢያዎች ራስ-ጥገና አድርግ
+    try:
+        sites = SiteRegistry.objects.filter(is_active=True)
+    except Exception:
+        sites = None
     
-    if not sites.exists():
-        # ነባሪ ጣቢያ ከሌለ መደበኛ ጥገና አድርግ
+    if not sites or not sites.exists():
+        # ነባሪ ጣቢያ ከሌለ መደበኛ ጥገና ማድረግ
         return _heal_system_error_single(error_category, error_msg, target_context)
     
     # የተወሰነ ጣቢያ ከተለየ

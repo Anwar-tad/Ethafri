@@ -64,6 +64,15 @@ class Product(models.Model):
     last_enhanced = models.DateTimeField(null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
+    site = models.ForeignKey(
+        'SiteRegistry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='products',
+        verbose_name="የሚለጠፍበት ድረ-ገጽ"
+    )
+
     updated_at = models.DateTimeField(auto_now=True)
 
     def get_translated_title(self):
@@ -140,6 +149,17 @@ class MarketTrend(models.Model):
     last_updated = models.DateTimeField(auto_now=True)
 
 
+class SelfHealingLog(models.Model):
+    """AI በራሱ የፈወሳቸውን የዳታቤዝ እና የሲስተም ስህተቶች መዝገብ"""
+    error_message = models.TextField()
+    solution_sql = models.TextField(blank=True, null=True)
+    resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Healed: {self.error_message[:30]}..."
+
+
 # ============================================================
 # 2. የኤጀንት ማህደረ-ትውስታ እና የቁጥጥር ሞዴሎች
 # ============================================================
@@ -161,7 +181,6 @@ class AIProjectBacklog(models.Model):
         ('Blocked', 'Blocked'),
     ]
     
-    # 🆕 የስራ አይነቶች
     TASK_TYPES = [
         ('code', 'Code Development'),
         ('seo', 'SEO Optimization'),
@@ -179,7 +198,6 @@ class AIProjectBacklog(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     description = models.TextField(blank=True, default='', help_text="የስራው ዝርዝር መግለጫ እና ቅድሚያ የተሰጠበት ምክንያት")
     
-    # 🛡️ ተደጋጋሚ ስራዎችን ለመከላከል የተገጠመ ልዩ መለያ
     task_hash = models.CharField(
         max_length=64, 
         unique=True, 
@@ -187,7 +205,6 @@ class AIProjectBacklog(models.Model):
         help_text="የስራ መደራረብን ለመከላከል በራስ-ሰር የሚመነጭ ልዩ ሃሽ"
     )
     
-    # ⚠️ የስራዎች ጥገኝነት ሜዳ
     dependency = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -197,11 +214,9 @@ class AIProjectBacklog(models.Model):
         help_text="ይህ ስራ ከመሰራቱ በፊት አስቀድሞ መጠናቀቅ ያለበት ሌላ የባክሎግ ስራ"
     )
     
-    # 🆕 የግምት ጊዜ እና ውስብስብነት
     estimated_hours = models.FloatField(default=1.0)
     complexity = models.IntegerField(default=1, help_text="1-10 (ቀላል እስከ ከባድ)")
     
-    # 🆕 ከ SiteRegistry ጋር ማገናኘት
     site = models.ForeignKey(
         'SiteRegistry',
         on_delete=models.CASCADE,
@@ -239,7 +254,6 @@ class AIEvolutionLog(models.Model):
     old_code_backup = models.TextField(blank=True, null=True)
     new_code_patch = models.TextField(blank=True, null=True)
     
-    # 🆕 ለውጡ የሚለካው አመላካች
     improvement_metrics = models.JSONField(default=dict, blank=True, help_text="SEO score, load time, etc.")
     
     site = models.ForeignKey(
@@ -337,55 +351,18 @@ class SiteRegistry(models.Model):
     እያንዳንዱን የኒች ድረ-ገጽ የሚወክል ሞዴል
     ኤጀንቱ በርካታ ድረ-ገጾችን በአንድ ጊዜ እንዲያስተዳድር ያስችላል
     """
-    # 📌 መሠረታዊ መረጃ
-    name = models.CharField(
-        max_length=100, 
-        unique=True, 
-        help_text="የጣቢያው ልዩ ስም (ለምሳሌ 'ethiopian-coffee')"
-    )
-    display_name = models.CharField(
-        max_length=200, 
-        help_text="የሚታየው ስም"
-    )
-    niche = models.CharField(
-        max_length=100, 
-        help_text="የገበያ ኒች (ለምሳሌ 'coffee', 'fashion', 'tech')"
-    )
-    target_market = models.CharField(
-        max_length=100, 
-        help_text="ዒላማ ገበያ (ለምሳሌ 'USA', 'Europe', 'Global')"
-    )
+    name = models.CharField(max_length=100, unique=True, help_text="የጣቢያው ልዩ ስም")
+    display_name = models.CharField(max_length=200, help_text="የሚታየው ስም")
+    niche = models.CharField(max_length=100, help_text="የገበያ ኒች")
+    target_market = models.CharField(max_length=100, help_text="ዒላማ ገበያ")
     
-    # 📂 የጂት እና ማሰማሪያ
-    repo_url = models.URLField(
-        blank=True, 
-        help_text="የጂት ሪፖዚቶሪ አድራሻ"
-    )
-    repo_path = models.CharField(
-        max_length=500, 
-        blank=True, 
-        help_text="የአካባቢው የጂት ፎልደር መንገድ"
-    )
-    deployment_url = models.URLField(
-        blank=True, 
-        help_text="የተሰማራው ድረ-ገጽ አድራሻ"
-    )
+    repo_url = models.URLField(blank=True, help_text="የጂት ሪፖዚቶሪ አድራሻ")
+    repo_path = models.CharField(max_length=500, blank=True, help_text="የአካባቢው የጂት ፎልደር መንገድ")
+    deployment_url = models.URLField(blank=True, help_text="የተሰማራው ድረ-ገጽ አድራሻ")
     
-    # 🏆 ተወዳዳሪዎች
-    competitor_urls = models.JSONField(
-        default=list, 
-        help_text="የተወዳዳሪ ድረ-ገጾች ዝርዝር"
-    )
-    
-    # 🔑 የኤስኢኦ እና የይዘት መረጃ
-    primary_keywords = models.JSONField(
-        default=list, 
-        help_text="ዋና ቁልፍ ቃላት"
-    )
-    target_audience = models.TextField(
-        blank=True, 
-        help_text="ዒላማ ተመልካች መግለጫ"
-    )
+    competitor_urls = models.JSONField(default=list, help_text="የተወዳዳሪ ድረ-ገጾች ዝርዝር")
+    primary_keywords = models.JSONField(default=list, help_text="ዋና ቁልፍ ቃላት")
+    target_audience = models.TextField(blank=True, help_text="ዒላማ ተመልካች መግለጫ")
     content_style = models.CharField(
         max_length=50, 
         default='professional',
@@ -398,7 +375,6 @@ class SiteRegistry(models.Model):
         help_text="የይዘት አጻጻፍ ዘይቤ"
     )
     
-    # 📊 የንግድ እድገት መለኪያዎች (🆕)
     growth_level = models.IntegerField(
         default=1,
         choices=[
@@ -410,58 +386,19 @@ class SiteRegistry(models.Model):
         ],
         help_text="የአሁኑ የእድገት ደረጃ"
     )
-    monthly_visitors = models.IntegerField(
-        default=0, 
-        help_text="በወር ጎብኝዎች (ግምታዊ)"
-    )
-    page_views = models.IntegerField(
-        default=0, 
-        help_text="ጠቅላላ ገጽ እይታዎች"
-    )
-    total_sellers = models.IntegerField(
-        default=0, 
-        help_text="ጠቅላላ ሻጮች ብዛት"
-    )
-    total_products = models.IntegerField(
-        default=0, 
-        help_text="ጠቅላላ ምርቶች ብዛት"
-    )
-    monthly_revenue = models.DecimalField(
-        max_digits=20, 
-        decimal_places=2, 
-        default=0,
-        help_text="በወር ገቢ"
-    )
-    last_traffic_update = models.DateTimeField(
-        null=True, 
-        blank=True, 
-        help_text="የመጨረሻ የትራፊክ መረጃ ማዘመኛ"
-    )
+    monthly_visitors = models.IntegerField(default=0, help_text="በወር ጎብኝዎች")
+    page_views = models.IntegerField(default=0, help_text="ጠቅላላ ገጽ እይታዎች")
+    total_sellers = models.IntegerField(default=0, help_text="ጠቅላላ ሻጮች ብዛት")
+    total_products = models.IntegerField(default=0, help_text="ጠቅላላ ምርቶች ብዛት")
+    monthly_revenue = models.DecimalField(max_digits=20, decimal_places=2, default=0, help_text="በወር ገቢ")
+    last_traffic_update = models.DateTimeField(null=True, blank=True, help_text="የመጨረሻ የትራፊክ መረጃ ማዘመኛ")
     
-    # 🆕 የግብይት ካምፔን መረጃ
-    last_marketing_campaign = models.DateTimeField(
-        null=True, 
-        blank=True,
-        help_text="የመጨረሻ ግብይት ካምፔን ቀን"
-    )
-    pending_notifications = models.JSONField(
-        default=list,
-        help_text="ያልተላኩ ማሳወቂያዎች"
-    )
+    last_marketing_campaign = models.DateTimeField(null=True, blank=True, help_text="የመጨረሻ ግብይት ካምፔን ቀን")
+    pending_notifications = models.JSONField(default=list, help_text="ያልተላኩ ማሳወቂያዎች")
     
-    # ⚙️ የአሠራር ሁኔታ
-    is_active = models.BooleanField(
-        default=True, 
-        help_text="ጣቢያው ንቁ ነው?"
-    )
-    auto_update_enabled = models.BooleanField(
-        default=True, 
-        help_text="ኤጀንቱ በራስ-ሰር ያሻሽለዋል?"
-    )
-    auto_marketing_enabled = models.BooleanField(
-        default=True,
-        help_text="ራስ-ሰር ግብይት ያድርግ?"
-    )
+    is_active = models.BooleanField(default=True, help_text="ጣቢያው ንቁ ነው?")
+    auto_update_enabled = models.BooleanField(default=True, help_text="ኤጀንቱ በራስ-ሰር ያሻሽለዋል?")
+    auto_marketing_enabled = models.BooleanField(default=True, help_text="ራስ-ሰር ግብይት ያድርግ?")
     update_frequency = models.CharField(
         max_length=20, 
         default='daily',
@@ -491,14 +428,12 @@ class SiteRegistry(models.Model):
         return self.deployment_url or f"/sites/{self.name}/"
 
     def update_traffic(self, visitors, page_views):
-        """የትራፊክ መረጃን ያሻሽላል"""
         self.monthly_visitors = visitors
         self.page_views = page_views
         self.last_traffic_update = timezone.now()
         self.save()
     
     def update_growth_level(self):
-        """በጎብኝዎች ብዛት ላይ ተመስርቶ የእድገት ደረጃን ያሻሽላል"""
         visitors = self.monthly_visitors or 0
         if visitors < 100:
             self.growth_level = 1
@@ -529,11 +464,7 @@ class CustomerAcquisitionLog(models.Model):
         ('paid', 'Paid Advertising'),
     ]
     
-    site = models.ForeignKey(
-        SiteRegistry,
-        on_delete=models.CASCADE,
-        related_name='acquisition_logs'
-    )
+    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='acquisition_logs')
     channel = models.CharField(max_length=20, choices=ACQUISITION_CHANNELS)
     contact_info = models.CharField(max_length=255, help_text="ኢሜይል ወይም ስልክ ቁጥር")
     name = models.CharField(max_length=255, blank=True)
@@ -566,21 +497,15 @@ class MarketingCampaign(models.Model):
         ('paused', 'Paused'),
     ]
     
-    site = models.ForeignKey(
-        SiteRegistry,
-        on_delete=models.CASCADE,
-        related_name='marketing_campaigns'
-    )
+    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='marketing_campaigns')
     name = models.CharField(max_length=255)
     campaign_type = models.CharField(max_length=20, choices=CAMPAIGN_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     
-    # የካምፔን ይዘት
     subject = models.CharField(max_length=255, blank=True)
     message = models.TextField()
     target_audience = models.JSONField(default=dict, help_text="ዒላማ ተመልካች መስፈርቶች")
     
-    # ውጤቶች
     total_sent = models.IntegerField(default=0)
     total_opened = models.IntegerField(default=0)
     total_clicked = models.IntegerField(default=0)
@@ -599,27 +524,18 @@ class SellerProfile(models.Model):
     """የሻጮች መረጃ እና አፈጻጸም የሚተዳደርበት"""
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='seller_profile')
-    site = models.ForeignKey(
-        SiteRegistry,
-        on_delete=models.CASCADE,
-        related_name='seller_profiles',
-        null=True,
-        blank=True
-    )
+    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='seller_profiles', null=True, blank=True)
     
-    # የሻጭ መረጃ
     business_name = models.CharField(max_length=255, blank=True)
     phone_number = models.CharField(max_length=20, blank=True)
     address = models.TextField(blank=True)
     website = models.URLField(blank=True)
     
-    # የአፈጻጸም መለኪያዎች
     total_products = models.IntegerField(default=0)
     total_sales = models.IntegerField(default=0)
     total_revenue = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     rating = models.FloatField(default=0.0, help_text="0-5 ውጤት")
     
-    # የመጨረሻ እንቅስቃሴ
     last_active = models.DateTimeField(auto_now=True)
     joined_at = models.DateTimeField(auto_now_add=True)
     
@@ -637,11 +553,7 @@ class NotificationQueue(models.Model):
         ('in_app', 'In-App Notification'),
     ]
     
-    site = models.ForeignKey(
-        SiteRegistry,
-        on_delete=models.CASCADE,
-        related_name='notifications'
-    )
+    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='notifications')
     notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
     recipient = models.CharField(max_length=255, help_text="ኢሜይል ወይም ስልክ ቁጥር")
     subject = models.CharField(max_length=255, blank=True)

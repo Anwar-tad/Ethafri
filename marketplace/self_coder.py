@@ -1,8 +1,4 @@
-# ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/self_coder.py
-# 📝 ለውጥ፦ Multi-Site Support + SiteRegistry Integration
-# 📅 ቀን፦ 2026-06-20
-# ============================================================
+# EthAfri/marketplace/self_coder.py
 
 import requests
 import json
@@ -18,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# 1. የሬንደር ሁኔታ አንባቢ (ሳይለወጥ)
+# 1. የሬንደር ሁኔታ አንባቢ (KeyError-Safe)
 # ============================================================
 
 def get_render_deploy_status():
@@ -49,13 +45,13 @@ def get_render_deploy_status():
 
 
 # ============================================================
-# 2. ወደ ጊትሃብ መግፋት (የተሻሻለ - Multi-Site)
+# 2. ወደ ጊትሃብ መግፋት (Multi-Site)
 # ============================================================
 
 def push_code_to_github(file_path, file_content, commit_message, site_name="primary"):
     """
     የተጻፈውን አዲስ የፓይተን ኮድ በቀጥታ ወደ ጊትሃብ ይልካል (Push)
-    አሁን ለብዙ ጣቢያዎች ይሰራል
+    አሁን ለብዙ ጣቢያዎች ይሠራል።
     """
     github_token = getattr(settings, 'GITHUB_TOKEN', None)
     repo = "Anwar-tad/Ethafri"
@@ -104,20 +100,20 @@ def push_code_to_github(file_path, file_content, commit_message, site_name="prim
 
 def self_heal_single_site(site: SiteRegistry):
     """
-    ለአንድ የተወሰነ ጣቢያ ራስ-ጥገና ያካሂዳል
+    ለአንድ የተወሰነ ጣቢያ ራስ-ጥገና ያካሂዳል [1]
     """
     site_name = site.name
     logger.info(f"🛠️ Starting self-heal for site: {site_name}")
     
     results = []
     
-    # 1. የጣቢያውን ሁኔታ ያንብብ
+    # 1. የጣቢያውን የኮድ ሁኔታ ያንብብ [1]
     project_code, file_paths = get_site_project_state(site)
     
     if not project_code:
         return f"⚠️ No code found for {site_name}"
     
-    # 2. የጣቢያውን የስህተት ሎግ ያንብብ
+    # 2. የጣቢያውን ያልተፈቱ የስህተት ሎጎች ያንብብ [1]
     recent_errors = AgentErrorLog.objects.filter(
         site=site,
         resolved=False
@@ -139,7 +135,7 @@ def self_heal_single_site(site: SiteRegistry):
     # 4. AI እንዲያስተካክል ጠይቅ
     prompt = f"""
     [CRITICAL DIRECTIVE] 
-    You are the Autonomous CEO of EthAfri. Self-healing is needed for site: {site_name}.
+    You are the Autonomous CEO of EthAfri. Your task is to perform self-healing for site: {site_name}.
     
     Site Information:
     - Niche: {site.niche}
@@ -149,14 +145,14 @@ def self_heal_single_site(site: SiteRegistry):
     Recent Errors:
     {json.dumps(error_summary, indent=2)}
     
-    Current Codebase:
+    Current Codebase State:
     {json.dumps(project_code, indent=2)[:5000]}
     
     Task:
-    1. Analyze the errors above
-    2. Identify the root cause
-    3. Write corrected code
-    4. Return ONLY valid JSON with the fixed code
+    1. Analyze the errors and traceback details.
+    2. Identify the root causes (missing imports, syntax issues, logical bugs).
+    3. Generate the corrected code.
+    4. Return ONLY valid JSON containing the fixed code.
     
     Output Format:
     {{
@@ -177,29 +173,28 @@ def self_heal_single_site(site: SiteRegistry):
     if isinstance(ai_response, dict) and "error" in ai_response:
         return f"❌ Self-Healing failed for {site_name}: {ai_response['error']}"
     
-    # 5. የAI ምላሽን አስተካክል
+    # 5. የAI ምላሽን መፍታት
     fixed_files = {}
+    explanation = "System self-correction"
     if isinstance(ai_response, dict):
         fixed_files = ai_response.get('fixed_files', {})
-        explanation = ai_response.get('explanation', '')
+        explanation = ai_response.get('explanation', 'System self-correction')
     else:
-        # ጥሬ ጽሑፍ ከሆነ
         try:
             data = json.loads(ai_response)
             fixed_files = data.get('fixed_files', {})
-            explanation = data.get('explanation', '')
-        except:
+            explanation = data.get('explanation', 'System self-correction')
+        except Exception:
             return f"❌ Self-Healing failed for {site_name}: Invalid AI response format"
     
-    # 6. የተስተካከሉ ፋይሎችን ተግብር
+    # 6. የተስተካከሉ ፋይሎችን መተግበርና ወደ ጊትሃብ መግፋት
     changes_applied = 0
     for file_key, new_content in fixed_files.items():
         if new_content and len(new_content.strip()) > 100:
-            # የፋይሉን መንገድ አግኝ
             path = file_paths.get(file_key)
             if path:
                 try:
-                    # ሲንታክስ ፍተሻ
+                    # የፓይተን ሲንታክስ ፍተሻ
                     if file_key in ['models', 'views', 'urls', 'forms']:
                         compile(new_content, f"test_{file_key}.py", 'exec')
                     
@@ -213,7 +208,7 @@ def self_heal_single_site(site: SiteRegistry):
                     with open(path, 'w', encoding='utf-8') as f:
                         f.write(new_content)
                     
-                    # በ EvolutionLog ውስጥ መዝግብ
+                    # በ EvolutionLog ውስጥ መዝግብ [1]
                     AIEvolutionLog.objects.create(
                         target_file=file_key,
                         reason_for_change=f"Self-Heal for {site_name}: {explanation[:100]}",
@@ -222,26 +217,23 @@ def self_heal_single_site(site: SiteRegistry):
                         site=site
                     )
                     
-                    # ስህተቶቹን እንደተፈቱ ምልክት አድርግ
-                    AgentErrorLog.objects.filter(site=site, resolved=False).update(resolved=True)
+                    # 🛡️ 5. ጊትሃብ መግፊያውን በሉፕ ውስጥ በማስገባት ሁሉንም የለወጥናቸውን ፋይሎች በራስ-ሰር ፑሽ ማድረግ!
+                    push_result = push_code_to_github(
+                        f"marketplace/{file_key}.py",
+                        new_content,
+                        f"AI: Self-Healed {site_name} (File: {file_key}) - {explanation[:50]}",
+                        site_name
+                    )
+                    results.append(push_result)
                     
+                    # ስህተቶቹን እንደተፈቱ ምልክት አድርግ [1]
+                    AgentErrorLog.objects.filter(site=site, resolved=False).update(resolved=True)
                     changes_applied += 1
-                    results.append(f"✅ Fixed {file_key}")
                     
                 except SyntaxError as e:
                     results.append(f"❌ Syntax error in {file_key}: {e}")
                 except Exception as e:
                     results.append(f"❌ Error applying fix to {file_key}: {e}")
-    
-    # 7. ወደ ጊትሃብ ግፋ (ከሆነ)
-    if changes_applied > 0:
-        push_result = push_code_to_github(
-            f"marketplace/{file_key}.py",
-            new_content,
-            f"AI: Self-Healed {site_name} - {explanation[:50]}",
-            site_name
-        )
-        results.append(push_result)
     
     return f"🛠️ Self-Heal for {site_name}: {' | '.join(results)}"
 
@@ -253,7 +245,7 @@ def self_heal_single_site(site: SiteRegistry):
 def self_heal_failed_build():
     """
     ሬንደር ላይ ቢከሽፍ AIው ራሱ መዝገቡን አንብቦ ኮዱን የሚጠግንበት ዑደት
-    አሁን ሁሉንም ጣቢያዎች ያስተዳድራል
+    አሁን ሁሉንም ጣቢያዎች ያስተዳድራል [1]
     """
     results = []
     
@@ -265,19 +257,20 @@ def self_heal_failed_build():
         
         if deploy_status == "build_failed":
             results.append(f"⚠️ Render Build Failed on Commit {commit_id[:7]}!")
-            # የሬንደር ጥገና ለዋናው ጣቢያ ብቻ
-            # (የሬንደር ማሰማሪያ አንድ ነው)
             results.append("🔧 Attempting primary site self-heal...")
     
     # 2. ሁሉንም ጣቢያዎች ራስ-ጥገና አድርግ
-    sites = SiteRegistry.objects.filter(is_active=True)
+    try:
+        sites = SiteRegistry.objects.filter(is_active=True)
+    except Exception:
+        sites = None
     
-    if not sites.exists():
+    if not sites or not sites.exists():
         return "⚠️ No active sites found for self-healing"
     
     for site in sites:
         try:
-            # ለዚህ ጣቢያ ያልተፈቱ ስህተቶች ካሉ
+            # ለዚህ ጣቢያ ያልተፈቱ ስህተቶች ካሉ [1]
             unresolved_errors = AgentErrorLog.objects.filter(site=site, resolved=False).count()
             
             if unresolved_errors > 0:

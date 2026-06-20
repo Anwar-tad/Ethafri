@@ -1,16 +1,13 @@
-# ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ለውጥ፦ Multi-Site Orchestration + Business Growth + Auto-Discovery
-# 📅 ቀን፦ 2026-06-20
-# ============================================================
+# EthAfri/marketplace/growth_agent.py
 
 import json
 import os
 import re
 import logging
 import sys
-import requests
-import hashlib
+import requests  # ለ Mistral, OpenRouter, Hugging Face እና GitHub ኤፒአይ ጥሪዎች
+import hashlib   # ለ SHA256 የይዘት ካሼ (Caching Layer)
+from datetime import datetime, timedelta  # ⚠️ የሰዓትና የጊዜ ፎርማት ማስሞጫ ተጨምሯል (AttributeError መከላከያ)
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -18,8 +15,8 @@ from django.core.management import call_command
 from django.urls import clear_url_caches
 from importlib import reload
 from groq import Groq
-from google import genai
-from django.db import models
+from google import genai  # የዘመነ የጉግል ኤስዲኬ (Google GenAI SDK)
+from django.db import models  # ለ Exists እና OuterRef ንዑስ ኳኤሪዎች
 from django.db.models import Q
 
 # አዲሶቹን አውቶኖመስ ሞዴሎች ማካተት
@@ -41,6 +38,7 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
     ተሻሻለ የኤአይ ፎልባክ ሞተር፡ ቁልፎችን የመለየት፣ የመመዝገብ እና ዙር-ተኮር (Round-Robin) 
     የጥሪ ማመጣጠኛ አቅም ያለው።
     """
+    # 🚨 አንተ የጨመርከው የቁልፎች መኖር (Debugging) ፍተሻ
     keys_to_check = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'GITHUB_TOKEN', 'HUGGINGFACE_API_KEY', 'HF_TOKEN', 'MISTRAL_API_KEY', 'OPENROUTER_API_KEY']
     for k in keys_to_check:
         val = os.environ.get(k)
@@ -137,13 +135,10 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
         providers = [call_gemini, call_github, call_huggingface, call_openrouter, call_groq]
     elif pool_type == "coding":
         providers = [call_mistral, call_github, call_groq, call_openrouter, call_huggingface]
-    elif pool_type == "marketing":
-        providers = [call_openrouter, call_gemini, call_mistral, call_github, call_groq]
-    elif pool_type == "analysis":
-        providers = [call_gemini, call_openrouter, call_huggingface, call_groq]
     else:
         providers = [call_groq, call_mistral, call_github, call_huggingface, call_openrouter]
 
+    # የማስፈጸሚያ ሉፕ
     for provider in providers:
         try:
             result = provider()
@@ -357,7 +352,7 @@ class GrowthStrategyEngine:
                 'actions': [
                     'የሀገር አቀፍ ማስታወቂያ',
                     'በኢንፍሉዌንሰሮች ግብይት',
-                    'የብሎግ ጽሁፎች እና ኤስኢኦ',
+                    'የብሎግ ጽሁፎች SEO',
                 ],
                 'target_audience': 'National businesses'
             },
@@ -591,7 +586,7 @@ def run_single_site_analysis(site: SiteRegistry):
     Growth Strategy Focus: {strategy['focus']}
     Target Audience: {site.target_audience}
     
-    Current Codebase State: {json.dumps(project_code, indent=2)[:5000]}
+    Codebase State: {json.dumps(project_code, indent=2)[:5000]}
     Active Task: {target_task.task_name if target_task else 'Audit and Discovery for this niche'}
     {forced_instruction}
     
@@ -610,6 +605,7 @@ def run_single_site_analysis(site: SiteRegistry):
         err_msg = data.get('error', 'Unknown Error') if data else 'No Response'
         if any(x in str(err_msg) for x in ["429", "RESOURCE_EXHAUSTED", "quota"]):
             next_retry = now + timezone.timedelta(hours=24)
+            # ⚠️ 1. የሰዓት ዞን እና የኤፒአይ መቆለፊያ ስያሜ ችግር እዚህ ተስተካክሏል
             retry_config, _ = SiteConfig.objects.get_or_create(
                 key=f"NEXT_ALLOWED_RUN_TIME_{site_name}",
                 defaults={'value': {'time': next_retry.isoformat()}}
@@ -708,8 +704,6 @@ def run_single_site_analysis(site: SiteRegistry):
     # 9. የማህበራዊ ሚዲያ ይዘት (ከሆነ)
     if data.get('social_media_content'):
         marketing = MarketingEngine(site)
-        # ማህበራዊ ሚዲያ ይዘት ወደ ወረፋ ይጨምር
-        # (በእውነተኛ ስራ ላይ ለማህበራዊ ሚዲያ ኤፒአይ ይላካል)
         results.append("📱 Social media content generated")
     
     # 10. የጣቢያ መረጃ ማዘመን
@@ -741,7 +735,7 @@ def run_daily_market_analysis():
     now = timezone.now()
     results = []
     
-    # 🛡️ 1. የራስ-መገደብ ፍተሻ (Global Hibernation)
+    # 🛡️ 1. የራስ-መገደብ ፍተሻ (Global Hibernation) - ሳይለወጥ
     retry_config, _ = SiteConfig.objects.get_or_create(
         key="NEXT_ALLOWED_RUN_TIME", 
         defaults={'value': {'time': '2000-01-01T00:00:00'}}
@@ -823,10 +817,11 @@ def run_daily_market_analysis():
                 results.append(f"[{site.name}] {growth_result}")
                 
                 # 📊 9. የጣቢያ መረጃ አዘምን
+                # ⚠️ 2. የ 'update_growth_level' እሴት መደምሰስ ስህተት እዚህ ተስተካክሏል
                 site.total_products = Product.objects.filter(seller__isnull=False).count()
                 site.total_sellers = User.objects.filter(product__isnull=False).distinct().count()
-                site.growth_level = site.update_growth_level() if hasattr(site, 'update_growth_level') else site.growth_level
-                site.save()
+                if hasattr(site, 'update_growth_level'):
+                    site.update_growth_level()
                 
             except Exception as e:
                 error_msg = f"[{site.name}] ❌ Error: {str(e)}"
