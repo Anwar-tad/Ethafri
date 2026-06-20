@@ -6,8 +6,8 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        # ⚠️ ከዚህ በፊት የተገነባው ማይግሬሽንህ '0010_site_orchestration' መሆኑን አረጋግጥ
-        ('marketplace', '0010_site_orchestration'), 
+        # ⚠️ ወደ ትክክለኛው የፋይልህ ስም '0010_site_registry_and_orchestration' ተስተካክሏል! [1]
+        ('marketplace', '0010_site_registry_and_orchestration'), 
     ]
 
     operations = [
