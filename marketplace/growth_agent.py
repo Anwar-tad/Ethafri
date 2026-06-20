@@ -174,7 +174,7 @@ def run_daily_market_analysis():
     """
     now = timezone.now()
     
-    # 🛡️ 1. የራስ-መገደብ ፍተሻ (Adaptive Throttling / Hibernation Check)
+    # 🛡️ 1. የራስ-መገደብ ፍተሻ (Adaptive Throttling / Hibernation Check) - ሳይለወጥ
     retry_config, _ = SiteConfig.objects.get_or_create(
         key="NEXT_ALLOWED_RUN_TIME", 
         defaults={'value': {'time': '2000-01-01T00:00:00'}}
@@ -191,35 +191,66 @@ def run_daily_market_analysis():
     except Exception as parse_err:
         logger.warning(f"⚠️ NEXT_ALLOWED_RUN_TIME parse error: {parse_err}")
 
-    # 🛡️ 2. የስራ መኖር ቅድመ-ፍተሻ (Idle State Optimization)
-    # አዲስ የባክሎግ ስራ ከሌለ፣ የአድሚን መመሪያ ከሌለና የታቀደ አሰሳ ከሌለ ኤጀንቱ ዝም ይላል
+    # 🛡️ 2. የስራ መኖር ቅድመ-ፍተሻ (Idle State Optimization) — ✅ FIXED
+    # ከዚህ በፊት: ባክሎጉ ካለቀ ኤጀንቱ ለዘላለም ይቆልፍ ነበር (ምንም አዲስ discovery አይደርግም ነበር)
+    # አሁን: በየተወሰነ ጊዜ (AUDIT_INTERVAL) ኤጀንቱ አስገድዶ የ discovery audit ያደርጋል
     has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
     active_override = AdminOverrideInstruction.objects.filter(is_processed=False).exists()
-    
-    if not has_pending and not active_override:
-        # ለተወሰነ ጊዜ አዳዲስ ምርቶች አሰሳ ካልተደረገ ብቻ እንዲቀጥል መፍቀድ ይቻላል
-        # ካልሆነ ግን እዚህ ጋር መቆሙ የሰርቨር ሪሶርስ ይቆጥባል
-        logger.info("🧠 Engine Idle: No pending tasks or admin directives found.")
-        return "🧠 Engine Idle: No work to do."
 
-    # 3. የሉፕ መቆለፊያ ጥበቃ (Concurreny Protection)
+    audit_config, _ = SiteConfig.objects.get_or_create(
+        key="LAST_AUDIT_TIME",
+        defaults={'value': {'time': '2000-01-01T00:00:00'}}
+    )
+    try:
+        last_audit = timezone.datetime.fromisoformat(audit_config.value.get('time'))
+        if timezone.is_naive(last_audit):
+            last_audit = timezone.make_aware(last_audit)
+    except Exception:
+        last_audit = timezone.make_aware(timezone.datetime(2000, 1, 1))
+
+    AUDIT_INTERVAL = timezone.timedelta(hours=6)  # ⚙️ ፍጥነቱን እዚህ ማስተካከል ይቻላል
+    audit_due = (now - last_audit) >= AUDIT_INTERVAL
+
+    if not has_pending and not active_override and not audit_due:
+        logger.info(f"🧠 Engine Idle. Next forced audit in {AUDIT_INTERVAL - (now - last_audit)}")
+        return "🧠 Engine Idle: No work to do, next audit not due yet."
+
+    # 🛡️ 3. የሉፕ መቆለፊያ ጥበቃ (Concurrency Protection) — ✅ FIXED (Stale Lock Detection)
     lock, _ = SiteConfig.objects.get_or_create(key="EVOLUTION_LOCK", defaults={'value': {'status': 'idle'}})
     if lock.value.get('status') == 'running':
-        return "⚠️ Skip: System is currently compiling another feature."
-    
+        stale = True
+        last_run_str = lock.value.get('last_run')
+        if last_run_str:
+            try:
+                last_run_dt = timezone.datetime.fromisoformat(last_run_str)
+                if timezone.is_naive(last_run_dt):
+                    last_run_dt = timezone.make_aware(last_run_dt)
+                stale = (now - last_run_dt) > timezone.timedelta(minutes=15)
+            except Exception:
+                stale = True
+        
+        if not stale:
+            return "⚠️ Skip: System is currently compiling another feature."
+        logger.warning("🛡️ Stale EVOLUTION_LOCK detected (>15min) — auto-overriding to prevent permanent deadlock.")
+
     lock.value = {'status': 'running', 'last_run': now.isoformat()}
     lock.save()
     
     try:
+        # ✅ FIXED: audit time እዚህ መመዝገብ - አሁን audit እየተደረገ ስለሆነ
+        audit_config.value = {'time': now.isoformat()}
+        audit_config.save()
+
         # 4. የፕሮጀክቱን ይዘት ማንበብና የካሼ ፍተሻ (Caching Layer)
         project_code, file_paths = get_complete_project_state()
-        admin_user = User.objects.filter(is_superuser=True).first() or User.objects.create_superuser('admin', 'admin@ethafri.com', 'secure123')
+        
+        # ✅ FIXED: ደካማ hardcoded password እና ጥቅም ላይ ያልዋለ unused variable ተወግዷል
+        # (ምንም ኮድ ቦታ admin_user ላይ ጥገኛ አይደለም - ስለዚህ ሙሉ በሙሉ ተወግዷል)
 
         state_string = json.dumps(project_code, sort_keys=True)
         current_state_hash = hashlib.sha256(state_string.encode('utf-8')).hexdigest()
         last_state_config, _ = SiteConfig.objects.get_or_create(key="LAST_PROJECT_STATE_HASH", defaults={'value': {'hash': ''}})
         
-        # ኮዱ ካልተለወጠ እና ምንም አስገዳጅ ስራ ከሌለ የኤአይ ጥሪውን ይዘልላል
         if last_state_config.value.get('hash') == current_state_hash and not active_override and not has_pending:
             lock.value = {'status': 'idle'}; lock.save()
             return "🧠 Caching Match: No code changes or tasks to process."
@@ -227,7 +258,6 @@ def run_daily_market_analysis():
         target_task = None
         forced_instruction = ""
         
-        # የአድሚን መመሪያ መኖሩን ማየት
         override_obj = AdminOverrideInstruction.objects.filter(is_processed=False).order_by('created_at').first()
         
         if override_obj:
@@ -237,7 +267,6 @@ def run_daily_market_analysis():
                 target_task.status = 'Running'; target_task.save()
             logger.info(f"🚨 Admin Override Detected: {override_obj.instruction}")
         else:
-            # ጥገኝነትን (Dependency) ያገናዘበ የባክሎግ ምርጫ
             target_task = AIProjectBacklog.objects.filter(
                 status='Pending'
             ).annotate(
@@ -249,7 +278,6 @@ def run_daily_market_analysis():
             if target_task:
                 target_task.status = 'Running'; target_task.save()
 
-        # 5. የ AI ማስተር ፕሮምፕት ዝግጅት
         prompt = f"""
         You are 'EthAfri Super AI Architect'. 
         Current Codebase State: {json.dumps(project_code, indent=2)}
@@ -262,10 +290,8 @@ def run_daily_market_analysis():
         - Use Django best practices.
         """
 
-        # 6. የ AI ጥሪ አፈጻጸም (ባለብዙ-ኤአይ ፎልባክ)
         data = ask_ai_with_failover(prompt, pool_type="coding")
         
-        # 🛡️ 429 ኮታ ማለቅ መቆለፊያ
         if not data or "error" in data:
             err_msg = data.get('error', 'Unknown Error') if data else 'No Response'
             if any(x in str(err_msg) for x in ["429", "RESOURCE_EXHAUSTED", "quota"]):
@@ -278,17 +304,14 @@ def run_daily_market_analysis():
             if target_task: target_task.status = 'Pending'; target_task.save()
             return f"❌ Fail: {err_msg}"
 
-        # ስኬታማ ከሆነ የመኝታ መዝገቡን ማጽዳት
         retry_config.value = {'time': '2000-01-01T00:00:00'}; retry_config.save()
 
-        # 7. 🤖 አውቶኖመስ ኦዲት (Discovery)
         for t in data.get('backlog_tasks', []):
             AIProjectBacklog.objects.get_or_create(
                 task_name=t['task_name'], target_file=t['target_file'],
                 defaults={'priority': t.get('priority', 'Medium'), 'status': 'Pending', 'description': t.get('description', '')}
             )
 
-        # 8. 💾 የኮድ ማሻሻያ እና ሲንታክስ ምርመራ (Validation)
         updates = data.get('updates', {})
         code_changed = False
         for key, new_content in updates.items():
@@ -297,7 +320,7 @@ def run_daily_market_analysis():
                     try:
                         compile(new_content, f"test_{key}.py", 'exec')
                     except SyntaxError:
-                        continue # የተበላሸ ኮድ አይጻፍም
+                        continue
 
                 path = file_paths.get(key)
                 if path:
@@ -312,7 +335,6 @@ def run_daily_market_analysis():
                     )
                     code_changed = True
 
-        # 9. የዳታቤዝ ፍልሰት እና ሲስተም ማደስ
         if data.get('database_migration_needed') and updates.get('models'):
             try:
                 call_command('makemigrations', 'marketplace', interactive=False)
@@ -324,7 +346,6 @@ def run_daily_market_analysis():
             last_state_config.value = {'hash': hashlib.sha256(json.dumps(get_complete_project_state()[0]).encode()).hexdigest()}
             last_state_config.save()
 
-        # 10. ሁኔታዎችን ማጠቃለል
         if override_obj: override_obj.is_processed = True; override_obj.save()
         if target_task: target_task.status = 'Completed'; target_task.save()
 
