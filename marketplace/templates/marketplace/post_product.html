@@ -1,58 +1,310 @@
-{# EthAfri/marketplace/templates/marketplace/post_product.html #}
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/post_product.html
+📝 ለውጥ፦ Multi-Site Support + Site Selection + Optimized
+📅 ቀን፦ 2026-06-20
+============================================================ -->
+
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 
-{% block content %}
-<div class="card border-0 shadow-sm rounded-4 p-4" style="max-width: 500px; margin: auto;">
-    <h4 class="text-center fw-bold mb-3 text-dark">{% translate "Sell Item" %}</h4>
-    
-    {% if not user.is_authenticated %}
-    <div class="alert {% if post_count >= 5 %}alert-danger{% else %}alert-info{% endif %} small py-2 rounded-3">
-        <i class="fas fa-info-circle"></i> 
-        {% if post_count >= 5 %}
-            <strong>{% translate "Post limit reached!" %}</strong> {% translate "Please register to post more items." %}
-        {% else %}
-            {% translate "You can post up to 5 items without logging in." %} ({% translate "Current" %}: {{ post_count }}/5)
-        {% endif %}
-    </div>
-    {% endif %}
+{% block extra_css %}
+<style>
+    /* 🎯 ለዚህ ፔጅ ብቻ የሚያገልግሉ ስታይሎች */
+    .post-card {
+        max-width: 550px;
+        margin: 0 auto;
+        border-radius: 20px;
+        border: none;
+        overflow: hidden;
+    }
+    .post-card .card-header {
+        border-bottom: none;
+        padding: 1.25rem 1.5rem;
+        background: linear-gradient(135deg, var(--primary-color, #1a2a6c), var(--primary-light, #2d4a8e));
+        color: white;
+    }
+    .post-card .card-body {
+        padding: 1.5rem;
+    }
+    .post-card .form-control,
+    .post-card .form-select {
+        border-radius: 30px;
+        padding: 0.6rem 1.2rem;
+        border: 1.5px solid var(--border-color, #e2e8f0);
+        transition: all 0.3s ease;
+    }
+    .post-card .form-control:focus,
+    .post-card .form-select:focus {
+        border-color: var(--primary-color, #1a2a6c);
+        box-shadow: 0 0 0 3px rgba(26, 42, 108, 0.1);
+    }
+    .post-card textarea.form-control {
+        border-radius: 16px;
+        min-height: 100px;
+        resize: vertical;
+    }
+    .post-card .form-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-dark, #2d3436);
+        margin-bottom: 0.35rem;
+    }
+    .post-card .form-label .required {
+        color: var(--danger-color, #c62828);
+    }
+    .post-card .site-selector {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        border: 1px dashed var(--border-color, #e2e8f0);
+    }
+    .post-card .site-selector .form-label {
+        margin-bottom: 0;
+    }
+    .post-limit-alert {
+        border-radius: 12px;
+        font-size: 0.85rem;
+    }
+    .post-limit-alert i {
+        margin-right: 0.5rem;
+    }
+    .btn-post {
+        border-radius: 50px;
+        padding: 0.7rem 2rem;
+        font-weight: 700;
+        transition: all 0.3s ease;
+    }
+    .btn-post:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(26, 42, 108, 0.2);
+    }
+    .btn-post:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+    .file-input-wrapper {
+        position: relative;
+        overflow: hidden;
+    }
+    .file-input-wrapper input[type="file"] {
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
+    }
+    .file-input-wrapper .file-label {
+        display: block;
+        padding: 0.6rem 1.2rem;
+        background: #f8f9fa;
+        border: 1.5px dashed var(--border-color, #e2e8f0);
+        border-radius: 30px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: var(--text-muted, #6c757d);
+    }
+    .file-input-wrapper .file-label:hover {
+        background: #e9ecef;
+        border-color: var(--primary-color, #1a2a6c);
+    }
+    .file-input-wrapper .file-label .file-name {
+        color: var(--text-dark, #2d3436);
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
 
-    <form method="POST" enctype="multipart/form-data">
-        {% csrf_token %}
-        <div class="mb-3">
-            <label class="form-label small fw-bold">{% translate "Item Title" %}</label>
-            <input type="text" name="title" class="form-control rounded-pill" required {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
+{% block content %}
+<div class="container py-3">
+    <div class="card post-card shadow-sm">
+        <!-- Card Header -->
+        <div class="card-header text-center">
+            <h4 class="fw-bold mb-0">
+                <i class="fas fa-plus-circle me-2"></i> 
+                {% translate "Sell Your Item" %}
+            </h4>
+            <p class="small opacity-75 mb-0">
+                {% translate "Post your product and reach thousands of buyers" %}
+            </p>
         </div>
-        <div class="mb-3">
-            <label class="form-label small fw-bold">{% translate "Description" %}</label>
-            <textarea name="description" class="form-control rounded-4" rows="3" required {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}></textarea>
-        </div>
-        <div class="row">
-            <div class="col-6 mb-3">
-                <label class="form-label small fw-bold">{% translate "Price" %}</label>
-                <input type="number" name="price" class="form-control rounded-pill" {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
+
+        <div class="card-body">
+            <!-- Post Limit Alert -->
+            {% if not user.is_authenticated %}
+            <div class="alert post-limit-alert {% if post_count >= 5 %}alert-danger{% else %}alert-info{% endif %} shadow-sm mb-3">
+                <i class="fas {% if post_count >= 5 %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %}"></i>
+                {% if post_count >= 5 %}
+                    <strong>{% translate "Post limit reached!" %}</strong> 
+                    {% translate "Please register to post more items." %}
+                {% else %}
+                    {% translate "You can post up to 5 items without logging in." %} 
+                    <strong>{% translate "Current" %}: {{ post_count }}/5</strong>
+                {% endif %}
             </div>
-            <div class="col-6 mb-3">
-                <label class="form-label small fw-bold">{% translate "Location" %}</label>
-                <input type="text" name="location" class="form-control rounded-pill" {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
+            {% endif %}
+
+            <form method="POST" enctype="multipart/form-data" id="postForm">
+                {% csrf_token %}
+
+                <!-- 🆕 Site Selection (Multi-Site) -->
+                {% if sites and sites|length > 1 %}
+                <div class="site-selector mb-3">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-auto">
+                            <i class="fas fa-globe text-primary"></i>
+                        </div>
+                        <div class="col">
+                            <label class="form-label small mb-0" for="site_select">
+                                {% translate "Select Site" %}
+                                <span class="text-muted small">({% translate "optional" %})</span>
+                            </label>
+                            <select name="site" id="site_select" class="form-select form-select-sm rounded-pill">
+                                <option value="">-- {% translate "Default Site" %} --</option>
+                                {% for site in sites %}
+                                <option value="{{ site.id }}" {% if request.GET.site|add:"0" == site.id %}selected{% endif %}>
+                                    {{ site.display_name }} 
+                                    ({{ site.niche|default:"General" }})
+                                    {% if site.total_products > 0 %} - {{ site.total_products }} {% trans "products" %}{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Title -->
+                <div class="mb-3">
+                    <label class="form-label" for="title">
+                        {% translate "Item Title" %} <span class="required">*</span>
+                    </label>
+                    <input type="text" name="title" id="title" class="form-control rounded-pill" 
+                           placeholder="{% translate 'e.g. Ethiopian Coffee Beans 1kg' %}" 
+                           required {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
+                </div>
+
+                <!-- Description -->
+                <div class="mb-3">
+                    <label class="form-label" for="description">
+                        {% translate "Description" %} <span class="required">*</span>
+                    </label>
+                    <textarea name="description" id="description" class="form-control" 
+                              rows="4" placeholder="{% translate 'Describe your product in detail...' %}" 
+                              required {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}></textarea>
+                </div>
+
+                <!-- Price & Location -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="price">
+                            {% translate "Price" %} <span class="text-muted small">(ETB)</span>
+                        </label>
+                        <input type="number" name="price" id="price" class="form-control rounded-pill" 
+                               placeholder="0.00" min="0" step="0.01"
+                               {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="location">
+                            {% translate "Location" %}
+                        </label>
+                        <input type="text" name="location" id="location" class="form-control rounded-pill" 
+                               placeholder="{% translate 'City, Country' %}"
+                               {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
+                    </div>
+                </div>
+
+                <!-- Image Upload -->
+                <div class="mb-3 mt-3">
+                    <label class="form-label" for="image">
+                        {% translate "Product Image" %}
+                        <span class="text-muted small">({% translate "optional" %})</span>
+                    </label>
+                    <div class="file-input-wrapper">
+                        <div class="file-label" id="fileLabel">
+                            <i class="fas fa-cloud-upload-alt me-2"></i>
+                            <span class="file-name" id="fileName">{% translate "Choose an image..." %}</span>
+                        </div>
+                        <input type="file" name="image" id="image" class="form-control" 
+                               accept="image/*"
+                               {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}
+                               onchange="updateFileName(this)">
+                    </div>
+                    <small class="text-muted">{% translate "Supported formats: JPG, PNG, GIF, WebP" %}</small>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="mt-4">
+                    {% if not user.is_authenticated and post_count >= 5 %}
+                    <a href="{% url 'signup' %}" class="btn btn-danger btn-post w-100 shadow">
+                        <i class="fas fa-user-plus me-2"></i>
+                        {% translate "Register Now to Post" %}
+                    </a>
+                    {% else %}
+                    <button type="submit" class="btn btn-ai btn-post w-100 shadow" id="submitBtn">
+                        <i class="fas fa-magic me-2"></i>
+                        {% translate "Post with AI" %}
+                    </button>
+                    {% endif %}
+                </div>
+
+                <!-- Loading Indicator -->
+                <div id="loadingIndicator" class="text-center mt-3" style="display: none;">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">{% translate "Loading..." %}</span>
+                    </div>
+                    <span class="text-muted small ms-2">{% translate "AI is analyzing your product..." %}</span>
+                </div>
+            </form>
+
+            <!-- Posting Tips -->
+            <div class="mt-4 pt-3 border-top">
+                <small class="text-muted">
+                    <i class="fas fa-lightbulb text-warning me-1"></i>
+                    {% translate "Tip: Clear photos and detailed descriptions sell faster!" %}
+                </small>
             </div>
         </div>
-        <div class="mb-4">
-            <label class="form-label small fw-bold">{% translate "Image" %}</label>
-            <input type="file" name="image" class="form-control rounded-pill" {% if not user.is_authenticated and post_count >= 5 %}disabled{% endif %}>
-        </div>
-        
-        {% if not user.is_authenticated and post_count >= 5 %}
-        <a href="{% url 'signup' %}" class="btn btn-danger w-100 py-2 fw-bold shadow rounded-pill text-decoration-none text-center">
-            <i class="fas fa-user-plus me-2"></i>{% translate "Register Now to Post" %}
-        </a>
-        {% else %}
-        <button type="submit" class="btn btn-ai w-100 py-2 fw-bold shadow">
-            <i class="fas fa-magic me-2"></i>{% translate "Post with AI" %}
-        </button>
-        {% endif %}
-    </form>
+    </div>
 </div>
 
-<div class="mb-5 py-4"></div>
+<div class="mb-5 py-2"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Update file name display
+    function updateFileName(input) {
+        const fileName = document.getElementById('fileName');
+        const fileLabel = document.getElementById('fileLabel');
+        if (input.files && input.files.length > 0) {
+            const file = input.files[0];
+            fileName.textContent = file.name;
+            fileLabel.style.borderColor = 'var(--primary-color, #1a2a6c)';
+            fileLabel.style.background = '#e8f0fe';
+        } else {
+            fileName.textContent = '{% translate "Choose an image..." %}';
+            fileLabel.style.borderColor = '';
+            fileLabel.style.background = '';
+        }
+    }
+
+    // Show loading indicator on submit
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('postForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        if (form && submitBtn) {
+            form.addEventListener('submit', function() {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> {% translate "Processing..." %}';
+                loadingIndicator.style.display = 'block';
+            });
+        }
+    });
+</script>
 {% endblock %}

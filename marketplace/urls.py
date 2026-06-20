@@ -1,4 +1,8 @@
-# EthAfri/marketplace/urls.py
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/urls.py
+# 📝 ለውጥ፦ Multi-Site Dashboard + Marketing Dashboard + Site Detail URLs
+# 📅 ቀን፦ 2026-06-20
+# ============================================================
 
 from django.urls import path
 from . import views
@@ -30,4 +34,20 @@ urlpatterns = [
     
     # 🌐 ከ cron-job.org የሚመጣን ውጫዊ ጥሪ ተቀብሎ የዕድገት ሞተሩን የሚያስነሳው ዋናው በር
     path('evolve-now-secret-123/', views.trigger_autonomous_evolution, name='trigger_autonomous_evolution'),
+    
+    # ============================================================
+    # 🌐 አዲስ Multi-Site ዩአርኤሎች
+    # ============================================================
+    
+    # 📊 ሁሉንም ጣቢያዎች የሚያሳይ ዳሽቦርድ
+    path('sites/', views.sites_dashboard, name='sites_dashboard'),
+    
+    # 📋 የአንድ የተወሰነ ጣቢያ ዝርዝር ገጽ
+    path('sites/<int:site_id>/', views.site_detail, name='site_detail'),
+    
+    # 📱 የማርኬቲንግ ዳሽቦርድ
+    path('marketing/', views.marketing_dashboard, name='marketing_dashboard'),
+    
+    # ✏️ አዲስ ማርኬቲንግ ካምፔን መፍጠሪያ
+    path('marketing/create/', views.create_marketing_campaign, name='create_marketing_campaign'),
 ]

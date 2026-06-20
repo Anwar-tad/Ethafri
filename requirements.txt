@@ -1,14 +1,32 @@
-django
-gunicorn
-whitenoise
-google-genai  # ⚠️ የዘመነው የጉግል ኤስዲኬ (google-generativeai በዚህ ተተክቷል)
-django-environ
-dj-database-url
-psycopg2-binary
-requests
-beautifulsoup4
-django-cloudinary-storage
-cloudinary
-Pillow
-groq
-polib
+# ============================================================
+# 📁 ፋይል፦ EthAfri/requirements.txt
+# 📝 ለውጥ፦ ሙሉ የፓይተን ጥገኝነቶች — Render Free Tier Compatible
+# 📅 ቀን፦ 2026-06-20
+# ============================================================
+
+# Django Core
+django>=4.2.0,<5.0.0
+gunicorn>=21.0.0
+whitenoise>=6.5.0
+
+# Database
+django-environ>=0.11.0
+dj-database-url>=2.1.0
+psycopg2-binary>=2.9.0
+
+# AI & ML
+google-genai>=0.3.0           # ✅ የዘመነ የጉግል ኤስዲኬ (Google GenAI SDK)
+groq>=0.4.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# Cloud Storage
+django-cloudinary-storage>=0.3.0
+cloudinary>=1.36.0
+Pillow>=10.0.0
+
+# Translation
+polib>=1.2.0
+
+# Optional but recommended
+python-dotenv>=1.0.0

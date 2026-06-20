@@ -1,4 +1,9 @@
-<!-- EthAfri/marketplace/templates/marketplace/base.html -->
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/base.html
+📝 ለውጥ፦ Multi-Site Support + Enhanced Navigation
+📅 ቀን፦ 2026-06-20
+============================================================ -->
+
 {% load i18n %}
 {% load static %}
 <!DOCTYPE html>
@@ -16,7 +21,7 @@
     <!-- የጋራ ስታይል ፋይል (Global CSS) ግንኙነት -->
     <link rel="stylesheet" href="{% static 'css/global.css' %}">
     
-    <!-- ለአንድ ፔጅ ብቻ የሚያገለግል CSS መጫኛ -->
+    <!-- ለአንድ ፔጅ ብቻ የሚያገልግል CSS መጫኛ -->
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -103,6 +108,16 @@
                         <i class="fas fa-chart-line me-2 text-primary"></i>{% translate "Dashboard" %}
                     </a>
                 </li>
+                <li>
+                    <a class="dropdown-item py-2" href="{% url 'sites_dashboard' %}">
+                        <i class="fas fa-globe me-2 text-success"></i>{% translate "Sites" %}
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item py-2" href="{% url 'marketing_dashboard' %}">
+                        <i class="fas fa-bullhorn me-2 text-info"></i>{% translate "Marketing" %}
+                    </a>
+                </li>
                 <li><hr class="dropdown-divider"></li>
                 <li>
                     <form method="POST" action="{% url 'trigger_evolution' %}" class="px-2 py-1">
@@ -133,7 +148,7 @@
     <!-- የጋራ ጃቫስክሪፕት -->
     <script src="{% static 'js/global.js' %}"></script>
     
-    <!-- ለአንድ ፔጅ ብቻ የሚያገለግል ጃቫስክሪፕት መጫኛ -->
+    <!-- ለአንድ ፔጅ ብቻ የሚያገልግል ጃቫስክሪፕት መጫኛ -->
     {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,162 @@
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/site_detail.html
+📝 ለውጥ፦ Site Detail Page — የአንድ ጣቢያ ዝርዝር መረጃ
+📅 ቀን፦ 2026-06-20
+============================================================ -->
+
+{% extends "marketplace/base.html" %}
+{% load i18n %}
+
+{% block extra_css %}
+<style>
+    .detail-card {
+        border-radius: 16px;
+        border: none;
+        overflow: hidden;
+    }
+    .detail-card .card-header {
+        border-bottom: none;
+        padding: 1.25rem 1.5rem;
+        font-weight: 600;
+    }
+    .tab-content {
+        padding: 1.5rem;
+        background: #f8f9fa;
+        border-radius: 0 0 12px 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- ርዕስ -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <i class="fas fa-globe text-primary me-2"></i>{{ site.display_name }}
+            </h2>
+            <p class="text-muted">
+                <span class="badge bg-secondary">{{ site.niche|default:"General" }}</span>
+                <span class="badge bg-info ms-1">{{ site.target_market|default:"Global" }}</span>
+                <span class="growth-level-badge level-{% if site.growth_level == 1 %}local{% elif site.growth_level == 2 %}city{% elif site.growth_level == 3 %}country{% elif site.growth_level == 4 %}continent{% else %}global{% endif %} ms-1">
+                    {{ growth_level_display }}
+                </span>
+                <span class="status-badge status-{% if site.is_active %}active{% else %}inactive{% endif %} ms-1">
+                    {% if site.is_active %}<i class="fas fa-circle text-success me-1" style="font-size: 8px;"></i>{% trans "Active" %}{% else %}{% trans "Inactive" %}{% endif %}
+                </span>
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'sites_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>{% trans "Back" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- ጣቢያ መረጃ -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card detail-card shadow-sm">
+                <div class="card-header bg-light">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "Site Information" %}
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr><td class="fw-bold text-muted">{% trans "Name" %}</td><td>{{ site.name }}</td></tr>
+                        <tr><td class="fw-bold text-muted">{% trans "Display Name" %}</td><td>{{ site.display_name }}</td></tr>
+                        <tr><td class="fw-bold text-muted">{% trans "Niche" %}</td><td>{{ site.niche|default:"-" }}</td></tr>
+                        <tr><td class="fw-bold text-muted">{% trans "Target Market" %}</td><td>{{ site.target_market|default:"-" }}</td></tr>
+                        <tr><td class="fw-bold text-muted">{% trans "Content Style" %}</td><td>{{ site.content_style|title|default:"-" }}</td></tr>
+                        <tr><td class="fw-bold text-muted">{% trans "Deployment URL" %}</td><td>{% if site.deployment_url %}<a href="{{ site.deployment_url }}" target="_blank">{{ site.deployment_url }}</a>{% else %}-{% endif %}</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card detail-card shadow-sm">
+                <div class="card-header bg-light">
+                    <i class="fas fa-chart-bar me-2"></i>{% trans "Performance Metrics" %}
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr><td class="fw-bold text-muted">{% trans "Monthly Visitors" %}</td><td>{{ site.monthly_visitors|default:"0" }}</td></tr>
+                        <tr><td class="fw-bold text-muted">{% trans "Page Views" %}</td><td>{{ site.page_views|default:"0" }}</td></tr>
+                        <tr><td class="fw-bold text-muted">{% trans "Total Sellers" %}</td><td>{{ site.total_sellers|default:"0" }}</td></tr>
+                        <tr><td class="fw-bold text-muted">{% trans "Total Products" %}</td><td>{{ site.total_products|default:"0" }}</td></tr>
+                        <tr><td class="fw-bold text-muted">{% trans "Monthly Revenue" %}</td><td>${{ site.monthly_revenue|default:"0"|floatformat:2 }}</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ታቦች -->
+    <ul class="nav nav-tabs" id="siteTabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" id="backlog-tab" data-bs-toggle="tab" data-bs-target="#backlog" type="button"><i class="fas fa-tasks me-1"></i>{% trans "Backlog" %} ({{ backlog_tasks.count }})</button></li>
+        <li class="nav-item"><button class="nav-link" id="evolution-tab" data-bs-toggle="tab" data-bs-target="#evolution" type="button"><i class="fas fa-history me-1"></i>{% trans "Evolution" %}</button></li>
+        <li class="nav-item"><button class="nav-link" id="errors-tab" data-bs-toggle="tab" data-bs-target="#errors" type="button"><i class="fas fa-exclamation-triangle me-1"></i>{% trans "Errors" %} ({{ error_logs.count }})</button></li>
+        <li class="nav-item"><button class="nav-link" id="marketing-tab" data-bs-toggle="tab" data-bs-target="#marketing" type="button"><i class="fas fa-bullhorn me-1"></i>{% trans "Marketing" %}</button></li>
+    </ul>
+
+    <div class="tab-content" id="siteTabsContent">
+        <!-- Backlog Tab -->
+        <div class="tab-pane fade show active" id="backlog">
+            {% for task in backlog_tasks %}
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div>
+                    <span class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning{% else %}secondary{% endif %} me-2">{{ task.priority }}</span>
+                    <span class="fw-bold">{{ task.task_name }}</span>
+                    <span class="text-muted ms-2"><small>{{ task.target_file }}</small></span>
+                </div>
+                <div><span class="badge bg-{% if task.status == 'Pending' %}secondary{% elif task.status == 'Running' %}warning{% elif task.status == 'Completed' %}success{% else %}dark{% endif %}">{{ task.status }}</span></div>
+            </div>
+            {% empty %}
+            <div class="text-center py-4 text-muted"><i class="fas fa-check-circle fa-2x mb-2"></i><p>{% trans "No backlog tasks for this site." %}</p></div>
+            {% endfor %}
+        </div>
+
+        <!-- Evolution Tab -->
+        <div class="tab-pane fade" id="evolution">
+            {% for log in evolution_logs %}
+            <div class="py-2 border-bottom">
+                <div class="d-flex justify-content-between"><span class="fw-bold">{{ log.target_file }}</span><small class="text-muted">{{ log.created_at|date:"Y-m-d H:i" }}</small></div>
+                <div class="text-muted small">{{ log.reason_for_change|truncatechars:150 }}</div>
+            </div>
+            {% empty %}
+            <div class="text-center py-4 text-muted"><p>{% trans "No evolution logs for this site." %}</p></div>
+            {% endfor %}
+        </div>
+
+        <!-- Errors Tab -->
+        <div class="tab-pane fade" id="errors">
+            {% for error in error_logs %}
+            <div class="py-2 border-bottom">
+                <div class="d-flex justify-content-between">
+                    <span><span class="badge bg-{% if error.error_type == 'syntax' %}danger{% elif error.error_type == 'runtime' %}warning{% else %}secondary{% endif %} me-2">{{ error.error_type }}</span>{{ error.task_name }}</span>
+                    <span class="badge bg-{% if error.resolved %}success{% else %}danger{% endif %}">{% if error.resolved %}{% trans "Resolved" %}{% else %}{% trans "Pending" %}{% endif %}</span>
+                </div>
+                <div class="text-muted small mt-1">{{ error.error_message|truncatechars:100 }}</div>
+            </div>
+            {% empty %}
+            <div class="text-center py-4 text-muted"><i class="fas fa-check-circle fa-2x mb-2"></i><p>{% trans "No errors for this site." %}</p></div>
+            {% endfor %}
+        </div>
+
+        <!-- Marketing Tab -->
+        <div class="tab-pane fade" id="marketing">
+            {% for campaign in marketing_campaigns %}
+            <div class="py-2 border-bottom">
+                <div class="d-flex justify-content-between">
+                    <div><span class="fw-bold">{{ campaign.name }}</span><span class="badge bg-secondary ms-2">{{ campaign.campaign_type }}</span></div>
+                    <span class="badge bg-{% if campaign.status == 'completed' %}success{% elif campaign.status == 'running' %}warning{% elif campaign.status == 'scheduled' %}info{% else %}secondary{% endif %}">{{ campaign.status }}</span>
+                </div>
+                <div class="text-muted small">{% trans "Sent" %}: {{ campaign.total_sent }} | {% trans "Opened" %}: {{ campaign.total_opened }} | {% trans "Converted" %}: {{ campaign.total_converted }}</div>
+            </div>
+            {% empty %}
+            <div class="text-center py-4 text-muted"><p>{% trans "No marketing campaigns for this site." %}</p></div>
+            {% endfor %}
+            <div class="mt-3 text-center"><a href="{% url 'create_marketing_campaign' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>{% trans "Create Campaign" %}</a></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

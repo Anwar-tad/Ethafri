@@ -1,4 +1,8 @@
-# EthAfri/core/settings.py
+# ============================================================
+# 📁 ፋይል፦ EthAfri/core/settings.py
+# 📝 ለውጥ፦ Multi-Site Support + Business Growth Settings
+# 📅 ቀን፦ 2026-06-20
+# ============================================================
 
 import os
 from pathlib import Path
@@ -13,7 +17,6 @@ try:
     env = Env()
     Env.read_env()
 except ImportError:
-    # django-environ በሌለበት አካባቢ (እንደ Termux) እንዳይቋረጥ መከላከያ
     class Env:
         def __call__(self, key, default=None): return os.environ.get(key, default)
         def bool(self, key, default=False): return os.environ.get(key, str(default)).lower() == 'true'
@@ -29,14 +32,13 @@ DEBUG = env.bool('DEBUG', default=True)
 
 ALLOWED_HOSTS = ['*']
 
-# በ Render ላይ የሚፈጠረውን የ CSRF Verification ስህተት በቋሚነት ለመከላከል የተደረገ ቅንብር
 CSRF_TRUSTED_ORIGINS = ['https://*.onrender.com', 'https://*.pythonanywhere.com']
 
 # =====================================================================
 # 3. Application Definition
 # =====================================================================
 INSTALLED_APPS = [
-    'cloudinary_storage',  # Cloudinary ስታቲክ ፋይሎችን እንዲያስተዳድር ከላይ መሆን አለበት
+    'cloudinary_storage',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -49,13 +51,13 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # ለስታቲክ ፋይሎች ማስተናገጃ
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.locale.LocaleMiddleware',  # ⚠️ የቋንቋ መቀያየሪያ (Locale) ሚድልዌር
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',  # ⚠️ ወደ ትክክለኛው ሚድልዌር ተስተካክሏል
+    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -72,7 +74,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'marketplace.views.theme_context',  # የ AI ዩአይ ከለር መቆጣጠሪያ ኮንቴክስት
+                'marketplace.views.theme_context',
             ],
         },
     },
@@ -86,7 +88,6 @@ WSGI_APPLICATION = 'core.wsgi.application'
 database_url = env('DATABASE_URL', default='')
 
 if database_url:
-    # ሰርቨር ላይ በሚሆንበት ጊዜ PostgreSQL ይጠቀማል (ከ SSL ደህንነት ጋር)
     DATABASES = {
         'default': dj_database_url.config(
             default=database_url,
@@ -95,7 +96,6 @@ if database_url:
         )
     }
 else:
-    # በኮምፒውተርህ ላይ (Locally) በሚሆንበት ጊዜ በራስ-ሰር SQLite3 ይጠቀማል
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -132,10 +132,8 @@ LOCALE_PATHS = [
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# የስታቲክ ፋይሎችን በሰርቨር ላይ ለማሳነስና ለማመቅ (WhiteNoise)
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# የሚሰቀሉ የሚዲያ ምስሎችን በ Cloudinary ላይ ለማስቀመጥ
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 CLOUDINARY_STORAGE = {
@@ -145,7 +143,7 @@ CLOUDINARY_STORAGE = {
 }
 
 # =====================================================================
-# 7. AI API & Server Keys (Environment Variables)
+# 7. AI API & Server Keys
 # =====================================================================
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
 GROQ_API_KEY = env('GROQ_API_KEY', default='')
@@ -156,12 +154,68 @@ RENDER_SERVICE_ID = env('RENDER_SERVICE_ID', default='')
 RENDER_API_KEY = env('RENDER_API_KEY', default='')
 GITHUB_TOKEN = env('GITHUB_TOKEN', default='')
 
+# 🆕 Twilio for SMS Marketing
+TWILIO_SID = env('TWILIO_SID', default='')
+TWILIO_TOKEN = env('TWILIO_TOKEN', default='')
+TWILIO_PHONE = env('TWILIO_PHONE', default='')
+
+# 🆕 Email Settings for Marketing
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@ethafri.com')
+EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = env('EMAIL_PORT', default=587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # =====================================================================
-# 8. Logging Configuration (DEBUGGING ሎግ እንዲታይ)
+# 8. 🆕 Multi-Site Configuration
+# =====================================================================
+
+# የነባሪ ጣቢያ ቅንብሮች
+DEFAULT_SITE_CONFIG = {
+    'name': 'primary',
+    'display_name': 'EthAfri Primary',
+    'niche': 'general',
+    'target_market': 'Global',
+    'content_style': 'professional',
+    'is_active': True,
+    'auto_update_enabled': True,
+    'auto_marketing_enabled': True,
+}
+
+# የእድገት ደረጃ ወሰኖች
+GROWTH_THRESHOLDS = {
+    'LOCAL': 100,
+    'CITY': 1000,
+    'COUNTRY': 10000,
+    'CONTINENT': 100000,
+    'GLOBAL': 1000000,
+}
+
+# የአውቶማቲክ ማርኬቲንግ ቅንብሮች
+AUTO_MARKETING_CONFIG = {
+    'enabled': True,
+    'max_campaigns_per_day': 3,
+    'max_notifications_per_day': 50,
+    'social_media_posting': True,
+    'email_marketing': True,
+    'sms_marketing': False,  # Twilio ካለ
+}
+
+# =====================================================================
+# 9. Logging Configuration (DEBUGGING + Self-Healing)
 # =====================================================================
 import logging
+
+# ✅ SelfHealingDBHandler በሌለበት ጊዜ እንዳይሰበር
+try:
+    from marketplace.log_handlers import SelfHealingDBHandler
+except ImportError:
+    class SelfHealingDBHandler(logging.Handler):
+        def emit(self, record):
+            pass
 
 LOGGING = {
     'version': 1,
@@ -171,12 +225,25 @@ LOGGING = {
             'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
         },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+        'detailed': {
+            'format': '{levelname} {asctime} {name} {filename}:{lineno} {message}',
+            'style': '{',
+        },
     },
     'handlers': {
         'console': {
-            'level': 'INFO',  # ይህንን DEBUG ካደረግከው ሁሉንም መረጃ ያሳያል
+            'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
+        },
+        'self_healing_db': {
+            'level': 'WARNING',
+            'class': 'marketplace.log_handlers.SelfHealingDBHandler',
+            'formatter': 'simple',
         },
     },
     'root': {
@@ -187,12 +254,32 @@ LOGGING = {
         'django': {
             'handlers': ['console'],
             'level': 'INFO',
-            'propagate': True,
+            'propagate': False,
         },
-        'marketplace': {  # ያንተን የmarketplace አፕሊኬሽን ሎግ በግልጽ ያሳያል
-            'handlers': ['console'],
+        'django.request': {
+            'handlers': ['console', 'self_healing_db'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'marketplace': {
+            'handlers': ['console', 'self_healing_db'],
             'level': 'INFO',
-            'propagate': True,
+            'propagate': False,
+        },
+        'marketplace.growth_agent': {
+            'handlers': ['console', 'self_healing_db'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'marketplace.self_coder': {
+            'handlers': ['console', 'self_healing_db'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'marketplace.self_doctor': {
+            'handlers': ['console', 'self_healing_db'],
+            'level': 'DEBUG',
+            'propagate': False,
         },
     },
 }

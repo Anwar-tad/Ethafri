@@ -1,24 +1,291 @@
-{# EthAfri/marketplace/templates/marketplace/owner_directive.html #}
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/owner_directive.html
+📝 ለውጥ፦ Multi-Site Support + Site Selection + Optimized
+📅 ቀን፦ 2026-06-20
+============================================================ -->
+
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 
+{% block extra_css %}
+<style>
+    /* 🎯 ለዚህ ፔጅ ብቻ የሚያገልግሉ ስታይሎች */
+    .directive-card {
+        max-width: 650px;
+        margin: 0 auto;
+        border-radius: 24px;
+        border: none;
+        overflow: hidden;
+    }
+    .directive-card .card-header {
+        border-bottom: none;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, var(--warning-color, #e65100), var(--accent-gold, #ffc107));
+        color: var(--text-dark, #2d3436);
+    }
+    .directive-card .card-body {
+        padding: 1.75rem;
+    }
+    .directive-card .form-control {
+        border-radius: 16px;
+        padding: 0.8rem 1.2rem;
+        border: 1.5px solid var(--border-color, #e2e8f0);
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+        min-height: 150px;
+        resize: vertical;
+    }
+    .directive-card .form-control:focus {
+        border-color: var(--warning-color, #e65100);
+        box-shadow: 0 0 0 3px rgba(230, 81, 0, 0.1);
+    }
+    .directive-card .form-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-dark, #2d3436);
+    }
+    .directive-card .form-label .required {
+        color: var(--danger-color, #c62828);
+    }
+    .directive-card .site-selector {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        border: 1px dashed var(--border-color, #e2e8f0);
+    }
+    .directive-card .site-selector .form-label {
+        margin-bottom: 0;
+    }
+    .directive-card .help-text {
+        font-size: 0.8rem;
+        color: var(--text-muted, #6c757d);
+    }
+    .directive-card .btn-send {
+        border-radius: 50px;
+        padding: 0.75rem 2rem;
+        font-weight: 700;
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, var(--warning-color, #e65100), var(--accent-gold, #ffc107));
+        color: var(--text-dark, #2d3436);
+        border: none;
+    }
+    .directive-card .btn-send:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(230, 81, 0, 0.25);
+    }
+    .directive-card .btn-send:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+    .directive-card .examples {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+    }
+    .directive-card .examples .example-item {
+        cursor: pointer;
+        transition: all 0.2s ease;
+        padding: 0.3rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+    }
+    .directive-card .examples .example-item:hover {
+        background: #e9ecef;
+    }
+    .directive-card .examples .example-item i {
+        color: var(--warning-color, #e65100);
+        width: 20px;
+    }
+    .directive-card .directive-history {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .directive-card .directive-history::-webkit-scrollbar {
+        width: 4px;
+    }
+    .directive-card .directive-history::-webkit-scrollbar-thumb {
+        background: #c1c7cd;
+        border-radius: 10px;
+    }
+    .directive-card .history-item {
+        padding: 0.6rem 0.8rem;
+        border-bottom: 1px solid var(--border-color, #e2e8f0);
+    }
+    .directive-card .history-item:last-child {
+        border-bottom: none;
+    }
+    .directive-card .history-item .status-badge {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="card border-0 shadow-sm rounded-4 p-4 mx-auto bg-white" style="max-width: 600px;">
-    <h3 class="fw-bold text-dark text-center mb-3"><i class="fas fa-crown text-warning me-2"></i> {% translate "Owner Directive Center" %}</h3>
-    <p class="text-muted text-center small mb-4">
-        {% translate "Directly issue strategic orders to EthAfri AI. The system will execute your instructions during its next autonomous cycle (every 5 minutes)." %}
-    </p>
-    
-    <form method="POST">
-        {% csrf_token %}
-        <div class="mb-3">
-            <label class="form-label fw-bold small text-secondary">{% translate "AI Instruction / Directive" %}</label>
-            <textarea name="instruction" class="form-control rounded-4 p-3 fs-6" rows="5" 
-                      placeholder="{% translate "Example: 'Build a digital checkout interface today' or 'Scan regional marketplace listings'..." %}" required></textarea>
+<div class="container py-3">
+    <div class="card directive-card shadow-sm">
+        <!-- Card Header -->
+        <div class="card-header text-center">
+            <h4 class="fw-bold mb-1">
+                <i class="fas fa-crown me-2"></i>
+                {% translate "Owner Directive Center" %}
+            </h4>
+            <p class="small opacity-75 mb-0">
+                <i class="fas fa-robot me-1"></i>
+                {% translate "Directly command the EthAfri AI Super-Agent" %}
+            </p>
         </div>
-        <button type="submit" class="btn btn-warning text-dark w-100 py-2.5 rounded-pill fw-bold shadow-sm">
-            <i class="fas fa-paper-plane me-2"></i>{% translate "Send Directive to AI" %}
-        </button>
-    </form>
+
+        <div class="card-body">
+            <!-- 🆕 Site Selection (Multi-Site) -->
+            {% if sites and sites|length > 1 %}
+            <div class="site-selector mb-3">
+                <div class="row g-2 align-items-center">
+                    <div class="col-auto">
+                        <i class="fas fa-globe text-primary"></i>
+                    </div>
+                    <div class="col">
+                        <label class="form-label small mb-0" for="site_select">
+                            {% translate "Target Site" %}
+                            <span class="text-muted small">({% translate "optional" %})</span>
+                        </label>
+                        <select name="site" id="site_select" class="form-select form-select-sm rounded-pill" form="directiveForm">
+                            <option value="">-- {% translate "All Sites (Global)" %} --</option>
+                            {% for site in sites %}
+                            <option value="{{ site.id }}" {% if request.GET.site|add:"0" == site.id %}selected{% endif %}>
+                                {{ site.display_name }} 
+                                ({{ site.niche|default:"General" }})
+                                {% if site.growth_level == 5 %}🌍{% elif site.growth_level == 4 %}🌎{% elif site.growth_level == 3 %}🌏{% elif site.growth_level == 2 %}🏙️{% else %}📍{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Directive Form -->
+            <form method="POST" id="directiveForm">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label" for="instruction">
+                        <i class="fas fa-brain me-1 text-warning"></i>
+                        {% translate "AI Instruction / Directive" %}
+                        <span class="required">*</span>
+                    </label>
+                    <textarea name="instruction" id="instruction" class="form-control" 
+                              rows="6" 
+                              placeholder='{% translate 'Example: "Build a digital checkout interface today" or "Scan regional marketplace listings" or "Optimize SEO for all product pages"...' %}'
+                              required></textarea>
+                </div>
+
+                <!-- Quick Examples -->
+                <div class="examples mb-3">
+                    <div class="d-flex flex-wrap gap-1">
+                        <span class="small text-muted me-2">{% translate "Quick examples:" %}</span>
+                        <span class="example-item" onclick="setExample('Build a full product review and rating system with star ratings')">
+                            <i class="fas fa-star"></i> {% translate "Reviews" %}
+                        </span>
+                        <span class="example-item" onclick="setExample('Implement advanced SEO optimization for all product pages')">
+                            <i class="fas fa-search"></i> {% translate "SEO" %}
+                        </span>
+                        <span class="example-item" onclick="setExample('Create a seller analytics dashboard with sales charts')">
+                            <i class="fas fa-chart-bar"></i> {% translate "Analytics" %}
+                        </span>
+                        <span class="example-item" onclick="setExample('Add a product comparison feature for similar items')">
+                            <i class="fas fa-balance-scale"></i> {% translate "Compare" %}
+                        </span>
+                        <span class="example-item" onclick="setExample('Build a real-time chat system for buyers and sellers')">
+                            <i class="fas fa-comment-dots"></i> {% translate "Chat" %}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-send w-100 shadow-sm" id="sendBtn">
+                    <i class="fas fa-paper-plane me-2"></i>
+                    {% translate "Send Directive to AI" %}
+                </button>
+            </form>
+
+            <!-- 🆕 Recent Directives History -->
+            {% if recent_directives %}
+            <div class="mt-4 pt-3 border-top">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="fas fa-history me-1 text-muted"></i>
+                        {% translate "Recent Directives" %}
+                    </h6>
+                    <span class="badge bg-secondary">{{ recent_directives|length }}</span>
+                </div>
+                <div class="directive-history">
+                    {% for directive in recent_directives %}
+                    <div class="history-item d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1 me-2">
+                            <div class="small fw-medium">{{ directive.instruction|truncatechars:80 }}</div>
+                            <div class="small text-muted">
+                                <i class="far fa-clock me-1"></i>
+                                {{ directive.created_at|date:"M d, H:i" }}
+                                {% if directive.site %}
+                                <span class="badge bg-info ms-1" style="font-size: 8px;">{{ directive.site.display_name }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <span class="status-badge badge {% if directive.is_processed %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                            {% if directive.is_processed %}{% translate "Executed" %}{% else %}{% translate "Pending" %}{% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Info Note -->
+            <div class="mt-3 pt-2 border-top">
+                <div class="d-flex align-items-start gap-2">
+                    <i class="fas fa-info-circle text-warning mt-1"></i>
+                    <small class="text-muted">
+                        {% translate "Directives are executed during the next autonomous cycle (every 5 minutes)." %}
+                        {% if request.user.is_staff %}
+                        <br>
+                        <a href="{% url 'trigger_evolution' %}" class="text-decoration-none">
+                            <i class="fas fa-sync-alt me-1"></i> {% translate "Run AI cycle now" %}
+                        </a>
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Set example text in textarea
+    function setExample(text) {
+        const textarea = document.getElementById('instruction');
+        if (textarea) {
+            textarea.value = text;
+            textarea.focus();
+            // Trigger input event for any listeners
+            textarea.dispatchEvent(new Event('input'));
+        }
+    }
+
+    // Show loading state on submit
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('directiveForm');
+        const sendBtn = document.getElementById('sendBtn');
+
+        if (form && sendBtn) {
+            form.addEventListener('submit', function() {
+                sendBtn.disabled = true;
+                sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> {% translate "Sending..." %}';
+            });
+        }
+    });
+</script>
 {% endblock %}

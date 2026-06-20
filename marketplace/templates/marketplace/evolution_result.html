@@ -1,34 +1,206 @@
-{# EthAfri/marketplace/templates/marketplace/evolution_result.html #}
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/evolution_result.html
+📝 ለውጥ፦ Optimized — All styles/scripts in external files
+📅 ቀን፦ 2026-06-20
+============================================================ -->
+
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 
 {% block content %}
-<div class="container py-4" style="max-width: 700px;">
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
-        <div class="card-header bg-success text-white py-3 border-0 text-center">
-            <h5 class="mb-0 fw-bold"><i class="fas fa-check-circle me-2 animate__animated animate__pulse animate__infinite"></i> {% translate "AI Task Successfully Completed!" %}</h5>
+<div class="container py-4">
+    <div class="card result-card shadow-sm">
+        <!-- Card Header -->
+        <div class="card-header text-center 
+            {% if '✅' in status or '🎉' in status %}status-success
+            {% elif '⚠️' in status %}status-warning
+            {% elif '❌' in status %}status-error
+            {% else %}status-idle{% endif %}">
+            <div class="result-status-icon">
+                {% if '✅' in status or '🎉' in status %}
+                    <i class="fas fa-check-circle"></i>
+                {% elif '⚠️' in status %}
+                    <i class="fas fa-exclamation-triangle"></i>
+                {% elif '❌' in status %}
+                    <i class="fas fa-times-circle"></i>
+                {% else %}
+                    <i class="fas fa-robot"></i>
+                {% endif %}
+            </div>
+            <h4 class="fw-bold mt-2 mb-0">
+                {% if '✅' in status or '🎉' in status %}
+                    {% translate "AI Evolution Completed Successfully!" %}
+                {% elif '⚠️' in status %}
+                    {% translate "AI Evolution Completed with Warnings" %}
+                {% elif '❌' in status %}
+                    {% translate "AI Evolution Failed" %}
+                {% else %}
+                    {% translate "AI Evolution Status" %}
+                {% endif %}
+            </h4>
         </div>
-        <div class="card-body p-4 text-center">
-            <h2 class="fw-bold text-dark h4 mb-4">{{ task.task_name }}</h2>
-            
-            <div class="text-start mb-4">
-                <h6 class="text-muted text-uppercase small fw-bold tracking-wider mb-2">
-                    <i class="fas fa-brain text-info me-1"></i> {% translate "AI Reasoning & Decision" %}
-                </h6>
-                <div class="p-3 bg-light rounded-4 border-start border-primary border-4 text-secondary lh-base fs-6" style="white-space: pre-line;">
-                    {{ task.priority_reason }}
+
+        <div class="card-body p-4">
+            <!-- Status Message -->
+            <div class="text-center mb-4">
+                <p class="lead fw-bold text-dark">{{ status|default:"No status message" }}</p>
+            </div>
+
+            <!-- Task Information -->
+            {% if task %}
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="p-3 bg-light rounded-4">
+                        <div class="task-meta">
+                            <i class="fas fa-tasks"></i> {% trans "Task" %}
+                        </div>
+                        <div class="fw-bold fs-5">{{ task.task_name|default:"Unknown Task" }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="p-3 bg-light rounded-4">
+                        <div class="task-meta">
+                            <i class="fas fa-clock"></i> {% trans "Status" %}
+                        </div>
+                        <div>
+                            <span class="badge bg-{% if task.status == 'Completed' %}success{% elif task.status == 'Running' %}warning{% elif task.status == 'Pending' %}secondary{% else %}dark{% endif %} fs-6 px-3 py-2">
+                                {{ task.status|default:"Unknown" }}
+                            </span>
+                            {% if task.site %}
+                            <span class="badge-site ms-2">
+                                <i class="fas fa-globe me-1"></i>{{ task.site.display_name|default:task.site.name }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="d-flex flex-column gap-2">
-                <a href="{% url 'home' %}" class="btn btn-ai rounded-pill py-2 fw-bold shadow-sm text-decoration-none">
-                    <i class="fas fa-home me-2"></i>{% translate "Back to Home" %}
+            <!-- Priority Reason -->
+            {% if task.priority_reason or task.description %}
+            <div class="mb-4">
+                <h6 class="text-muted text-uppercase small fw-bold tracking-wider mb-2">
+                    <i class="fas fa-brain text-info me-1"></i> {% translate "AI Reasoning & Decision" %}
+                </h6>
+                <div class="detail-box">
+                    {{ task.priority_reason|default:task.description|default:"No reasoning provided." }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Task Meta Details -->
+            <div class="row g-2 text-muted small">
+                {% if task.target_file %}
+                <div class="col-md-6">
+                    <i class="fas fa-file me-1"></i> {% trans "File" %}: <span class="fw-medium">{{ task.target_file }}</span>
+                </div>
+                {% endif %}
+                {% if task.priority %}
+                <div class="col-md-6">
+                    <i class="fas fa-flag me-1"></i> {% trans "Priority" %}: 
+                    <span class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning{% elif task.priority == 'Medium' %}info{% else %}secondary{% endif %}">
+                        {{ task.priority }}
+                    </span>
+                </div>
+                {% endif %}
+                {% if task.created_at %}
+                <div class="col-md-6">
+                    <i class="fas fa-calendar-alt me-1"></i> {% trans "Created" %}: {{ task.created_at|date:"Y-m-d H:i" }}
+                </div>
+                {% endif %}
+                {% if task.updated_at %}
+                <div class="col-md-6">
+                    <i class="fas fa-clock me-1"></i> {% trans "Updated" %}: {{ task.updated_at|date:"Y-m-d H:i" }}
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <!-- No Task -->
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted">{% trans "No specific task details available." %}</p>
+            </div>
+            {% endif %}
+
+            <!-- Evolution Logs -->
+            {% if evolution_logs %}
+            <div class="mt-4">
+                <h6 class="text-muted text-uppercase small fw-bold mb-2">
+                    <i class="fas fa-history me-1"></i> {% trans "Recent Evolution Logs" %}
+                </h6>
+                <div class="list-group list-group-flush border rounded-4 overflow-hidden">
+                    {% for log in evolution_logs|slice:":3" %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-medium">{{ log.target_file }}</span>
+                            <span class="text-muted small d-block">{{ log.reason_for_change|truncatechars:80 }}</span>
+                        </div>
+                        <small class="text-muted">{{ log.created_at|date:"H:i" }}</small>
+                    </div>
+                    {% empty %}
+                    <div class="list-group-item text-muted">{% trans "No evolution logs found." %}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="d-flex flex-wrap gap-2 justify-content-center mt-4 pt-3 border-top">
+                <a href="{% url 'home' %}" class="btn btn-ai rounded-pill px-4 py-2 fw-bold shadow-sm">
+                    <i class="fas fa-home me-2"></i>{% translate "Home" %}
                 </a>
-                <a href="{% url 'growth_dashboard' %}" class="btn btn-light border rounded-pill py-2 text-dark text-decoration-none fw-bold shadow-sm">
-                    <i class="fas fa-history me-2 text-secondary"></i>{% translate "View AI Logs Dashboard" %}
+                <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-ai rounded-pill px-4 py-2 fw-bold">
+                    <i class="fas fa-chart-line me-2"></i>{% translate "Dashboard" %}
+                </a>
+                <a href="{% url 'sites_dashboard' %}" class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-bold">
+                    <i class="fas fa-globe me-2"></i>{% translate "Sites" %}
+                </a>
+                {% if task and task.site %}
+                <a href="{% url 'site_detail' task.site.id %}" class="btn btn-outline-info rounded-pill px-4 py-2 fw-bold">
+                    <i class="fas fa-eye me-2"></i>{% translate "View Site" %}
+                </a>
+                {% endif %}
+                <a href="{% url 'trigger_evolution' %}" class="btn btn-outline-warning rounded-pill px-4 py-2 fw-bold">
+                    <i class="fas fa-sync-alt me-2"></i>{% translate "Run Again" %}
                 </a>
             </div>
         </div>
     </div>
+
+    <!-- Quick Stats -->
+    <div class="row g-3 mt-3">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm text-center p-3 rounded-4">
+                <div class="text-primary fs-4 fw-bold">{{ total_tasks|default:0 }}</div>
+                <div class="text-muted small">{% trans "Total Tasks" %}</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm text-center p-3 rounded-4">
+                <div class="text-success fs-4 fw-bold">{{ completed_tasks|default:0 }}</div>
+                <div class="text-muted small">{% trans "Completed" %}</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm text-center p-3 rounded-4">
+                <div class="text-warning fs-4 fw-bold">{{ pending_tasks|default:0 }}</div>
+                <div class="text-muted small">{% trans "Pending" %}</div>
+            </div>
+        </div>
+    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-refresh if task is still running
+    document.addEventListener('DOMContentLoaded', function() {
+        const status = "{{ task.status|default:'' }}";
+        if (status === 'Running') {
+            setTimeout(function() {
+                location.reload();
+            }, 5000);
+        }
+    });
+</script>
 {% endblock %}

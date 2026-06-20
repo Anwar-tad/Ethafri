@@ -1,9 +1,15 @@
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/home.html
+📝 ለውጥ፦ Multi-Site Support + Optimized (external styles)
+📅 ቀን፦ 2026-06-20
+============================================================ -->
+
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 
 {% block extra_css %}
 <style>
-    /* የካቴጎሪ ተንሸራታች ስታይል (በተንቀሳቃሽ ስልኮች ላይ በጣም ፈጣን ነው) */
+    /* 🎯 ለዚህ ፔጅ ብቻ የሚያገለግሉ ስታይሎች */
     .scroll-categories {
         display: flex;
         overflow-x: auto;
@@ -14,17 +20,60 @@
     }
     .scroll-categories::-webkit-scrollbar { display: none; }
     
-    /* ነባሪ የካቴጎሪ ባጅ ስታይል (የ AI CSS ካልተጫነ መከላከያ ይሆናል) */
+    /* ነባሪ የካቴጎሪ ባጅ ስታይል (የ AI CSS ካልተጫነ መከላከያ) */
     .category-badge {
         background-color: #f8f9fa;
         color: #333;
         margin-right: 8px;
         border: 1px solid #dee2e6;
         transition: all 0.3s ease;
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 0.85rem;
     }
     .category-badge.active, .category-badge:hover {
-        background-color: #1a2a6c;
+        background-color: var(--primary-color, #1a2a6c);
         color: #fff !important;
+        border-color: var(--primary-color, #1a2a6c);
+        transform: scale(1.05);
+    }
+    
+    /* የምርት ካርድ ለዚህ ፔጅ ተጨማሪ ማሻሻያ */
+    .product-card .card-body {
+        padding: 0.9rem;
+    }
+    .product-card .card-title {
+        font-size: 0.95rem;
+        margin-bottom: 0.35rem;
+    }
+    .product-card .price-tag {
+        font-size: 0.75rem;
+        padding: 3px 12px;
+    }
+    .product-card .meta-badge {
+        font-size: 7px;
+        padding: 2px 8px;
+        border-radius: 10px;
+    }
+    .product-card .location-text {
+        font-size: 9px;
+    }
+    
+    /* AI Growth Center Alert */
+    .growth-alert {
+        border-radius: 16px;
+        border: none;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        border-radius: 24px;
+        border: none;
+    }
+    .empty-state i {
+        font-size: 3rem;
+        color: #dee2e6;
     }
 </style>
 
@@ -37,11 +86,53 @@
 
 {% block content %}
 
+<!-- 🆕 Multi-Site Selector (ከአንድ በላይ ጣቢያ ካለ) -->
+{% if sites and sites|length > 1 %}
+<div class="mb-3">
+    <div class="d-flex align-items-center gap-2">
+        <i class="fas fa-globe text-primary"></i>
+        <span class="small fw-bold text-muted">{% trans "Site" %}:</span>
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle rounded-pill px-3" type="button" data-bs-toggle="dropdown">
+                {{ current_site.display_name|default:"All Sites" }}
+            </button>
+            <ul class="dropdown-menu shadow-sm border-0 rounded-3">
+                <li>
+                    <a class="dropdown-item {% if not request.GET.site %}active{% endif %}" href="?{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}">
+                        <i class="fas fa-globe me-2"></i> {% trans "All Sites" %}
+                    </a>
+                </li>
+                {% for site in sites %}
+                <li>
+                    <a class="dropdown-item {% if current_site.id == site.id %}active{% endif %}" href="?site={{ site.id }}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">
+                        <i class="fas fa-circle me-2" style="color: {% if site.growth_level == 1 %}#2e7d32{% elif site.growth_level == 2 %}#0d47a1{% elif site.growth_level == 3 %}#e65100{% elif site.growth_level == 4 %}#6a1b9a{% else %}#c62828{% endif %}; font-size: 8px;"></i>
+                        {{ site.display_name }}
+                        <span class="badge bg-secondary ms-1">{{ site.total_products|default:0 }}</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% if current_site %}
+        <a href="{% url 'site_detail' current_site.id %}" class="btn btn-sm btn-outline-primary rounded-pill">
+            <i class="fas fa-eye me-1"></i> {% trans "View" %}
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- AI Growth Center (ለአድሚን) -->
 {% if user.is_staff %}
-<!-- የ 'trigger_evolution' አድራሻ በ urls.py ስለተመዘገበ አሁን ያለምንም ስህተት ይሰራል -->
-<div class="alert alert-dark border-0 shadow-sm rounded-4 p-3 mb-4 d-flex justify-content-between align-items-center bg-dark text-white">
+<div class="alert alert-dark border-0 shadow-sm rounded-4 p-3 mb-4 d-flex justify-content-between align-items-center growth-alert bg-dark text-white">
     <div>
-        <h6 class="mb-1 fw-bold"><i class="fas fa-robot text-warning me-2"></i> {% translate "AI Growth Center" %}</h6>
+        <h6 class="mb-1 fw-bold">
+            <i class="fas fa-robot text-warning me-2"></i> 
+            {% translate "AI Growth Center" %}
+            {% if current_site %}
+            <span class="badge bg-info ms-2">{{ current_site.display_name }}</span>
+            {% endif %}
+        </h6>
         <small class="text-secondary">{% translate "Click to trigger autonomous AI growth and UI upgrade." %}</small>
     </div>
     <a href="{% url 'trigger_evolution' %}" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">
@@ -50,21 +141,39 @@
 </div>
 {% endif %}
 
+<!-- Categories -->
 <div class="mb-4">
-    <h5 class="fw-bold mb-3 text-dark"><i class="fas fa-chart-line text-danger me-2"></i> {% translate "AI Suggested Categories" %}</h5>
+    <h5 class="fw-bold mb-3 text-dark">
+        <i class="fas fa-chart-line text-danger me-2"></i> 
+        {% translate "AI Suggested Categories" %}
+    </h5>
     <div class="scroll-categories">
-        <a href="/" class="badge category-badge rounded-pill shadow-sm px-3 py-2 text-decoration-none {% if not active_category %}active{% endif %}">
+        <a href="?{% if request.GET.site %}site={{ request.GET.site }}&{% endif %}" 
+           class="badge category-badge shadow-sm text-decoration-none {% if not active_category %}active{% endif %}">
             <i class="fas fa-th me-1"></i> {% translate "All" %}
         </a>
         {% for cat in categories %}
-        <a href="?category={{ cat.id }}" class="badge category-badge rounded-pill shadow-sm px-3 py-2 text-decoration-none {% if active_category == cat.id %}active{% endif %}">
+        <a href="?category={{ cat.id }}{% if request.GET.site %}&site={{ request.GET.site }}{% endif %}" 
+           class="badge category-badge shadow-sm text-decoration-none {% if active_category == cat.id %}active{% endif %}">
             <i class="fas fa-tag me-1"></i> {{ cat.name }}
         </a>
         {% endfor %}
     </div>
 </div>
 
-<h5 class="fw-bold mb-3 text-dark"><i class="fas fa-bolt text-warning me-2"></i> {% translate "Latest Products" %}</h5>
+<!-- Products Grid -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="fw-bold mb-0 text-dark">
+        <i class="fas fa-bolt text-warning me-2"></i> 
+        {% translate "Latest Products" %}
+        {% if current_site %}
+        <span class="badge bg-secondary ms-2">{{ current_site.display_name }}</span>
+        {% endif %}
+    </h5>
+    <span class="badge bg-light text-muted rounded-pill px-3 py-2">
+        {{ products|length }} {% trans "items" %}
+    </span>
+</div>
 
 <div class="row g-3">
     {% for product in products %}
@@ -77,7 +186,6 @@
                     {% elif product.image_url %}
                         <img src="{{ product.image_url }}" alt="{{ product.get_translated_title }}" onerror="this.src='https://loremflickr.com/400/300/product'">
                     {% else %}
-                        <!-- ⚠️ 7. የምስሎች መደጋገምን ለመከላከል በምርት ID የተቆለፈና እንደየ ምድቡ የተለየ ምስል የሚያሳይ የተራቀቀ የናሙና ሎጂክ -->
                         <img src="https://loremflickr.com/400/300/{{ product.category.name|slugify|default:'product' }}?lock={{ product.id }}" alt="{{ product.title }}">
                     {% endif %}
                     
@@ -87,16 +195,17 @@
                 </div>
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="badge bg-light text-primary border" style="font-size: 9px;">{{ product.category.name|truncatechars:10 }}</span>
-                        <small class="text-muted" style="font-size: 9px;"><i class="fas fa-location-dot me-1"></i>{{ product.location|truncatechars:10 }}</small>
+                        <span class="badge bg-light text-primary border meta-badge">{{ product.category.name|truncatechars:10 }}</span>
+                        <small class="text-muted location-text"><i class="fas fa-location-dot me-1"></i>{{ product.location|truncatechars:10 }}</small>
                     </div>
                     <h6 class="card-title fw-bold text-dark text-truncate mb-2">{{ product.get_translated_title }}</h6>
                     
+                    <!-- Language Badges -->
                     <div class="d-flex gap-1 pt-2 border-top">
-                        <span class="badge bg-light text-muted border" style="font-size: 7px;">AM</span>
-                        <span class="badge bg-light text-muted border" style="font-size: 7px;">EN</span>
-                        <span class="badge bg-light text-muted border" style="font-size: 7px;">OM</span>
-                        <span class="badge bg-light text-muted border" style="font-size: 7px;">AR</span>
+                        <span class="badge bg-light text-muted border meta-badge">AM</span>
+                        <span class="badge bg-light text-muted border meta-badge">EN</span>
+                        <span class="badge bg-light text-muted border meta-badge">OM</span>
+                        <span class="badge bg-light text-muted border meta-badge">AR</span>
                     </div>
                 </div>
             </div>
@@ -104,13 +213,57 @@
     </div>
     {% empty %}
     <div class="col-12 text-center py-5">
-        <div class="card border-0 shadow-sm rounded-4 p-5">
+        <div class="card border-0 shadow-sm rounded-4 p-5 empty-state">
             <i class="fas fa-search-plus fa-3x text-muted mb-3"></i>
-            <h5 class="text-muted">{% translate "No products found" %}</h5>
+            <h5 class="text-muted">
+                {% if current_site %}
+                    {% translate "No products found in" %} {{ current_site.display_name }}
+                {% else %}
+                    {% translate "No products found" %}
+                {% endif %}
+            </h5>
+            <p class="text-muted small">{% translate "Be the first to post a product!" %}</p>
+            <a href="{% url 'post_product' %}" class="btn btn-ai rounded-pill px-4 mx-auto">
+                <i class="fas fa-plus-circle me-2"></i> {% translate "Post a Product" %}
+            </a>
         </div>
     </div>
     {% endfor %}
 </div>
 
+<!-- Load More (if needed) -->
+{% if products|length >= 12 %}
+<div class="text-center mt-4">
+    <button class="btn btn-outline-ai rounded-pill px-5" id="loadMoreBtn">
+        <i class="fas fa-chevron-down me-2"></i> {% translate "Load More" %}
+    </button>
+</div>
+{% endif %}
+
 <div class="mb-5 py-4"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load More functionality (if needed)
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', function() {
+            // Simple implementation - could be enhanced with AJAX
+            const hiddenItems = document.querySelectorAll('.product-card-hidden');
+            let count = 0;
+            hiddenItems.forEach(item => {
+                if (count < 8) {
+                    item.classList.remove('product-card-hidden');
+                    count++;
+                }
+            });
+            if (count === 0) {
+                this.style.display = 'none';
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

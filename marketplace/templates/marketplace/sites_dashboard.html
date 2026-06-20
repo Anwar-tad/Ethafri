@@ -1,0 +1,158 @@
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/sites_dashboard.html
+📝 ለውጥ፦ Multi-Site Dashboard — ሁሉንም ጣቢያዎች ያሳያል
+📅 ቀን፦ 2026-06-20
+============================================================ -->
+
+{% extends "marketplace/base.html" %}
+{% load i18n %}
+
+{% block extra_css %}
+<style>
+    .site-card {
+        border-radius: 16px;
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: none;
+        overflow: hidden;
+    }
+    .site-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.12) !important;
+    }
+    .site-card .card-header {
+        border-bottom: none;
+        padding: 1.25rem 1.5rem;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    .site-card .card-body {
+        padding: 1.25rem 1.5rem;
+    }
+    .stat-number {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1a2a6c;
+    }
+    .stat-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- ርዕስ -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <i class="fas fa-globe text-primary me-2"></i>{% trans "Sites Dashboard" %}
+            </h2>
+            <p class="text-muted">{% trans "Manage all your niche websites in one place" %}</p>
+        </div>
+        <div>
+            <span class="badge bg-primary fs-6 me-2">
+                <i class="fas fa-server me-1"></i>{{ total_sites }} {% trans "Sites" %}
+            </span>
+            <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>{% trans "Back" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- አጠቃላይ ስታቲስቲክስ -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="card border-0 shadow-sm text-center p-3">
+                <div class="stat-number">{{ total_visitors|default:0 }}</div>
+                <div class="stat-label">{% trans "Monthly Visitors" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card border-0 shadow-sm text-center p-3">
+                <div class="stat-number">{{ total_sellers|default:0 }}</div>
+                <div class="stat-label">{% trans "Total Sellers" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card border-0 shadow-sm text-center p-3">
+                <div class="stat-number">{{ total_products|default:0 }}</div>
+                <div class="stat-label">{% trans "Total Products" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card border-0 shadow-sm text-center p-3">
+                <div class="stat-number">${{ total_revenue|default:0|floatformat:0 }}</div>
+                <div class="stat-label">{% trans "Monthly Revenue" %}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ጣቢያዎች ዝርዝር -->
+    <div class="row g-4">
+        {% for item in site_stats %}
+        <div class="col-md-6 col-xl-4">
+            <div class="card site-card shadow-sm">
+                <div class="card-header" style="background: linear-gradient(135deg, {% if item.site.growth_level == 1 %}#e8f5e9{% elif item.site.growth_level == 2 %}#e3f2fd{% elif item.site.growth_level == 3 %}#fff3e0{% elif item.site.growth_level == 4 %}#f3e5f5{% else %}#fce4ec{% endif %}, #ffffff);">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="fw-bold">{{ item.site.display_name }}</span>
+                            <span class="badge bg-secondary ms-2">{{ item.site.niche|default:"General" }}</span>
+                        </div>
+                        <span class="growth-level-badge level-{% if item.site.growth_level == 1 %}local{% elif item.site.growth_level == 2 %}city{% elif item.site.growth_level == 3 %}country{% elif item.site.growth_level == 4 %}continent{% else %}global{% endif %}">
+                            {{ item.growth_level_display }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 text-center">
+                        <div class="col-4">
+                            <div class="fw-bold text-primary">{{ item.pending_tasks }}</div>
+                            <small class="text-muted">{% trans "Pending" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold text-warning">{{ item.running_tasks }}</div>
+                            <small class="text-muted">{% trans "Running" %}</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold text-success">{{ item.completed_tasks }}</div>
+                            <small class="text-muted">{% trans "Completed" %}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">
+                                <i class="fas fa-users me-1"></i>{{ item.site.total_sellers|default:0 }} {% trans "sellers" %}
+                                <i class="fas fa-box ms-2 me-1"></i>{{ item.site.total_products|default:0 }}
+                            </small>
+                        </div>
+                        <a href="{% url 'site_detail' item.site.id %}" class="btn btn-sm btn-outline-primary rounded-pill">
+                            {% trans "View" %} <i class="fas fa-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                    {% if item.recent_errors > 0 %}
+                    <div class="mt-2">
+                        <span class="badge bg-danger">
+                            <i class="fas fa-exclamation-triangle me-1"></i>{{ item.recent_errors }} {% trans "errors" %}
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="fas fa-globe fa-3x text-muted mb-3"></i>
+                <h5>{% trans "No sites found" %}</h5>
+                <p class="text-muted">{% trans "Register a new site to get started." %}</p>
+                <a href="{% url 'growth_dashboard' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>{% trans "Add Site" %}
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

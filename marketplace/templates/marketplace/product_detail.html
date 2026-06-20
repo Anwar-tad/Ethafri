@@ -1,72 +1,358 @@
-{# EthAfri/marketplace/templates/marketplace/product_detail.html #}
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/product_detail.html
+📝 ለውጥ፦ Optimized — Shared product card styles in global.css
+📅 ቀን፦ 2026-06-20
+============================================================ -->
+
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 
+{% block extra_css %}
+<style>
+    /* 🎯 ለዚህ ፔጅ ብቻ የሚያገልግሉ ስታይሎች */
+    .detail-card {
+        border-radius: 20px;
+        border: none;
+        overflow: hidden;
+    }
+    .detail-card .card-body {
+        padding: 1.75rem;
+    }
+    .detail-card .price-display {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--danger-color, #c62828);
+    }
+    .detail-card .meta-text {
+        font-size: 0.85rem;
+        color: var(--text-muted, #6c757d);
+    }
+    .detail-card .meta-text i {
+        width: 20px;
+        color: var(--primary-color, #1a2a6c);
+    }
+    .detail-card .description-text {
+        white-space: pre-line;
+        line-height: 1.7;
+        color: var(--text-dark, #2d3436);
+    }
+    .detail-card .category-badge {
+        padding: 0.4rem 1rem;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 0.8rem;
+    }
+    .detail-card .lang-tab {
+        border-radius: 50px;
+        border: none;
+        padding: 0.4rem 1rem;
+        font-size: 0.8rem;
+        background: #f1f3f5;
+        color: var(--text-dark, #2d3436);
+        transition: all 0.3s ease;
+    }
+    .detail-card .lang-tab:hover {
+        background: var(--primary-color, #1a2a6c);
+        color: white;
+    }
+    .detail-card .lang-tab.active {
+        background: var(--primary-color, #1a2a6c);
+        color: white;
+    }
+    .detail-card .lang-content {
+        background: #f8f9fa;
+        border-radius: 16px;
+        padding: 1.25rem;
+        min-height: 80px;
+    }
+    .detail-card .lang-content .translation-text {
+        font-size: 0.95rem;
+        color: var(--text-dark, #2d3436);
+        line-height: 1.6;
+    }
+    .detail-card .back-btn {
+        border-radius: 50px;
+        padding: 0.4rem 1.5rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.3s ease;
+    }
+    .detail-card .back-btn:hover {
+        transform: translateX(-4px);
+    }
+    .site-badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+        background: #e3f2fd;
+        color: #0d47a1;
+    }
+    .share-buttons .btn {
+        border-radius: 50px;
+        padding: 0.3rem 0.8rem;
+        font-size: 0.8rem;
+    }
+    .seller-info .rating-star {
+        color: #ffc107;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container py-4">
-    <a href="{% url 'home' %}" class="btn btn-light border rounded-pill px-4 mb-4 shadow-sm text-decoration-none text-dark small fw-bold">
+    <!-- Back Button -->
+    <a href="{% url 'home' %}" class="btn btn-light border back-btn shadow-sm text-decoration-none text-dark mb-4">
         <i class="fas fa-arrow-left me-2 text-primary"></i> {% translate "Back to Home" %}
     </a>
 
-    <div class="row g-4 mb-5">
+    <div class="row g-4">
+        <!-- Product Image -->
         <div class="col-md-6">
-            <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+            <div class="card detail-card shadow-sm bg-white">
                 {% if product.image_url %}
-                    <img src="{{ product.image_url }}" class="img-fluid w-100" style="max-height: 400px; object-fit: cover;" onerror="this.src='https://loremflickr.com/640/480/product'">
+                    <img src="{{ product.image_url }}" class="img-fluid w-100" 
+                         style="max-height: 450px; object-fit: cover;" 
+                         onerror="this.src='https://loremflickr.com/640/480/product'"
+                         alt="{{ product.title }}">
                 {% elif product.image %}
-                    <img src="{{ product.image.url }}" class="img-fluid w-100" style="max-height: 400px; object-fit: cover;">
+                    <img src="{{ product.image.url }}" class="img-fluid w-100" 
+                         style="max-height: 450px; object-fit: cover;" 
+                         alt="{{ product.title }}">
                 {% else %}
-                    <div class="bg-light text-center py-5"><i class="fas fa-image fa-4x text-muted"></i></div>
+                    <div class="text-center py-5 bg-light" style="min-height: 300px;">
+                        <i class="fas fa-image fa-4x text-muted"></i>
+                        <p class="text-muted mt-2">{% translate "No image available" %}</p>
+                    </div>
                 {% endif %}
             </div>
         </div>
         
+        <!-- Product Details -->
         <div class="col-md-6">
-            <div class="card border-0 shadow-sm rounded-4 p-4 h-100 bg-white">
-                <span class="badge bg-light text-primary border mb-2 align-self-start py-2 px-3 rounded-pill fw-bold">{{ product.category.name }}</span>
-                <h1 class="fw-bold text-dark h3 mb-2">{{ product.title }}</h1>
-                
-                <p class="text-danger fw-bold fs-3 mb-3">
-                    {% if product.price > 0 %}{{ product.price|floatformat:0 }} ETB{% else %}{% translate "Negotiable" %}{% endif %}
-                </p>
-                
-                <p class="text-muted small mb-4">
-                    <i class="fas fa-map-marker-alt text-danger"></i> {{ product.location }} | 
-                    <i class="fas fa-clock ms-2 text-secondary"></i> {% translate "Posted on" %}: {{ product.created_at|date:"M d, Y" }}
-                </p>
-                
-                <h6 class="fw-bold text-secondary border-bottom pb-2">{% translate "Product Description" %}</h6>
-                <p class="text-secondary mb-4 lh-base" style="white-space: pre-line;">{{ product.description }}</p>
-
-                {% if product.translations %}
-                <div class="mt-4 pt-4 border-top">
-                    <h6 class="fw-bold text-dark mb-3">
-                        <i class="fas fa-language text-warning me-2"></i>{% translate "Read in other languages" %}
+            <div class="card detail-card shadow-sm bg-white">
+                <div class="card-body">
+                    <!-- Category & Site -->
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <span class="badge category-badge bg-light text-primary border">
+                            <i class="fas fa-tag me-1"></i> {{ product.category.name }}
+                        </span>
+                        {% if product.site %}
+                        <span class="site-badge">
+                            <i class="fas fa-globe me-1"></i> {{ product.site.display_name }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Title -->
+                    <h1 class="fw-bold text-dark h3 mb-2">{{ product.get_translated_title }}</h1>
+                    
+                    <!-- Price -->
+                    <p class="price-display mb-3">
+                        {% if product.price > 0 %}
+                            {{ product.price|floatformat:2 }} ETB
+                        {% else %}
+                            {% translate "Negotiable" %}
+                        {% endif %}
+                    </p>
+                    
+                    <!-- Meta Info -->
+                    <div class="meta-text mb-4">
+                        <i class="fas fa-map-marker-alt text-danger"></i> {{ product.location|default:"-" }}
+                        <span class="mx-2">|</span>
+                        <i class="fas fa-clock text-secondary"></i> {% translate "Posted" %}: {{ product.created_at|date:"M d, Y" }}
+                        <span class="mx-2">|</span>
+                        <i class="fas fa-eye text-primary"></i> {{ product.view_count|default:0 }} {% trans "views" %}
+                    </div>
+                    
+                    <!-- Description -->
+                    <h6 class="fw-bold text-secondary border-bottom pb-2">
+                        <i class="fas fa-file-alt me-2"></i> {% translate "Description" %}
                     </h6>
-                    <ul class="nav nav-tabs mb-3 border-0 gap-1" id="langTabs" role="tablist">
-                        <li class="nav-item">
-                            <button class="nav-link active small rounded-pill border-0 px-3 bg-light" id="en-tab" data-bs-toggle="tab" data-bs-target="#en" type="button" role="tab">English</button>
-                        </li>
-                        <li class="nav-item">
-                            <button class="nav-link small rounded-pill border-0 px-3 bg-light" id="om-tab" data-bs-toggle="tab" data-bs-target="#om" type="button" role="tab">Oromo</button>
-                        </li>
-                        <li class="nav-item">
-                            <button class="nav-link small rounded-pill border-0 px-3 bg-light" id="ar-tab" data-bs-toggle="tab" data-bs-target="#ar" type="button" role="tab">Arabic</button>
-                        </li>
-                        <li class="nav-item">
-                            <button class="nav-link small rounded-pill border-0 px-3 bg-light" id="so-tab" data-bs-toggle="tab" data-bs-target="#so" type="button" role="tab">Somali</button>
-                        </li>
-                    </ul>
-                    <div class="tab-content p-3 bg-light rounded-4 border-0">
-                        <div class="tab-pane fade show active small text-secondary" id="en" role="tabpanel">{{ product.translations.en|default:"Translation pending..." }}</div>
-                        <div class="tab-pane fade small text-secondary" id="om" role="tabpanel">{{ product.translations.om|default:"Translation pending..." }}</div>
-                        <div class="tab-pane fade small text-secondary" id="ar" role="tabpanel">{{ product.translations.ar|default:"Translation pending..." }}</div>
-                        <div class="tab-pane fade small text-secondary" id="so" role="tabpanel">{{ product.translations.so|default:"Translation pending..." }}</div>
+                    <p class="description-text mb-4">{{ product.get_translated_desc }}</p>
+
+                    <!-- Seller Info -->
+                    {% if product.seller %}
+                    <div class="mt-3 pt-3 border-top seller-info">
+                        <h6 class="fw-bold text-dark mb-2">
+                            <i class="fas fa-user me-2 text-primary"></i> {% translate "Seller" %}
+                        </h6>
+                        <div class="d-flex align-items-center gap-3">
+                            <div>
+                                <div class="fw-medium">{{ product.seller.get_full_name|default:product.seller.username }}</div>
+                                <div class="small text-muted">
+                                    {% if product.seller.seller_profile %}
+                                    {% trans "Member since" %}: {{ product.seller.seller_profile.joined_at|date:"M Y" }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if product.seller.seller_profile and product.seller.seller_profile.rating > 0 %}
+                            <div class="ms-auto">
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-star me-1"></i> {{ product.seller.seller_profile.rating|floatformat:1 }}
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Share Buttons -->
+                    <div class="mt-3 pt-3 border-top">
+                        <div class="d-flex gap-2 share-buttons">
+                            <span class="small text-muted me-2">{% trans "Share" %}:</span>
+                            <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri }}" 
+                               target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="fab fa-facebook-f"></i>
+                            </a>
+                            <a href="https://twitter.com/intent/tweet?text={{ product.title|urlencode }}&url={{ request.build_absolute_uri }}" 
+                               target="_blank" class="btn btn-outline-info btn-sm">
+                                <i class="fab fa-twitter"></i>
+                            </a>
+                            <a href="https://telegram.me/share/url?url={{ request.build_absolute_uri }}&text={{ product.title|urlencode }}" 
+                               target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="fab fa-telegram-plane"></i>
+                            </a>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard('{{ request.build_absolute_uri }}')">
+                                <i class="fas fa-link"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
+
+    <!-- Related Products (shared product-card styles from global.css) -->
+    {% if related_products %}
+    <div class="mt-5">
+        <h5 class="fw-bold mb-3 text-dark">
+            <i class="fas fa-boxes text-primary me-2"></i> {% translate "Related Products" %}
+        </h5>
+        <div class="row g-3">
+            {% for related in related_products|slice:":4" %}
+            <div class="col-6 col-md-3">
+                <a href="{% url 'product_detail' related.pk %}" class="text-decoration-none text-dark">
+                    <div class="card related-product-card shadow-sm">
+                        <div class="img-container">
+                            {% if related.image %}
+                                <img src="{{ related.image.url }}" alt="{{ related.title }}" loading="lazy">
+                            {% else %}
+                                <img src="https://loremflickr.com/300/200/{{ related.category.name|slugify|default:'product' }}?lock={{ related.id }}" alt="{{ related.title }}" loading="lazy">
+                            {% endif %}
+                        </div>
+                        <div class="card-body">
+                            <div class="card-title text-truncate">{{ related.title }}</div>
+                            <div class="price">
+                                {% if related.price > 0 %}{{ related.price|floatformat:0 }} ETB{% else %}{% trans "Negotiable" %}{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Translations -->
+    {% if product.translations %}
+    <div class="mt-5">
+        <div class="card detail-card shadow-sm bg-white">
+            <div class="card-body">
+                <h5 class="fw-bold text-dark mb-3">
+                    <i class="fas fa-language text-warning me-2"></i> {% translate "Read in other languages" %}
+                </h5>
+                
+                <ul class="nav nav-tabs border-0 gap-1" id="langTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link lang-tab active" id="en-tab" data-bs-toggle="tab" data-bs-target="#en" type="button">English</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link lang-tab" id="am-tab" data-bs-toggle="tab" data-bs-target="#am" type="button">Amharic</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link lang-tab" id="om-tab" data-bs-toggle="tab" data-bs-target="#om" type="button">Oromo</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link lang-tab" id="ar-tab" data-bs-toggle="tab" data-bs-target="#ar" type="button">Arabic</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link lang-tab" id="so-tab" data-bs-toggle="tab" data-bs-target="#so" type="button">Somali</button>
+                    </li>
+                </ul>
+                
+                <div class="lang-content mt-3">
+                    <div class="tab-pane fade show active translation-text" id="en" role="tabpanel">
+                        {{ product.translations.en|default:"Translation pending..." }}
+                    </div>
+                    <div class="tab-pane fade translation-text" id="am" role="tabpanel">
+                        {{ product.translations.am|default:"Translation pending..." }}
+                    </div>
+                    <div class="tab-pane fade translation-text" id="om" role="tabpanel">
+                        {{ product.translations.om|default:"Translation pending..." }}
+                    </div>
+                    <div class="tab-pane fade translation-text" id="ar" role="tabpanel">
+                        {{ product.translations.ar|default:"Translation pending..." }}
+                    </div>
+                    <div class="tab-pane fade translation-text" id="so" role="tabpanel">
+                        {{ product.translations.so|default:"Translation pending..." }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Copy to clipboard function (ለዚህ ፔጅ ብቻ)
+    function copyToClipboard(text) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event.target.closest('button');
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(() => {
+                    btn.innerHTML = original;
+                }, 2000);
+            });
+        } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            alert('{% trans "Link copied to clipboard!" %}');
+        }
+    }
+
+    // Tab persistence (ለዚህ ፔጅ ብቻ)
+    document.addEventListener('DOMContentLoaded', function() {
+        const tabButtons = document.querySelectorAll('#langTabs button');
+        tabButtons.forEach(button => {
+            button.addEventListener('shown.bs.tab', function(e) {
+                const tabId = e.target.getAttribute('data-bs-target');
+                if (tabId) {
+                    try {
+                        localStorage.setItem('activeProductTab', tabId);
+                    } catch (e) {}
+                }
+            });
+        });
+
+        try {
+            const savedTab = localStorage.getItem('activeProductTab');
+            if (savedTab) {
+                const targetButton = document.querySelector(`#langTabs button[data-bs-target="${savedTab}"]`);
+                if (targetButton && typeof bootstrap !== 'undefined') {
+                    const tab = new bootstrap.Tab(targetButton);
+                    tab.show();
+                }
+            }
+        } catch (e) {}
+    });
+</script>
 {% endblock %}

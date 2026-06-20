@@ -1,0 +1,117 @@
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/marketing_dashboard.html
+📝 ለውጥ፦ Marketing Dashboard — ሁሉንም የግብይት እንቅስቃሴዎች ያሳያል
+📅 ቀን፦ 2026-06-20
+============================================================ -->
+
+{% extends "marketplace/base.html" %}
+{% load i18n %}
+
+{% block extra_css %}
+<style>
+    .stat-card { border-radius: 16px; border: none; text-align: center; padding: 1.5rem; transition: transform 0.2s; }
+    .stat-card:hover { transform: translateY(-4px); }
+    .stat-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .stat-number { font-size: 2rem; font-weight: 700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- ርዕስ -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="fas fa-bullhorn text-primary me-2"></i>{% trans "Marketing Dashboard" %}</h2>
+            <p class="text-muted">{% trans "Manage your marketing campaigns and customer acquisition" %}</p>
+        </div>
+        <div>
+            <a href="{% url 'create_marketing_campaign' %}" class="btn btn-primary btn-sm rounded-pill"><i class="fas fa-plus me-1"></i>{% trans "New Campaign" %}</a>
+            <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-secondary btn-sm ms-1"><i class="fas fa-arrow-left me-1"></i>{% trans "Back" %}</a>
+        </div>
+    </div>
+
+    <!-- ስታቲስቲክስ -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="card stat-card shadow-sm bg-primary bg-opacity-10">
+                <div class="stat-icon text-primary"><i class="fas fa-envelope"></i></div>
+                <div class="stat-number text-primary">{{ campaign_stats.total|default:0 }}</div>
+                <div class="text-muted small">{% trans "Total Campaigns" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card stat-card shadow-sm bg-success bg-opacity-10">
+                <div class="stat-icon text-success"><i class="fas fa-paper-plane"></i></div>
+                <div class="stat-number text-success">{{ campaign_stats.total_sent|default:0 }}</div>
+                <div class="text-muted small">{% trans "Messages Sent" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card stat-card shadow-sm bg-warning bg-opacity-10">
+                <div class="stat-icon text-warning"><i class="fas fa-eye"></i></div>
+                <div class="stat-number text-warning">{{ campaign_stats.total_opened|default:0 }}</div>
+                <div class="text-muted small">{% trans "Opened" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card stat-card shadow-sm bg-info bg-opacity-10">
+                <div class="stat-icon text-info"><i class="fas fa-user-check"></i></div>
+                <div class="stat-number text-info">{{ acquisition_stats.converted|default:0 }}</div>
+                <div class="text-muted small">{% trans "Converted" %}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- የካምፔን ዝርዝር -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-light fw-bold"><i class="fas fa-list me-2"></i>{% trans "Recent Campaigns" %}</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>{% trans "Name" %}</th><th>{% trans "Type" %}</th><th>{% trans "Status" %}</th><th>{% trans "Sent" %}</th><th>{% trans "Opened" %}</th><th>{% trans "Site" %}</th><th>{% trans "Date" %}</th></tr></thead>
+                    <tbody>
+                        {% for campaign in campaigns %}
+                        <tr>
+                            <td class="fw-bold">{{ campaign.name }}</td>
+                            <td><span class="badge bg-secondary">{{ campaign.campaign_type }}</span></td>
+                            <td><span class="badge bg-{% if campaign.status == 'completed' %}success{% elif campaign.status == 'running' %}warning{% elif campaign.status == 'scheduled' %}info{% else %}secondary{% endif %}">{{ campaign.status }}</span></td>
+                            <td>{{ campaign.total_sent }}</td>
+                            <td>{{ campaign.total_opened }}</td>
+                            <td>{{ campaign.site.display_name|default:"-" }}</td>
+                            <td><small>{{ campaign.created_at|date:"Y-m-d" }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-inbox fa-2x mb-2"></i><p>{% trans "No campaigns yet. Create your first campaign!" %}</p></td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- የማሳወቂያ ወረፋ -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-light fw-bold"><i class="fas fa-bell me-2"></i>{% trans "Notification Queue" %} ({{ notifications.count }})</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>{% trans "Type" %}</th><th>{% trans "Recipient" %}</th><th>{% trans "Status" %}</th><th>{% trans "Site" %}</th><th>{% trans "Date" %}</th></tr></thead>
+                    <tbody>
+                        {% for notification in notifications %}
+                        <tr>
+                            <td><span class="badge bg-info">{{ notification.notification_type }}</span></td>
+                            <td>{{ notification.recipient }}</td>
+                            <td><span class="badge bg-{% if notification.is_sent %}success{% else %}warning{% endif %}">{% if notification.is_sent %}{% trans "Sent" %}{% else %}{% trans "Pending" %}{% endif %}</span></td>
+                            <td>{{ notification.site.display_name|default:"-" }}</td>
+                            <td><small>{{ notification.created_at|date:"Y-m-d H:i" }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center py-4 text-muted"><p>{% trans "No notifications in queue." %}</p></td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
