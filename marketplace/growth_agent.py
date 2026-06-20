@@ -18,9 +18,14 @@ from google import genai  # የዘመነ የጉግል ኤስዲኬ (Google GenAI
 from django.db import models  # ለ Exists እና OuterRef ንዑስ ኳኤሪዎች
 
 # አዲሶቹን አውቶኖመስ ሞዴሎች ማካተት
-from .models import SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction
+# ⚠️ 'AgentErrorLog' ከስህተት የጸዳ እንዲሆን በኢምፖርት ውስጥ ተጨምሯል
+from .models import (
+    SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, 
+    AdminOverrideInstruction, AgentErrorLog
+)
 
 logger = logging.getLogger(__name__)
+
 def ask_ai_with_failover(prompt, pool_type="coding"):
     """
     ተሻሻለ የኤአይ ፎልባክ ሞተር፡ ቁልፎችን የመለየት፣ የመመዝገብ እና ዙር-ተኮር (Round-Robin) 
@@ -243,9 +248,6 @@ def run_daily_market_analysis():
 
         # 4. የፕሮጀክቱን ይዘት ማንበብና የካሼ ፍተሻ (Caching Layer)
         project_code, file_paths = get_complete_project_state()
-        
-        # ✅ FIXED: ደካማ hardcoded password እና ጥቅም ላይ ያልዋለ unused variable ተወግዷል
-        # (ምንም ኮድ ቦታ admin_user ላይ ጥገኛ አይደለም - ስለዚህ ሙሉ በሙሉ ተወግዷል)
 
         state_string = json.dumps(project_code, sort_keys=True)
         current_state_hash = hashlib.sha256(state_string.encode('utf-8')).hexdigest()
@@ -312,7 +314,7 @@ def run_daily_market_analysis():
                 defaults={'priority': t.get('priority', 'Medium'), 'status': 'Pending', 'description': t.get('description', '')}
             )
 
-                # 8. የኮድ ማሻሻያ እና ሲንታክስ ምርመራ (Validation)
+        # 8. የኮድ ማሻሻያ እና ሲንታክስ ምርመራ (Validation)
         updates = data.get('updates', {})
         code_changed = False
         
@@ -324,6 +326,7 @@ def run_daily_market_analysis():
                         compile(new_content, f"test_{key}.py", 'exec')
                     except SyntaxError as e:
                         logger.error(f"❌ Syntax Error recorded in memory: {e}")
+                        # ⚠️ 'AgentErrorLog' በስኬት እንዲመዘገብ ተስተካክሏል
                         AgentErrorLog.objects.create(
                             task_name=target_task.task_name if target_task else "Audit",
                             error_message=str(e),
@@ -343,8 +346,6 @@ def run_daily_market_analysis():
                         old_code_backup=old_code, new_code_patch=new_content
                     )
                     code_changed = True
-
-
 
         if data.get('database_migration_needed') and updates.get('models'):
             try:

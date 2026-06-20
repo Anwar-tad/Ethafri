@@ -128,7 +128,13 @@ def post_success(request):
 
 # ⚙️ 6. ራስ-ሰር የዕድገት መቀስቀሻ (Core Evolution Engine)
 @staff_member_required  # ⚠️ የደህንነት ማጠንከሪያ ዲኮሬተር ተተክሏል
+# EthAfri/marketplace/views.py (የተስተካከለው የ trigger_evolution ቪው ብቻ)
+
+@staff_member_required  # ⚠️ የደህንነት ማጠንከሪያ ዲኮሬተር
 def trigger_evolution(request):
+    """
+    አድሚኑ የ 5 ደቂቃ የክሮን ጊዜ ሳይጠብቅ የኤአይ የዕድገት ዑደትን በቀጥታ በእጅ የሚቀሰቅስበት ዋናው ቪው
+    """
     result = run_daily_market_analysis()
     heal_result = self_heal_failed_build()
     print(f"Self-Coder Status: {heal_result}")
@@ -137,7 +143,8 @@ def trigger_evolution(request):
     current_color = config.value.get('theme_color', '#1a2a6c') if config else '#1a2a6c'
     discover_and_heal_ui_design(current_color, trend_context="Modern African E-Commerce Trend")
 
-    if result.startswith("✅") or result.startswith("🎉"):
+    # ⚠️ '🧠' (Idle/Caching) እና '💤' (Sleeping) ሁኔታዎችን እንደ ስኬታማ የስታንድባይ ዑደት (200 OK) እንዲቀበላቸው ተስተካክሏል
+    if result.startswith("✅") or result.startswith("🎉") or result.startswith("🧠") or result.startswith("💤"):
         try:
             latest_task = AISystemTask.objects.latest('created_at')
         except AISystemTask.DoesNotExist:
@@ -148,6 +155,7 @@ def trigger_evolution(request):
             'task': latest_task
         })
     else:
+        # በእውነተኛ ኤረሮች ላይ ብቻ 400 Bad Request ይመልሳል
         return HttpResponse(
             f"<div style='padding:30px; font-family:sans-serif; color:red;'>"
             f"<h2>❌ AI Evolution Failed!</h2>"
