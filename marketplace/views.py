@@ -18,24 +18,23 @@ from django.db.models import Prefetch, Count, Sum, Q
 # ሎገሩን በሞጁል ደረጃ ማዋቀር
 logger = logging.getLogger(__name__)
 
-# አዲሶቹን ሞዴሎች ማስመጣት
+# አዲሶቹን ሞዴሎች ማስመጣት (የጠፋው AISystemTask ሙሉ በሙሉ ተወግዷል)
 from .models import (
     Product, Category, UserSearch, ProductTranslation, 
-    SiteConfig, MarketTrend, AISystemTask, OwnerDirective, SelfHealingLog,
+    SiteConfig, MarketTrend, OwnerDirective, SelfHealingLog,
     AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction, TranslationQueue,
     SiteRegistry, CustomerAcquisitionLog, MarketingCampaign, SellerProfile, 
     NotificationQueue, AgentErrorLog
 )
 from .ai_utils import analyze_product_smartly
-from .growth_agent import run_daily_market_analysis, run_daily_market_analysis_for_site # ⚠️ የትክክለኛው ፈንክሽን ስም ተተክቷል [1]
+from .growth_agent import run_daily_market_analysis, run_daily_market_analysis_for_site
 from .self_coder import self_heal_failed_build 
 from .self_doctor import heal_any_system_error, discover_and_heal_ui_design
 
-# 🛡️ 1. የ 'discover_new_sites' የደህንነት ማስሞጫ ቼክ (Import Error Protection) [1]
+# 🛡️ የ 'discover_new_sites' የደህንነት ማስሞጫ ቼክ (Import Error Protection) [1]
 try:
     from .growth_agent import discover_new_sites
 except ImportError:
-    # በ growth_agent.py ውስጥ ፈንክሽኑ ገና ሙሉ በሙሉ ካልተጫነ ሰርቨሩ እንዳይቋረጥ መከላከያ ፎልባክ
     def discover_new_sites():
         logger.warning("⚠️ 'discover_new_sites' is not fully implemented in growth_agent yet. Using fallback empty list.")
         return []
@@ -194,12 +193,10 @@ def trigger_evolution(request):
 
     if result.startswith(SUCCESS_PREFIXES):
         try:
+            # ⚠️ ማሻሻያ፦ አሮጌው AISystemTask በዘመናዊው AIProjectBacklog ተተክቷል
             latest_task = AIProjectBacklog.objects.latest('created_at')
         except AIProjectBacklog.DoesNotExist:
-            try:
-                latest_task = AISystemTask.objects.latest('created_at')
-            except AISystemTask.DoesNotExist:
-                latest_task = None
+            latest_task = None
 
         return render(request, 'marketplace/evolution_result.html', {
             'status': f"{result} | Coder: {heal_result}",
@@ -217,12 +214,12 @@ def trigger_evolution(request):
 
 
 # ============================================================
-# 🌐 7. Multi-Site Dashboard (አዲስ)
+# 🌐 7. Multi-Site Dashboard
 # ============================================================
 @staff_member_required
 def sites_dashboard(request):
     """
-    ሁሉንም የተመዘገቡ ጣቢያዎች በአንድ ላይ የሚያሳይ ዳሽቦርድ
+    ሁሉንም የተመዘገቡ ጣቢያዎች በአንድ ላይ የሚያሳይ ዳሽቦርድ [1]
     """
     sites = SiteRegistry.objects.all().order_by('name')
     
@@ -266,12 +263,12 @@ def sites_dashboard(request):
 
 
 # ============================================================
-# 🌐 8. Site Detail Page (አዲስ)
+# 🌐 8. Site Detail Page
 # ============================================================
 @staff_member_required
 def site_detail(request, site_id):
     """
-    የአንድ የተወሰነ ጣቢያ ዝርዝር መረጃ የሚያሳይ ገጽ
+    የአንድ የተወሰነ ጣቢያ ዝርዝር መረጃ የሚያሳይ ገጽ [1]
     """
     site = get_object_or_404(SiteRegistry, id=site_id)
     
@@ -306,7 +303,6 @@ def admin_growth_dashboard(request):
         if action == "trigger_agent":
             try:
                 if site_id:
-                    # ⚠️ ማስተካከያ፦ ትክክለኛው የነጠላ ድረ-ገጽ መቀስቀሻ ፈንክሽን ስም እዚህ ተተክሏል [1]
                     site = get_object_or_404(SiteRegistry, id=site_id)
                     result = run_daily_market_analysis_for_site(site)
                 else:
@@ -373,7 +369,9 @@ def admin_growth_dashboard(request):
 
     # ለገጹ የሚያስፈልጉ መረጃዎችን መሰብሰብ (GET)
     trends = MarketTrend.objects.all().order_by('-last_updated')
-    tasks = AISystemTask.objects.all().order_by('-created_at')
+    
+    # ⚠️ ማሻሻያ፦ አሮጌው AISystemTask በዘመናዊው AIProjectBacklog የተሟላ ታሪክ ተተክቷል
+    tasks = AIProjectBacklog.objects.filter(status='Completed').order_by('-created_at')[:30]
     
     sites = SiteRegistry.objects.filter(is_active=True)
     
@@ -446,6 +444,7 @@ def marketing_dashboard(request):
         'email': acquisition_logs.filter(channel='email').count(),
         'sms': acquisition_logs.filter(channel='sms').count(),
         'social': acquisition_logs.filter(channel='social').count(),
+        'referral': acquisition_logs.filter(channel='referral').count(),
         'converted': acquisition_logs.filter(converted_to_seller=True).count(),
     }
     
@@ -503,7 +502,7 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect('home')
-    
+
 
 # ============================================================
 # 13. ውጫዊ መቀስቀሻ (External Cron Webhook Gateway)

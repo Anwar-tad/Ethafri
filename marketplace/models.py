@@ -1,17 +1,12 @@
-# ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/models.py
-# 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — Multi-Site + Business Growth + Auto-Discovery
-# 📅 ቀን፦ 2026-06-20
-# ============================================================
+# EthAfri/marketplace/models.py
 
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.text import slugify
 from django.utils.translation import get_language
-from django.utils import timezone
+from django.utils import timezone  # የሰዓት ዞን ማስመጪ
 import uuid
 import hashlib
-
 
 # ============================================================
 # 1. ነባር የማርኬት ፕሌስ ሞዴሎች
@@ -23,6 +18,8 @@ class Category(models.Model):
     slug = models.SlugField(max_length=150, unique=True, blank=True)
     description = models.TextField(blank=True, default='')
     icon = models.CharField(blank=True, default='fa-tag', max_length=50)
+    
+    # 🆕 የንዑስ ምድብ (Subcategory) ድጋፍ ፎሬን-ኬይ
     parent = models.ForeignKey(
         'self', 
         on_delete=models.SET_NULL, 
@@ -52,27 +49,18 @@ class Product(models.Model):
     image_url = models.URLField(blank=True, null=True)
     image = models.ImageField(upload_to='products/', blank=True, null=True)
     location = models.CharField(max_length=255, default='Global / ኢትዮጵያ')
-    specifications = models.JSONField(default=dict, blank=True)
+    specifications = models.JSONField(default=dict, blank=True) 
     market_value_status = models.CharField(max_length=50, blank=True, default='Unknown')
     is_active = models.BooleanField(default=True)
     ai_tags = models.JSONField(default=list, blank=True)
     
-    # 🆕 የምርት ትንተና መረጃ
+    # 🆕 አዳዲስ የምርት የትንተና እና የ SEO መለኪያ ሜዳዎች (ከአድሚን ጋር ለመጣጣም የተጨመሩ) [1]
     seo_score = models.IntegerField(default=0, help_text="SEO ውጤት (0-100)")
     view_count = models.IntegerField(default=0, help_text="የተመለከቱ ብዛት")
     inquiry_count = models.IntegerField(default=0, help_text="የጥያቄ ብዛት")
     last_enhanced = models.DateTimeField(null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
-    site = models.ForeignKey(
-        'SiteRegistry',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='products',
-        verbose_name="የሚለጠፍበት ድረ-ገጽ"
-    )
-
     updated_at = models.DateTimeField(auto_now=True)
 
     def get_translated_title(self):
@@ -102,7 +90,7 @@ class Product(models.Model):
 
 
 class ProductTranslation(models.Model):
-    """ምርቶችን በ 7 ቋንቋዎች በራስ-ሰር ተርጉሞ ለማከማቸት"""
+    """ምርቶችን በ 7 ቋንቋዎች በራስ-ሰር ተርጉሞ ለማከማቸት (በ 'Title ||| Description' ፎርማት)"""
     product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='translations')
     en = models.TextField(blank=True, verbose_name="English")
     am = models.TextField(blank=True, verbose_name="Amharic")
@@ -128,7 +116,7 @@ class TranslationQueue(models.Model):
 
 
 class SiteConfig(models.Model):
-    """የዌብሳይቱን ዲዛይን በ AI ለመቀየር"""
+    """የዌብሳይቱን ዲዛይን (Logo, Banner, Color) በ AI ለመቀየር"""
     key = models.CharField(max_length=100, unique=True)
     value = models.JSONField(default=dict)
     updated_at = models.DateTimeField(auto_now=True)
@@ -147,6 +135,21 @@ class MarketTrend(models.Model):
     demand_level = models.IntegerField(default=50)
     ai_suggestion = models.TextField()
     last_updated = models.DateTimeField(auto_now=True)
+
+
+class AISystemTask(models.Model):
+    """[DEPRECATED] ለታሪክ ብቻ የተቀመጠ አሮጌ ሞዴል"""
+    task_name = models.CharField(max_length=255)
+    priority_reason = models.TextField()
+    status = models.CharField(max_length=50, default='Completed')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class OwnerDirective(models.Model):
+    """[DEPRECATED] ለታሪክ ብቻ የተቀመጠ አሮጌ መመሪያ ሞዴል"""
+    instruction = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class SelfHealingLog(models.Model):
@@ -197,13 +200,7 @@ class AIProjectBacklog(models.Model):
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='Medium')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     description = models.TextField(blank=True, default='', help_text="የስራው ዝርዝር መግለጫ እና ቅድሚያ የተሰጠበት ምክንያት")
-    
-    task_hash = models.CharField(
-        max_length=64, 
-        unique=True, 
-        blank=True, 
-        help_text="የስራ መደራረብን ለመከላከል በራስ-ሰር የሚመነጭ ልዩ ሃሽ"
-    )
+    task_hash = models.CharField(max_length=64, unique=True, blank=True, help_text="የስራ መደራረብን ለመከላከል በራስ-ሰር የሚመነጭ ልዩ ሃሽ")
     
     dependency = models.ForeignKey(
         'self',
@@ -211,12 +208,13 @@ class AIProjectBacklog(models.Model):
         null=True,
         blank=True,
         related_name='dependent_tasks',
-        help_text="ይህ ስራ ከመሰራቱ በፊት አስቀድሞ መጠናቀቅ ያለበት ሌላ የባክሎግ ስራ"
+        help_text="ይህ ስራ ከመሰራቱ በፊት አስቀድሞ መጠናቀቅ ያለበት ሌላ የባክሎግ ስራ (የስራዎች ጥገኝነት)"
     )
     
     estimated_hours = models.FloatField(default=1.0)
     complexity = models.IntegerField(default=1, help_text="1-10 (ቀላል እስከ ከባድ)")
     
+    # 🔗 አዲሱ የSiteRegistry ግንኙነት
     site = models.ForeignKey(
         'SiteRegistry',
         on_delete=models.CASCADE,
@@ -251,11 +249,12 @@ class AIEvolutionLog(models.Model):
     )
     target_file = models.CharField(max_length=255)
     reason_for_change = models.TextField()
-    old_code_backup = models.TextField(blank=True, null=True)
-    new_code_patch = models.TextField(blank=True, null=True)
+    old_code_backup = models.TextField(blank=True, null=True, help_text="የነበረው የድሮው ኮድ")
+    new_code_patch = models.TextField(blank=True, null=True, help_text="የተተካው አዲሱ ኮድ")
     
     improvement_metrics = models.JSONField(default=dict, blank=True, help_text="SEO score, load time, etc.")
     
+    # 🔗 አዲሱ የSiteRegistry ግንኙነት
     site = models.ForeignKey(
         'SiteRegistry',
         on_delete=models.CASCADE,
@@ -272,14 +271,14 @@ class AIEvolutionLog(models.Model):
 
 
 class AdminOverrideInstruction(models.Model):
-    """የዌብሳይቱ ባለቤት (አድሚን) ለኤጀንቱ የሚሰጠው የቁጥጥር ትዕዛዝ"""
+    """የዌብሳይቱ ባለቤት (አድሚን) 'ይህ ይቅደም' ወይም 'ይህ ይሻሻል' ሲል ለኤጀንቱ የሚሰጠው የቁጥጥር ትዕዛዝ"""
     backlog_task = models.ForeignKey(
         AIProjectBacklog, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True, 
         related_name='overrides',
-        help_text="ይህ መመሪያ የሚመለከተው የተወሰነ የባክሎግ ስራ ካለ"
+        help_text="ይህ መመሪያ የሚመለከተው የተወሰነ የባክሎግ ስራ ካለ (ባዶ ከሆነ ለአጠቃላይ ሲስተም ያገለግላል)"
     )
     instruction = models.TextField(help_text="ለኤጀንቱ የሚተላለፈው የባለቤት ትዕዛዝ")
     priority_override = models.CharField(
@@ -289,8 +288,9 @@ class AdminOverrideInstruction(models.Model):
         null=True,
         help_text="የስራውን ቅድሚያ ደረጃ ለመቀየር ከተፈለገ"
     )
-    is_processed = models.BooleanField(default=False)
+    is_processed = models.BooleanField(default=False, help_text="ኤጀንቱ መመሪያውን አንብቦ ተግባራዊ አድርጎታል?")
     
+    # 🔗 አዲሱ የSiteRegistry ግንኙነት
     site = models.ForeignKey(
         'SiteRegistry',
         on_delete=models.CASCADE,
@@ -303,12 +303,12 @@ class AdminOverrideInstruction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        task_info = f" for {self.backlog_task.task_name}" if self.backlog_task else " (Global Directive)"
+        task_info = f" for {self.backlog_task.task_name}" if self.backlog_task else " (Global)"
         return f"Admin Override{task_info} - Applied: {self.is_processed}"
 
 
 class AgentErrorLog(models.Model):
-    """ኤጀንቱ የኮድ ማሻሻያ ሲያደርግ የሚገጥሙትን ስህተቶች መዝግቦ ለቀጣይ ራሱ ማስተካከያ የሚጠቀምበት"""
+    """በ compile() ወቅት የከሸፉ ኮዶችና የሲንታክስ ስህተቶች መዝገብ (የራስ-አራሚ መረጃ መያዣ)"""
     
     ERROR_TYPES = [
         ('syntax', 'Syntax Error'),
@@ -327,6 +327,7 @@ class AgentErrorLog(models.Model):
     correction_applied = models.TextField(null=True, blank=True, help_text="ስህተቱን ለማስተካከል የተጠቀመበት አዲስ ኮድ")
     resolved = models.BooleanField(default=False, help_text="ችግሩ ተፈቷል?")
     
+    # 🔗 አዲሱ የSiteRegistry ግንኙነት
     site = models.ForeignKey(
         'SiteRegistry',
         on_delete=models.CASCADE,
@@ -343,7 +344,7 @@ class AgentErrorLog(models.Model):
 
 
 # ============================================================
-# 3. 🌐 Multi-Niche Site Orchestration — Site Registry
+# 3. 🌐 Multi-Site Orchestration — Site Registry [1]
 # ============================================================
 
 class SiteRegistry(models.Model):
@@ -449,7 +450,7 @@ class SiteRegistry(models.Model):
 
 
 # ============================================================
-# 4. 🆕 የንግድ እድገት እና የደንበኛ ማግኛ ሞዴሎች
+# 4. 🆕 የንግድ እድገት እና የደንበኛ ማግኛ ሞዴሎች [1]
 # ============================================================
 
 class CustomerAcquisitionLog(models.Model):
@@ -538,23 +539,23 @@ class SellerProfile(models.Model):
     
     last_active = models.DateTimeField(auto_now=True)
     joined_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
-        return f"{self.business_name or self.user.username}"
+        return f"{self.business_name} - {self.user.username}"
 
 
 class NotificationQueue(models.Model):
-    """ያልተላኩ ማሳወቂያዎችን የሚይዝ ወረፋ"""
-    
-    NOTIFICATION_TYPES = [
-        ('email', 'Email'),
-        ('sms', 'SMS'),
-        ('push', 'Push Notification'),
-        ('in_app', 'In-App Notification'),
-    ]
-    
+    """የአውቶማቲክ ማርኬቲንግ ማሳወቂያ ወረፋ"""
+    notification_type = models.CharField(
+        choices=[
+            ('email', 'Email'),
+            ('sms', 'SMS'),
+            ('push', 'Push Notification'),
+            ('in_app', 'In-App Notification'),
+        ],
+        max_length=20
+    )
     site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='notifications')
-    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
     recipient = models.CharField(max_length=255, help_text="ኢሜይል ወይም ስልክ ቁጥር")
     subject = models.CharField(max_length=255, blank=True)
     message = models.TextField()
