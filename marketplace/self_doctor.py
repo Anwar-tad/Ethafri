@@ -30,6 +30,8 @@ def generalize_error_message(error_msg):
     """የተለያዩ ተለዋዋጭ እሴቶችን በማጥፋት ስህተቱን ወደ አጠቃላይ አሻራ (Signature) ይቀይራል"""
     clean_msg = re.sub(r"'\d+'|\d+", "[NUM]", error_msg)
     clean_msg = re.sub(r'"[^"]+"', "[IDENTIFIER]", clean_msg)
+    clean_msg = re.sub(r'\b\d{4}-\d{2}-\d{2}\b', '[DATE]', clean_msg)
+    clean_msg = re.sub(r'\b\d{2}:\d{2}:\d{2}\b', '[TIME]', clean_msg)
     return clean_msg.strip()
 
 
@@ -42,6 +44,42 @@ def validate_css_syntax(css_content):
     return True
 
 
+def extract_code_from_response(response):
+    """ከAI ምላሽ ኮድን ያወጣል"""
+    if isinstance(response, dict):
+        return response.get('code') or response.get('solution') or response.get('fixed_code') or ''
+    
+    # ማርክዳውን ኮድ ብሎኮችን አውጣ
+    code_match = re.search(r'```(?:python|sql|javascript)?\s*\n(.*?)\n```', response, re.DOTALL)
+    if code_match:
+        return code_match.group(1).strip()
+    
+    # በቅንፍ ውስጥ ያለውን ኮድ አውጣ
+    code_match = re.search(r'\{.*\}', response, re.DOTALL)
+    if code_match:
+        return code_match.group(0).strip()
+    
+    return response.strip()
+
+
+def detect_error_severity(error_message):
+    """የስህተት ክብደትን ይወስናል"""
+    critical_patterns = ['DatabaseError', 'OperationalError', 'IntegrityError', 'Critical', 'Fatal']
+    high_patterns = ['SyntaxError', 'ImportError', 'NameError', 'KeyError', 'AttributeError']
+    medium_patterns = ['RuntimeError', 'ValueError', 'TypeError', 'IndexError']
+    
+    for pattern in critical_patterns:
+        if pattern in error_message:
+            return 'critical'
+    for pattern in high_patterns:
+        if pattern in error_message:
+            return 'high'
+    for pattern in medium_patterns:
+        if pattern in error_message:
+            return 'medium'
+    return 'low'
+
+
 # ============================================================
 # 2. 🆕 Doctor Memory (RAG for Self-Healing)
 # ============================================================
@@ -52,39 +90,79 @@ class DoctorMemory:
     def __init__(self, site=None):
         self.site = site
     
-    def remember_diagnosis(self, error_type, error_message, diagnosis, solution, success=True):
+    def remember_diagnosis(self, error_type, error_message, diagnosis, solution, success=True, confidence=80):
         """የተሳካ ምርመራ ያስታውሳል"""
-        memory = VectorMemory.objects.create(
-            memory_type='error' if not success else 'solution',
-            content=f"Error: {error_message[:200]}\nDiagnosis: {diagnosis[:300]}\nSolution: {solution[:500]}",
-            metadata={
-                'error_type': error_type,
-                'success': success,
-                'site_id': self.site.id if self.site else None
-            },
-            site=self.site,
-            success_rate=100.0 if success else 0.0
-        )
-        memory.mark_used(success)
-        return memory
+        try:
+            memory = VectorMemory.objects.create(
+                memory_type='solution' if success else 'error',
+                content=f"Error: {error_message[:200]}\nDiagnosis: {diagnosis[:300]}\nSolution: {solution[:500]}",
+                metadata={
+                    'error_type': error_type,
+                    'success': success,
+                    'confidence': confidence,
+                    'site_id': self.site.id if self.site else None,
+                    'timestamp': timezone.now().isoformat()
+                },
+                site=self.site,
+                success_rate=float(confidence) if success else 0.0
+            )
+            memory.mark_used(success)
+            logger.info(f"🧠 Remembered diagnosis for {error_type} (success={success})")
+            return memory
+        except Exception as e:
+            logger.error(f"Failed to remember diagnosis: {e}")
+            return None
     
     def find_similar_error(self, error_message, limit=3):
         """ተመሳሳይ ስህተቶችን ያገኛል"""
-        return VectorMemory.find_similar(
-            query=error_message,
-            memory_type='error',
-            site=self.site,
-            limit=limit
-        )
+        try:
+            return VectorMemory.find_similar(
+                query=error_message,
+                memory_type='error',
+                site=self.site,
+                limit=limit
+            )
+        except Exception as e:
+            logger.error(f"Failed to find similar error: {e}")
+            return []
     
     def find_similar_solution(self, error_message, limit=3):
         """ተመሳሳይ መፍትሄዎችን ያገኛል"""
-        return VectorMemory.find_similar(
-            query=error_message,
-            memory_type='solution',
-            site=self.site,
-            limit=limit
-        )
+        try:
+            return VectorMemory.find_similar(
+                query=error_message,
+                memory_type='solution',
+                site=self.site,
+                limit=limit
+            )
+        except Exception as e:
+            logger.error(f"Failed to find similar solution: {e}")
+            return []
+    
+    def get_healing_stats(self):
+        """የራስ-ጥገና ስታቲስቲክስ ያገኛል"""
+        try:
+            total = VectorMemory.objects.filter(
+                site=self.site,
+                memory_type='solution'
+            ).count()
+            if total == 0:
+                return {'total': 0, 'successful': 0, 'failed': 0, 'success_rate': 0}
+            
+            successful = VectorMemory.objects.filter(
+                site=self.site,
+                memory_type='solution',
+                success_rate__gt=50
+            ).count()
+            
+            return {
+                'total': total,
+                'successful': successful,
+                'failed': total - successful,
+                'success_rate': (successful / total) * 100
+            }
+        except Exception:
+            return {'total': 0, 'successful': 0, 'failed': 0, 'success_rate': 0}
 
 
 # ============================================================
@@ -105,17 +183,22 @@ class PredictiveErrorAnalyzer:
             'total_errors': errors.count(),
             'by_type': {},
             'by_site': {},
-            'trend': 'stable'
+            'trend': 'stable',
+            'most_common': None,
+            'most_common_count': 0
         }
         
         # በስህተት አይነት
-        for error_type in AgentErrorLog.ERROR_TYPES:
-            count = errors.filter(error_type=error_type[0]).count()
+        for error_type, _ in AgentErrorLog.ERROR_TYPES:
+            count = errors.filter(error_type=error_type).count()
             if count > 0:
-                patterns['by_type'][error_type[0]] = count
+                patterns['by_type'][error_type] = count
+                if count > patterns['most_common_count']:
+                    patterns['most_common'] = error_type
+                    patterns['most_common_count'] = count
         
         # በጣቢያ
-        if self.site:
+        if not self.site:
             sites = SiteRegistry.objects.filter(is_active=True)
             for site in sites:
                 count = AgentErrorLog.objects.filter(site=site, resolved=False).count()
@@ -129,10 +212,12 @@ class PredictiveErrorAnalyzer:
         week_errors = errors.filter(created_at__gte=week_ago).count()
         month_errors = errors.filter(created_at__gte=month_ago).count()
         
-        if week_errors > month_errors / 4 * 1.5:
-            patterns['trend'] = 'increasing'
-        elif week_errors < month_errors / 4 * 0.5:
-            patterns['trend'] = 'decreasing'
+        if month_errors > 0:
+            weekly_avg = month_errors / 4
+            if week_errors > weekly_avg * 1.5:
+                patterns['trend'] = 'increasing'
+            elif week_errors < weekly_avg * 0.5:
+                patterns['trend'] = 'decreasing'
         
         return patterns
     
@@ -140,27 +225,38 @@ class PredictiveErrorAnalyzer:
         """የሚቀጥለውን ስህተት ይተነብያል"""
         patterns = self.analyze_error_patterns()
         
+        if not patterns['by_type']:
+            return None
+        
         # በጣም የተለመደውን ስህተት ወስድ
-        if patterns['by_type']:
-            most_common = max(patterns['by_type'], key=patterns['by_type'].get)
-            
-            # ትንበያ መዝግብ
+        most_common = patterns['most_common']
+        count = patterns['most_common_count']
+        
+        # ትንበያ መዝግብ
+        confidence = min(90, 50 + (count * 5))
+        
+        try:
             prediction = PredictionLog.objects.create(
                 prediction_type='growth',
-                predicted_value=float(patterns['by_type'][most_common]),
-                confidence_score=70.0,
-                input_data={'most_common_error': most_common, 'trend': patterns['trend']},
+                predicted_value=float(count),
+                confidence_score=float(confidence),
+                input_data={
+                    'most_common_error': most_common,
+                    'trend': patterns['trend'],
+                    'total_errors': patterns['total_errors']
+                },
                 site=self.site
             )
             
             return {
                 'predicted_error': most_common,
-                'confidence': 70.0,
+                'confidence': confidence,
                 'trend': patterns['trend'],
                 'prediction_id': prediction.id
             }
-        
-        return None
+        except Exception as e:
+            logger.error(f"Failed to create prediction: {e}")
+            return None
 
 
 # ============================================================
@@ -176,34 +272,42 @@ class ExternalAPIHealthCheck:
     def check_all_apis(self):
         """ሁሉንም ኤፒአዮች ይፈትሻል"""
         results = {}
-        apis = ExternalAPI.objects.filter(site=self.site) if self.site else ExternalAPI.objects.all()
-        
-        for api in apis:
-            results[api.name] = {
-                'status': api.status,
-                'calls_made': api.calls_made,
-                'rate_limit': api.rate_limit,
-                'health': 'good' if api.status == 'active' else 'warning'
-            }
+        try:
+            apis = ExternalAPI.objects.filter(site=self.site) if self.site else ExternalAPI.objects.all()
+            
+            for api in apis:
+                results[api.name] = {
+                    'status': api.status,
+                    'calls_made': api.calls_made,
+                    'rate_limit': api.rate_limit,
+                    'health': 'good' if api.status == 'active' else 'warning',
+                    'api_type': api.api_type
+                }
+        except Exception as e:
+            logger.error(f"Failed to check APIs: {e}")
         
         return results
     
     def check_api(self, api_type):
         """አንድ የተወሰነ ኤፒአይ ይፈትሻል"""
-        api = ExternalAPI.objects.filter(
-            api_type=api_type,
-            site=self.site
-        ).first()
-        
-        if not api:
-            return {'status': 'not_found'}
-        
-        return {
-            'status': api.status,
-            'calls_made': api.calls_made,
-            'rate_limit': api.rate_limit,
-            'health': 'good' if api.status == 'active' else 'warning'
-        }
+        try:
+            api = ExternalAPI.objects.filter(
+                api_type=api_type,
+                site=self.site
+            ).first()
+            
+            if not api:
+                return {'status': 'not_found'}
+            
+            return {
+                'status': api.status,
+                'calls_made': api.calls_made,
+                'rate_limit': api.rate_limit,
+                'health': 'good' if api.status == 'active' else 'warning'
+            }
+        except Exception as e:
+            logger.error(f"Failed to check API {api_type}: {e}")
+            return {'status': 'error', 'error': str(e)}
 
 
 # ============================================================
@@ -219,10 +323,13 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
     style_key = f"DESIGN_STYLE_{slugify(trend_context)}_{slugify(site_name)}"
     
     # 1. 🔍 የዲዛይን ትውስታ ፍተሻ
-    cached_style = SiteConfig.objects.filter(key=style_key).first()
-    if cached_style:
-        print(f"🧠 Memory Match Found for Design Style ({site_name})! Applying Cached CSS UI...")
-        return cached_style.value
+    try:
+        cached_style = SiteConfig.objects.filter(key=style_key).first()
+        if cached_style and cached_style.value:
+            logger.info(f"🧠 Memory Match Found for Design Style ({site_name})! Applying Cached CSS UI...")
+            return cached_style.value
+    except Exception as e:
+        logger.warning(f"Failed to get cached style: {e}")
 
     # 2. 🤖 አዲስ የተሻለ የዲዛይን ስታይል ከ AI ይጠይቃል
     site_context = ""
@@ -234,6 +341,7 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
         - Target Market: {site.target_market}
         - Growth Level: {site.growth_level}
         - Target Audience: {site.target_audience}
+        - Build Phase: {site.build_phase}
         """
     
     prompt = f"""
@@ -247,6 +355,7 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
     Generate an optimized CSS variable block and smart design adjustments to enhance the marketplace visual appeal.
     Ensure to fix any common scaling or border-radius overflow bugs on product cards.
     Consider the site's niche and target audience for appropriate design choices.
+    Include responsive design improvements for mobile devices.
 
     Output Constraint:
     Return ONLY a valid JSON string with exactly two keys: 'theme_color' and 'custom_css'. 
@@ -254,12 +363,15 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
     Example format:
     {{
        "theme_color": "#1a2a6c",
-       "custom_css": ":root {{ --primary-color: #1a2a6c; }} .product-card {{ border-radius: 20px; }}"
+       "custom_css": ":root {{ --primary-color: #1a2a6c; }} .product-card {{ border-radius: 20px; }} @media (max-width: 768px) {{ .product-card {{ border-radius: 10px; }} }}"
     }}
     """
     
     try:
         ai_response = ask_ethafri_ceo(prompt, pool_type="coding")
+        
+        if not ai_response:
+            raise ValueError("No AI response")
         
         if isinstance(ai_response, dict):
             design_data = ai_response
@@ -274,7 +386,8 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
             design_data = json.loads(clean_json)
         
         # የ CSS ሲንታክስ ደህንነት ምርመራ
-        validate_css_syntax(design_data.get('custom_css', ''))
+        if design_data.get('custom_css'):
+            validate_css_syntax(design_data['custom_css'])
         
         # 3. 📝 ምርጡን አዲስ ዲዛይን በቋሚነት በትውስታ መዝገብ ላይ መቆለፍ
         SiteConfig.objects.update_or_create(
@@ -285,13 +398,14 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
         # ስኬታማነቱን በሎግ መመዝገብ
         SelfHealingLog.objects.create(
             error_message=f"UI_EVOLUTION: Applied {trend_context} style for {site_name}",
-            solution_sql=design_data.get('custom_css', ''),
+            solution_sql=design_data.get('custom_css', '')[:500],
             resolved=True
         )
+        logger.info(f"✅ UI Design updated for {site_name}")
         return design_data
 
     except Exception as ui_err:
-        print(f"❌ UI Healing/Evolution Failed for {site_name}: {ui_err}")
+        logger.error(f"❌ UI Healing/Evolution Failed for {site_name}: {ui_err}")
         return {
             "theme_color": current_theme_color,
             "custom_css": f":root {{ --primary-color: {current_theme_color}; }}"
@@ -309,36 +423,53 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
     """
     site_name = site.name
     general_error = generalize_error_message(error_msg)
+    severity = detect_error_severity(error_msg)
+    
+    logger.info(f"🩺 Starting healing for {site_name} - {error_category} (Severity: {severity})")
     
     # 1. 🆕 Doctor Memory ን ተጠቀም
     doctor_memory = DoctorMemory(site)
     
     # 2. 🆕 ተመሳሳይ መፍትሄዎችን ከትውስታ ያግኝ
     similar_solutions = doctor_memory.find_similar_solution(error_msg, limit=3)
+    similar_errors = doctor_memory.find_similar_error(error_msg, limit=3)
+    
     memory_context = ""
     for sol in similar_solutions:
         memory_context += f"\nPrevious solution: {sol.content[:300]}\n"
     
-    # 3. በዚህ ጣቢያ ላይ ቀደም ብሎ የተፈታ ስህተት ካለ
-    past_solution = SelfHealingLog.objects.filter(
-        error_message__icontains=general_error[:150], 
-        resolved=True
-    ).order_by('-created_at').first()
+    error_context = ""
+    for err in similar_errors:
+        error_context += f"\nSimilar error: {err.content[:200]}\n"
     
-    if past_solution:
-        print(f"🧠 Memory Match Found for Error on {site_name}! Applying Cached Solution...")
-        if error_category == 'DATABASE':
-            try:
-                with connection.cursor() as cursor:
-                    cursor.execute(past_solution.solution_sql)
-                return f"✅ Database Healed for {site_name} using Local Memory!"
-            except Exception as e:
-                pass
-        elif error_category == 'CODE_EXECUTION':
-            return past_solution.solution_sql
+    # 3. በዚህ ጣቢያ ላይ ቀደም ብሎ የተፈታ ስህተት ካለ
+    try:
+        past_solution = SelfHealingLog.objects.filter(
+            error_message__icontains=general_error[:150], 
+            resolved=True
+        ).order_by('-created_at').first()
+        
+        if past_solution and past_solution.solution_sql:
+            logger.info(f"🧠 Memory Match Found for Error on {site_name}! Applying Cached Solution...")
+            if error_category == 'DATABASE':
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute(past_solution.solution_sql)
+                    return f"✅ Database Healed for {site_name} using Local Memory!"
+                except Exception as e:
+                    logger.warning(f"Failed to apply cached solution: {e}")
+            elif error_category == 'CODE_EXECUTION':
+                return past_solution.solution_sql
+    except Exception as e:
+        logger.warning(f"Failed to check past solution: {e}")
 
     # 4. 🆕 የጣቢያውን ኮድ አንብብ
-    project_code, file_paths = get_site_project_state(site)
+    try:
+        project_code, file_paths = get_site_project_state(site)
+    except Exception as e:
+        logger.error(f"Failed to get project state: {e}")
+        project_code = {}
+        file_paths = {}
     
     # 5. 🆕 የስህተት ትንበያ
     predictor = PredictiveErrorAnalyzer(site)
@@ -349,6 +480,7 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
         prediction_context = f"""
         Predicted next error: {prediction['predicted_error']}
         Trend: {prediction['trend']}
+        Confidence: {prediction['confidence']}%
         """
     
     # 6. 🆕 የውጭ API ጤና
@@ -365,9 +497,13 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
         Site Information:
         - Niche: {site.niche}
         - Target Market: {site.target_market}
+        - Error Severity: {severity}
         
         Memory Context (past solutions):
         {memory_context}
+        
+        Similar Error Context:
+        {error_context}
         
         Prediction Context:
         {prediction_context}
@@ -387,10 +523,14 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
         Site Information:
         - Niche: {site.niche}
         - Target Market: {site.target_market}
+        - Error Severity: {severity}
         - Current Codebase: {json.dumps(project_code, indent=2)[:3000]}
         
         Memory Context (past solutions):
         {memory_context}
+        
+        Similar Error Context:
+        {error_context}
         
         Prediction Context:
         {prediction_context}
@@ -407,60 +547,92 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
         ai_response = ask_ethafri_ceo(prompt, pool_type="healing")
         if not ai_response:
             return f"❌ AI Failover chain failed for {site_name}."
-            
-        raw_solution = ""
-        if isinstance(ai_response, dict):
-            if "error" in ai_response:
-                return f"❌ AI Failover chain failed for {site_name}."
-            raw_solution = (
-                ai_response.get('solution') or 
-                ai_response.get('code') or 
-                list(ai_response.values())[0]
-            )
-        else:
-            raw_solution = ai_response
-
-        # የኮድ ማርክዳውን ማጽዳት
-        clean_solution = re.sub(r'^```[a-zA-Z]*\s*|^```\s*|```$', '', raw_solution.strip(), flags=re.MULTILINE).strip()
-
+        
+        # 8. ኮዱን ከAI ምላሽ አውጣ
+        clean_solution = extract_code_from_response(ai_response)
+        
+        if not clean_solution:
+            return f"❌ No solution extracted from AI response for {site_name}."
+        
+        # 9. መፍትሄውን ተግብር
         if error_category == 'DATABASE':
-            with connection.cursor() as cursor:
-                cursor.execute(clean_solution)
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(clean_solution)
+            except Exception as db_err:
+                logger.error(f"Database execution error: {db_err}")
+                return f"❌ Database execution failed for {site_name}: {db_err}"
+                
         elif error_category == 'CODE_EXECUTION':
-            compile(clean_solution, '<string>', 'exec')
+            try:
+                compile(clean_solution, '<string>', 'exec')
+            except SyntaxError as syn_err:
+                logger.error(f"Syntax error in solution: {syn_err}")
+                return f"❌ Syntax error in solution for {site_name}: {syn_err}"
 
-        # 8. 🆕 የተሳካ ፈውስ በትውስታ ውስጥ አስቀምጥ
+        # 10. 🆕 የተሳካ ፈውስ በትውስታ ውስጥ አስቀምጥ
         doctor_memory.remember_diagnosis(
             error_type=error_category,
             error_message=error_msg[:200],
             diagnosis=f"Fixed {error_category} error",
             solution=clean_solution[:500],
-            success=True
+            success=True,
+            confidence=85
         )
 
+        # 11. በSelfHealingLog ውስጥ መዝግብ
         SelfHealingLog.objects.create(
-            error_message=general_error,
+            error_message=general_error[:500],
             solution_sql=clean_solution,
             resolved=True
         )
         
-        AgentErrorLog.objects.filter(site=site, error_message__icontains=general_error[:100], resolved=False).update(resolved=True)
+        # 12. ስህተቶቹን እንደተፈቱ ምልክት አድርግ
+        AgentErrorLog.objects.filter(
+            site=site, 
+            error_message__icontains=general_error[:100], 
+            resolved=False
+        ).update(resolved=True)
         
-        # 9. 🆕 የጤና ትንበያ መዝግብ
-        PredictionLog.objects.create(
-            prediction_type='growth',
-            predicted_value=85.0,
-            confidence_score=80.0,
-            input_data={'site': site_name, 'error_type': error_category},
-            site=site
-        )
+        # 13. 🆕 የጤና ትንበያ መዝግብ
+        try:
+            PredictionLog.objects.create(
+                prediction_type='growth',
+                predicted_value=85.0,
+                confidence_score=80.0,
+                input_data={
+                    'site': site_name, 
+                    'error_type': error_category,
+                    'severity': severity,
+                    'healed': True
+                },
+                site=site
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create prediction log: {e}")
         
+        logger.info(f"✅ Smart System Healed for {site_name}! Category: {error_category}")
         return f"✅ Smart System Healed for {site_name}! Category: {error_category}"
 
     except Exception as heal_err:
+        logger.error(f"❌ Auto-Healing Failed for {site_name}: {heal_err}")
+        
+        # ያልተሳካ ፈውስ በትውስታ ውስጥ አስቀምጥ
+        try:
+            doctor_memory.remember_diagnosis(
+                error_type=error_category,
+                error_message=error_msg[:200],
+                diagnosis=f"Failed to heal: {str(heal_err)}",
+                solution=clean_solution[:500] if 'clean_solution' in locals() else "",
+                success=False,
+                confidence=0
+            )
+        except Exception:
+            pass
+        
         SelfHealingLog.objects.create(
-            error_message=f"Site: {site_name} | Category: {error_category} | Error: {general_error} | Failed with: {str(heal_err)}",
-            solution_sql=clean_solution if 'clean_solution' in locals() else "No solution generated",
+            error_message=f"Site: {site_name} | Category: {error_category} | Error: {general_error[:200]} | Failed with: {str(heal_err)[:200]}",
+            solution_sql=clean_solution[:500] if 'clean_solution' in locals() else "No solution generated",
             resolved=False
         )
         return f"❌ Auto-Healing Failed for {site_name}: {str(heal_err)}"
@@ -479,17 +651,25 @@ def heal_any_system_error(error_category, error_msg, target_context=None):
     
     # 1. ስህተቱ የትኛውን ጣቢያ እንደሚመለከት ለይ
     site_id = None
-    if target_context and 'site_id' in str(target_context):
+    if target_context:
         try:
-            import re
             match = re.search(r'site_id[=:]\s*(\d+)', str(target_context))
             if match:
                 site_id = int(match.group(1))
-        except:
+            
+            # የጣቢያ ስም ፈልግ
+            site_name_match = re.search(r'site[_\s]+([a-zA-Z0-9_-]+)', str(target_context), re.IGNORECASE)
+            if site_name_match:
+                site_name = site_name_match.group(1)
+        except Exception:
             pass
     
     # 2. ሁሉንም ንቁ ጣቢያዎች ራስ-ጥገና አድርግ (ወይም አንዱን)
-    sites = SiteRegistry.objects.filter(is_active=True)
+    try:
+        sites = SiteRegistry.objects.filter(is_active=True)
+    except Exception as e:
+        logger.error(f"Failed to get active sites: {e}")
+        return _heal_system_error_single(error_category, error_msg, target_context)
     
     if not sites.exists():
         return _heal_system_error_single(error_category, error_msg, target_context)
@@ -501,13 +681,22 @@ def heal_any_system_error(error_category, error_msg, target_context=None):
             result = heal_single_site_error(site, error_category, error_msg, target_context)
             return result
     
+    # የተወሰነ የጣቢያ ስም ከተለየ
+    if 'site_name' in locals() and site_name:
+        site = sites.filter(name=site_name).first()
+        if site:
+            result = heal_single_site_error(site, error_category, error_msg, target_context)
+            return result
+    
     # ሁሉንም ጣቢያዎች አስኬድ
     for site in sites:
         try:
             result = heal_single_site_error(site, error_category, error_msg, target_context)
             results.append(result)
         except Exception as e:
-            results.append(f"❌ Failed to heal {site.name}: {str(e)}")
+            error_msg_site = f"❌ Failed to heal {site.name}: {str(e)}"
+            results.append(error_msg_site)
+            logger.error(error_msg_site)
     
     if not results:
         return _heal_system_error_single(error_category, error_msg, target_context)
@@ -525,23 +714,28 @@ def _heal_system_error_single(error_category, error_msg, target_context=None):
     """
     general_error = generalize_error_message(error_msg)
     
-    past_solution = SelfHealingLog.objects.filter(
-        error_message__icontains=general_error[:150], 
-        resolved=True
-    ).order_by('-created_at').first()
-    
-    if past_solution:
-        print(f"🧠 Memory Match Found for Error! Applying Cached Solution...")
-        if error_category == 'DATABASE':
-            try:
-                with connection.cursor() as cursor:
-                    cursor.execute(past_solution.solution_sql)
-                return f"✅ Database Healed using Local Memory!"
-            except Exception as e:
-                pass
-        elif error_category == 'CODE_EXECUTION':
-            return past_solution.solution_sql
+    # ቀደም ያለ መፍትሄ ፈልግ
+    try:
+        past_solution = SelfHealingLog.objects.filter(
+            error_message__icontains=general_error[:150], 
+            resolved=True
+        ).order_by('-created_at').first()
+        
+        if past_solution and past_solution.solution_sql:
+            logger.info(f"🧠 Memory Match Found for Error! Applying Cached Solution...")
+            if error_category == 'DATABASE':
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute(past_solution.solution_sql)
+                    return "✅ Database Healed using Local Memory!"
+                except Exception as e:
+                    logger.warning(f"Failed to apply cached solution: {e}")
+            elif error_category == 'CODE_EXECUTION':
+                return past_solution.solution_sql
+    except Exception as e:
+        logger.warning(f"Failed to check past solution: {e}")
 
+    # የAI ፕሮምፕት
     if error_category == 'DATABASE':
         prompt = f"""
         [CRITICAL DIRECTIVE]
@@ -563,20 +757,12 @@ def _heal_system_error_single(error_category, error_msg, target_context=None):
         ai_response = ask_ethafri_ceo(prompt, pool_type="healing")
         if not ai_response:
             return "❌ AI Failover chain failed."
-            
-        raw_solution = ""
-        if isinstance(ai_response, dict):
-            if "error" in ai_response:
-                return "❌ AI Failover chain failed."
-            raw_solution = (
-                ai_response.get('solution') or 
-                ai_response.get('code') or 
-                list(ai_response.values())[0]
-            )
-        else:
-            raw_solution = ai_response
-
-        clean_solution = re.sub(r'^```[a-zA-Z]*\s*|^```\s*|```$', '', raw_solution.strip(), flags=re.MULTILINE).strip()
+        
+        # ኮዱን ከAI ምላሽ አውጣ
+        clean_solution = extract_code_from_response(ai_response)
+        
+        if not clean_solution:
+            return "❌ No solution extracted from AI response."
 
         if error_category == 'DATABASE':
             with connection.cursor() as cursor:
@@ -585,7 +771,7 @@ def _heal_system_error_single(error_category, error_msg, target_context=None):
             compile(clean_solution, '<string>', 'exec')
 
         SelfHealingLog.objects.create(
-            error_message=general_error,
+            error_message=general_error[:500],
             solution_sql=clean_solution,
             resolved=True
         )
@@ -593,8 +779,8 @@ def _heal_system_error_single(error_category, error_msg, target_context=None):
 
     except Exception as heal_err:
         SelfHealingLog.objects.create(
-            error_message=f"Category: {error_category} | Error: {general_error} | Failed with: {str(heal_err)}",
-            solution_sql=clean_solution if 'clean_solution' in locals() else "No solution generated",
+            error_message=f"Category: {error_category} | Error: {general_error[:200]} | Failed with: {str(heal_err)[:200]}",
+            solution_sql=clean_solution[:500] if 'clean_solution' in locals() else "No solution generated",
             resolved=False
         )
         return f"❌ Auto-Healing Failed: {str(heal_err)}"
