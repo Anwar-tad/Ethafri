@@ -30,3 +30,8 @@ polib>=1.2.0
 
 # Optional but recommended
 python-dotenv>=1.0.0
+
+# 🆕 WebSocket & Channels
+channels>=4.0.0
+channels-redis>=4.0.0
+daphne>=4.0.0
