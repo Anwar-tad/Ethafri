@@ -143,18 +143,23 @@ LOCALE_PATHS = [
 # ============================================================
 
 # =====================================================================
+# # =====================================================================
 # 6. Static & Media Files (Whitenoise & Cloudinary Storage)
 # =====================================================================
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+# 🛠️ የተሻሻለ — WhiteNoise ችግርን ለመፍታት
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
+# WhiteNoise ቅንብሮች
 WHITENOISE_USE_FINDERS = True
 WHITENOISE_AUTOREFRESH = True
 WHITENOISE_MAX_AGE = 31536000
+WHITENOISE_ALLOW_ALL_ORIGINS = True
+WHITENOISE_MANIFEST_STRICT = False  # ⚠️ ያልተገኙ ፋይሎችን ችላ ለማለት
 
-# 🆕 Cloudinary ቁልፎች ከሌሉ ወደ አካባቢ ማከማቻ ይመለሳል
+# Cloudinary ቁልፎች ካሉ ይጠቀማል
 CLOUDINARY_CLOUD_NAME = env('CLOUDINARY_CLOUD_NAME', default='')
 CLOUDINARY_API_KEY = env('CLOUDINARY_API_KEY', default='')
 CLOUDINARY_API_SECRET = env('CLOUDINARY_API_SECRET', default='')
@@ -167,7 +172,6 @@ if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
         'API_SECRET': CLOUDINARY_API_SECRET,
     }
 else:
-    # ⚠️ Cloudinary ካልተዋቀረ የአካባቢ ማከማቻ ይጠቀማል
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
     print("⚠️ Cloudinary not configured. Using local file storage.")
 

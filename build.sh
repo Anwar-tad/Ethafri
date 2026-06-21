@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ Fixed collectstatic by removing --clear race condition
+# 📝 ለውጥ፦ Fixed collectstatic — no post-process
 # 📅 ቀን፦ 2026-06-20
 # ============================================================
 
@@ -14,9 +14,9 @@ echo "📦 Installing Python packages..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# 2. ስታቲክ ፋይሎችን መሰብሰብ (ያለ Manifest እና ያለ --clear)
+# 2. ስታቲክ ፋይሎችን መሰብሰብ (ያለ ማመቻቸት)
 echo "📂 Collecting static files..."
-python manage.py collectstatic --no-input  # ⚠️ የ KeyError ስህተት የፈጠረው '--clear' ተወግዷል
+python manage.py collectstatic --no-input --clear --no-post-process
 
 # 3. የቋንቋ ፋይሎችን ማጠናቀር
 echo "🌍 Compiling translation files..."
