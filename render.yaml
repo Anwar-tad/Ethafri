@@ -1,16 +1,23 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/render.yaml
-# 📝 ለውጥ፦ Render Blueprint Configuration
-# 📅 ቀን፦ 2026-06-20
+# 📝 ለውጥ፦ Clean version — No hardcoded secrets
+# 📅 ቀን፦ 2026-06-22
 # ============================================================
 
 services:
+  # ============================================================
+  # 1. 🌐 ዋና የድረ-ገጽ አገልግሎት (Web Service)
+  # ============================================================
   - type: web
     name: ethafri
     runtime: python
     plan: free
     buildCommand: ./build.sh
-    startCommand: python manage.py migrate --no-input && python create_admin.py && gunicorn core.wsgi:application
+    startCommand: |
+      python manage.py migrate --no-input || python manage.py makemigrations --merge && python manage.py migrate --no-input
+      python create_admin.py
+      python manage.py run_agent --once &
+      gunicorn core.wsgi:application --workers=1 --threads=1 --timeout=120
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -22,15 +29,27 @@ services:
         value: "False"
       - key: PYTHON_VERSION
         value: "3.10.0"
+      - key: AUTONOMOUS_AGENT_ENABLED
+        value: "true"
+      - key: AGENT_INTERVAL
+        value: "60"
+      - key: SKIP_SHELL
+        value: "true"
+      # ✅ ሁሉም API ቁልፎች ተወግደዋል — በRender Dashboard ላይ ያስቀምጧቸው!
     autoDeploy: true
     healthCheckPath: /
-    
+
+  # ============================================================
+  # 2. 🤖 ራስ-ገዝ ኤጀንት ሠራተኛ (Worker — 24/7 Agent)
+  # ============================================================
   - type: worker
-    name: ethafri-worker
+    name: ethafri-agent
     runtime: python
     plan: free
     buildCommand: ./build.sh
-    startCommand: python manage.py evolve_market
+    startCommand: |
+      python manage.py migrate --no-input || python manage.py makemigrations --merge && python manage.py migrate --no-input
+      python manage.py run_agent
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -42,6 +61,41 @@ services:
         value: "False"
       - key: PYTHON_VERSION
         value: "3.10.0"
+      - key: AUTONOMOUS_AGENT_ENABLED
+        value: "true"
+      - key: AGENT_INTERVAL
+        value: "60"
+      - key: SKIP_SHELL
+        value: "true"
+
+  # ============================================================
+  # 3. ⏰ የድሮ ክሮን ሠራተኛ (Backup Worker)
+  # ============================================================
+  - type: worker
+    name: ethafri-cron
+    runtime: python
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: |
+      while true; do
+        python manage.py evolve_market
+        sleep 300
+      done
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ethafri_db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: PYTHON_VERSION
+        value: "3.10.0"
+
+# ============================================================
+# 4. 🗄️ የውሂብ ጎታ (Database)
+# ============================================================
 
 databases:
   - name: ethafri_db
