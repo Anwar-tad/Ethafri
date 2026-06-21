@@ -15,14 +15,13 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 # Django ASGI application
 django_asgi_app = get_asgi_application()
 
-# Import consumers (ደህንነት ባለው መንገድ)
+# WebSocket URL patterns (ደህንነት ባለው መንገድ)
 try:
     from marketplace import consumers
     websocket_urlpatterns = [
         path('ws/agent-status/', consumers.AgentStatusConsumer.as_asgi()),
     ]
 except ImportError:
-    # ከሌለ ባዶ ይሁን
     websocket_urlpatterns = []
 
 # Application routing
