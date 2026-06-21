@@ -1,199 +1,555 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/evolution_result.html
-📝 ለውጥ፦ Optimized — All styles/scripts in external files
-📅 ቀን፦ 2026-06-20
+📝 ለውጥ፦ እጅግ ዘመናዊ እና ሁሉን ያሟላ ስሪት
+📅 ቀን፦ 2026-06-22
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    /* ============================================================
+       ልዩ የዚህ ገጽ ስታይሎች
+       ============================================================ */
+    
+    .result-wrapper {
+        padding: 2rem 0;
+        min-height: 70vh;
+        background: var(--light-bg);
+    }
+
+    /* ዋና ካርድ */
+    .result-card-main {
+        border-radius: var(--radius-lg);
+        border: none;
+        overflow: hidden;
+        box-shadow: var(--shadow-lg);
+        background: var(--white);
+        transition: transform 0.3s ease;
+    }
+    .result-card-main:hover {
+        transform: translateY(-2px);
+    }
+
+    /* ርዕስ */
+    .result-header {
+        padding: 2rem 2.5rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    .result-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.05);
+    }
+    .result-header .status-icon {
+        font-size: 4rem;
+        animation: bounce-icon 2s ease-in-out infinite;
+    }
+    @keyframes bounce-icon {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+    .result-header .status-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-top: 0.75rem;
+        margin-bottom: 0;
+    }
+
+    /* የሁኔታ ቀለሞች */
+    .status-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: var(--white); }
+    .status-warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: var(--white); }
+    .status-error { background: linear-gradient(135deg, #cb2d3e 0%, #ef473a 100%); color: var(--white); }
+    .status-idle { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: var(--white); }
+    .status-info { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: var(--white); }
+
+    /* የመረጃ ካርዶች */
+    .info-card {
+        border-radius: var(--radius-md);
+        border: none;
+        background: var(--white);
+        box-shadow: var(--shadow-sm);
+        padding: 1.25rem 1.5rem;
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    .info-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+    }
+    .info-card .info-icon {
+        font-size: 1.5rem;
+        margin-right: 0.75rem;
+        opacity: 0.7;
+    }
+    .info-card .info-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+    .info-card .info-value {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    /* የዝርዝር ሳጥን */
+    .detail-box-custom {
+        background: var(--light-bg);
+        border-radius: var(--radius-md);
+        padding: 1rem 1.25rem;
+        border-left: 4px solid var(--primary-color);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        max-height: 250px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .detail-box-custom::-webkit-scrollbar {
+        width: 4px;
+    }
+    .detail-box-custom::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 10px;
+    }
+
+    /* የEvolution ሎግ ካርድ */
+    .evolution-log-card {
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        padding: 0.75rem 1rem;
+        transition: all 0.2s ease;
+        margin-bottom: 0.5rem;
+        background: var(--white);
+    }
+    .evolution-log-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: var(--shadow-sm);
+    }
+    .evolution-log-card .log-file {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .evolution-log-card .log-reason {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+    .evolution-log-card .log-time {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    /* የስታቲስቲክስ ካርዶች */
+    .stat-box-custom {
+        border-radius: var(--radius-md);
+        border: none;
+        background: var(--white);
+        box-shadow: var(--shadow-sm);
+        padding: 1.25rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    .stat-box-custom:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+    .stat-box-custom .stat-number {
+        font-size: 2.25rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    .stat-box-custom .stat-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        margin-top: 0.25rem;
+    }
+
+    /* ቁልፎች */
+    .btn-action {
+        border-radius: 50px;
+        padding: 0.6rem 1.75rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .btn-action:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    /* የሂደት አሞሌ */
+    .result-progress {
+        height: 4px;
+        background: var(--border-color);
+        border-radius: 2px;
+        overflow: hidden;
+        margin-top: 0.5rem;
+    }
+    .result-progress .progress-fill {
+        height: 100%;
+        border-radius: 2px;
+        background: var(--primary-gradient);
+        transition: width 1s ease;
+        width: 0%;
+    }
+
+    /* ሞባይል */
+    @media (max-width: 768px) {
+        .result-wrapper { padding: 1rem 0; }
+        .result-header { padding: 1.5rem 1.25rem; }
+        .result-header .status-icon { font-size: 3rem; }
+        .result-header .status-title { font-size: 1.25rem; }
+        .info-card { padding: 1rem; }
+        .stat-box-custom .stat-number { font-size: 1.5rem; }
+        .btn-action { padding: 0.4rem 1.25rem; font-size: 0.85rem; }
+    }
+
+    @media (max-width: 576px) {
+        .result-header .status-icon { font-size: 2.5rem; }
+        .result-header .status-title { font-size: 1rem; }
+        .detail-box-custom { font-size: 0.85rem; padding: 0.75rem 1rem; }
+    }
+
+    /* ልዩ አኒሜሽኖች */
+    .fade-in-up {
+        animation: fadeInUp 0.6s ease forwards;
+        opacity: 0;
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in-up:nth-child(1) { animation-delay: 0.1s; }
+    .fade-in-up:nth-child(2) { animation-delay: 0.2s; }
+    .fade-in-up:nth-child(3) { animation-delay: 0.3s; }
+    .fade-in-up:nth-child(4) { animation-delay: 0.4s; }
+    .fade-in-up:nth-child(5) { animation-delay: 0.5s; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-    <div class="card result-card shadow-sm">
-        <!-- Card Header -->
-        <div class="card-header text-center 
-            {% if '✅' in status or '🎉' in status %}status-success
-            {% elif '⚠️' in status %}status-warning
-            {% elif '❌' in status %}status-error
-            {% else %}status-idle{% endif %}">
-            <div class="result-status-icon">
-                {% if '✅' in status or '🎉' in status %}
-                    <i class="fas fa-check-circle"></i>
-                {% elif '⚠️' in status %}
-                    <i class="fas fa-exclamation-triangle"></i>
-                {% elif '❌' in status %}
-                    <i class="fas fa-times-circle"></i>
-                {% else %}
-                    <i class="fas fa-robot"></i>
-                {% endif %}
-            </div>
-            <h4 class="fw-bold mt-2 mb-0">
-                {% if '✅' in status or '🎉' in status %}
-                    {% translate "AI Evolution Completed Successfully!" %}
-                {% elif '⚠️' in status %}
-                    {% translate "AI Evolution Completed with Warnings" %}
-                {% elif '❌' in status %}
-                    {% translate "AI Evolution Failed" %}
-                {% else %}
-                    {% translate "AI Evolution Status" %}
-                {% endif %}
-            </h4>
-        </div>
+<div class="result-wrapper">
+    <div class="container">
 
-        <div class="card-body p-4">
-            <!-- Status Message -->
-            <div class="text-center mb-4">
-                <p class="lead fw-bold text-dark">{{ status|default:"No status message" }}</p>
-            </div>
+        <!-- ============================================================
+        ዋና ካርድ
+        ============================================================ -->
+        <div class="result-card-main fade-in-up">
 
-            <!-- Task Information -->
-            {% if task %}
-            <div class="row g-3 mb-4">
-                <div class="col-md-6">
-                    <div class="p-3 bg-light rounded-4">
-                        <div class="task-meta">
-                            <i class="fas fa-tasks"></i> {% trans "Task" %}
-                        </div>
-                        <div class="fw-bold fs-5">{{ task.task_name|default:"Unknown Task" }}</div>
-                    </div>
+            <!-- ርዕስ -->
+            <div class="result-header 
+                {% if '✅' in status or '🎉' in status %}status-success
+                {% elif '⚠️' in status %}status-warning
+                {% elif '❌' in status %}status-error
+                {% elif '💤' in status %}status-idle
+                {% else %}status-info{% endif %}">
+                <div class="status-icon">
+                    {% if '✅' in status or '🎉' in status %}
+                        <i class="fas fa-check-circle"></i>
+                    {% elif '⚠️' in status %}
+                        <i class="fas fa-exclamation-triangle"></i>
+                    {% elif '❌' in status %}
+                        <i class="fas fa-times-circle"></i>
+                    {% elif '💤' in status %}
+                        <i class="fas fa-moon"></i>
+                    {% else %}
+                        <i class="fas fa-robot"></i>
+                    {% endif %}
                 </div>
-                <div class="col-md-6">
-                    <div class="p-3 bg-light rounded-4">
-                        <div class="task-meta">
-                            <i class="fas fa-clock"></i> {% trans "Status" %}
-                        </div>
+                <h1 class="status-title">
+                    {% if '✅' in status or '🎉' in status %}
+                        {% trans "✨ AI Evolution Completed Successfully!" %}
+                    {% elif '⚠️' in status %}
+                        {% trans "⚠️ AI Evolution Completed with Warnings" %}
+                    elif '❌' in status %}
+                        {% trans "❌ AI Evolution Failed" %}
+                    {% elif '💤' in status %}
+                        {% trans "💤 AI Evolution Sleeping" %}
+                    {% else %}
+                        {% trans "🤖 AI Evolution Status" %}
+                    {% endif %}
+                </h1>
+                <p class="mb-0 opacity-75 small">
+                    <i class="far fa-clock me-1"></i>
+                    {% trans "Completed at" %}: {% now "Y-m-d H:i:s" %}
+                </p>
+                <!-- የሂደት አሞሌ -->
+                <div class="result-progress">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+
+            <!-- ይዘት -->
+            <div class="card-body p-4 p-md-5">
+
+                <!-- የሁኔታ መልእክት -->
+                <div class="alert alert-{% if '✅' in status or '🎉' in status %}success{% elif '⚠️' in status %}warning{% elif '❌' in status %}danger{% else %}info{% endif %} rounded-4 border-0 shadow-sm mb-4">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="fas fa-{% if '✅' in status or '🎉' in status %}check-circle{% elif '⚠️' in status %}exclamation-circle{% elif '❌' in status %}times-circle{% else %}info-circle{% endif %} fs-3"></i>
                         <div>
-                            <span class="badge bg-{% if task.status == 'Completed' %}success{% elif task.status == 'Running' %}warning{% elif task.status == 'Pending' %}secondary{% else %}dark{% endif %} fs-6 px-3 py-2">
-                                {{ task.status|default:"Unknown" }}
-                            </span>
-                            {% if task.site %}
-                            <span class="badge-site ms-2">
-                                <i class="fas fa-globe me-1"></i>{{ task.site.display_name|default:task.site.name }}
-                            </span>
+                            <div class="fw-bold">{{ status|default:"No status message" }}</div>
+                            {% if task and task.site %}
+                            <small class="opacity-75">
+                                <i class="fas fa-globe me-1"></i> {{ task.site.display_name|default:task.site.name }}
+                            </small>
                             {% endif %}
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Priority Reason -->
-            {% if task.priority_reason or task.description %}
-            <div class="mb-4">
-                <h6 class="text-muted text-uppercase small fw-bold tracking-wider mb-2">
-                    <i class="fas fa-brain text-info me-1"></i> {% translate "AI Reasoning & Decision" %}
-                </h6>
-                <div class="detail-box">
-                    {{ task.priority_reason|default:task.description|default:"No reasoning provided." }}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Task Meta Details -->
-            <div class="row g-2 text-muted small">
-                {% if task.target_file %}
-                <div class="col-md-6">
-                    <i class="fas fa-file me-1"></i> {% trans "File" %}: <span class="fw-medium">{{ task.target_file }}</span>
-                </div>
-                {% endif %}
-                {% if task.priority %}
-                <div class="col-md-6">
-                    <i class="fas fa-flag me-1"></i> {% trans "Priority" %}: 
-                    <span class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning{% elif task.priority == 'Medium' %}info{% else %}secondary{% endif %}">
-                        {{ task.priority }}
-                    </span>
-                </div>
-                {% endif %}
-                {% if task.created_at %}
-                <div class="col-md-6">
-                    <i class="fas fa-calendar-alt me-1"></i> {% trans "Created" %}: {{ task.created_at|date:"Y-m-d H:i" }}
-                </div>
-                {% endif %}
-                {% if task.updated_at %}
-                <div class="col-md-6">
-                    <i class="fas fa-clock me-1"></i> {% trans "Updated" %}: {{ task.updated_at|date:"Y-m-d H:i" }}
-                </div>
-                {% endif %}
-            </div>
-            {% else %}
-            <!-- No Task -->
-            <div class="text-center py-4">
-                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                <p class="text-muted">{% trans "No specific task details available." %}</p>
-            </div>
-            {% endif %}
-
-            <!-- Evolution Logs -->
-            {% if evolution_logs %}
-            <div class="mt-4">
-                <h6 class="text-muted text-uppercase small fw-bold mb-2">
-                    <i class="fas fa-history me-1"></i> {% trans "Recent Evolution Logs" %}
-                </h6>
-                <div class="list-group list-group-flush border rounded-4 overflow-hidden">
-                    {% for log in evolution_logs|slice:":3" %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="fw-medium">{{ log.target_file }}</span>
-                            <span class="text-muted small d-block">{{ log.reason_for_change|truncatechars:80 }}</span>
+                <!-- ============================================================
+                የስራ መረጃ
+                ============================================================ -->
+                {% if task %}
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="info-card">
+                            <div class="d-flex align-items-center">
+                                <span class="info-icon"><i class="fas fa-tasks text-primary"></i></span>
+                                <div>
+                                    <div class="info-label">{% trans "Task" %}</div>
+                                    <div class="info-value">{{ task.task_name|default:"Unknown Task" }}</div>
+                                </div>
+                            </div>
                         </div>
-                        <small class="text-muted">{{ log.created_at|date:"H:i" }}</small>
                     </div>
-                    {% empty %}
-                    <div class="list-group-item text-muted">{% trans "No evolution logs found." %}</div>
-                    {% endfor %}
+                    <div class="col-md-6">
+                        <div class="info-card">
+                            <div class="d-flex align-items-center">
+                                <span class="info-icon"><i class="fas fa-clock text-warning"></i></span>
+                                <div>
+                                    <div class="info-label">{% trans "Status" %}</div>
+                                    <div>
+                                        <span class="badge bg-{% if task.status == 'Completed' %}success{% elif task.status == 'Running' %}warning{% elif task.status == 'Pending' %}secondary{% else %}dark{% endif %} fs-6 px-3 py-2">
+                                            <i class="fas fa-{% if task.status == 'Completed' %}check{% elif task.status == 'Running' %}spinner fa-spin{% elif task.status == 'Pending' %}clock{% else %}minus{% endif %} me-1"></i>
+                                            {{ task.status|default:"Unknown" }}
+                                        </span>
+                                        {% if task.priority %}
+                                        <span class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning{% elif task.priority == 'Medium' %}info{% else %}secondary{% endif %} ms-1">
+                                            {{ task.priority }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- የAI ምክንያት -->
+                {% if task.description or task.trigger_condition %}
+                <div class="mb-4">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-2">
+                        <i class="fas fa-brain text-info me-1"></i> {% trans "AI Reasoning & Decision" %}
+                    </h6>
+                    <div class="detail-box-custom">
+                        {% if task.description %}
+                            {{ task.description }}
+                        {% elif task.trigger_condition %}
+                            <strong>{% trans "Trigger" %}:</strong> {{ task.trigger_condition }}
+                        {% else %}
+                            {% trans "No reasoning provided." %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- የስራ ዝርዝር መረጃ -->
+                <div class="row g-2 text-muted small">
+                    {% if task.target_file %}
+                    <div class="col-md-6">
+                        <i class="fas fa-file-code me-1"></i> {% trans "File" %}: 
+                        <span class="fw-medium text-dark">{{ task.target_file }}</span>
+                    </div>
+                    {% endif %}
+                    {% if task.business_impact_score %}
+                    <div class="col-md-6">
+                        <i class="fas fa-chart-line me-1"></i> {% trans "Business Impact" %}: 
+                        <span class="fw-medium text-dark">{{ task.business_impact_score }}/10</span>
+                    </div>
+                    {% endif %}
+                    {% if task.created_at %}
+                    <div class="col-md-6">
+                        <i class="fas fa-calendar-alt me-1"></i> {% trans "Created" %}: 
+                        <span class="fw-medium text-dark">{{ task.created_at|date:"Y-m-d H:i" }}</span>
+                    </div>
+                    {% endif %}
+                    {% if task.updated_at %}
+                    <div class="col-md-6">
+                        <i class="fas fa-clock me-1"></i> {% trans "Updated" %}: 
+                        <span class="fw-medium text-dark">{{ task.updated_at|date:"Y-m-d H:i" }}</span>
+                    </div>
+                    {% endif %}
+                    {% if task.estimated_hours %}
+                    <div class="col-md-6">
+                        <i class="fas fa-hourglass-half me-1"></i> {% trans "Est. Hours" %}: 
+                        <span class="fw-medium text-dark">{{ task.estimated_hours }}</span>
+                    </div>
+                    {% endif %}
+                    {% if task.complexity %}
+                    <div class="col-md-6">
+                        <i class="fas fa-cubes me-1"></i> {% trans "Complexity" %}: 
+                        <span class="fw-medium text-dark">{{ task.complexity }}/10</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <!-- ምንም ስራ ከሌለ -->
+                <div class="text-center py-4">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3 opacity-25"></i>
+                    <p class="text-muted">{% trans "No specific task details available." %}</p>
+                </div>
+                {% endif %}
+
+                <!-- ============================================================
+                Evolution Logs
+                ============================================================ -->
+                {% if evolution_logs %}
+                <div class="mt-4 pt-3 border-top">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-3">
+                        <i class="fas fa-history me-1"></i> {% trans "Recent Evolution Logs" %}
+                    </h6>
+                    <div class="evolution-log-list">
+                        {% for log in evolution_logs|slice:":5" %}
+                        <div class="evolution-log-card d-flex justify-content-between align-items-center flex-wrap">
+                            <div>
+                                <span class="log-file">
+                                    <i class="fas fa-file-alt text-success me-1"></i>
+                                    {{ log.target_file|upper }}
+                                </span>
+                                <div class="log-reason">{{ log.reason_for_change|truncatechars:80 }}</div>
+                            </div>
+                            <span class="log-time">{{ log.created_at|date:"M d, H:i" }}</span>
+                        </div>
+                        {% empty %}
+                        <div class="text-muted small">{% trans "No evolution logs found." %}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- ============================================================
+                ተግባር ቁልፎች
+                ============================================================ -->
+                <div class="d-flex flex-wrap gap-2 justify-content-center mt-4 pt-3 border-top">
+                    <a href="{% url 'home' %}" class="btn btn-ai btn-action">
+                        <i class="fas fa-home"></i> {% trans "Home" %}
+                    </a>
+                    <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-ai btn-action">
+                        <i class="fas fa-chart-line"></i> {% trans "Dashboard" %}
+                    </a>
+                    <a href="{% url 'sites_dashboard' %}" class="btn btn-outline-secondary btn-action">
+                        <i class="fas fa-globe"></i> {% trans "Sites" %}
+                    </a>
+                    {% if task and task.site %}
+                    <a href="{% url 'site_detail' task.site.id %}" class="btn btn-outline-info btn-action">
+                        <i class="fas fa-eye"></i> {% trans "View Site" %}
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'trigger_evolution' %}" class="btn btn-outline-warning btn-action">
+                        <i class="fas fa-sync-alt"></i> {% trans "Run Again" %}
+                    </a>
                 </div>
             </div>
-            {% endif %}
+        </div>
 
-            <!-- Action Buttons -->
-            <div class="d-flex flex-wrap gap-2 justify-content-center mt-4 pt-3 border-top">
-                <a href="{% url 'home' %}" class="btn btn-ai rounded-pill px-4 py-2 fw-bold shadow-sm">
-                    <i class="fas fa-home me-2"></i>{% translate "Home" %}
-                </a>
-                <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-ai rounded-pill px-4 py-2 fw-bold">
-                    <i class="fas fa-chart-line me-2"></i>{% translate "Dashboard" %}
-                </a>
-                <a href="{% url 'sites_dashboard' %}" class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-bold">
-                    <i class="fas fa-globe me-2"></i>{% translate "Sites" %}
-                </a>
-                {% if task and task.site %}
-                <a href="{% url 'site_detail' task.site.id %}" class="btn btn-outline-info rounded-pill px-4 py-2 fw-bold">
-                    <i class="fas fa-eye me-2"></i>{% translate "View Site" %}
-                </a>
-                {% endif %}
-                <a href="{% url 'trigger_evolution' %}" class="btn btn-outline-warning rounded-pill px-4 py-2 fw-bold">
-                    <i class="fas fa-sync-alt me-2"></i>{% translate "Run Again" %}
-                </a>
+        <!-- ============================================================
+        ፈጣን ስታቲስቲክስ
+        ============================================================ -->
+        <div class="row g-3 mt-4">
+            <div class="col-4 col-md-3">
+                <div class="stat-box-custom fade-in-up">
+                    <div class="stat-number text-primary">{{ total_tasks|default:0 }}</div>
+                    <div class="stat-label">{% trans "Total Tasks" %}</div>
+                </div>
+            </div>
+            <div class="col-4 col-md-3">
+                <div class="stat-box-custom fade-in-up">
+                    <div class="stat-number text-success">{{ completed_tasks|default:0 }}</div>
+                    <div class="stat-label">{% trans "Completed" %}</div>
+                </div>
+            </div>
+            <div class="col-4 col-md-3">
+                <div class="stat-box-custom fade-in-up">
+                    <div class="stat-number text-warning">{{ pending_tasks|default:0 }}</div>
+                    <div class="stat-label">{% trans "Pending" %}</div>
+                </div>
+            </div>
+            <div class="col-4 col-md-3">
+                <div class="stat-box-custom fade-in-up">
+                    <div class="stat-number text-danger">{{ error_count|default:0 }}</div>
+                    <div class="stat-label">{% trans "Errors" %}</div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Quick Stats -->
-    <div class="row g-3 mt-3">
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm text-center p-3 rounded-4">
-                <div class="text-primary fs-4 fw-bold">{{ total_tasks|default:0 }}</div>
-                <div class="text-muted small">{% trans "Total Tasks" %}</div>
-            </div>
+        <!-- ============================================================
+        ግርጌ
+        ============================================================ -->
+        <div class="text-center text-muted small mt-4 pt-3 border-top">
+            <i class="fas fa-code me-1"></i>
+            {% trans "EthAfri Super-Agent v3.0" %}
+            <span class="mx-2">|</span>
+            <i class="fas fa-database me-1"></i>
+            {% trans "Data-First, Dependency-Driven Organic Growth" %}
+            <span class="mx-2">|</span>
+            <i class="fas fa-shield-alt me-1"></i>
+            {% trans "Self-Healing" %}
+            <span class="status-dot idle" style="width: 8px; height: 8px; display: inline-block;"></span>
         </div>
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm text-center p-3 rounded-4">
-                <div class="text-success fs-4 fw-bold">{{ completed_tasks|default:0 }}</div>
-                <div class="text-muted small">{% trans "Completed" %}</div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm text-center p-3 rounded-4">
-                <div class="text-warning fs-4 fw-bold">{{ pending_tasks|default:0 }}</div>
-                <div class="text-muted small">{% trans "Pending" %}</div>
-            </div>
-        </div>
+
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Auto-refresh if task is still running
+    // ============================================================
+    // የሂደት አሞሌ አኒሜሽን
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const progressFill = document.getElementById('progressFill');
+        if (progressFill) {
+            const status = "{{ task.status|default:'' }}";
+            let progress = 0;
+            
+            if (status === 'Completed') {
+                progress = 100;
+            } else if (status === 'Running') {
+                progress = 60;
+            } else if (status === 'Pending') {
+                progress = 20;
+            } else {
+                progress = 50;
+            }
+            
+            setTimeout(function() {
+                progressFill.style.width = progress + '%';
+            }, 300);
+        }
+    });
+
+    // ============================================================
+    // ስራው እየሄደ ከሆነ እንደገና ማደስ
+    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         const status = "{{ task.status|default:'' }}";
         if (status === 'Running') {
@@ -201,6 +557,24 @@
                 location.reload();
             }, 5000);
         }
+    });
+
+    // ============================================================
+    // ማሳወቂያዎችን ራስ-ሰር ማጥፋት
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const alerts = document.querySelectorAll('.alert-dismissible');
+        alerts.forEach(function(alert) {
+            setTimeout(function() {
+                alert.style.transition = 'opacity 0.5s ease';
+                alert.style.opacity = '0';
+                setTimeout(function() {
+                    if (alert.parentNode) {
+                        alert.remove();
+                    }
+                }, 500);
+            }, 8000);
+        });
     });
 </script>
 {% endblock %}

@@ -1,7 +1,7 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/base.html
-📝 ለውጥ፦ Agent Status button added to bottom navigation
-📅 ቀን፦ 2026-06-21
+📝 ለውጥ፦ እጅግ ዘመናዊ እና ሁሉን ያሟላ መሰረታዊ ገጽ
+📅 ቀን፦ 2026-06-22
 ============================================================ -->
 
 {% load i18n %}
@@ -11,68 +11,470 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ theme.logo_text|default:"EthAfri" }} - Smart Marketplace</title>
+    <title>{% block title %}{{ theme.logo_text|default:"EthAfri" }} - Smart Marketplace{% endblock %}</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="{% trans 'EthAfri - AI-powered marketplace for Ethiopian products. Buy and sell with ease.' %}">
+    <meta name="keywords" content="ethiopia, marketplace, e-commerce, africa, ethafri, ai">
+    <meta name="author" content="EthAfri Team">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="{{ theme.logo_text|default:'EthAfri' }} - Smart Marketplace">
+    <meta property="og:description" content="{% trans 'AI-powered marketplace for Ethiopian products' %}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.build_absolute_uri }}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
     
     <!-- Bootstrap 5.3 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     
-    <!-- የጋራ ስታይል ፋይል (Global CSS) ግንኙነት -->
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- የጋራ ስታይል ፋይል (Global CSS) -->
     <link rel="stylesheet" href="{% static 'css/global.css' %}">
     
-    <!-- ለአንድ ፔጅ ብቻ የሚያገልግል CSS መጫኛ -->
+    <!-- ለአንድ ፔጅ ብቻ የሚያገልግል CSS -->
     {% block extra_css %}{% endblock %}
+    
+    <!-- Custom Theme CSS -->
+    {% if theme.custom_css %}
+    <style>
+        {{ theme.custom_css|safe }}
+    </style>
+    {% endif %}
+    
+    <!-- የተጠቃሚ ስታይል -->
+    <style>
+        /* ሞባይል ላይ የግርጌ ክፍተት */
+        body {
+            padding-bottom: 80px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--light-bg, #f4f7f6);
+        }
+        
+        /* ለስላሳ ስክሮል */
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        /* ማስታወቂያ ባር */
+        .announcement-bar {
+            background: var(--primary-color, #1a2a6c) !important;
+            color: var(--white, #ffffff) !important;
+            font-size: 0.8rem;
+            padding: 0.5rem 0;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+        .announcement-bar i {
+            color: var(--accent-gold, #ffc107);
+        }
+        .announcement-bar .close-announcement {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.6);
+            cursor: pointer;
+            padding: 0 0.5rem;
+            font-size: 1rem;
+            transition: color 0.3s ease;
+        }
+        .announcement-bar .close-announcement:hover {
+            color: var(--white);
+        }
+
+        /* Navbar */
+        .navbar-custom {
+            background: var(--primary-color, #1a2a6c) !important;
+            padding: 0.6rem 0;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+        }
+        .navbar-custom .navbar-brand {
+            font-weight: 800;
+            font-size: 1.2rem;
+            letter-spacing: -0.5px;
+            color: var(--white) !important;
+        }
+        .navbar-custom .navbar-brand i {
+            color: var(--accent-gold, #ffc107);
+        }
+        .navbar-custom .nav-link {
+            color: rgba(255,255,255,0.85) !important;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            padding: 0.4rem 0.8rem;
+            border-radius: 50px;
+        }
+        .navbar-custom .nav-link:hover {
+            color: var(--white) !important;
+            background: rgba(255,255,255,0.1);
+        }
+        .navbar-custom .nav-link.active {
+            color: var(--white) !important;
+            background: rgba(255,255,255,0.15);
+        }
+        .navbar-custom .nav-link i {
+            margin-right: 0.4rem;
+        }
+        .navbar-custom .lang-select {
+            background: rgba(255,255,255,0.12);
+            color: var(--white);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 50px;
+            padding: 0.2rem 0.8rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .navbar-custom .lang-select:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .navbar-custom .lang-select option {
+            color: var(--text-dark);
+            background: var(--white);
+        }
+        .navbar-custom .admin-badge {
+            background: var(--accent-gold, #ffc107);
+            color: var(--text-dark);
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 0.15rem 0.6rem;
+            border-radius: 50px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Hero Banner */
+        .hero-banner-custom {
+            background: linear-gradient(135deg, var(--primary-color, #1a2a6c), var(--accent-purple, #4e085e));
+            color: var(--white);
+            padding: 2.5rem 0 2rem;
+            border-radius: 0 0 2rem 2rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+        .hero-banner-custom::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 400px;
+            height: 400px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 50%;
+        }
+        .hero-banner-custom::after {
+            content: '';
+            position: absolute;
+            bottom: -40%;
+            left: -5%;
+            width: 300px;
+            height: 300px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 50%;
+        }
+        .hero-banner-custom h1 {
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            position: relative;
+            z-index: 1;
+            font-size: 2.2rem;
+        }
+        .hero-banner-custom p {
+            font-weight: 300;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+            font-size: 1.1rem;
+            margin-bottom: 0;
+        }
+        .hero-banner-custom .hero-icon {
+            font-size: 3rem;
+            opacity: 0.15;
+            position: absolute;
+            right: 2rem;
+            bottom: 1rem;
+        }
+
+        /* Bottom Navigation */
+        .bottom-nav-custom {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: var(--white, #ffffff);
+            display: flex;
+            justify-content: space-around;
+            padding: 0.5rem 0 0.6rem;
+            border-top: 2px solid var(--primary-color, #1a2a6c);
+            box-shadow: 0 -4px 25px rgba(0,0,0,0.08);
+            z-index: 9999;
+            backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.95);
+        }
+        .bottom-nav-custom a {
+            text-decoration: none;
+            color: var(--text-muted, #6c757d);
+            font-size: 0.6rem;
+            text-align: center;
+            flex: 1;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            padding: 0.2rem 0;
+            position: relative;
+        }
+        .bottom-nav-custom a i {
+            display: block;
+            font-size: 1.3rem;
+            color: var(--text-muted, #6c757d);
+            margin-bottom: 0.1rem;
+            transition: all 0.3s ease;
+        }
+        .bottom-nav-custom a:hover {
+            color: var(--primary-color, #1a2a6c);
+        }
+        .bottom-nav-custom a:hover i {
+            color: var(--primary-color, #1a2a6c);
+            transform: scale(1.1);
+        }
+        .bottom-nav-custom a.active {
+            color: var(--primary-color, #1a2a6c);
+        }
+        .bottom-nav-custom a.active i {
+            color: var(--primary-color, #1a2a6c);
+            transform: scale(1.1);
+        }
+        .bottom-nav-custom a .nav-badge {
+            position: absolute;
+            top: -2px;
+            right: 50%;
+            transform: translateX(50%);
+            background: var(--danger-color, #dc3545);
+            color: var(--white);
+            font-size: 0.5rem;
+            padding: 0.05rem 0.4rem;
+            border-radius: 50px;
+            font-weight: 700;
+        }
+        .bottom-nav-custom .nav-divider {
+            width: 1px;
+            background: var(--border-color, #e2e8f0);
+            margin: 0.2rem 0;
+        }
+        .bottom-nav-custom .nav-dropdown-toggle {
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: var(--text-muted, #6c757d);
+            font-size: 0.6rem;
+            text-align: center;
+            flex: 1;
+            font-weight: 600;
+            padding: 0.2rem 0;
+            transition: all 0.3s ease;
+        }
+        .bottom-nav-custom .nav-dropdown-toggle i {
+            display: block;
+            font-size: 1.3rem;
+            color: var(--text-muted, #6c757d);
+            margin-bottom: 0.1rem;
+            transition: all 0.3s ease;
+        }
+        .bottom-nav-custom .nav-dropdown-toggle:hover {
+            color: var(--primary-color, #1a2a6c);
+        }
+        .bottom-nav-custom .nav-dropdown-toggle:hover i {
+            color: var(--primary-color, #1a2a6c);
+            transform: scale(1.1);
+        }
+        
+        /* Dropdown Menu */
+        .nav-dropdown-menu {
+            min-width: 200px;
+            border-radius: 1rem;
+            border: none;
+            box-shadow: var(--shadow-lg);
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: var(--white);
+        }
+        .nav-dropdown-menu .dropdown-item {
+            border-radius: 0.75rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .nav-dropdown-menu .dropdown-item:hover {
+            background: var(--light-bg, #f4f7f6);
+        }
+        .nav-dropdown-menu .dropdown-item i {
+            width: 1.5rem;
+            text-align: center;
+        }
+        .nav-dropdown-menu .dropdown-divider {
+            margin: 0.3rem 0;
+        }
+        .nav-dropdown-menu .dropdown-item.text-danger:hover {
+            background: var(--danger-light, #fce4ec);
+        }
+
+        /* ሞባይል */
+        @media (max-width: 768px) {
+            .hero-banner-custom { padding: 1.5rem 0 1.2rem; border-radius: 0 0 1.5rem 1.5rem; }
+            .hero-banner-custom h1 { font-size: 1.5rem; }
+            .hero-banner-custom p { font-size: 0.9rem; }
+            .hero-banner-custom .hero-icon { font-size: 2rem; right: 1rem; bottom: 0.5rem; }
+            .bottom-nav-custom a { font-size: 0.55rem; }
+            .bottom-nav-custom a i { font-size: 1.1rem; }
+            .bottom-nav-custom .nav-dropdown-toggle { font-size: 0.55rem; }
+            .bottom-nav-custom .nav-dropdown-toggle i { font-size: 1.1rem; }
+            .navbar-custom .navbar-brand { font-size: 1rem; }
+        }
+
+        @media (max-width: 576px) {
+            .hero-banner-custom h1 { font-size: 1.2rem; }
+            .hero-banner-custom p { font-size: 0.8rem; }
+            .bottom-nav-custom a { font-size: 0.5rem; }
+            .bottom-nav-custom a i { font-size: 1rem; }
+            .bottom-nav-custom .nav-dropdown-toggle { font-size: 0.5rem; }
+            .bottom-nav-custom .nav-dropdown-toggle i { font-size: 1rem; }
+            .navbar-custom .navbar-brand { font-size: 0.9rem; }
+            .navbar-custom .nav-link { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
+        }
+
+        /* የይዘት አኒሜሽን */
+        .fade-in {
+            animation: fadeIn 0.6s ease forwards;
+            opacity: 0;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in:nth-child(1) { animation-delay: 0.05s; }
+        .fade-in:nth-child(2) { animation-delay: 0.1s; }
+        .fade-in:nth-child(3) { animation-delay: 0.15s; }
+        .fade-in:nth-child(4) { animation-delay: 0.2s; }
+        .fade-in:nth-child(5) { animation-delay: 0.25s; }
+        .fade-in:nth-child(6) { animation-delay: 0.3s; }
+    </style>
 </head>
 <body>
 
-    <!-- የ AI ማስታወቂያ ሰሌዳ -->
+    <!-- ============================================================
+    ማስታወቂያ ባር
+    ============================================================ -->
     {% if theme.show_announcement %}
-    <div class="announcement-bar text-center py-2 px-3 shadow-sm bg-dark text-white" style="font-size: 14px; font-weight: 500;">
-        <i class="fas fa-bullhorn text-warning me-2"></i>{{ theme.announcement_text }}
+    <div class="announcement-bar text-center" id="announcementBar">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span>
+                <i class="fas fa-bullhorn me-2"></i>
+                {{ theme.announcement_text|default:"Welcome to EthAfri - The Smart African Marketplace" }}
+            </span>
+            <button class="close-announcement" onclick="document.getElementById('announcementBar').style.display='none'" aria-label="Close announcement">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
     </div>
     {% endif %}
 
-    <!-- Header / Navbar -->
-    <nav class="navbar navbar-dark sticky-top shadow-sm">
+    <!-- ============================================================
+    Navbar
+    ============================================================ -->
+    <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="/">
-                <i class="fas fa-globe-africa me-2 text-warning"></i>{{ theme.logo_text|default:"EthAfri" }}
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-globe-africa me-2"></i>
+                {{ theme.logo_text|default:"EthAfri" }}
             </a>
-            <div class="d-flex align-items-center">
-                {% if user.is_staff %}
-                    <span class="badge bg-warning text-dark me-3"><i class="fas fa-user-shield me-1"></i>Admin</span>
-                {% endif %}
-                
-                <!-- የቋንቋ መቀያየሪያ ፎርም -->
-                <form action="{% url 'set_language' %}" method="post" class="d-flex align-items-center mb-0">
-                    {% csrf_token %}
-                    <select name="language" class="form-select form-select-sm rounded-pill" onchange="this.form.submit()">
-                        {% get_current_language as LANGUAGE_CODE %}
-                        {% get_available_languages as LANGUAGES %}
-                        {% for lang in LANGUAGES %}
-                            <option value="{{ lang.0 }}" {% if lang.0 == LANGUAGE_CODE %}selected{% endif %}>
-                                {{ lang.1 }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </form>
+            
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarMain">
+                <ul class="navbar-nav ms-auto align-items-lg-center gap-1 gap-lg-2">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
+                            <i class="fas fa-home"></i> {% trans "Home" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'post_product' in request.path %}active{% endif %}" href="{% url 'post_product' %}">
+                            <i class="fas fa-plus-circle"></i> {% trans "Sell" %}
+                        </a>
+                    </li>
+                    {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'logout' %}">
+                            <i class="fas fa-sign-out-alt"></i> {% trans "Logout" %}
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'login' in request.path %}active{% endif %}" href="{% url 'login' %}">
+                            <i class="fas fa-sign-in-alt"></i> {% trans "Login" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'signup' in request.path %}active{% endif %}" href="{% url 'signup' %}">
+                            <i class="fas fa-user-plus"></i> {% trans "Sign Up" %}
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if user.is_staff %}
+                    <li class="nav-item">
+                        <span class="admin-badge ms-1">
+                            <i class="fas fa-user-shield me-1"></i> {% trans "Admin" %}
+                        </span>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <form action="{% url 'set_language' %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <select name="language" class="lang-select" onchange="this.form.submit()">
+                                {% get_current_language as LANGUAGE_CODE %}
+                                {% get_available_languages as LANGUAGES %}
+                                {% for lang in LANGUAGES %}
+                                    <option value="{{ lang.0 }}" {% if lang.0 == LANGUAGE_CODE %}selected{% endif %}>
+                                        {{ lang.1 }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
 
-    <!-- Dynamic Hero Banner (በ AI ቋንቋ ምርጫ የሚቀየር) -->
-    <div class="hero-banner text-center mb-4 shadow-sm">
-        <div class="container">
+    <!-- ============================================================
+    Hero Banner
+    ============================================================ -->
+    <div class="hero-banner-custom">
+        <div class="container position-relative">
+            <div class="hero-icon">
+                <i class="fas fa-robot"></i>
+            </div>
             {% get_current_language as LANG %}
-            <h1 class="display-6 fw-bold mb-2">
+            <h1>
                 {% if LANG == 'am' %}
                     {{ theme.banner_title_am|default:"አዳዲስ የገበያ ዘርፎች በእጅዎ" }}
                 {% else %}
                     {{ theme.banner_title_en|default:"Welcome to EthAfri" }}
                 {% endif %}
             </h1>
-            <p class="lead mb-0 opacity-90">
+            <p>
                 {% if LANG == 'am' %}
                     {{ theme.banner_sub_am|default:"በቀላሉ ይፈልጉ፣ በቀላሉ ያግኙ" }}
                 {% else %}
@@ -82,78 +484,136 @@
         </div>
     </div>
 
-    <!-- Main Content Area -->
-    <main class="container">
+    <!-- ============================================================
+    Main Content
+    ============================================================ -->
+    <main class="container fade-in">
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Smart Bottom Navigation (ባለብዙ-ተግባር የአድሚን ሰብሳቢ ቁልፍ ያለው) -->
-    <nav class="bottom-nav">
-        <a href="/" class="text-decoration-none text-dark text-center" style="flex: 1;">
-            <i class="fas fa-home"></i><br>{% translate "Home" %}
+    <!-- ============================================================
+    Bottom Navigation
+    ============================================================ -->
+    <nav class="bottom-nav-custom">
+        <a href="/" class="{% if request.path == '/' %}active{% endif %}">
+            <i class="fas fa-home"></i>
+            {% trans "Home" %}
         </a>
         
-        <a href="{% url 'post_product' %}" class="text-decoration-none text-dark text-center" style="flex: 1;">
-            <i class="fas fa-plus-circle"></i><br>{% translate "Sell" %}
+        <a href="{% url 'post_product' %}" class="{% if 'post_product' in request.path %}active{% endif %}">
+            <i class="fas fa-plus-circle"></i>
+            {% trans "Sell" %}
         </a>
         
-        <!-- 🆕 Agent Status Button -->
-        <a href="{% url 'agent_status' %}" class="text-decoration-none text-dark text-center" style="flex: 1;">
-            <i class="fas fa-heartbeat text-primary"></i><br>{% translate "Status" %}
+        <a href="{% url 'agent_status' %}" class="{% if 'agent_status' in request.path %}active{% endif %}">
+            <i class="fas fa-heartbeat text-primary"></i>
+            {% trans "Status" %}
+            {% if pending_errors > 0 %}
+            <span class="nav-badge">{{ pending_errors }}</span>
+            {% endif %}
         </a>
         
         {% if user.is_staff %}
-        <div class="dropup d-flex align-items-center justify-content-center" style="flex: 1;">
-            <a href="#" class="text-decoration-none text-warning fw-bold dropdown-toggle text-center" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 12px;">
-                <i class="fas fa-robot text-warning"></i><br>{% translate "AI Admin" %}
-            </a>
-            <ul class="dropdown-menu shadow-lg rounded-4 p-2 border-0 mb-2">
+        <div class="nav-divider"></div>
+        <div class="dropup">
+            <button class="nav-dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-robot text-warning"></i>
+                {% trans "AI" %}
+                <i class="fas fa-chevron-up ms-1" style="font-size: 0.4rem; display: inline;"></i>
+            </button>
+            <ul class="dropdown-menu nav-dropdown-menu">
                 <li>
-                    <a class="dropdown-item py-2" href="{% url 'growth_dashboard' %}">
-                        <i class="fas fa-chart-line me-2 text-primary"></i>{% translate "Dashboard" %}
+                    <a class="dropdown-item" href="{% url 'growth_dashboard' %}">
+                        <i class="fas fa-chart-line text-primary"></i> {% trans "Dashboard" %}
                     </a>
                 </li>
                 <li>
-                    <a class="dropdown-item py-2" href="{% url 'sites_dashboard' %}">
-                        <i class="fas fa-globe me-2 text-success"></i>{% translate "Sites" %}
+                    <a class="dropdown-item" href="{% url 'sites_dashboard' %}">
+                        <i class="fas fa-globe text-success"></i> {% trans "Sites" %}
                     </a>
                 </li>
                 <li>
-                    <a class="dropdown-item py-2" href="{% url 'marketing_dashboard' %}">
-                        <i class="fas fa-bullhorn me-2 text-info"></i>{% translate "Marketing" %}
+                    <a class="dropdown-item" href="{% url 'marketing_dashboard' %}">
+                        <i class="fas fa-bullhorn text-info"></i> {% trans "Marketing" %}
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{% url 'agent_status' %}">
+                        <i class="fas fa-heartbeat text-danger"></i> {% trans "Agent Status" %}
                     </a>
                 </li>
                 <li><hr class="dropdown-divider"></li>
                 <li>
-                    <form method="POST" action="{% url 'trigger_evolution' %}" class="px-2 py-1">
+                    <form method="POST" action="{% url 'trigger_evolution' %}" class="px-2">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-warning w-100 rounded-pill">
-                            <i class="fas fa-sync-alt me-1"></i>{% translate "Run Evolution" %}
+                        <button type="submit" class="btn btn-sm btn-warning w-100 rounded-pill fw-bold">
+                            <i class="fas fa-sync-alt me-1"></i> {% trans "Run Evolution" %}
                         </button>
                     </form>
+                </li>
+                <li>
+                    <a class="dropdown-item text-danger" href="{% url 'admin:index' %}">
+                        <i class="fas fa-cog"></i> {% trans "Django Admin" %}
+                    </a>
                 </li>
             </ul>
         </div>
         {% endif %}
 
         {% if user.is_authenticated %}
-            <a href="{% url 'logout' %}" class="text-decoration-none text-dark text-center" style="flex: 1;">
-                <i class="fas fa-sign-out-alt"></i><br>{% translate "Logout" %}
-            </a>
+        <a href="{% url 'logout' %}">
+            <i class="fas fa-sign-out-alt"></i>
+            {% trans "Logout" %}
+        </a>
         {% else %}
-            <a href="{% url 'login' %}" class="text-decoration-none text-dark text-center" style="flex: 1;">
-                <i class="fas fa-sign-in-alt"></i><br>{% translate "Login" %}
-            </a>
+        <a href="{% url 'login' %}">
+            <i class="fas fa-sign-in-alt"></i>
+            {% trans "Login" %}
+        </a>
         {% endif %}
     </nav>
 
+    <!-- ============================================================
+    Scripts
+    ============================================================ -->
     <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+    </script>
     
     <!-- የጋራ ጃቫስክሪፕት -->
     <script src="{% static 'js/global.js' %}"></script>
     
-    <!-- ለአንድ ፔጅ ብቻ የሚያገልግል ጃቫስክሪፕት መጫኛ -->
+    <!-- ለአንድ ፔጅ ብቻ የሚያገልግል ጃቫስክሪፕት -->
     {% block extra_js %}{% endblock %}
+    
+    <!-- የአኒሜሽን ማስነሻ -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // የባነር አኒሜሽን ለስላሳ
+            const hero = document.querySelector('.hero-banner-custom');
+            if (hero) {
+                hero.style.opacity = '0';
+                hero.style.transform = 'translateY(-10px)';
+                setTimeout(() => {
+                    hero.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                    hero.style.opacity = '1';
+                    hero.style.transform = 'translateY(0)';
+                }, 100);
+            }
+            
+            // የማስታወቂያ ባር ራስ-ሰር መዝጋት (ከ10 ሰከንድ በኋላ)
+            const announcementBar = document.getElementById('announcementBar');
+            if (announcementBar) {
+                setTimeout(() => {
+                    announcementBar.style.transition = 'opacity 0.5s ease, max-height 0.5s ease';
+                    announcementBar.style.opacity = '0';
+                    announcementBar.style.maxHeight = '0';
+                    setTimeout(() => {
+                        announcementBar.style.display = 'none';
+                    }, 500);
+                }, 10000);
+            }
+        });
+    </script>
 </body>
 </html>
