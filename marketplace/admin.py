@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/admin.py
-# 📝 ለውጥ፦ Clean imports — All models exist in models.py
-# 📅 ቀን፦ 2026-06-20
+# 📝 ለውጥ፦ Advanced Agent Features — Commented out until migration
+# 📅 ቀን፦ 2026-06-21
 # ============================================================
 
 from django.contrib import admin
@@ -22,6 +22,7 @@ from .models import (
     MarketingCampaign,
     SellerProfile,
     NotificationQueue
+    # ⚠️ አዲሶቹ ሞዴሎች ገና ስላልተፈጠሩ አልተጨመሩም
 )
 
 # ============================================================
@@ -166,63 +167,58 @@ class NotificationQueueAdmin(admin.ModelAdmin):
         self.message_user(request, f"{queryset.count()} notifications marked as sent.")
     mark_as_sent.short_description = "Mark selected notifications as sent"
 
-# EthAfri/marketplace/admin.py (አዲስ ክፍል)
 
 # ============================================================
 # 6. 🆕 የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
+# ⚠️ እነዚህ ማይግሬሽኑ ከተሄደ በኋላ አስተያየት አስወግድ
 # ============================================================
 
-@admin.register(VectorMemory)
-class VectorMemoryAdmin(admin.ModelAdmin):
-    list_display = ('memory_type', 'content_preview', 'site', 'usage_count', 'success_rate', 'created_at')
-    list_filter = ('memory_type', 'site')
-    search_fields = ('content', 'metadata')
-    readonly_fields = ('created_at', 'updated_at', 'usage_count', 'success_rate')
-    
-    def content_preview(self, obj):
-        return obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
-    content_preview.short_description = "Content"
+# @admin.register(VectorMemory)
+# class VectorMemoryAdmin(admin.ModelAdmin):
+#     list_display = ('memory_type', 'content_preview', 'site', 'usage_count', 'success_rate', 'created_at')
+#     list_filter = ('memory_type', 'site')
+#     search_fields = ('content', 'metadata')
+#     readonly_fields = ('created_at', 'updated_at', 'usage_count', 'success_rate')
+#     
+#     def content_preview(self, obj):
+#         return obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
+#     content_preview.short_description = "Content"
 
+# @admin.register(AgentTask)
+# class AgentTaskAdmin(admin.ModelAdmin):
+#     list_display = ('task_name', 'agent_type', 'status', 'priority', 'site', 'created_at')
+#     list_filter = ('agent_type', 'status', 'site')
+#     search_fields = ('task_name', 'description')
+#     readonly_fields = ('created_at', 'updated_at', 'started_at', 'completed_at')
 
-@admin.register(AgentTask)
-class AgentTaskAdmin(admin.ModelAdmin):
-    list_display = ('task_name', 'agent_type', 'status', 'priority', 'site', 'created_at')
-    list_filter = ('agent_type', 'status', 'site')
-    search_fields = ('task_name', 'description')
-    readonly_fields = ('created_at', 'updated_at', 'started_at', 'completed_at')
+# @admin.register(ABTest)
+# class ABTestAdmin(admin.ModelAdmin):
+#     list_display = ('name', 'status', 'site', 'winner', 'created_at')
+#     list_filter = ('status', 'site')
+#     search_fields = ('name', 'description')
+#     readonly_fields = ('created_at', 'updated_at')
 
+# @admin.register(SecurityLog)
+# class SecurityLogAdmin(admin.ModelAdmin):
+#     list_display = ('category', 'severity', 'description_preview', 'is_fixed', 'site', 'created_at')
+#     list_filter = ('category', 'severity', 'is_fixed', 'site')
+#     search_fields = ('description', 'file_path')
+#     readonly_fields = ('created_at', 'updated_at')
+#     
+#     def description_preview(self, obj):
+#         return obj.description[:50] + "..." if len(obj.description) > 50 else obj.description
+#     description_preview.short_description = "Description"
 
-@admin.register(ABTest)
-class ABTestAdmin(admin.ModelAdmin):
-    list_display = ('name', 'status', 'site', 'winner', 'created_at')
-    list_filter = ('status', 'site')
-    search_fields = ('name', 'description')
-    readonly_fields = ('created_at', 'updated_at')
+# @admin.register(PredictionLog)
+# class PredictionLogAdmin(admin.ModelAdmin):
+#     list_display = ('prediction_type', 'predicted_value', 'confidence_score', 'site', 'predicted_at')
+#     list_filter = ('prediction_type', 'site')
+#     search_fields = ('input_data',)
+#     readonly_fields = ('predicted_at', 'verified_at')
 
-
-@admin.register(SecurityLog)
-class SecurityLogAdmin(admin.ModelAdmin):
-    list_display = ('category', 'severity', 'description_preview', 'is_fixed', 'site', 'created_at')
-    list_filter = ('category', 'severity', 'is_fixed', 'site')
-    search_fields = ('description', 'file_path')
-    readonly_fields = ('created_at', 'updated_at')
-    
-    def description_preview(self, obj):
-        return obj.description[:50] + "..." if len(obj.description) > 50 else obj.description
-    description_preview.short_description = "Description"
-
-
-@admin.register(PredictionLog)
-class PredictionLogAdmin(admin.ModelAdmin):
-    list_display = ('prediction_type', 'predicted_value', 'confidence_score', 'site', 'predicted_at')
-    list_filter = ('prediction_type', 'site')
-    search_fields = ('input_data',)
-    readonly_fields = ('predicted_at', 'verified_at')
-
-
-@admin.register(ExternalAPI)
-class ExternalAPIAdmin(admin.ModelAdmin):
-    list_display = ('name', 'api_type', 'status', 'site', 'calls_made', 'rate_limit')
-    list_filter = ('api_type', 'status', 'site')
-    search_fields = ('name', 'api_key')
-    readonly_fields = ('created_at', 'updated_at', 'last_reset')
+# @admin.register(ExternalAPI)
+# class ExternalAPIAdmin(admin.ModelAdmin):
+#     list_display = ('name', 'api_type', 'status', 'site', 'calls_made', 'rate_limit')
+#     list_filter = ('api_type', 'status', 'site')
+#     search_fields = ('name', 'api_key')
+#     readonly_fields = ('created_at', 'updated_at', 'last_reset')
