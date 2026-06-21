@@ -59,3 +59,4 @@ class Migration(migrations.Migration):
             field=models.CharField(blank=True, help_text='ይህ ስራ የተፈጠረበት ትሪገር ሁኔታ', max_length=255),
         ),
     ]
+    

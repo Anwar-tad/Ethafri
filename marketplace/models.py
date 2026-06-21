@@ -13,6 +13,7 @@ import uuid
 import hashlib
 import json
 
+
 # ============================================================
 # 1. ነባር የማርኬት ፕሌስ ሞዴሎች
 # ============================================================
@@ -198,13 +199,13 @@ class AIProjectBacklog(models.Model):
     description = models.TextField(blank=True, default='')
     task_hash = models.CharField(max_length=64, unique=True, blank=True)
     
-    # 🆕 Business Impact Score (1-10)
+    # Business Impact Score (1-10)
     business_impact_score = models.IntegerField(
         default=5,
         help_text="1-10: የንግድ ተጽዕኖ ውጤት"
     )
     
-    # 🆕 Trigger Rule Audit
+    # Trigger Rule Audit
     trigger_condition = models.CharField(
         max_length=255,
         blank=True,
@@ -321,7 +322,7 @@ class AgentErrorLog(models.Model):
     task_name = models.CharField(max_length=255)
     error_type = models.CharField(max_length=20, choices=ERROR_TYPES, default='syntax')
     error_message = models.TextField()
-    code_attempted = models.TextField()
+    code_attempted = models.TextField(blank=True, default='')
     correction_applied = models.TextField(null=True, blank=True)
     resolved = models.BooleanField(default=False)
     
@@ -340,7 +341,7 @@ class AgentErrorLog(models.Model):
 
 
 # ============================================================
-# 3. 🌐 Multi-Site Orchestration — SiteRegistry (የተሻሻለ)
+# 3. 🌐 Multi-Site Orchestration — SiteRegistry
 # ============================================================
 
 class SiteRegistry(models.Model):
@@ -379,13 +380,13 @@ class SiteRegistry(models.Model):
         ]
     )
     
-    # 🆕 Build Phase (0-5) — ለፊቸር ብስለት
+    # Build Phase (0-5)
     build_phase = models.IntegerField(
         default=0,
         help_text="0=Scaffolding, 1=Real Data, 2=Core Features, 3=Engagement, 4=Monetization, 5=Mature"
     )
     
-    # 🆕 Real Data Counters (Cached)
+    # Real Data Counters
     real_product_count = models.IntegerField(
         default=0,
         help_text="እውነተኛ ምርቶች ብዛት"
@@ -395,7 +396,7 @@ class SiteRegistry(models.Model):
         help_text="እውነተኛ ደንበኞች ብዛት"
     )
     
-    # 🆕 Phase Transition Tracking
+    # Phase Transition Tracking
     phase_transition_date = models.DateTimeField(null=True, blank=True)
     
     monthly_visitors = models.IntegerField(default=0)
@@ -614,7 +615,7 @@ class VectorMemory(models.Model):
         related_name='memory_entries'
     )
     
-    # 🆕 ከርቀት የመጣው ለውጥ — ከProduct ጋር ማገናኘት
+    # Product association
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
@@ -705,6 +706,7 @@ class AgentTask(models.Model):
     priority = models.IntegerField(default=1, help_text="1-10 (10 ከፍተኛ)")
     result_data = models.JSONField(default=dict, blank=True)
     error_message = models.TextField(blank=True)
+    metadata = models.JSONField(blank=True, default=dict, help_text='Additional task metadata')
     
     site = models.ForeignKey(
         SiteRegistry,

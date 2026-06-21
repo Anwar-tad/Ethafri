@@ -78,7 +78,9 @@ class SelfHealMemory:
                     'timestamp': timezone.now().isoformat()
                 },
                 site=self.site,
-                success_rate=float(confidence) if success else 0.0
+                success_rate=float(confidence) if success else 0.0,
+                text_content=error_message[:500],
+                embedding_model='self-heal-v1'
             )
             memory.mark_used(success)
             logger.info(f"🧠 Remembered healing for {error_type} (success={success})")
@@ -90,12 +92,16 @@ class SelfHealMemory:
     def find_similar_healing(self, error_message, limit=3):
         """ተመሳሳይ ፈውሶችን ያገኛል"""
         try:
-            return VectorMemory.find_similar(
-                query=error_message,
-                memory_type='solution',
+            # በመረጃ ጠቋሚ (content) ላይ ፈልግ
+            keywords = error_message.lower().split()[:5]
+            queryset = VectorMemory.objects.filter(
                 site=self.site,
-                limit=limit
+                memory_type='solution'
             )
+            for keyword in keywords:
+                if len(keyword) > 3:
+                    queryset = queryset.filter(content__icontains=keyword)
+            return queryset.order_by('-success_rate', '-usage_count')[:limit]
         except Exception as e:
             logger.error(f"Failed to find similar healing: {e}")
             return []
@@ -103,12 +109,15 @@ class SelfHealMemory:
     def find_similar_errors(self, error_message, limit=3):
         """ተመሳሳይ ስህተቶችን ያገኛል"""
         try:
-            return VectorMemory.find_similar(
-                query=error_message,
-                memory_type='error',
+            keywords = error_message.lower().split()[:5]
+            queryset = VectorMemory.objects.filter(
                 site=self.site,
-                limit=limit
+                memory_type='error'
             )
+            for keyword in keywords:
+                if len(keyword) > 3:
+                    queryset = queryset.filter(content__icontains=keyword)
+            return queryset.order_by('-success_rate', '-usage_count')[:limit]
         except Exception as e:
             logger.error(f"Failed to find similar errors: {e}")
             return []
