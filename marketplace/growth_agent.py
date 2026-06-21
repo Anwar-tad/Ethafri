@@ -940,10 +940,17 @@ def _process_healing_track(site):
     return None
 
 
+# በ growth_agent.py ውስጥ ያለውን _process_maintenance_track አስተካክል
+
 def _process_maintenance_track(site):
     """ጥገና ትራክ"""
     try:
-        from .growth_agent import SecurityScanner
+        # 🔧 ደህንነት ባለው መንገድ አስመጣ
+        try:
+            from .security import SecurityScanner
+        except ImportError:
+            from .security_scanner import SecurityScanner
+        
         scanner = SecurityScanner(site)
         
         project_code, _ = get_site_project_state(site)
@@ -956,6 +963,9 @@ def _process_maintenance_track(site):
         if vulns > 0:
             return f"🔒 Found {vulns} security issues"
         return "✅ Maintenance OK"
+    except ImportError:
+        logger.warning("⚠️ SecurityScanner not available")
+        return "⚠️ Security scanner not available"
     except Exception as e:
         return f"⚠️ Maintenance error: {str(e)[:50]}"
 

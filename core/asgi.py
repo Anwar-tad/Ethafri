@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/core/asgi.py
 # 📝 ለውጥ፦ ASGI configuration for WebSocket support
-# 📅 ቀን፦ 2026-06-21
+# 📅 ቀን፦ 2026-06-22
 # ============================================================
 
 import os
@@ -15,13 +15,15 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 # Django ASGI application
 django_asgi_app = get_asgi_application()
 
-# Import consumers
-from marketplace import consumers
-
-# WebSocket URL patterns
-websocket_urlpatterns = [
-    path('ws/agent-status/', consumers.AgentStatusConsumer.as_asgi()),
-]
+# Import consumers (ደህንነት ባለው መንገድ)
+try:
+    from marketplace import consumers
+    websocket_urlpatterns = [
+        path('ws/agent-status/', consumers.AgentStatusConsumer.as_asgi()),
+    ]
+except ImportError:
+    # ከሌለ ባዶ ይሁን
+    websocket_urlpatterns = []
 
 # Application routing
 application = ProtocolTypeRouter({
@@ -30,4 +32,3 @@ application = ProtocolTypeRouter({
         URLRouter(websocket_urlpatterns)
     ),
 })
-
