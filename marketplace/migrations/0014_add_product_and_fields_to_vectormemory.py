@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/migrations/0014_add_product_and_fields_to_vectormemory.py
-# 📝 ለውጥ፦ VectorMemory ላይ አዲስ ሜዳዎች መጨመር
+# 📝 ለውጥ፦ VectorMemory ላይ አዲስ ሜዳዎች መጨመር (የተስተካከለ)
 # 📅 ቀን፦ 2026-06-21
 # ============================================================
 
@@ -69,19 +69,10 @@ class Migration(migrations.Migration):
         ),
         
         # ============================================================
-        # 5. VectorMemory ላይ created_at እና updated_at መጨመር
+        # 5. ⚠️ created_at እና updated_at አይጨመሩ — ቀድሞ አሉ!
         # ============================================================
-        migrations.AddField(
-            model_name='vectormemory',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, default=django.utils.timezone.now),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='vectormemory',
-            name='updated_at',
-            field=models.DateTimeField(auto_now=True),
-        ),
+        # migrations.AddField(... created_at ...)  ← አስወግድ
+        # migrations.AddField(... updated_at ...)  ← አስወግድ
         
         # ============================================================
         # 6. VectorMemory ላይ ኢንዴክሶች መጨመር
