@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/migrations/0012_advanced_agent_features.py
-# 📝 ለውጥ፦ Advanced Agent Features — VectorMemory, AgentTask, ABTest, etc.
+# 📝 ለውጥ፦ Advanced Agent Features — VectorMemory, AgentTask, ABTest, SecurityLog, PredictionLog, ExternalAPI
 # 📅 ቀን፦ 2026-06-21
 # ============================================================
 
