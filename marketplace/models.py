@@ -539,8 +539,16 @@ class NotificationQueue(models.Model):
 # 5. 🆕 የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
 # ============================================================
 
+# ============================================================
+# 🆕 የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
+# እነዚህን ሞዴሎች በነባር models.py መጨረሻ ላይ ተጭንበት
+# ============================================================
+
 class VectorMemory(models.Model):
-    """RAG (Retrieval-Augmented Generation) ትውስታ ለኤጀንቱ"""
+    """
+    RAG (Retrieval-Augmented Generation) ትውስታ ለኤጀንቱ
+    ያለፉ ስራዎችን፣ ስህተቶችን እና መፍትሄዎችን ያስታውሳል
+    """
     MEMORY_TYPES = [
         ('error', 'Error Resolution'),
         ('solution', 'Solution Pattern'),
@@ -550,11 +558,11 @@ class VectorMemory(models.Model):
     ]
     
     memory_type = models.CharField(max_length=20, choices=MEMORY_TYPES)
-    content = models.TextField()
-    embedding = models.JSONField(default=list, blank=True)
-    metadata = models.JSONField(default=dict)
-    usage_count = models.IntegerField(default=0)
-    success_rate = models.FloatField(default=0.0)
+    content = models.TextField(help_text="የትውስታ ይዘት")
+    embedding = models.JSONField(default=list, blank=True, help_text="pgvector embedding (future use)")
+    metadata = models.JSONField(default=dict, help_text="ተጨማሪ መረጃ (site, task, success_rate)")
+    usage_count = models.IntegerField(default=0, help_text="ምን ያህል ጊዜ ጥቅም ላይ ውሏል")
+    success_rate = models.FloatField(default=0.0, help_text="ስኬታማነት መጠን 0-100")
     last_used = models.DateTimeField(null=True, blank=True)
     
     site = models.ForeignKey(
@@ -608,7 +616,10 @@ class VectorMemory(models.Model):
 
 
 class AgentTask(models.Model):
-    """የባለብዙ-ኤጀንት ስራ አስተዳደር"""
+    """
+    የባለብዙ-ኤጀንት ስራ አስተዳደር
+    የተለያዩ ኤጀንቶችን ስራዎች ያስተባብራል
+    """
     AGENT_TYPES = [
         ('code', 'Code Agent'),
         ('seo', 'SEO Agent'),
@@ -631,7 +642,7 @@ class AgentTask(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     task_name = models.CharField(max_length=255)
     description = models.TextField()
-    priority = models.IntegerField(default=1, help_text="1-10")
+    priority = models.IntegerField(default=1, help_text="1-10 (10 ከፍተኛ)")
     result_data = models.JSONField(default=dict, blank=True)
     error_message = models.TextField(blank=True)
     
@@ -692,7 +703,10 @@ class AgentTask(models.Model):
 
 
 class ABTest(models.Model):
-    """A/B ሙከራዎችን ያስተዳድራል"""
+    """
+    A/B ሙከራዎችን ያስተዳድራል
+    የተለያዩ ለውጦችን ያወዳድራል
+    """
     STATUS_CHOICES = [
         ('draft', 'Draft'),
         ('running', 'Running'),
@@ -710,8 +724,8 @@ class ABTest(models.Model):
         related_name='ab_tests'
     )
     
-    variant_a = models.JSONField()
-    variant_b = models.JSONField()
+    variant_a = models.JSONField(help_text="የመጀመሪያ ስሪት")
+    variant_b = models.JSONField(help_text="ሁለተኛ ስሪት")
     winner = models.CharField(max_length=10, blank=True)
     
     variant_a_views = models.IntegerField(default=0)
@@ -758,7 +772,10 @@ class ABTest(models.Model):
 
 
 class SecurityLog(models.Model):
-    """የደህንነት ቀንድ መዝገብ"""
+    """
+    የደህንነት ቀንድ መዝገብ
+    የኤጀንቱን የደህንነት ስጋቶች ይመዘግባል
+    """
     SEVERITY_CHOICES = [
         ('low', 'Low'),
         ('medium', 'Medium'),
@@ -808,7 +825,10 @@ class SecurityLog(models.Model):
 
 
 class PredictionLog(models.Model):
-    """የትንበያ ውጤቶች መዝገብ"""
+    """
+    የትንበያ ውጤቶች መዝገብ
+    ኤጀንቱ ያደረጋቸውን ትንበያዎች ያስቀምጣል
+    """
     PREDICTION_TYPES = [
         ('traffic', 'Traffic Prediction'),
         ('seo', 'SEO Score Prediction'),
@@ -819,8 +839,8 @@ class PredictionLog(models.Model):
     prediction_type = models.CharField(max_length=20, choices=PREDICTION_TYPES)
     predicted_value = models.FloatField()
     actual_value = models.FloatField(null=True, blank=True)
-    confidence_score = models.FloatField(default=0.0)
-    input_data = models.JSONField(default=dict)
+    confidence_score = models.FloatField(default=0.0, help_text="0-100")
+    input_data = models.JSONField(default=dict, help_text="ትንበያው የተሰራበት መረጃ")
     model_version = models.CharField(max_length=50, blank=True)
     
     site = models.ForeignKey(
@@ -846,7 +866,10 @@ class PredictionLog(models.Model):
 
 
 class ExternalAPI(models.Model):
-    """የውጭ API ግንኙነት አስተዳደር"""
+    """
+    የውጭ API ግንኙነት አስተዳደር
+    ኤጀንቱ ከውጭ አገልግሎቶች ጋር እንዲገናኝ ያስችላል
+    """
     API_TYPES = [
         ('google_analytics', 'Google Analytics'),
         ('google_search_console', 'Google Search Console'),
@@ -869,7 +892,7 @@ class ExternalAPI(models.Model):
     api_secret = models.CharField(max_length=255, blank=True)
     base_url = models.URLField(blank=True)
     webhook_url = models.URLField(blank=True)
-    rate_limit = models.IntegerField(default=100)
+    rate_limit = models.IntegerField(default=100, help_text="በደቂቃ ጥሪዎች")
     calls_made = models.IntegerField(default=0)
     last_reset = models.DateTimeField(auto_now=True)
     

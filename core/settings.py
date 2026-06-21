@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/core/settings.py
-# 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — Render Free Tier Optimized
-# 📅 ቀን፦ 2026-06-20
+# 📝 ለውጥ፦ Advanced Agent Features — pgvector, WebSocket, Cache
+# 📅 ቀን፦ 2026-06-21
 # ============================================================
 
 import os
@@ -31,7 +31,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # 2. Core Security & Environment Settings
 # =====================================================================
 SECRET_KEY = env('SECRET_KEY', default='django-insecure-ethafri-key-2026')
-DEBUG = env.bool('DEBUG', default=False)  # ⚠️ በRender ላይ False ይሁን
+DEBUG = env.bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = ['*']
 
@@ -54,6 +54,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'marketplace',
     'cloudinary',
+    # 🆕 Channels for WebSocket
+    'channels',
+    # 🆕 pgvector for RAG (ከተጫነ በኋላ)
+    # 'pgvector',
 ]
 
 MIDDLEWARE = [
@@ -88,6 +92,9 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+
+# 🆕 ASGI Application for WebSocket
+ASGI_APPLICATION = 'core.asgi.application'
 
 # =====================================================================
 # 4. Database (Hybrid: PostgreSQL in Production, SQLite in Local)
@@ -136,37 +143,22 @@ LOCALE_PATHS = [
 # =====================================================================
 # 6. Static & Media Files (Whitenoise & Cloudinary Storage)
 # =====================================================================
-# ============================================================
-# 📁 ፋይል፦ EthAfri/core/settings.py
-# 📝 ለውጥ፦ Cloudinary fallback — use local storage if not configured
-# 📅 ቀን፦ 2026-06-20
-# ============================================================
-
-# =====================================================================
-# # =====================================================================
-# 6. Static & Media Files (Whitenoise & Cloudinary Storage)
-# =====================================================================
-
-
-# የስታቲክ ፋይሎች ቅንብር
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# የስታቲክ ፋይሎች መንገድ (ለልማት)
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
-# 🛠️ የተሻሻለ — WhiteNoise ችግርን ለመፍታት
+
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
-# WhiteNoise ቅንብሮች
 WHITENOISE_USE_FINDERS = True
 WHITENOISE_AUTOREFRESH = True
 WHITENOISE_MAX_AGE = 31536000
 WHITENOISE_ALLOW_ALL_ORIGINS = True
-WHITENOISE_MANIFEST_STRICT = False  # ⚠️ ያልተገኙ ፋይሎችን ችላ ለማለት
+WHITENOISE_MANIFEST_STRICT = False
 
-# Cloudinary ቁልፎች ካሉ ይጠቀማል
+# Cloudinary Configuration
 CLOUDINARY_CLOUD_NAME = env('CLOUDINARY_CLOUD_NAME', default='')
 CLOUDINARY_API_KEY = env('CLOUDINARY_API_KEY', default='')
 CLOUDINARY_API_SECRET = env('CLOUDINARY_API_SECRET', default='')
@@ -213,7 +205,66 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # =====================================================================
-# 8. Multi-Site Configuration
+# 8. 🆕 WebSocket & Channels Configuration
+# =====================================================================
+
+# Channels Layer (In-memory for development)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
+
+# ለምርት (Production) Redis መጠቀም ከፈለግክ
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('127.0.0.1', 6379)],
+#         },
+#     },
+# }
+
+# =====================================================================
+# 9. 🆕 Cache Configuration
+# =====================================================================
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ethafri-cache',
+    }
+}
+
+# Redis ለምርት ከፈለግክ
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+#         'LOCATION': 'redis://127.0.0.1:6379/1',
+#     }
+# }
+
+# Cache Timeouts
+CACHE_TTL = {
+    'short': 60,       # 1 ደቂቃ
+    'medium': 300,     # 5 ደቂቃ
+    'long': 3600,      # 1 ሰዓት
+    'very_long': 86400, # 1 ቀን
+}
+
+# =====================================================================
+# 10. 🆕 pgvector Configuration (RAG Memory)
+# =====================================================================
+
+# pgvector extension ን ለመጠቀም
+# ማይግሬሽን ከሄደ በኋላ ይህንን አንቃ
+# INSTALLED_APPS ላይ 'pgvector' ን ተጨምር
+
+# Vector dimension for embeddings
+VECTOR_DIMENSION = 1536  # OpenAI embedding size
+
+# =====================================================================
+# 11. Multi-Site Configuration
 # =====================================================================
 
 DEFAULT_SITE_CONFIG = {
@@ -245,10 +296,9 @@ AUTO_MARKETING_CONFIG = {
 }
 
 # =====================================================================
-# 9. Logging Configuration
+# 12. Logging Configuration
 # =====================================================================
 
-# 🛡️ SelfHealingDBHandler በሌለበት ጊዜ እንዳይሰበር
 try:
     from marketplace.log_handlers import SelfHealingDBHandler
 except ImportError:
@@ -323,6 +373,17 @@ LOGGING = {
         'marketplace.self_doctor': {
             'handlers': ['console', 'self_healing_db'],
             'level': 'DEBUG',
+            'propagate': False,
+        },
+        # 🆕 Channels logging
+        'channels': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'daphne': {
+            'handlers': ['console'],
+            'level': 'INFO',
             'propagate': False,
         },
     },

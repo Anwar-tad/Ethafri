@@ -1,14 +1,22 @@
-# EthAfri/marketplace/self_doctor.py
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
+# 📝 ለውጥ፦ Smart Self-Doctor — RAG Memory + Predictive + Security + External APIs
+# 📅 ቀን፦ 2026-06-21
+# ============================================================
 
 import json
 import re
 import traceback
 import os
-import logging  # ⚠️ የሎግ መመዝገቢያ ማስመጪ ተጨምሯል (Startup NameError መከላከያ)
+import logging
 from django.db import connection
 from django.conf import settings
 from django.utils.text import slugify
-from .models import SelfHealingLog, SiteConfig, SiteRegistry, AgentErrorLog, AIEvolutionLog
+from django.utils import timezone
+from .models import (
+    SelfHealingLog, SiteConfig, SiteRegistry, AgentErrorLog, AIEvolutionLog,
+    VectorMemory, SecurityLog, PredictionLog, ExternalAPI
+)
 from .growth_agent import ask_ethafri_ceo, get_site_project_state
 
 logger = logging.getLogger(__name__)
@@ -35,13 +43,177 @@ def validate_css_syntax(css_content):
 
 
 # ============================================================
-# 2. የዲዛይን ጥገና እና ዝግመተ-ለውጥ (የተሻሻለ - Multi-Site)
+# 2. 🆕 Doctor Memory (RAG for Self-Healing)
+# ============================================================
+
+class DoctorMemory:
+    """ራስ-ሐኪም ትውስታ — ያለፉ ስህተቶችን እና መፍትሄዎችን ያስታውሳል"""
+    
+    def __init__(self, site=None):
+        self.site = site
+    
+    def remember_diagnosis(self, error_type, error_message, diagnosis, solution, success=True):
+        """የተሳካ ምርመራ ያስታውሳል"""
+        memory = VectorMemory.objects.create(
+            memory_type='error' if not success else 'solution',
+            content=f"Error: {error_message[:200]}\nDiagnosis: {diagnosis[:300]}\nSolution: {solution[:500]}",
+            metadata={
+                'error_type': error_type,
+                'success': success,
+                'site_id': self.site.id if self.site else None
+            },
+            site=self.site,
+            success_rate=100.0 if success else 0.0
+        )
+        memory.mark_used(success)
+        return memory
+    
+    def find_similar_error(self, error_message, limit=3):
+        """ተመሳሳይ ስህተቶችን ያገኛል"""
+        return VectorMemory.find_similar(
+            query=error_message,
+            memory_type='error',
+            site=self.site,
+            limit=limit
+        )
+    
+    def find_similar_solution(self, error_message, limit=3):
+        """ተመሳሳይ መፍትሄዎችን ያገኛል"""
+        return VectorMemory.find_similar(
+            query=error_message,
+            memory_type='solution',
+            site=self.site,
+            limit=limit
+        )
+
+
+# ============================================================
+# 3. 🆕 Predictive Error Analyzer
+# ============================================================
+
+class PredictiveErrorAnalyzer:
+    """ስህተቶችን በመተንበይ ለመከላከል ይረዳል"""
+    
+    def __init__(self, site=None):
+        self.site = site
+    
+    def analyze_error_patterns(self):
+        """የስህተት ቅጦችን ይተነትናል"""
+        errors = AgentErrorLog.objects.filter(site=self.site) if self.site else AgentErrorLog.objects.all()
+        
+        patterns = {
+            'total_errors': errors.count(),
+            'by_type': {},
+            'by_site': {},
+            'trend': 'stable'
+        }
+        
+        # በስህተት አይነት
+        for error_type in AgentErrorLog.ERROR_TYPES:
+            count = errors.filter(error_type=error_type[0]).count()
+            if count > 0:
+                patterns['by_type'][error_type[0]] = count
+        
+        # በጣቢያ
+        if self.site:
+            sites = SiteRegistry.objects.filter(is_active=True)
+            for site in sites:
+                count = AgentErrorLog.objects.filter(site=site, resolved=False).count()
+                if count > 0:
+                    patterns['by_site'][site.name] = count
+        
+        # አዝማሚያ (ባለፈው ሳምንት እና ወር)
+        week_ago = timezone.now() - timezone.timedelta(days=7)
+        month_ago = timezone.now() - timezone.timedelta(days=30)
+        
+        week_errors = errors.filter(created_at__gte=week_ago).count()
+        month_errors = errors.filter(created_at__gte=month_ago).count()
+        
+        if week_errors > month_errors / 4 * 1.5:
+            patterns['trend'] = 'increasing'
+        elif week_errors < month_errors / 4 * 0.5:
+            patterns['trend'] = 'decreasing'
+        
+        return patterns
+    
+    def predict_next_error(self):
+        """የሚቀጥለውን ስህተት ይተነብያል"""
+        patterns = self.analyze_error_patterns()
+        
+        # በጣም የተለመደውን ስህተት ወስድ
+        if patterns['by_type']:
+            most_common = max(patterns['by_type'], key=patterns['by_type'].get)
+            
+            # ትንበያ መዝግብ
+            prediction = PredictionLog.objects.create(
+                prediction_type='growth',
+                predicted_value=float(patterns['by_type'][most_common]),
+                confidence_score=70.0,
+                input_data={'most_common_error': most_common, 'trend': patterns['trend']},
+                site=self.site
+            )
+            
+            return {
+                'predicted_error': most_common,
+                'confidence': 70.0,
+                'trend': patterns['trend'],
+                'prediction_id': prediction.id
+            }
+        
+        return None
+
+
+# ============================================================
+# 4. 🆕 External API Health Check
+# ============================================================
+
+class ExternalAPIHealthCheck:
+    """የውጭ API ጤና ሁኔታን ይፈትሻል"""
+    
+    def __init__(self, site=None):
+        self.site = site
+    
+    def check_all_apis(self):
+        """ሁሉንም ኤፒአዮች ይፈትሻል"""
+        results = {}
+        apis = ExternalAPI.objects.filter(site=self.site) if self.site else ExternalAPI.objects.all()
+        
+        for api in apis:
+            results[api.name] = {
+                'status': api.status,
+                'calls_made': api.calls_made,
+                'rate_limit': api.rate_limit,
+                'health': 'good' if api.status == 'active' else 'warning'
+            }
+        
+        return results
+    
+    def check_api(self, api_type):
+        """አንድ የተወሰነ ኤፒአይ ይፈትሻል"""
+        api = ExternalAPI.objects.filter(
+            api_type=api_type,
+            site=self.site
+        ).first()
+        
+        if not api:
+            return {'status': 'not_found'}
+        
+        return {
+            'status': api.status,
+            'calls_made': api.calls_made,
+            'rate_limit': api.rate_limit,
+            'health': 'good' if api.status == 'active' else 'warning'
+        }
+
+
+# ============================================================
+# 5. የዲዛይን ጥገና እና ዝግመተ-ለውጥ (የተሻሻለ - Multi-Site)
 # ============================================================
 
 def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minimalist", site=None):
     """
     📌 አዳዲስና የተሻሉ የዲዛይን ስታይሎችን ያሰሳል፣ ስህተቶች ሲኖሩም ራሱን ያክማል።
-    አሁን ለብዙ ጣቢያዎች ይሠራል።
+    አሁን ለብዙ ጣቢያዎች ይሰራል
     """
     site_name = site.name if site else "primary"
     style_key = f"DESIGN_STYLE_{slugify(trend_context)}_{slugify(site_name)}"
@@ -127,17 +299,27 @@ def discover_and_heal_ui_design(current_theme_color, trend_context="Modern Minim
 
 
 # ============================================================
-# 3. ለአንድ ጣቢያ ስህተት ጥገና (የተሻሻለ)
+# 6. 🆕 የተሻሻለ ለአንድ ጣቢያ ስህተት ጥገና (Smart Single Site Healing)
 # ============================================================
 
 def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target_context=None):
     """
-    ለአንድ የተወሰነ ጣቢያ ስህተት ያስተካክላል [1]
+    ለአንድ የተወሰነ ጣቢያ ስህተት ያስተካክላል
+    RAG Memory, Predictive, External APIs ይጠቀማል
     """
     site_name = site.name
     general_error = generalize_error_message(error_msg)
     
-    # 1. በዚህ ጣቢያ ላይ ቀደም ብሎ የተፈታ ስህተት ካለ
+    # 1. 🆕 Doctor Memory ን ተጠቀም
+    doctor_memory = DoctorMemory(site)
+    
+    # 2. 🆕 ተመሳሳይ መፍትሄዎችን ከትውስታ ያግኝ
+    similar_solutions = doctor_memory.find_similar_solution(error_msg, limit=3)
+    memory_context = ""
+    for sol in similar_solutions:
+        memory_context += f"\nPrevious solution: {sol.content[:300]}\n"
+    
+    # 3. በዚህ ጣቢያ ላይ ቀደም ብሎ የተፈታ ስህተት ካለ
     past_solution = SelfHealingLog.objects.filter(
         error_message__icontains=general_error[:150], 
         resolved=True
@@ -155,18 +337,43 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
         elif error_category == 'CODE_EXECUTION':
             return past_solution.solution_sql
 
-    # 2. የጣቢያውን ኮድ አንብብ [1]
+    # 4. 🆕 የጣቢያውን ኮድ አንብብ
     project_code, file_paths = get_site_project_state(site)
     
-    # 3. AI መመሪያ (Prompt)
+    # 5. 🆕 የስህተት ትንበያ
+    predictor = PredictiveErrorAnalyzer(site)
+    prediction = predictor.predict_next_error()
+    
+    prediction_context = ""
+    if prediction:
+        prediction_context = f"""
+        Predicted next error: {prediction['predicted_error']}
+        Trend: {prediction['trend']}
+        """
+    
+    # 6. 🆕 የውጭ API ጤና
+    api_health = ExternalAPIHealthCheck(site)
+    api_status = api_health.check_all_apis()
+    api_context = f"API Health: {json.dumps(api_status, indent=2)}"
+    
+    # 7. AI መመሪያ (Prompt) ከትውስታ እና ትንበያ ጋር
     if error_category == 'DATABASE':
         prompt = f"""
         [CRITICAL DIRECTIVE]
-        You are the Autonomous Database Doctor of EthAfri for site: {site_name}.
+        You are the Smart Database Doctor for site: {site_name}.
         
         Site Information:
         - Niche: {site.niche}
         - Target Market: {site.target_market}
+        
+        Memory Context (past solutions):
+        {memory_context}
+        
+        Prediction Context:
+        {prediction_context}
+        
+        API Health:
+        {api_context}
         
         Fix this PostgreSQL error: {error_msg} 
         For query/context: {target_context}. 
@@ -175,12 +382,21 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
     else:
         prompt = f"""
         [CRITICAL DIRECTIVE]
-        You are the Lead Systems Engineer of EthAfri for site: {site_name}.
+        You are the Smart Systems Engineer for site: {site_name}.
         
         Site Information:
         - Niche: {site.niche}
         - Target Market: {site.target_market}
         - Current Codebase: {json.dumps(project_code, indent=2)[:3000]}
+        
+        Memory Context (past solutions):
+        {memory_context}
+        
+        Prediction Context:
+        {prediction_context}
+        
+        API Health:
+        {api_context}
         
         Fix this Python runtime error: {error_msg} 
         In context: {target_context}. 
@@ -213,16 +429,33 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
         elif error_category == 'CODE_EXECUTION':
             compile(clean_solution, '<string>', 'exec')
 
+        # 8. 🆕 የተሳካ ፈውስ በትውስታ ውስጥ አስቀምጥ
+        doctor_memory.remember_diagnosis(
+            error_type=error_category,
+            error_message=error_msg[:200],
+            diagnosis=f"Fixed {error_category} error",
+            solution=clean_solution[:500],
+            success=True
+        )
+
         SelfHealingLog.objects.create(
             error_message=general_error,
             solution_sql=clean_solution,
             resolved=True
         )
         
-        # ስህተቱን እንደተፈታ ምልክት ማድረግ [1]
         AgentErrorLog.objects.filter(site=site, error_message__icontains=general_error[:100], resolved=False).update(resolved=True)
         
-        return f"✅ System Healed for {site_name}! Category: {error_category}"
+        # 9. 🆕 የጤና ትንበያ መዝግብ
+        PredictionLog.objects.create(
+            prediction_type='growth',
+            predicted_value=85.0,
+            confidence_score=80.0,
+            input_data={'site': site_name, 'error_type': error_category},
+            site=site
+        )
+        
+        return f"✅ Smart System Healed for {site_name}! Category: {error_category}"
 
     except Exception as heal_err:
         SelfHealingLog.objects.create(
@@ -234,17 +467,17 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
 
 
 # ============================================================
-# 4. ዋናው ስህተት ጥገና ተግባር (የተሻሻለ - Multi-Site)
+# 7. ዋናው ስህተት ጥገና ተግባር (የተሻሻለ - Multi-Site)
 # ============================================================
 
 def heal_any_system_error(error_category, error_msg, target_context=None):
     """
     የዳታቤዝም ሆነ የኮድ አፈጻጸም ስህተቶች ሲከሰቱ ራሱን የሚያክም ዋና ሞተር
-    አሁን ሁሉንም ጣቢያዎች ያስተዳድራል [1]
+    አሁን ሁሉንም ጣቢያዎች ያስተዳድራል እና ስማርት ባህሪያትን ይጠቀማል
     """
     results = []
     
-    # 1. ስህተቱ የትኛውን ጣቢያ እንደሚመለከት መለየት
+    # 1. ስህተቱ የትኛውን ጣቢያ እንደሚመለከት ለይ
     site_id = None
     if target_context and 'site_id' in str(target_context):
         try:
@@ -255,14 +488,10 @@ def heal_any_system_error(error_category, error_msg, target_context=None):
         except:
             pass
     
-    # 2. ሁሉንም ንቁ ጣቢያዎች ራስ-ጥገና አድርግ
-    try:
-        sites = SiteRegistry.objects.filter(is_active=True)
-    except Exception:
-        sites = None
+    # 2. ሁሉንም ንቁ ጣቢያዎች ራስ-ጥገና አድርግ (ወይም አንዱን)
+    sites = SiteRegistry.objects.filter(is_active=True)
     
-    if not sites or not sites.exists():
-        # ነባሪ ጣቢያ ከሌለ መደበኛ ጥገና ማድረግ
+    if not sites.exists():
         return _heal_system_error_single(error_category, error_msg, target_context)
     
     # የተወሰነ ጣቢያ ከተለየ
@@ -283,11 +512,11 @@ def heal_any_system_error(error_category, error_msg, target_context=None):
     if not results:
         return _heal_system_error_single(error_category, error_msg, target_context)
     
-    return f"🛠️ Multi-Site Heal Summary: {' | '.join(results)}"
+    return f"🛠️ Smart Multi-Site Heal Summary: {' | '.join(results)}"
 
 
 # ============================================================
-# 5. ነባሪ ጥገና ተግባር (ለአሮጌ ተኳሃኝነት)
+# 8. ነባሪ ጥገና ተግባር (ለአሮጌ ተኳሃኝነት)
 # ============================================================
 
 def _heal_system_error_single(error_category, error_msg, target_context=None):
