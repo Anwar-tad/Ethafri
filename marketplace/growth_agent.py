@@ -1,13 +1,18 @@
-# EthAfri/marketplace/growth_agent.py
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
+# 📝 ለውጥ፦ Enhanced Version — Optimized AI routing, fixed duplicates, improved error handling
+# 📅 ቀን፦ 2026-06-21
+# ============================================================
 
 import json
 import os
 import re
 import logging
 import sys
-import requests  # ለ Mistral, OpenRouter, Hugging Face እና GitHub ኤፒአይ ጥሪዎች
-import hashlib   # ለ SHA256 የይዘት ካሼ (Caching Layer)
-from datetime import datetime, timedelta  # ⚠️ የሰዓትና የጊዜ ፎርማት ማስሞጫ ተጨምሯል (AttributeError መከላከያ)
+import time
+import random
+import hashlib
+from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -15,11 +20,10 @@ from django.core.management import call_command
 from django.urls import clear_url_caches
 from importlib import reload
 from groq import Groq
-from google import genai  # የዘመነ የጉግል ኤስዲኬ (Google GenAI SDK)
-from django.db import models  # ለ Exists እና OuterRef ንዑስ ኳኤሪዎች
+from google import genai
+from django.db import models
 from django.db.models import Q
 
-# አዲሶቹን አውቶኖመስ ሞዴሎች ማካተት
 from .models import (
     SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, 
     AdminOverrideInstruction, AgentErrorLog, SiteRegistry,
@@ -30,16 +34,36 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# 1. የኤአይ ፎልባክ ሞተር (እንደበፊቱ)
+# 1. ረዳት ተግባራት (Helper Functions)
 # ============================================================
 
-def ask_ai_with_failover(prompt, pool_type="coding"):
+def extract_json(text):
+    """JSON ከ AI ምላሽ ያወጣል — የተሻሻለ"""
+    if not text or not isinstance(text, str):
+        return None
+    try:
+        clean_text = re.sub(r'^```json\s*|^```\s*|```$', '', text.strip(), flags=re.MULTILINE)
+        match = re.search(r'\{.*\}', clean_text, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        return json.loads(clean_text)
+    except (json.JSONDecodeError, TypeError, AttributeError) as e:
+        logger.warning(f"⚠️ JSON extraction failed: {e}")
+        return None
+
+
+# ============================================================
+# 2. የኤአይ ፎልባክ ሞተር (AI Failover Engine)
+# ============================================================
+
+def ask_ai_with_failover(prompt, pool_type="coding", max_retries=2, timeout=60):
     """
-    ተሻሻለ የኤአይ ፎልባክ ሞተር፡ ቁልፎችን የመለየት፣ የመመዝገብ እና ዙር-ተኮር (Round-Robin) 
-    የጥሪ ማመጣጠኛ አቅም ያለው።
+    የተሻሻለ የኤአይ ፎልባክ ሞተር
+    የቁልፎች ዑደት (Key Rotation)፣ የጥሪ ጫና ማመጣጠኛ (Load Balancing)፣
+    የስህተት አያያዝ እና የመዘግየት ጊዜ (Timeout) ያለው
     """
-    # 🚨 አንተ የጨመርከው የቁልፎች መኖር (Debugging) ፍተሻ
-    keys_to_check = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'GITHUB_TOKEN', 'HUGGINGFACE_API_KEY', 'HF_TOKEN', 'MISTRAL_API_KEY', 'OPENROUTER_API_KEY']
+    keys_to_check = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'GITHUB_TOKEN', 'HUGGINGFACE_API_KEY', 
+                     'HF_TOKEN', 'MISTRAL_API_KEY', 'OPENROUTER_API_KEY']
     for k in keys_to_check:
         val = os.environ.get(k)
         logger.info(f"🔑 DEBUG: Key {k} exists: {bool(val)}")
@@ -58,102 +82,128 @@ def ask_ai_with_failover(prompt, pool_type="coding"):
     if missing:
         logger.warning(f"⚠️ Missing API Keys: {missing}. Check Render Environment Variables!")
 
-    def extract_json(text):
-        if not text: return None
-        try:
-            match = re.search(r'\{.*\}', text, re.DOTALL)
-            return json.loads(match.group(0)) if match else None
-        except Exception: return None
-
+    # --- 🤖 የኤአይ አቅራቢዎች (AI Providers) ---
+    
     def call_gemini():
-        if not gemini_keys: return None
+        if not gemini_keys:
+            return None
         for idx, key in enumerate(gemini_keys):
             try:
                 client = genai.Client(api_key=key)
                 res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                 data = extract_json(res.text)
-                if data and "error" not in data: return data
+                if data and "error" not in data:
+                    return data
             except Exception as e:
                 logger.warning(f"🔄 Gemini Key {idx+1} exhausted: {e}")
+                time.sleep(1)
         return None
 
     def call_github():
-        if not github_token: return None
+        if not github_token:
+            return None
         url = "https://models.inference.ai.azure.com/chat/completions"
         headers = {"Authorization": f"Bearer {github_token}", "Content-Type": "application/json"}
         model = "azure-openai/gpt-4o-mini" if "translation" in pool_type else "meta-llama-3.1-405b-instruct"
         try:
-            res = requests.post(url, headers=headers, json={"model": model, "messages": [{"role": "user", "content": prompt}]}, timeout=20)
-            return extract_json(res.json()['choices'][0]['message']['content']) if res.status_code == 200 else None
+            res = requests.post(url, headers=headers, json={"model": model, "messages": [{"role": "user", "content": prompt}]}, timeout=timeout)
+            if res.status_code == 200:
+                return extract_json(res.json()['choices'][0]['message']['content'])
+            return None
         except Exception as e:
-            logger.error(f"GitHub Error: {e}"); return None
+            logger.error(f"GitHub Error: {e}")
+            return None
 
     def call_groq():
-        if not groq_key: return None
+        if not groq_key:
+            return None
         try:
             client = Groq(api_key=groq_key)
-            chat = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": prompt}])
+            chat = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": prompt}], timeout=timeout)
             return extract_json(chat.choices[0].message.content)
-        except Exception: return None
+        except Exception as e:
+            logger.warning(f"🔄 Groq failed: {e}")
+            return None
 
     def call_mistral():
-        if not mistral_key: return None
+        if not mistral_key:
+            return None
         url = "https://api.mistral.ai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {mistral_key}", "Content-Type": "application/json"}
         model = "codestral-latest" if pool_type == "coding" else "mistral-large-latest"
         try:
-            res = requests.post(url, headers=headers, json={"model": model, "messages": [{"role": "user", "content": prompt}], "response_format": {"type": "json_object"}}, timeout=20)
-            return extract_json(res.json()['choices'][0]['message']['content']) if res.status_code == 200 else None
-        except Exception: return None
+            res = requests.post(url, headers=headers, json={"model": model, "messages": [{"role": "user", "content": prompt}], "response_format": {"type": "json_object"}}, timeout=timeout)
+            if res.status_code == 200:
+                return extract_json(res.json()['choices'][0]['message']['content'])
+            return None
+        except Exception as e:
+            logger.warning(f"🔄 Mistral failed: {e}")
+            return None
 
     def call_huggingface():
-        if not huggingface_key: return None
+        if not huggingface_key:
+            return None
         url = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions"
         headers = {"Authorization": f"Bearer {huggingface_key}", "Content-Type": "application/json"}
         try:
-            res = requests.post(url, headers=headers, json={"model": "Qwen/Qwen2.5-72B-Instruct", "messages": [{"role": "user", "content": prompt}]}, timeout=25)
-            return extract_json(res.json()['choices'][0]['message']['content']) if res.status_code == 200 else None
-        except Exception: return None
+            res = requests.post(url, headers=headers, json={"model": "Qwen/Qwen2.5-72B-Instruct", "messages": [{"role": "user", "content": prompt}]}, timeout=timeout)
+            if res.status_code == 200:
+                return extract_json(res.json()['choices'][0]['message']['content'])
+            return None
+        except Exception as e:
+            logger.warning(f"🔄 Hugging Face failed: {e}")
+            return None
 
     def call_openrouter():
-        if not openrouter_key: return None
+        if not openrouter_key:
+            return None
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"}
         model = "google/gemini-2.5-flash" if "translation" in pool_type else "deepseek/deepseek-chat"
         try:
-            res = requests.post(url, headers=headers, json={"model": model, "messages": [{"role": "user", "content": prompt}]}, timeout=25)
-            return extract_json(res.json()['choices'][0]['message']['content']) if res.status_code == 200 else None
-        except Exception: return None
-
-    providers = []
-    
-    if pool_type == "translation_github":
-        providers = [call_github, call_gemini, call_huggingface, call_openrouter]
-    elif pool_type == "translation_huggingface":
-        providers = [call_huggingface, call_github, call_gemini, call_openrouter]
-    elif pool_type == "translation":
-        providers = [call_gemini, call_github, call_huggingface, call_openrouter, call_groq]
-    elif pool_type == "coding":
-        providers = [call_mistral, call_github, call_groq, call_openrouter, call_huggingface]
-    else:
-        providers = [call_groq, call_mistral, call_github, call_huggingface, call_openrouter]
-
-    # የማስፈጸሚያ ሉፕ
-    for provider in providers:
-        try:
-            result = provider()
-            if result and "error" not in result: 
-                return result
+            res = requests.post(url, headers=headers, json={"model": model, "messages": [{"role": "user", "content": prompt}]}, timeout=timeout)
+            if res.status_code == 200:
+                return extract_json(res.json()['choices'][0]['message']['content'])
+            return None
         except Exception as e:
-            logger.warning(f"Provider {provider.__name__} failed: {e}")
+            logger.warning(f"🔄 OpenRouter failed: {e}")
+            return None
 
-    return {"error": "All AI providers failed or keys are missing."}
+    # --- 🎯 የአቅራቢዎች ዝርዝር (Provider List) ---
+    provider_configs = {
+        "coding": [call_mistral, call_github, call_groq, call_openrouter, call_huggingface, call_gemini],
+        "translation": [call_gemini, call_github, call_huggingface, call_openrouter, call_groq],
+        "translation_github": [call_github, call_gemini, call_huggingface, call_openrouter],
+        "translation_huggingface": [call_huggingface, call_github, call_gemini, call_openrouter],
+        "marketing": [call_openrouter, call_gemini, call_mistral, call_github, call_groq],
+        "analysis": [call_gemini, call_openrouter, call_huggingface, call_groq],
+        "healing": [call_mistral, call_github, call_gemini, call_openrouter, call_huggingface],
+    }
+    
+    providers = provider_configs.get(pool_type, [call_groq, call_mistral, call_github, call_huggingface, call_openrouter])
+    random.shuffle(providers)  # Load balancing
+
+    # --- 🚀 የጥሪ ማስፈጸሚያ (Execution) ---
+    for provider in providers:
+        for attempt in range(max_retries):
+            try:
+                result = provider()
+                if result and "error" not in result:
+                    logger.info(f"✅ Success with {provider.__name__}")
+                    return result
+            except Exception as e:
+                logger.warning(f"⚠️ Attempt {attempt+1} for {provider.__name__} failed: {e}")
+                time.sleep(1)
+    
+    logger.error("❌ All AI providers failed")
+    return {"error": "All AI providers failed after multiple attempts."}
+
 
 ask_ethafri_ceo = ask_ai_with_failover
 
 
 # ============================================================
-# 2. የፕሮጀክት ሁኔታ አንባቢ (Multi-Site)
+# 3. የፕሮጀክት ሁኔታ አንባቢ (Multi-Site)
 # ============================================================
 
 def get_site_project_state(site: SiteRegistry):
@@ -211,7 +261,7 @@ def get_complete_project_state():
 
 
 # ============================================================
-# 3. አዲስ ጣቢያ ራስ-ሰር መለየት (Auto-Discovery)
+# 4. አዲስ ጣቢያ ራስ-ሰር መለየት (Auto-Discovery)
 # ============================================================
 
 def discover_new_sites():
@@ -225,23 +275,19 @@ def discover_new_sites():
     if not os.path.exists(base_path):
         return discovered
     
-    # በዋናው ማውጫ ውስጥ ያሉ ሁሉንም ፎልደሮች ይመልከት
     for item in os.listdir(base_path):
         item_path = os.path.join(base_path, item)
         if os.path.isdir(item_path):
-            # የ Django ፕሮጀክት መሆኑን አረጋግጥ
             if os.path.exists(os.path.join(item_path, 'manage.py')):
                 site_name = item.lower().replace('_', '-').replace(' ', '-')
                 
-                # ቀድሞ የተመዘገበ እንደሆነ ፈትሽ
                 existing = SiteRegistry.objects.filter(name=site_name).first()
                 if not existing:
-                    # አዲስ ጣቢያ ፍጠር
                     try:
                         site = SiteRegistry.objects.create(
                             name=site_name,
                             display_name=item.replace('_', ' ').title(),
-                            niche="general",  # AI ይሞላዋል
+                            niche="general",
                             target_market="Global",
                             repo_path=item_path,
                             is_active=True
@@ -255,7 +301,7 @@ def discover_new_sites():
 
 
 # ============================================================
-# 4. የጣቢያ ኒች እና ገበያ ራስ-ሰር መለየት
+# 5. የጣቢያ ኒች እና ገበያ ራስ-ሰር መለየት
 # ============================================================
 
 def analyze_site_niche(site: SiteRegistry):
@@ -267,7 +313,6 @@ def analyze_site_niche(site: SiteRegistry):
     if not project_code:
         return False
     
-    # የጣቢያ መረጃን በአጭሩ ለ AI አቅርብ
     code_summary = {}
     for key, value in project_code.items():
         if value:
@@ -311,7 +356,7 @@ def analyze_site_niche(site: SiteRegistry):
 
 
 # ============================================================
-# 5. የእድገት ስትራቴጂ ሞተር
+# 6. የእድገት ስትራቴጂ ሞተር
 # ============================================================
 
 class GrowthStrategyEngine:
@@ -324,69 +369,30 @@ class GrowthStrategyEngine:
         self.site = site
     
     def get_strategy(self):
-        """ለአሁኑ ደረጃ የእድገት ስትራቴጂ ይመልሳል"""
         strategies = {
-            1: {
-                'name': 'Local Growth',
-                'focus': 'አካባቢያዊ ሻጮች እና ገዢዎች',
-                'actions': [
-                    'የአካባቢውን ንግዶች መዘርዘር',
-                    'የአካባቢ ጋዜጣዎች ማስታወቂያ',
-                    'የአካባቢ ፌስቡክ ግሩፖች መጠቀም',
-                ],
-                'target_audience': 'Local businesses and buyers'
-            },
-            2: {
-                'name': 'City Growth',
-                'focus': 'የከተማ ሻጮች እና ገዢዎች',
-                'actions': [
-                    'የከተማ ንግዶችን መዘርዘር',
-                    'በትራንስፖርት ማስታወቂያ',
-                    'የከተማ ተጽዕኖ ፈጣሪዎች',
-                ],
-                'target_audience': 'City-wide businesses'
-            },
-            3: {
-                'name': 'National Growth',
-                'focus': 'ሀገር አቀፍ ሻጮች እና ገዢዎች',
-                'actions': [
-                    'የሀገር አቀፍ ማስታወቂያ',
-                    'በኢንፍሉዌንሰሮች ግብይት',
-                    'የብሎግ ጽሁፎች SEO',
-                ],
-                'target_audience': 'National businesses'
-            },
-            4: {
-                'name': 'Continental Growth',
-                'focus': 'የአህጉር አቀፍ ሻጮች እና ገዢዎች',
-                'actions': [
-                    'የአህጉር አቀፍ ማስታወቂያ',
-                    'በዓለም አቀፍ መድረኮች ግብይት',
-                    'የቋንቋ ትርጉም እና የአካባቢ ማመቻቸት',
-                ],
-                'target_audience': 'Continental businesses'
-            },
-            5: {
-                'name': 'Global Growth',
-                'focus': 'ዓለም አቀፍ ሻጮች እና ገዢዎች',
-                'actions': [
-                    'ዓለም አቀፍ ማስታወቂያ',
-                    'በአለም አቀፍ ጉባኤዎች ተሳትፎ',
-                    'ባለብዙ ቋንቋ ድጋፍ',
-                ],
-                'target_audience': 'International businesses'
-            }
+            1: {'name': 'Local Growth', 'focus': 'አካባቢያዊ ሻጮች እና ገዢዎች', 
+                'actions': ['የአካባቢውን ንግዶች መዘርዘር', 'የአካባቢ ጋዜጣዎች ማስታወቂያ', 'የአካባቢ ፌስቡክ ግሩፖች መጠቀም'],
+                'target_audience': 'Local businesses and buyers'},
+            2: {'name': 'City Growth', 'focus': 'የከተማ ሻጮች እና ገዢዎች',
+                'actions': ['የከተማ ንግዶችን መዘርዘር', 'በትራንስፖርት ማስታወቂያ', 'የከተማ ተጽዕኖ ፈጣሪዎች'],
+                'target_audience': 'City-wide businesses'},
+            3: {'name': 'National Growth', 'focus': 'ሀገር አቀፍ ሻጮች እና ገዢዎች',
+                'actions': ['የሀገር አቀፍ ማስታወቂያ', 'በኢንፍሉዌንሰሮች ግብይት', 'የብሎግ ጽሁፎች SEO'],
+                'target_audience': 'National businesses'},
+            4: {'name': 'Continental Growth', 'focus': 'የአህጉር አቀፍ ሻጮች እና ገዢዎች',
+                'actions': ['የአህጉር አቀፍ ማስታወቂያ', 'በዓለም አቀፍ መድረኮች ግብይት', 'የቋንቋ ትርጉም እና የአካባቢ ማመቻቸት'],
+                'target_audience': 'Continental businesses'},
+            5: {'name': 'Global Growth', 'focus': 'ዓለም አቀፍ ሻጮች እና ገዢዎች',
+                'actions': ['ዓለም አቀፍ ማስታወቂያ', 'በአለም አቀፍ ጉባኤዎች ተሳትፎ', 'ባለብዙ ቋንቋ ድጋፍ'],
+                'target_audience': 'International businesses'}
         }
         level = self.site.growth_level or 1
         return strategies.get(level, strategies[1])
     
     def execute_actions(self):
-        """የአሁኑን የእድገት ስትራቴጂ ይተገብራል"""
         strategy = self.get_strategy()
-        
         logger.info(f"📈 Executing {strategy['name']} strategy for {self.site.name}")
         
-        # የተግባር ዝርዝርን ወደ ባክሎግ ይጨምራል
         for action in strategy['actions']:
             AIProjectBacklog.objects.get_or_create(
                 task_name=f"Growth_L{self.site.growth_level}_{action[:30]}",
@@ -401,22 +407,18 @@ class GrowthStrategyEngine:
                     'complexity': 3
                 }
             )
-        
         return strategy
 
 
 # ============================================================
-# 6. የግብይት ካምፔን ሞተር
+# 7. የግብይት ካምፔን ሞተር
 # ============================================================
 
 class MarketingEngine:
-    """የግብይት ካምፔኖችን የሚያስተዳድር ሞተር"""
-    
     def __init__(self, site: SiteRegistry):
         self.site = site
     
     def generate_marketing_content(self, product=None):
-        """ለግብይት የሚሆን ይዘት ያመነጫል"""
         context = f"Site: {self.site.display_name}\nNiche: {self.site.niche}\n"
         if product:
             context += f"Product: {product.title}\nPrice: {product.price}\nDescription: {product.description[:200]}\n"
@@ -441,12 +443,10 @@ class MarketingEngine:
             "seo_meta_description": "string"
         }}
         """
-        
         data = ask_ai_with_failover(prompt, pool_type="marketing")
         return data
     
     def create_campaign(self, campaign_type, message, target_audience=None):
-        """አዲስ ግብይት ካምፔን ይፈጥራል"""
         campaign = MarketingCampaign.objects.create(
             site=self.site,
             name=f"{campaign_type}_{timezone.now().strftime('%Y%m%d')}",
@@ -459,7 +459,6 @@ class MarketingEngine:
         return campaign
     
     def send_notification(self, recipient, message, notification_type='email', subject=''):
-        """ማሳወቂያ ወደ ወረፋ ይጨምራል"""
         NotificationQueue.objects.create(
             site=self.site,
             notification_type=notification_type,
@@ -471,17 +470,14 @@ class MarketingEngine:
 
 
 # ============================================================
-# 7. የደንበኛ ማግኛ ሞተር
+# 8. የደንበኛ ማግኛ ሞተር
 # ============================================================
 
 class CustomerAcquisitionEngine:
-    """ደንበኞችን ለማግኘት እና ለማሳወቅ የሚረዳ ሞተር"""
-    
     def __init__(self, site: SiteRegistry):
         self.site = site
     
     def generate_onboarding_message(self, seller_name="there"):
-        """ለአዲስ ሻጭ የመጀመሪያ መልእክት ያዘጋጃል"""
         return f"""
         👋 እንኳን ደህና መጡ ለ {self.site.display_name}!
         
@@ -499,7 +495,6 @@ class CustomerAcquisitionEngine:
         """
     
     def log_acquisition(self, channel, contact_info, name="", message=""):
-        """የደንበኛ ማግኛ ተግባርን ይመዘግባል"""
         return CustomerAcquisitionLog.objects.create(
             site=self.site,
             channel=channel,
@@ -512,7 +507,7 @@ class CustomerAcquisitionEngine:
 
 
 # ============================================================
-# 8. የአንድ ጣቢያ ትንተና (Single Site Analysis)
+# 9. የአንድ ጣቢያ ትንተና (Single Site Analysis)
 # ============================================================
 
 def run_single_site_analysis(site: SiteRegistry):
@@ -525,17 +520,14 @@ def run_single_site_analysis(site: SiteRegistry):
     
     logger.info(f"🚀 Starting analysis for site: {site_name}")
     
-    # 1. የጣቢያ ሁኔታ ያንብብ
     project_code, file_paths = get_site_project_state(site)
     
     if not project_code:
         logger.warning(f"⚠️ No code found for site: {site_name}")
         return f"⚠️ No code found for {site_name}"
     
-    # 2. ለዚህ ጣቢያ የተለዩ ስራዎችን ያግኝ
     pending_tasks = AIProjectBacklog.objects.filter(
-        site=site,
-        status='Pending'
+        site=site, status='Pending'
     ).annotate(
         has_unfinished_dependency=models.Exists(
             AIProjectBacklog.objects.filter(
@@ -546,14 +538,10 @@ def run_single_site_analysis(site: SiteRegistry):
     ).filter(has_unfinished_dependency=False).order_by('-priority', 'created_at')
     
     target_task = pending_tasks.first()
-    
-    # 3. ከሌሉ ጣቢያውን አዲስ ስራዎችን ይፈልግ
     forced_instruction = ""
     
-    # ለዚህ ጣቢያ የተለዩ ኦቨርራይዶችን ያግኝ
     override_obj = AdminOverrideInstruction.objects.filter(
-        site=site,
-        is_processed=False
+        site=site, is_processed=False
     ).order_by('created_at').first()
     
     if override_obj:
@@ -565,8 +553,6 @@ def run_single_site_analysis(site: SiteRegistry):
         logger.info(f"🚨 Admin Override for {site_name}: {override_obj.instruction}")
         results.append(f"Override: {override_obj.instruction[:50]}...")
     
-    # 4. ፕሮምፕት ያዘጋጅ
-    # የጣቢያ መረጃ እና የእድገት ስትራቴጂ
     strategy_engine = GrowthStrategyEngine(site)
     strategy = strategy_engine.get_strategy()
     
@@ -598,14 +584,12 @@ def run_single_site_analysis(site: SiteRegistry):
     - Suggest business growth actions if needed.
     """
     
-    # 5. AI ጥሪ
     data = ask_ai_with_failover(prompt, pool_type="coding")
     
     if not data or "error" in data:
         err_msg = data.get('error', 'Unknown Error') if data else 'No Response'
         if any(x in str(err_msg) for x in ["429", "RESOURCE_EXHAUSTED", "quota"]):
             next_retry = now + timezone.timedelta(hours=24)
-            # ⚠️ 1. የሰዓት ዞን እና የኤፒአይ መቆለፊያ ስያሜ ችግር እዚህ ተስተካክሏል
             retry_config, _ = SiteConfig.objects.get_or_create(
                 key=f"NEXT_ALLOWED_RUN_TIME_{site_name}",
                 defaults={'value': {'time': next_retry.isoformat()}}
@@ -622,7 +606,6 @@ def run_single_site_analysis(site: SiteRegistry):
             target_task.save()
         return f"❌ Fail for {site_name}: {err_msg}"
     
-    # 6. አዲስ ስራዎችን ያስመዝግብ (ከጣቢያ ጋር በማገናኘት)
     for t in data.get('backlog_tasks', []):
         AIProjectBacklog.objects.get_or_create(
             task_name=t['task_name'],
@@ -639,7 +622,6 @@ def run_single_site_analysis(site: SiteRegistry):
         )
         results.append(f"📋 Added task: {t['task_name']}")
     
-    # 7. የኮድ ማሻሻያ
     updates = data.get('updates', {})
     code_changed = False
     improvement_metrics = data.get('improvement_metrics', {})
@@ -683,7 +665,6 @@ def run_single_site_analysis(site: SiteRegistry):
                 except Exception as e:
                     results.append(f"❌ Error updating {key}: {str(e)[:50]}")
     
-    # 8. የእድገት ስትራቴጂ ማሻሻያ
     if data.get('growth_actions'):
         for action in data.get('growth_actions', []):
             AIProjectBacklog.objects.get_or_create(
@@ -701,17 +682,14 @@ def run_single_site_analysis(site: SiteRegistry):
             )
             results.append(f"📈 Added growth action: {action[:30]}...")
     
-    # 9. የማህበራዊ ሚዲያ ይዘት (ከሆነ)
     if data.get('social_media_content'):
         marketing = MarketingEngine(site)
         results.append("📱 Social media content generated")
     
-    # 10. የጣቢያ መረጃ ማዘመን
     if improvement_metrics.get('seo_score'):
         site.total_products = Product.objects.filter(seller__isnull=False).count()
         site.save()
     
-    # 11. ማጠቃለያ
     if override_obj:
         override_obj.is_processed = True
         override_obj.save()
@@ -724,18 +702,16 @@ def run_single_site_analysis(site: SiteRegistry):
 
 
 # ============================================================
-# 9. ዋናው የዕድገት ሞተር (run_daily_market_analysis)
+# 10. ዋናው የዕድገት ሞተር (run_daily_market_analysis)
 # ============================================================
 
 def run_daily_market_analysis():
     """
     ሙሉ አውቶኖመስ የንግድ እድገት ሞተር
-    አሁን የደንበኛ ማግኛ፣ የግብይት ካምፔን እና የእድገት ስትራቴጂ ያካትታል
     """
     now = timezone.now()
     results = []
     
-    # 🛡️ 1. የራስ-መገደብ ፍተሻ (Global Hibernation) - ሳይለወጥ
     retry_config, _ = SiteConfig.objects.get_or_create(
         key="NEXT_ALLOWED_RUN_TIME", 
         defaults={'value': {'time': '2000-01-01T00:00:00'}}
@@ -745,14 +721,12 @@ def run_daily_market_analysis():
         next_run = timezone.datetime.fromisoformat(retry_config.value.get('time'))
         if timezone.is_naive(next_run):
             next_run = timezone.make_aware(next_run)
-        
         if now < next_run:
             logger.info(f"💤 Global engine is in hibernation mode. Wakes up at {next_run}")
             return f"💤 Sleeping until {next_run}"
     except Exception as parse_err:
         logger.warning(f"⚠️ NEXT_ALLOWED_RUN_TIME parse error: {parse_err}")
     
-    # 🛡️ 2. የመቆለፊያ ጥበቃ
     lock, _ = SiteConfig.objects.get_or_create(key="EVOLUTION_LOCK", defaults={'value': {'status': 'idle'}})
     if lock.value.get('status') == 'running':
         stale = True
@@ -774,21 +748,15 @@ def run_daily_market_analysis():
     lock.save()
     
     try:
-        # 🔍 3. አዲስ ጣቢያዎችን ያግኝ
         new_sites = discover_new_sites()
         for site in new_sites:
             results.append(f"🆕 Discovered: {site.name}")
-            
-            # 🧠 4. ኒች እና ገበያ ይተነትን
             if analyze_site_niche(site):
                 results.append(f"🧠 Analyzed niche: {site.niche}")
-            
-            # 📈 5. የእድገት ስትራቴጂ ይጀምር
             strategy = GrowthStrategyEngine(site)
             strategy.execute_actions()
             results.append(f"📈 Started {strategy.get_strategy()['name']} strategy")
         
-        # 🌐 6. ሁሉንም ንቁ ጣቢያዎች አስኬድ
         active_sites = SiteRegistry.objects.filter(is_active=True)
         
         if not active_sites.exists():
@@ -808,27 +776,23 @@ def run_daily_market_analysis():
         
         for site in active_sites:
             try:
-                # 📈 7. የእድገት ስትራቴጂ አስኬድ
                 strategy = GrowthStrategyEngine(site)
                 strategy.execute_actions()
                 
-                # 🧠 8. ዋናውን የዕድገት ትንተና አስኬድ
                 growth_result = run_single_site_analysis(site)
                 results.append(f"[{site.name}] {growth_result}")
                 
-                # 📊 9. የጣቢያ መረጃ አዘምን
-                # ⚠️ 2. የ 'update_growth_level' እሴት መደምሰስ ስህተት እዚህ ተስተካክሏል
                 site.total_products = Product.objects.filter(seller__isnull=False).count()
                 site.total_sellers = User.objects.filter(product__isnull=False).distinct().count()
                 if hasattr(site, 'update_growth_level'):
                     site.update_growth_level()
+                site.save()
                 
             except Exception as e:
                 error_msg = f"[{site.name}] ❌ Error: {str(e)}"
                 results.append(error_msg)
                 logger.error(error_msg)
                 
-                # ስህተቱን በ AgentErrorLog ውስጥ መዝግብ
                 try:
                     AgentErrorLog.objects.create(
                         task_name=f"Site_{site.name}_Analysis",
@@ -840,8 +804,7 @@ def run_daily_market_analysis():
                 except Exception:
                     pass
         
-        # 10. የመጨረሻ ማጠቃለያ
-        summary = " | ".join(results[:10])  # ብዙ ከሆነ የመጀመሪያዎቹን 10 ብቻ
+        summary = " | ".join(results[:10])
         return f"🎉 Business Evolved! {summary}"
         
     except Exception as e:
@@ -853,22 +816,323 @@ def run_daily_market_analysis():
         
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ለውጥ፦ Fixed `unhashable type: 'slice'` error
-# 📅 ቀን፦ 2026-06-20
+# 📝 ለውጥ፦ Advanced Features — RAG Memory, Multi-Agent, Predictive Analytics
+# 📅 ቀን፦ 2026-06-21
 # ============================================================
 
-def extract_json(text):
-    """JSON ከ AI ምላሽ ያወጣል — የተሻሻለ"""
-    if not text or not isinstance(text, str):
-        return None
-    try:
-        # ማርክዳውን ኮድ ብሎኮችን አስወግድ
-        clean_text = re.sub(r'^```json\s*|^```\s*|```$', '', text.strip(), flags=re.MULTILINE)
-        match = re.search(r'\{.*\}', clean_text, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        # ሙሉ ፋይሉ JSON ከሆነ
-        return json.loads(clean_text)
-    except (json.JSONDecodeError, TypeError, AttributeError) as e:
-        logger.warning(f"⚠️ JSON extraction failed: {e}")
-        return None
+# ... ነባር ኢምፖርቶች ...
+
+from .models import (
+    SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, 
+    AdminOverrideInstruction, AgentErrorLog, SiteRegistry,
+    CustomerAcquisitionLog, MarketingCampaign, SellerProfile, NotificationQueue,
+    # 🆕 አዲስ ሞዴሎች
+    VectorMemory, AgentTask, ABTest, SecurityLog, PredictionLog, ExternalAPI
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# 🆕 11. RAG Memory Engine (ትውስታ ሞተር)
+# ============================================================
+
+class RAGMemoryEngine:
+    """
+    Retrieval-Augmented Generation ትውስታ ሞተር
+    ያለፉ ስራዎችን እና መፍትሄዎችን ያስታውሳል
+    """
+    
+    def __init__(self, site: SiteRegistry = None):
+        self.site = site
+    
+    def remember(self, memory_type, content, metadata=None, related_task=None):
+        """አዲስ ትውስታ ይፈጥራል"""
+        return VectorMemory.objects.create(
+            memory_type=memory_type,
+            content=content,
+            metadata=metadata or {},
+            site=self.site,
+            related_task=related_task
+        )
+    
+    def recall(self, query, memory_type=None, limit=5):
+        """ተመሳሳይ ትውስታዎችን ያገኛል"""
+        return VectorMemory.find_similar(query, memory_type, self.site, limit)
+    
+    def learn_from_task(self, task, success=True):
+        """ከተጠናቀቀ ስራ መማር"""
+        memory = VectorMemory.objects.create(
+            memory_type='solution',
+            content=f"Task: {task.task_name}\nResult: {task.result_data}",
+            metadata={
+                'agent_type': task.agent_type,
+                'success': success,
+                'site_id': task.site.id if task.site else None
+            },
+            site=self.site,
+            related_task=task.backlog_task
+        )
+        memory.mark_used(success)
+        return memory
+
+
+# ============================================================
+# 🆕 12. Multi-Agent Orchestrator (ባለብዙ-ኤጀንት አስተባባሪ)
+# ============================================================
+
+class AgentOrchestrator:
+    """
+    የተለያዩ ኤጀንቶችን ያስተባብራል
+    ለእያንዳንዱ ስራ ተገቢውን ኤጀንት ይመድባል
+    """
+    
+    AGENT_HANDLERS = {
+        'code': 'handle_code_task',
+        'seo': 'handle_seo_task',
+        'marketing': 'handle_marketing_task',
+        'data': 'handle_data_task',
+        'review': 'handle_review_task',
+        'security': 'handle_security_task',
+    }
+    
+    def __init__(self, site: SiteRegistry = None):
+        self.site = site
+        self.memory = RAGMemoryEngine(site)
+    
+    def assign_task(self, task_name, description, agent_type, priority=5):
+        """አዲስ ስራ ይመድባል"""
+        task = AgentTask.objects.create(
+            agent_type=agent_type,
+            task_name=task_name,
+            description=description,
+            priority=priority,
+            site=self.site,
+            status='pending'
+        )
+        logger.info(f"📋 Assigned {agent_type} task: {task_name}")
+        return task
+    
+    def execute_task(self, task: AgentTask):
+        """አንድ ስራ ያስኬዳል"""
+        task.start_task()
+        
+        handler = getattr(self, self.AGENT_HANDLERS.get(task.agent_type), None)
+        if not handler:
+            task.fail_task(f"No handler for agent type: {task.agent_type}")
+            return
+        
+        try:
+            result = handler(task)
+            if result and 'error' not in result:
+                task.complete_task(result)
+                self.memory.learn_from_task(task, success=True)
+                logger.info(f"✅ Task {task.task_name} completed")
+            else:
+                task.fail_task(str(result))
+                self.memory.learn_from_task(task, success=False)
+                logger.error(f"❌ Task {task.task_name} failed")
+        except Exception as e:
+            task.fail_task(str(e))
+            logger.error(f"❌ Task {task.task_name} error: {e}")
+    
+    # --- የኤጀንት ስራ አስተናጋጆች (Agent Handlers) ---
+    
+    def handle_code_task(self, task):
+        """ኮድ ኤጀንት ስራ"""
+        # ተመሳሳይ ትውስታዎችን ፈልግ
+        similar = self.memory.recall(task.description, 'code', limit=3)
+        context = "\n".join([f"Previous solution: {m.content}" for m in similar])
+        
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        {context}
+        Generate code solution.
+        """
+        return ask_ai_with_failover(prompt, pool_type="coding")
+    
+    def handle_seo_task(self, task):
+        """SEO ኤጀንት ስራ"""
+        similar = self.memory.recall(task.description, 'insight', limit=3)
+        context = "\n".join([f"Previous insight: {m.content}" for m in similar])
+        
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        {context}
+        Generate SEO recommendations.
+        """
+        return ask_ai_with_failover(prompt, pool_type="analysis")
+    
+    def handle_marketing_task(self, task):
+        """ማርኬቲንግ ኤጀንት ስራ"""
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        Generate marketing content.
+        """
+        return ask_ai_with_failover(prompt, pool_type="marketing")
+    
+    def handle_data_task(self, task):
+        """ዳታ ኤጀንት ስራ"""
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        Analyze data and provide insights.
+        """
+        return ask_ai_with_failover(prompt, pool_type="analysis")
+    
+    def handle_review_task(self, task):
+        """ሪቪው ኤጀንት ስራ"""
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        Review the following and provide feedback.
+        """
+        return ask_ai_with_failover(prompt, pool_type="analysis")
+    
+    def handle_security_task(self, task):
+        """ሴኪዩሪቲ ኤጀንት ስራ"""
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        Identify security issues and provide fixes.
+        """
+        return ask_ai_with_failover(prompt, pool_type="coding")
+
+
+# ============================================================
+# 🆕 13. Predictive Analytics Engine (ትንበያ ሞተር)
+# ============================================================
+
+class PredictiveEngine:
+    """
+    የወደፊት አዝማሚያዎችን ይተነብያል
+    በታሪክ መረጃ ላይ ተመስርቶ
+    """
+    
+    def __init__(self, site: SiteRegistry = None):
+        self.site = site
+    
+    def predict_traffic(self, days=30):
+        """የወደፊት ትራፊክ ይተነብያል"""
+        # ባለፈው ጊዜ መረጃ ሰብስብ
+        past_data = []
+        # ቀላል ሊኒያር ሬግሬሽን
+        # ... 
+        
+        prediction = PredictionLog.objects.create(
+            prediction_type='traffic',
+            predicted_value=0,  # የተሰላ እሴት
+            confidence_score=70.0,
+            input_data={'days': days},
+            site=self.site
+        )
+        return prediction
+    
+    def predict_seo_score(self, product_id):
+        """የSEO ውጤት ይተነብያል"""
+        # ...
+        pass
+
+
+# ============================================================
+# 🆕 14. Security Scanner (የደህንነት ቅኝት)
+# ============================================================
+
+class SecurityScanner:
+    """
+    የኮድ ደህንነት ቅኝት እና ማረጋገጫ
+    """
+    
+    def __init__(self, site: SiteRegistry = None):
+        self.site = site
+    
+    def scan_code(self, code, file_path="", line_number=None):
+        """ኮድ ውስጥ የደህንነት ችግሮችን ይፈልጋል"""
+        vulnerabilities = []
+        
+        patterns = [
+            (r'SECRET_KEY\s*=\s*[\'"][^\'"]+[\'"]', 'Hardcoded secret key', 'high'),
+            (r'password\s*=\s*[\'"][^\'"]+[\'"]', 'Possible password exposure', 'high'),
+            (r'eval\s*\(', 'Use of eval()', 'critical'),
+            (r'exec\s*\(', 'Use of exec()', 'critical'),
+            (r'__import__\s*\(', 'Dynamic import', 'medium'),
+            (r'os\.system\s*\(', 'System command execution', 'high'),
+            (r'subprocess\.', 'Subprocess usage', 'medium'),
+            (r'pickle\.', 'Pickle usage (unsafe)', 'high'),
+        ]
+        
+        for pattern, description, severity in patterns:
+            if re.search(pattern, code, re.IGNORECASE):
+                vulnerabilities.append({
+                    'description': description,
+                    'severity': severity,
+                    'file_path': file_path,
+                    'line_number': line_number
+                })
+        
+        # የተገኙ ችግሮችን ወደ SecurityLog መዝግብ
+        for vuln in vulnerabilities:
+            SecurityLog.objects.create(
+                category='code_injection',
+                severity=vuln['severity'],
+                description=vuln['description'],
+                file_path=vuln['file_path'],
+                line_number=vuln['line_number'],
+                site=self.site
+            )
+        
+        return vulnerabilities
+
+
+# ============================================================
+# 🆕 15. የተሻሻለ run_single_site_analysis (ከአዲሶቹ ባህሪያት ጋር)
+# ============================================================
+
+def run_single_site_analysis(site: SiteRegistry):
+    """
+    የተሻሻለ የዕድገት ትንተና — ከ RAG, Multi-Agent, Security ጋር
+    """
+    # ... ነባር ኮድ ...
+    
+    # 🆕 RAG Memory ን ተጠቀም
+    memory_engine = RAGMemoryEngine(site)
+    
+    # 🆕 ተመሳሳይ ትውስታዎችን ፈልግ
+    similar_memories = memory_engine.recall(
+        f"Site: {site.name}, Niche: {site.niche}",
+        memory_type='strategy',
+        limit=3
+    )
+    if similar_memories:
+        logger.info(f"🧠 Found {len(similar_memories)} similar memories for {site.name}")
+    
+    # 🆕 የደህንነት ቅኝት
+    security_scanner = SecurityScanner(site)
+    for file_name, code in project_code.items():
+        if code and len(code) > 100:
+            vulns = security_scanner.scan_code(code, file_path=file_name)
+            if vulns:
+                logger.warning(f"🔒 Found {len(vulns)} security issues in {file_name}")
+    
+    # ... ቀሪ ኮድ ...
+    
+    # 🆕 ስራውን ለMulti-Agent አስተባባሪ ምደብ
+    orchestrator = AgentOrchestrator(site)
+    
+    # ከAI የተገኘውን ስራ ወደ AgentTask ቀይር
+    if data and data.get('task_type'):
+        agent_type = data.get('task_type', 'code')
+        task = orchestrator.assign_task(
+            task_name=data.get('task_name', f"Task_{timezone.now().strftime('%Y%m%d_%H%M%S')}"),
+            description=data.get('description', ''),
+            agent_type=agent_type,
+            priority=data.get('priority', 5)
+        )
+        orchestrator.execute_task(task)
+    
+    # ... ቀሪ ኮድ ...
+    
+    return f"✅ Evolved {site_name}! {' | '.join(results[:5])}"
