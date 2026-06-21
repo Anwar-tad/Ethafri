@@ -1,11 +1,12 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/admin.py
-# 📝 ለውጥ፦ Advanced Agent Features — Active (ኮሜንት ተወግዷል)
+# 📝 ለውጥ፦ Full Admin Configuration — All Models Registered
 # 📅 ቀን፦ 2026-06-21
 # ============================================================
 
 from django.contrib import admin
 from .models import (
+    # መሰረታዊ ሞዴሎች
     Product,
     Category,
     UserSearch,
@@ -13,16 +14,23 @@ from .models import (
     SiteConfig,
     MarketTrend,
     SelfHealingLog,
+    
+    # የኤጀንት ማህደረ-ትውስታ
     AIProjectBacklog,
     AIEvolutionLog,
     AdminOverrideInstruction,
     AgentErrorLog,
+    
+    # Multi-Site
     SiteRegistry,
+    
+    # የንግድ እድገት
     CustomerAcquisitionLog,
     MarketingCampaign,
     SellerProfile,
     NotificationQueue,
-    # 🆕 አዲሶቹን ሞዴሎች እዚህ ተጨምረዋል
+    
+    # 🆕 የላቁ የኤጀንት ባህሪያት
     VectorMemory,
     AgentTask,
     ABTest,
@@ -38,9 +46,10 @@ from .models import (
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ('title', 'price', 'category', 'seo_score', 'view_count', 'created_at')
-    list_filter = ('category', 'is_active', 'market_value_status')
+    list_filter = ('category', 'is_active', 'market_value_status', 'site')
     search_fields = ('title', 'description', 'location')
     readonly_fields = ('view_count', 'inquiry_count', 'created_at', 'updated_at')
+    raw_id_fields = ('site',)
 
 admin.site.register(Category)
 admin.site.register(UserSearch)
@@ -78,9 +87,12 @@ class SelfHealingLogAdmin(admin.ModelAdmin):
 
 @admin.register(AIProjectBacklog)
 class AIProjectBacklogAdmin(admin.ModelAdmin):
-    list_display = ('task_name', 'task_type', 'target_file', 'priority', 'status', 'site', 'created_at')
+    list_display = (
+        'task_name', 'task_type', 'target_file', 'priority', 'status', 
+        'business_impact_score', 'site', 'created_at'
+    )
     list_filter = ('status', 'priority', 'task_type', 'site')
-    search_fields = ('task_name', 'description', 'target_file')
+    search_fields = ('task_name', 'description', 'target_file', 'trigger_condition')
     readonly_fields = ('task_hash', 'created_at', 'updated_at')
     raw_id_fields = ('site', 'dependency')
 
@@ -117,14 +129,38 @@ class AgentErrorLogAdmin(admin.ModelAdmin):
 class SiteRegistryAdmin(admin.ModelAdmin):
     list_display = (
         'name', 'display_name', 'niche', 'target_market',
-        'growth_level', 'monthly_visitors', 'is_active', 'created_at'
+        'growth_level', 'build_phase', 'real_product_count', 'real_customer_count',
+        'monthly_visitors', 'is_active', 'created_at'
     )
     list_filter = (
-        'is_active', 'niche', 'target_market', 'growth_level',
+        'is_active', 'niche', 'target_market', 'growth_level', 'build_phase',
         'auto_update_enabled', 'auto_marketing_enabled'
     )
     search_fields = ('name', 'display_name', 'niche', 'target_market')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'phase_transition_date')
+    fieldsets = (
+        ('📌 መሠረታዊ መረጃ', {
+            'fields': ('name', 'display_name', 'niche', 'target_market')
+        }),
+        ('📂 የጂት እና ማሰማሪያ', {
+            'fields': ('repo_url', 'repo_path', 'deployment_url')
+        }),
+        ('🏆 ተወዳዳሪዎች እና SEO', {
+            'fields': ('competitor_urls', 'primary_keywords', 'target_audience', 'content_style')
+        }),
+        ('📊 የእድገት መለኪያዎች', {
+            'fields': ('growth_level', 'build_phase', 'real_product_count', 'real_customer_count',
+                      'monthly_visitors', 'page_views', 'total_sellers', 'total_products', 
+                      'monthly_revenue', 'last_traffic_update', 'phase_transition_date')
+        }),
+        ('⚙️ የአሠራር ሁኔታ', {
+            'fields': ('is_active', 'auto_update_enabled', 'auto_marketing_enabled', 'update_frequency')
+        }),
+        ('🕐 የፍጥረት እና ማዘመኛ', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
 
 
 # ============================================================
@@ -176,7 +212,6 @@ class NotificationQueueAdmin(admin.ModelAdmin):
 
 # ============================================================
 # 6. 🆕 የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
-# ✅ ኮሜንት ተወግዷል — ሙሉ በሙሉ ንቁ
 # ============================================================
 
 @admin.register(VectorMemory)
@@ -184,7 +219,8 @@ class VectorMemoryAdmin(admin.ModelAdmin):
     list_display = ('memory_type', 'content_preview', 'site', 'usage_count', 'success_rate', 'created_at')
     list_filter = ('memory_type', 'site')
     search_fields = ('content', 'metadata')
-    readonly_fields = ('created_at', 'updated_at', 'usage_count', 'success_rate')
+    readonly_fields = ('created_at', 'updated_at', 'usage_count', 'success_rate', 'last_used')
+    raw_id_fields = ('site', 'related_task')
     
     def content_preview(self, obj):
         return obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
@@ -195,16 +231,18 @@ class VectorMemoryAdmin(admin.ModelAdmin):
 class AgentTaskAdmin(admin.ModelAdmin):
     list_display = ('task_name', 'agent_type', 'status', 'priority', 'site', 'created_at')
     list_filter = ('agent_type', 'status', 'site')
-    search_fields = ('task_name', 'description')
+    search_fields = ('task_name', 'description', 'error_message')
     readonly_fields = ('created_at', 'updated_at', 'started_at', 'completed_at')
+    raw_id_fields = ('site', 'parent_task', 'backlog_task')
 
 
 @admin.register(ABTest)
 class ABTestAdmin(admin.ModelAdmin):
-    list_display = ('name', 'status', 'site', 'winner', 'created_at')
+    list_display = ('name', 'status', 'site', 'winner', 'variant_a_views', 'variant_b_views', 'created_at')
     list_filter = ('status', 'site')
     search_fields = ('name', 'description')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'started_at', 'ended_at')
+    raw_id_fields = ('site',)
 
 
 @admin.register(SecurityLog)
@@ -212,7 +250,8 @@ class SecurityLogAdmin(admin.ModelAdmin):
     list_display = ('category', 'severity', 'description_preview', 'is_fixed', 'site', 'created_at')
     list_filter = ('category', 'severity', 'is_fixed', 'site')
     search_fields = ('description', 'file_path')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'fixed_at')
+    raw_id_fields = ('site',)
     
     def description_preview(self, obj):
         return obj.description[:50] + "..." if len(obj.description) > 50 else obj.description
@@ -223,13 +262,15 @@ class SecurityLogAdmin(admin.ModelAdmin):
 class PredictionLogAdmin(admin.ModelAdmin):
     list_display = ('prediction_type', 'predicted_value', 'confidence_score', 'site', 'predicted_at')
     list_filter = ('prediction_type', 'site')
-    search_fields = ('input_data',)
+    search_fields = ('input_data', 'model_version')
     readonly_fields = ('predicted_at', 'verified_at')
+    raw_id_fields = ('site',)
 
 
 @admin.register(ExternalAPI)
 class ExternalAPIAdmin(admin.ModelAdmin):
-    list_display = ('name', 'api_type', 'status', 'site', 'calls_made', 'rate_limit')
+    list_display = ('name', 'api_type', 'status', 'site', 'calls_made', 'rate_limit', 'created_at')
     list_filter = ('api_type', 'status', 'site')
-    search_fields = ('name', 'api_key')
+    search_fields = ('name', 'api_key', 'base_url')
     readonly_fields = ('created_at', 'updated_at', 'last_reset')
+    raw_id_fields = ('site',)
