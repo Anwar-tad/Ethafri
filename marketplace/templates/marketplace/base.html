@@ -1,7 +1,7 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/base.html
-📝 ለውጥ፦ Multi-Site Support + Enhanced Navigation
-📅 ቀን፦ 2026-06-20
+📝 ለውጥ፦ Agent Status button added to bottom navigation
+📅 ቀን፦ 2026-06-21
 ============================================================ -->
 
 {% load i18n %}
@@ -95,6 +95,11 @@
         
         <a href="{% url 'post_product' %}" class="text-decoration-none text-dark text-center" style="flex: 1;">
             <i class="fas fa-plus-circle"></i><br>{% translate "Sell" %}
+        </a>
+        
+        <!-- 🆕 Agent Status Button -->
+        <a href="{% url 'agent_status' %}" class="text-decoration-none text-dark text-center" style="flex: 1;">
+            <i class="fas fa-heartbeat text-primary"></i><br>{% translate "Status" %}
         </a>
         
         {% if user.is_staff %}

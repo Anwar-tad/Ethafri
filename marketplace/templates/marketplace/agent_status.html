@@ -1,0 +1,216 @@
+<!-- EthAfri/marketplace/templates/marketplace/agent_status.html -->
+
+{% extends 'marketplace/base.html' %}
+{% load i18n %}
+
+{% block extra_css %}
+<style>
+    .status-card {
+        border-radius: 16px;
+        border: none;
+        transition: transform 0.2s;
+        height: 100%;
+    }
+    .status-card:hover { transform: translateY(-4px); }
+    .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .status-dot.running { background: #ffc107; animation: blink 1s infinite; }
+    .status-dot.idle { background: #28a745; }
+    .status-dot.error { background: #dc3545; }
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    .stat-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    .task-item {
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid #f1f3f5;
+    }
+    .task-item:last-child { border-bottom: none; }
+    .refresh-btn {
+        border-radius: 50px;
+        padding: 0.3rem 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- ርዕስ -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <i class="fas fa-robot text-primary me-2"></i>{% trans "Agent Status Dashboard" %}
+            </h2>
+            <p class="text-muted">{% trans "Real-time status of the EthAfri Autonomous Agent" %}</p>
+        </div>
+        <div>
+            <span class="badge bg-secondary me-2" id="lastUpdate">{% trans "Last updated" %}: {% now "H:i:s" %}</span>
+            <button class="btn btn-outline-primary btn-sm refresh-btn" onclick="location.reload()">
+                <i class="fas fa-sync-alt me-1"></i>{% trans "Refresh" %}
+            </button>
+        </div>
+    </div>
+
+    <!-- የኤጀንት ሁኔታ -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card status-card shadow-sm p-3">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <span class="status-dot {% if agent_status.status == 'running' %}running{% elif agent_status.status == 'idle' %}idle{% else %}error{% endif %}"></span>
+                    </div>
+                    <div>
+                        <div class="stat-label">{% trans "Agent Status" %}</div>
+                        <div class="fw-bold fs-4">
+                            {% if agent_status.status == 'running' %}
+                                <span class="text-warning">🔄 {% trans "RUNNING" %}</span>
+                            {% elif agent_status.status == 'idle' %}
+                                <span class="text-success">💤 {% trans "IDLE" %}</span>
+                            {% else %}
+                                <span class="text-danger">⚠️ {% trans "ERROR" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2 text-muted small">
+                    {% trans "Last run" %}: {{ agent_status.last_run|default:"Never" }}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card status-card shadow-sm p-3">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="stat-number">{{ site_stats.active }}</div>
+                        <div class="stat-label">{% trans "Active Sites" %}</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-number">{{ site_stats.total }}</div>
+                        <div class="stat-label">{% trans "Total Sites" %}</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-number">{{ marketing_stats.campaigns }}</div>
+                        <div class="stat-label">{% trans "Campaigns" %}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ስታቲስቲክስ ሰሌዳ -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="card status-card shadow-sm text-center p-3">
+                <div class="stat-number text-primary">{{ backlog_stats.pending }}</div>
+                <div class="stat-label">{% trans "Pending Tasks" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card status-card shadow-sm text-center p-3">
+                <div class="stat-number text-success">{{ backlog_stats.completed }}</div>
+                <div class="stat-label">{% trans "Completed Tasks" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card status-card shadow-sm text-center p-3">
+                <div class="stat-number text-warning">{{ evolution_stats.today }}</div>
+                <div class="stat-label">{% trans "Changes Today" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card status-card shadow-sm text-center p-3">
+                <div class="stat-number text-danger">{{ error_stats.unresolved }}</div>
+                <div class="stat-label">{% trans "Unresolved Errors" %}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ዝርዝር መረጃ -->
+    <div class="row g-3">
+        <!-- የባክሎግ ስራዎች -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light fw-bold">
+                    <i class="fas fa-tasks me-2"></i>{% trans "Recent Tasks" %}
+                    <span class="badge bg-secondary ms-2">{{ backlog_stats.total }}</span>
+                </div>
+                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                    {% for task in recent_tasks %}
+                    <div class="task-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-medium">{{ task.task_name|truncatechars:30 }}</span>
+                            <span class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning{% else %}secondary{% endif %} ms-1" style="font-size: 8px;">
+                                {{ task.priority }}
+                            </span>
+                        </div>
+                        <span class="badge bg-{% if task.status == 'Completed' %}success{% elif task.status == 'Running' %}warning{% else %}secondary{% endif %}">
+                            {{ task.status }}
+                        </span>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-4 text-muted">
+                        <p class="mb-0 small">{% trans "No tasks in backlog." %}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ስህተቶች እና ጥገና -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light fw-bold">
+                    <i class="fas fa-heartbeat me-2"></i>{% trans "System Health" %}
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="stat-number text-success">{{ healing_stats.resolved }}</div>
+                            <div class="stat-label">{% trans "Healed" %}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-number text-warning">{{ healing_stats.pending }}</div>
+                            <div class="stat-label">{% trans "Pending" %}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-number text-info">{{ error_stats.total }}</div>
+                            <div class="stat-label">{% trans "Total Errors" %}</div>
+                        </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-top">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted small">{% trans "Last Cron" %}:</span>
+                            <span class="small">{{ last_cron }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted small">{% trans "Notifications" %}:</span>
+                            <span class="small">{{ marketing_stats.notifications }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-refresh every 30 seconds
+    setTimeout(function() {
+        location.reload();
+    }, 30000);
+</script>
+{% endblock %}

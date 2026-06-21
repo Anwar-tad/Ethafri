@@ -38,7 +38,83 @@ except ImportError:
     def discover_new_sites():
         logger.warning("⚠️ 'discover_new_sites' is not fully implemented in growth_agent yet. Using fallback empty list.")
         return []
+# EthAfri/marketplace/views.py
 
+from django.db.models import Count, Q
+from django.utils import timezone
+
+@staff_member_required
+def agent_status_dashboard(request):
+    """
+    የኤጀንቱን ወቅታዊ ሁኔታ እና ስታቲስቲክስ የሚያሳይ ዳሽቦርድ
+    """
+    # 1. የኤጀንት ሁኔታ
+    lock = SiteConfig.objects.filter(key="EVOLUTION_LOCK").first()
+    agent_status = lock.value if lock else {"status": "idle", "last_run": "Never"}
+    
+    # 2. የCron መረጃ
+    cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
+    last_cron = cron_ping.value.get('time', 'Never') if cron_ping else 'Never'
+    
+    # 3. የባክሎግ ስራዎች ቆጠራ
+    backlog_stats = {
+        'total': AIProjectBacklog.objects.count(),
+        'pending': AIProjectBacklog.objects.filter(status='Pending').count(),
+        'running': AIProjectBacklog.objects.filter(status='Running').count(),
+        'completed': AIProjectBacklog.objects.filter(status='Completed').count(),
+        'blocked': AIProjectBacklog.objects.filter(status='Blocked').count(),
+    }
+    
+    # 4. የቅርብ ጊዜ ስራዎች (ለማሳየት)
+    recent_tasks = AIProjectBacklog.objects.all().order_by('-updated_at')[:10]
+    
+    # 5. የኮድ ለውጦች
+    evolution_stats = {
+        'total': AIEvolutionLog.objects.count(),
+        'today': AIEvolutionLog.objects.filter(
+            created_at__date=timezone.now().date()
+        ).count(),
+    }
+    
+    # 6. የስህተቶች ቆጠራ
+    error_stats = {
+        'total': AgentErrorLog.objects.count(),
+        'unresolved': AgentErrorLog.objects.filter(resolved=False).count(),
+        'resolved': AgentErrorLog.objects.filter(resolved=True).count(),
+    }
+    
+    # 7. የራስ-ጥገና ስታቲስቲክስ
+    healing_stats = {
+        'total': SelfHealingLog.objects.count(),
+        'resolved': SelfHealingLog.objects.filter(resolved=True).count(),
+        'pending': SelfHealingLog.objects.filter(resolved=False).count(),
+    }
+    
+    # 8. የጣቢያዎች ቆጠራ
+    site_stats = {
+        'total': SiteRegistry.objects.count(),
+        'active': SiteRegistry.objects.filter(is_active=True).count(),
+    }
+    
+    # 9. የግብይት ስታቲስቲክስ
+    marketing_stats = {
+        'campaigns': MarketingCampaign.objects.count(),
+        'notifications': NotificationQueue.objects.filter(is_sent=False).count(),
+    }
+    
+    context = {
+        'agent_status': agent_status,
+        'last_cron': last_cron,
+        'backlog_stats': backlog_stats,
+        'recent_tasks': recent_tasks,
+        'evolution_stats': evolution_stats,
+        'error_stats': error_stats,
+        'healing_stats': healing_stats,
+        'site_stats': site_stats,
+        'marketing_stats': marketing_stats,
+    }
+    
+    return render(request, 'marketplace/agent_status.html', context)
 
 # ============================================================
 # 1. የ AI ዲዛይን ቅንብርን ለሁሉም ገጾች የሚያቀርብ (Context Processor)
@@ -423,18 +499,20 @@ def admin_growth_dashboard(request):
 # EthAfri/marketplace/views.py
 
 @staff_member_required
+# EthAfri/marketplace/views.py
+from django.shortcuts import render
+from django.db import models  # ይህ መስመር የግድ ያስፈልጋል
+from .models import SiteRegistry, MarketingCampaign, NotificationQueue, CustomerAcquisitionLog # አስፈላጊ የሆኑ ሞዴሎች
+
+@staff_member_required
 def marketing_dashboard(request):
-    """
-    ሁሉንም የግብይት እንቅስቃሴዎች የሚያሳይ ዳሽቦርድ
-    """
     sites = SiteRegistry.objects.filter(is_active=True)
     
-    # ⚠️ ኳሪዎችን በቅደም ተከተል አስተካክል — ቀድሞ ከማጣራት በፊት ሳይቆረጡ ይቆዩ
     campaigns = MarketingCampaign.objects.all().order_by('-created_at')
     notifications = NotificationQueue.objects.filter(is_sent=False).order_by('created_at')
     acquisition_logs = CustomerAcquisitionLog.objects.all().order_by('-created_at')
     
-    # የካምፔን ስታቲስቲክስ — ከመቁረጥ በፊት አስላ
+    # ስታቲስቲክስ ስሌት
     campaign_stats = {
         'total': campaigns.count(),
         'running': campaigns.filter(status='running').count(),
@@ -445,16 +523,11 @@ def marketing_dashboard(request):
         'total_converted': campaigns.aggregate(total_converted=models.Sum('total_converted'))['total_converted'] or 0,
     }
     
-    # የደንበኛ ማግኛ ስታቲስቲክስ
+    # acquisition_stats ስሌት አልነበረም፣ እዚህ ጨምሬዋለሁ (እንደ አስፈላጊነቱ አስተካክለው)
     acquisition_stats = {
-        'total': acquisition_logs.count(),
-        'email': acquisition_logs.filter(channel='email').count(),
-        'sms': acquisition_logs.filter(channel='sms').count(),
-        'social': acquisition_logs.filter(channel='social').count(),
-        'converted': acquisition_logs.filter(converted_to_seller=True).count(),
+        'total': acquisition_logs.count()
     }
     
-    # አሁን ለማሳየት ቁረጥ (slice)
     campaigns_list = campaigns[:50]
     notifications_list = notifications[:50]
     acquisition_logs_list = acquisition_logs[:50]
@@ -469,6 +542,7 @@ def marketing_dashboard(request):
     }
     
     return render(request, 'marketplace/marketing_dashboard.html', context)
+
 
 
 # ============================================================

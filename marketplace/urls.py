@@ -50,4 +50,5 @@ urlpatterns = [
     
     # ✏️ አዲስ ማርኬቲንግ ካምፔን መፍጠሪያ
     path('marketing/create/', views.create_marketing_campaign, name='create_marketing_campaign'),
+    path('agent-status/', views.agent_status_dashboard, name='agent_status'),
 ]
