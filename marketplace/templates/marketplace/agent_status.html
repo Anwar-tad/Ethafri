@@ -1,216 +1,795 @@
 <!-- EthAfri/marketplace/templates/marketplace/agent_status.html -->
+<!-- የተሻሻለ ስሪት — Global CSS/JS በመጠቀም -->
 
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
+{% load static %}
 
 {% block extra_css %}
 <style>
-    .status-card {
-        border-radius: 16px;
+    /* ============================================================
+       Agent Status Specific Styles
+       ============================================================ */
+    
+    /* የኤጀንት ሁኔታ ካርድ */
+    .agent-status-card {
+        border-radius: var(--radius-md);
         border: none;
-        transition: transform 0.2s;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        box-shadow: var(--shadow-sm);
+        background: var(--white);
         height: 100%;
     }
-    .status-card:hover { transform: translateY(-4px); }
-    .status-dot {
-        width: 12px;
-        height: 12px;
+    .agent-status-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-md);
+    }
+    .agent-status-card .card-body {
+        padding: 1.5rem;
+    }
+
+    /* የሁኔታ አመልካች */
+    .status-indicator-large {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .status-dot-large {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+    .status-dot-large.running {
+        background: var(--warning-color);
+        animation: pulse 1.5s ease-in-out infinite;
+        box-shadow: 0 0 24px rgba(230, 81, 0, 0.4);
+    }
+    .status-dot-large.idle {
+        background: var(--success-color);
+        box-shadow: 0 0 24px rgba(46, 125, 50, 0.3);
+    }
+    .status-dot-large.error {
+        background: var(--danger-color);
+        animation: pulse 0.8s ease-in-out infinite;
+        box-shadow: 0 0 24px rgba(198, 40, 40, 0.4);
+    }
+    .status-dot-large.warning {
+        background: var(--warning-color);
+        animation: pulse 1.2s ease-in-out infinite;
+        box-shadow: 0 0 24px rgba(230, 81, 0, 0.4);
+    }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.3); opacity: 0.7; }
+    }
+
+    /* ስታቲስቲክስ ግሪድ */
+    .stats-grid-4 {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .stat-box {
+        background: var(--white);
+        border-radius: var(--radius-md);
+        padding: 1.25rem;
+        text-align: center;
+        box-shadow: var(--shadow-sm);
+        border-left: 4px solid var(--primary-color);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .stat-box:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+    .stat-box .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        display: block;
+    }
+    .stat-box .stat-number.primary { color: var(--primary-color); }
+    .stat-box .stat-number.success { color: var(--success-color); }
+    .stat-box .stat-number.warning { color: var(--warning-color); }
+    .stat-box .stat-number.danger { color: var(--danger-color); }
+    .stat-box .stat-number.info { color: var(--info-color); }
+    .stat-box .stat-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 0.25rem;
+    }
+
+    /* የስራ ዝርዝር */
+    .task-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .task-list::-webkit-scrollbar {
+        width: 4px;
+    }
+    .task-list::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 10px;
+    }
+    .task-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border-color);
+        transition: background 0.2s ease;
+    }
+    .task-item:hover {
+        background: var(--light-bg);
+    }
+    .task-item:last-child {
+        border-bottom: none;
+    }
+    .task-item .task-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex: 1;
+    }
+    .task-item .task-name {
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+    .task-item .task-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .task-priority-badge {
+        font-size: 0.6rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 50px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    .task-priority-badge.critical { background: var(--danger-color); color: var(--white); }
+    .task-priority-badge.high { background: var(--warning-color); color: var(--white); }
+    .task-priority-badge.medium { background: var(--info-color); color: var(--white); }
+    .task-priority-badge.low { background: var(--text-muted); color: var(--white); }
+
+    .task-status-badge {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.7rem;
+        border-radius: 50px;
+        font-weight: 600;
+    }
+    .task-status-badge.completed { background: var(--success-light); color: var(--success-color); }
+    .task-status-badge.running { background: var(--warning-light); color: var(--warning-color); }
+    .task-status-badge.pending { background: var(--info-light); color: var(--info-color); }
+    .task-status-badge.blocked { background: var(--danger-light); color: var(--danger-color); }
+
+    /* የሂደት አሞሌ */
+    .phase-progress-container {
+        background: var(--border-color);
+        border-radius: 50px;
+        height: 8px;
+        overflow: hidden;
+        margin: 0.5rem 0;
+    }
+    .phase-progress-fill {
+        height: 100%;
+        border-radius: 50px;
+        background: linear-gradient(90deg, var(--primary-color), var(--accent-purple));
+        transition: width 1s ease;
+        width: 0%;
+    }
+    .phase-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.65rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+    }
+    .phase-labels .active {
+        color: var(--primary-color);
+        font-weight: 600;
+    }
+
+    /* WebSocket Status */
+    .ws-status-bar {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        background: rgba(255,255,255,0.15);
+        color: var(--white);
+    }
+    .ws-dot {
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
         display: inline-block;
     }
-    .status-dot.running { background: #ffc107; animation: blink 1s infinite; }
-    .status-dot.idle { background: #28a745; }
-    .status-dot.error { background: #dc3545; }
-    @keyframes blink {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.3; }
+    .ws-dot.connected {
+        background: var(--success-color);
+        animation: pulse 1.5s ease-in-out infinite;
     }
-    .stat-number {
-        font-size: 2rem;
-        font-weight: 700;
+    .ws-dot.disconnected {
+        background: var(--danger-color);
     }
-    .stat-label {
-        font-size: 0.85rem;
-        color: #6c757d;
+
+    /* Dashboard Header */
+    .dashboard-header-custom {
+        background: linear-gradient(135deg, var(--primary-color), var(--accent-purple));
+        border-radius: var(--radius-lg);
+        padding: 2rem 2.5rem;
+        margin-bottom: 2rem;
+        color: var(--white);
+        box-shadow: var(--shadow-lg);
+        position: relative;
+        overflow: hidden;
     }
-    .task-item {
-        padding: 0.5rem 0.75rem;
-        border-bottom: 1px solid #f1f3f5;
+    .dashboard-header-custom::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 400px;
+        height: 400px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 50%;
     }
-    .task-item:last-child { border-bottom: none; }
-    .refresh-btn {
-        border-radius: 50px;
-        padding: 0.3rem 1rem;
+    .dashboard-header-custom .header-icon {
+        font-size: 3rem;
+        margin-right: 1.5rem;
+        animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+
+    /* ማሳወቂያ ባንድ */
+    .alert-banner-custom {
+        border-radius: var(--radius-md);
+        border: none;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .alert-banner-custom i {
+        font-size: 1.5rem;
+    }
+
+    /* ሞባይል */
+    @media (max-width: 768px) {
+        .stats-grid-4 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .dashboard-header-custom {
+            padding: 1.25rem 1.5rem;
+        }
+        .dashboard-header-custom .header-icon {
+            font-size: 2rem;
+            margin-right: 1rem;
+        }
+        .stat-box .stat-number {
+            font-size: 1.5rem;
+        }
+        .task-item {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .task-item .task-info {
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .stats-grid-4 {
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .stat-box {
+            padding: 0.75rem;
+        }
+        .stat-box .stat-number {
+            font-size: 1.25rem;
+        }
+        .dashboard-header-custom h1 {
+            font-size: 1.25rem;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container py-4">
-    <!-- ርዕስ -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+
+    <!-- ============================================================
+    ርዕስ — ዘመናዊ ዲዛይን
+    ============================================================ -->
+    <div class="dashboard-header-custom">
+        <div class="d-flex flex-wrap align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <div class="header-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div>
+                    <h1 class="fw-bold mb-0" style="font-size: 2rem;">
+                        {% trans "Agent Status Dashboard" %}
+                    </h1>
+                    <p class="mb-0 opacity-75">
+                        <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i>
+                        {% trans "Real-time monitoring of the EthAfri Autonomous Agent" %}
+                    </p>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-3 mt-2 mt-md-0">
+                <span class="ws-status-bar">
+                    <span class="ws-dot connected" id="wsDot"></span>
+                    <span id="wsLabel">{% trans "Connected" %}</span>
+                </span>
+                <span class="badge bg-light text-dark" id="lastUpdate">
+                    <i class="far fa-clock me-1"></i>
+                    {% trans "Updated" %}: {% now "H:i:s" %}
+                </span>
+                <button class="btn-ai" onclick="location.reload()" style="background: white !important; color: var(--primary-color) !important;">
+                    <i class="fas fa-sync-alt me-2"></i>{% trans "Refresh" %}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    ማሳወቂያ ባንድ
+    ============================================================ -->
+    {% if error_stats.unresolved > 10 %}
+    <div class="alert alert-warning alert-banner-custom">
+        <i class="fas fa-exclamation-triangle text-warning"></i>
         <div>
-            <h2 class="fw-bold mb-1">
-                <i class="fas fa-robot text-primary me-2"></i>{% trans "Agent Status Dashboard" %}
-            </h2>
-            <p class="text-muted">{% trans "Real-time status of the EthAfri Autonomous Agent" %}</p>
-        </div>
-        <div>
-            <span class="badge bg-secondary me-2" id="lastUpdate">{% trans "Last updated" %}: {% now "H:i:s" %}</span>
-            <button class="btn btn-outline-primary btn-sm refresh-btn" onclick="location.reload()">
-                <i class="fas fa-sync-alt me-1"></i>{% trans "Refresh" %}
-            </button>
+            <strong>{% trans "Warning" %}:</strong>
+            {% blocktrans with count=error_stats.unresolved %}
+            {{ count }} unresolved errors detected. The self-healing agent is working on them.
+            {% endblocktrans %}
         </div>
     </div>
+    {% endif %}
 
-    <!-- የኤጀንት ሁኔታ -->
+    <!-- ============================================================
+    ዋና ሁኔታ ካርዶች
+    ============================================================ -->
     <div class="row g-3 mb-4">
-        <div class="col-md-6">
-            <div class="card status-card shadow-sm p-3">
-                <div class="d-flex align-items-center">
-                    <div class="me-3">
-                        <span class="status-dot {% if agent_status.status == 'running' %}running{% elif agent_status.status == 'idle' %}idle{% else %}error{% endif %}"></span>
-                    </div>
-                    <div>
-                        <div class="stat-label">{% trans "Agent Status" %}</div>
-                        <div class="fw-bold fs-4">
-                            {% if agent_status.status == 'running' %}
-                                <span class="text-warning">🔄 {% trans "RUNNING" %}</span>
-                            {% elif agent_status.status == 'idle' %}
-                                <span class="text-success">💤 {% trans "IDLE" %}</span>
-                            {% else %}
-                                <span class="text-danger">⚠️ {% trans "ERROR" %}</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-2 text-muted small">
-                    {% trans "Last run" %}: {{ agent_status.last_run|default:"Never" }}
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card status-card shadow-sm p-3">
-                <div class="row text-center">
-                    <div class="col-4">
-                        <div class="stat-number">{{ site_stats.active }}</div>
-                        <div class="stat-label">{% trans "Active Sites" %}</div>
-                    </div>
-                    <div class="col-4">
-                        <div class="stat-number">{{ site_stats.total }}</div>
-                        <div class="stat-label">{% trans "Total Sites" %}</div>
-                    </div>
-                    <div class="col-4">
-                        <div class="stat-number">{{ marketing_stats.campaigns }}</div>
-                        <div class="stat-label">{% trans "Campaigns" %}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- ስታቲስቲክስ ሰሌዳ -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="card status-card shadow-sm text-center p-3">
-                <div class="stat-number text-primary">{{ backlog_stats.pending }}</div>
-                <div class="stat-label">{% trans "Pending Tasks" %}</div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="card status-card shadow-sm text-center p-3">
-                <div class="stat-number text-success">{{ backlog_stats.completed }}</div>
-                <div class="stat-label">{% trans "Completed Tasks" %}</div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="card status-card shadow-sm text-center p-3">
-                <div class="stat-number text-warning">{{ evolution_stats.today }}</div>
-                <div class="stat-label">{% trans "Changes Today" %}</div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="card status-card shadow-sm text-center p-3">
-                <div class="stat-number text-danger">{{ error_stats.unresolved }}</div>
-                <div class="stat-label">{% trans "Unresolved Errors" %}</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ዝርዝር መረጃ -->
-    <div class="row g-3">
-        <!-- የባክሎግ ስራዎች -->
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light fw-bold">
-                    <i class="fas fa-tasks me-2"></i>{% trans "Recent Tasks" %}
-                    <span class="badge bg-secondary ms-2">{{ backlog_stats.total }}</span>
-                </div>
-                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
-                    {% for task in recent_tasks %}
-                    <div class="task-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="fw-medium">{{ task.task_name|truncatechars:30 }}</span>
-                            <span class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning{% else %}secondary{% endif %} ms-1" style="font-size: 8px;">
-                                {{ task.priority }}
-                            </span>
-                        </div>
-                        <span class="badge bg-{% if task.status == 'Completed' %}success{% elif task.status == 'Running' %}warning{% else %}secondary{% endif %}">
-                            {{ task.status }}
-                        </span>
-                    </div>
-                    {% empty %}
-                    <div class="text-center py-4 text-muted">
-                        <p class="mb-0 small">{% trans "No tasks in backlog." %}</p>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-
-        <!-- ስህተቶች እና ጥገና -->
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light fw-bold">
-                    <i class="fas fa-heartbeat me-2"></i>{% trans "System Health" %}
-                </div>
+        <!-- የኤጀንት ሁኔታ -->
+        <div class="col-md-4">
+            <div class="agent-status-card">
                 <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-4">
-                            <div class="stat-number text-success">{{ healing_stats.resolved }}</div>
-                            <div class="stat-label">{% trans "Healed" %}</div>
+                    <div class="status-indicator-large">
+                        <span class="status-dot-large 
+                            {% if agent_status.status == 'running' %}running
+                            {% elif agent_status.status == 'idle' %}idle
+                            {% else %}error{% endif %}">
+                        </span>
+                        <div>
+                            <div class="stat-label" style="font-size: 0.75rem;">{% trans "Agent Status" %}</div>
+                            <div class="fw-bold fs-4">
+                                {% if agent_status.status == 'running' %}
+                                    <span class="text-warning">🔄 {% trans "RUNNING" %}</span>
+                                {% elif agent_status.status == 'idle' %}
+                                    <span class="text-success">💤 {% trans "IDLE" %}</span>
+                                {% else %}
+                                    <span class="text-danger">⚠️ {% trans "ERROR" %}</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-muted small mt-1">
+                                <i class="far fa-calendar-alt me-1"></i>
+                                {% trans "Last run" %}: {{ agent_status.last_run|default:"Never" }}
+                            </div>
+                            <div class="text-muted small">
+                                <i class="far fa-clock me-1"></i>
+                                {% trans "Uptime" %}: <span id="uptime">--</span>
+                            </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- የስራ ስታቲስቲክስ -->
+        <div class="col-md-4">
+            <div class="agent-status-card">
+                <div class="card-body">
+                    <div class="stat-label" style="font-size: 0.75rem;">{% trans "Task Statistics" %}</div>
+                    <div class="row text-center mt-2">
                         <div class="col-4">
-                            <div class="stat-number text-warning">{{ healing_stats.pending }}</div>
+                            <div class="stat-number warning">{{ backlog_stats.pending }}</div>
                             <div class="stat-label">{% trans "Pending" %}</div>
                         </div>
                         <div class="col-4">
-                            <div class="stat-number text-info">{{ error_stats.total }}</div>
-                            <div class="stat-label">{% trans "Total Errors" %}</div>
+                            <div class="stat-number primary">{{ backlog_stats.running }}</div>
+                            <div class="stat-label">{% trans "Running" %}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-number success">{{ backlog_stats.completed }}</div>
+                            <div class="stat-label">{% trans "Completed" %}</div>
                         </div>
                     </div>
-                    <div class="mt-3 pt-3 border-top">
-                        <div class="d-flex justify-content-between">
-                            <span class="text-muted small">{% trans "Last Cron" %}:</span>
-                            <span class="small">{{ last_cron }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- የጣቢያ ስታቲስቲክስ -->
+        <div class="col-md-4">
+            <div class="agent-status-card">
+                <div class="card-body">
+                    <div class="stat-label" style="font-size: 0.75rem;">{% trans "Site Statistics" %}</div>
+                    <div class="row text-center mt-2">
+                        <div class="col-4">
+                            <div class="stat-number success">{{ site_stats.active }}</div>
+                            <div class="stat-label">{% trans "Active" %}</div>
                         </div>
-                        <div class="d-flex justify-content-between">
-                            <span class="text-muted small">{% trans "Notifications" %}:</span>
-                            <span class="small">{{ marketing_stats.notifications }}</span>
+                        <div class="col-4">
+                            <div class="stat-number primary">{{ site_stats.total }}</div>
+                            <div class="stat-label">{% trans "Total" %}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-number warning">{{ marketing_stats.campaigns }}</div>
+                            <div class="stat-label">{% trans "Campaigns" %}</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- ============================================================
+    ስታቲስቲክስ ግሪድ
+    ============================================================ -->
+    <div class="stats-grid-4">
+        <div class="stat-box">
+            <span class="stat-number primary">{{ backlog_stats.total }}</span>
+            <span class="stat-label">{% trans "Total Tasks" %}</span>
+        </div>
+        <div class="stat-box" style="border-left-color: var(--success-color);">
+            <span class="stat-number success">{{ evolution_stats.today }}</span>
+            <span class="stat-label">{% trans "Changes Today" %}</span>
+        </div>
+        <div class="stat-box" style="border-left-color: var(--danger-color);">
+            <span class="stat-number danger">{{ error_stats.unresolved }}</span>
+            <span class="stat-label">{% trans "Unresolved Errors" %}</span>
+        </div>
+        <div class="stat-box" style="border-left-color: var(--info-color);">
+            <span class="stat-number info">
+                {% if healing_stats.total > 0 %}
+                    {{ healing_stats.resolved|floatformat:0 }}%
+                {% else %}
+                    0%
+                {% endif %}
+            </span>
+            <span class="stat-label">{% trans "Healing Success Rate" %}</span>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    Build Phase Progress
+    ============================================================ -->
+    <div class="agent-status-card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="stat-label">{% trans "Build Phase Progress" %}</span>
+                <span class="badge bg-primary" id="phaseLabel">{% trans "Phase" %} 0/5</span>
+            </div>
+            <div class="phase-progress-container">
+                <div class="phase-progress-fill" id="phaseProgress" style="width: 0%;"></div>
+            </div>
+            <div class="phase-labels">
+                <span>{% trans "Scaffolding" %}</span>
+                <span>{% trans "Real Data" %}</span>
+                <span>{% trans "Core" %}</span>
+                <span>{% trans "Engagement" %}</span>
+                <span>{% trans "Monetization" %}</span>
+                <span>{% trans "Mature" %}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    ዝርዝር መረጃ — ሁለት ዓምዶች
+    ============================================================ -->
+    <div class="row g-3">
+
+        <!-- የባክሎግ ስራዎች -->
+        <div class="col-md-6">
+            <div class="agent-status-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">
+                            <i class="fas fa-tasks text-primary me-2"></i>
+                            {% trans "Recent Tasks" %}
+                            <span class="badge bg-secondary ms-2">{{ backlog_stats.total }}</span>
+                        </h5>
+                        <a href="{% url 'growth_dashboard' %}" class="text-decoration-none small">
+                            {% trans "View All" %} <i class="fas fa-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                    <div class="task-list">
+                        {% for task in recent_tasks %}
+                        <div class="task-item">
+                            <div class="task-info">
+                                <span class="task-priority-badge {% if task.priority == 'Critical' %}critical{% elif task.priority == 'High' %}high{% elif task.priority == 'Medium' %}medium{% else %}low{% endif %}">
+                                    {{ task.priority }}
+                                </span>
+                                <span class="task-name">{{ task.task_name|truncatechars:35 }}</span>
+                            </div>
+                            <div class="task-meta">
+                                {% if task.site %}
+                                <span class="badge bg-light text-dark border">{{ task.site }}</span>
+                                {% endif %}
+                                <span class="task-status-badge 
+                                    {% if task.status == 'Completed' %}completed
+                                    {% elif task.status == 'Running' %}running
+                                    {% elif task.status == 'Pending' %}pending
+                                    {% else %}blocked{% endif %}">
+                                    {{ task.status }}
+                                </span>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-inbox fa-2x mb-2 opacity-25"></i>
+                            <p class="mb-0 small">{% trans "No tasks in backlog." %}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- የስርዓት ጤና -->
+        <div class="col-md-6">
+            <div class="agent-status-card">
+                <div class="card-body">
+                    <h5 class="fw-bold mb-3">
+                        <i class="fas fa-heartbeat text-danger me-2"></i>
+                        {% trans "System Health" %}
+                    </h5>
+
+                    <div class="row text-center mb-3">
+                        <div class="col-3">
+                            <div class="stat-number success" style="font-size: 1.8rem;">{{ healing_stats.resolved }}</div>
+                            <div class="stat-label">{% trans "Healed" %}</div>
+                        </div>
+                        <div class="col-3">
+                            <div class="stat-number warning" style="font-size: 1.8rem;">{{ healing_stats.pending }}</div>
+                            <div class="stat-label">{% trans "Pending" %}</div>
+                        </div>
+                        <div class="col-3">
+                            <div class="stat-number danger" style="font-size: 1.8rem;">{{ error_stats.unresolved }}</div>
+                            <div class="stat-label">{% trans "Errors" %}</div>
+                        </div>
+                        <div class="col-3">
+                            <div class="stat-number info" style="font-size: 1.8rem;">{{ memory_stats.total }}</div>
+                            <div class="stat-label">{% trans "Memory" %}</div>
+                        </div>
+                    </div>
+
+                    <div class="border-top pt-3">
+                        <table class="table table-sm table-borderless stats-table mb-0">
+                            <tr>
+                                <td class="text-muted small">{% trans "Last Cron Ping" %}</td>
+                                <td class="text-end small fw-medium">{{ last_cron|default:"Never" }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted small">{% trans "Notifications Pending" %}</td>
+                                <td class="text-end small fw-medium">{{ marketing_stats.notifications }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted small">{% trans "Memory Success Rate" %}</td>
+                                <td class="text-end small fw-medium">{{ memory_stats.avg_success|floatformat:1 }}%</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted small">{% trans "Agent Tasks" %}</td>
+                                <td class="text-end small fw-medium">{{ agent_stats.total }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted small">{% trans "Security Issues" %}</td>
+                                <td class="text-end small fw-medium text-danger">{{ security_stats.unfixed }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    ተጨማሪ ስታቲስቲክስ
+    ============================================================ -->
+    <div class="row g-3 mt-2">
+        <div class="col-md-6">
+            <div class="agent-status-card">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-2">
+                        <i class="fas fa-brain text-primary me-2"></i>
+                        {% trans "Memory Statistics" %}
+                    </h6>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="fw-bold">{{ memory_stats.error }}</div>
+                            <div class="stat-label" style="font-size: 0.7rem;">{% trans "Errors" %}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold text-success">{{ memory_stats.solution }}</div>
+                            <div class="stat-label" style="font-size: 0.7rem;">{% trans "Solutions" %}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold text-primary">{{ memory_stats.avg_success|floatformat:1 }}%</div>
+                            <div class="stat-label" style="font-size: 0.7rem;">{% trans "Success Rate" %}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="agent-status-card">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-2">
+                        <i class="fas fa-chart-line text-warning me-2"></i>
+                        {% trans "Predictions" %}
+                    </h6>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="fw-bold">{{ prediction_stats.total }}</div>
+                            <div class="stat-label" style="font-size: 0.7rem;">{% trans "Total" %}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold text-info">{{ prediction_stats.traffic }}</div>
+                            <div class="stat-label" style="font-size: 0.7rem;">{% trans "Traffic" %}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold text-success">{{ prediction_stats.seo }}</div>
+                            <div class="stat-label" style="font-size: 0.7rem;">{% trans "SEO" %}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    ግርጌ
+    ============================================================ -->
+    <div class="text-center text-muted small mt-4">
+        <i class="fas fa-code me-1"></i>
+        {% trans "EthAfri Super-Agent v3.0" %}
+        <span class="mx-2">|</span>
+        <i class="fas fa-database me-1"></i>
+        {% trans "Data-First, Dependency-Driven Organic Growth" %}
+        <span class="mx-2">|</span>
+        <i class="fas fa-shield-alt me-1"></i>
+        {% trans "Self-Healing" %}
+        <span class="status-dot idle" style="width: 8px; height: 8px; display: inline-block;"></span>
+    </div>
+
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Auto-refresh every 30 seconds
-    setTimeout(function() {
-        location.reload();
-    }, 30000);
+    // ============================================================
+    // WebSocket Connection
+    // ============================================================
+    
+    let ws = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/agent-status/`;
+        
+        try {
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                console.log('✅ WebSocket Connected');
+                document.getElementById('wsDot').className = 'ws-dot connected';
+                document.getElementById('wsLabel').textContent = '{% trans "Connected" %}';
+                reconnectAttempts = 0;
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateDashboard(data);
+                } catch (e) {
+                    console.error('WebSocket message error:', e);
+                }
+            };
+            
+            ws.onclose = function() {
+                console.log('❌ WebSocket Disconnected');
+                document.getElementById('wsDot').className = 'ws-dot disconnected';
+                document.getElementById('wsLabel').textContent = '{% trans "Disconnected" %}';
+                
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    setTimeout(connectWebSocket, 3000 * reconnectAttempts);
+                }
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket Error:', error);
+            };
+            
+        } catch (e) {
+            console.error('WebSocket connection failed:', e);
+        }
+    }
+
+    // ============================================================
+    // Update Dashboard
+    // ============================================================
+    
+    function updateDashboard(data) {
+        if (data.type === 'status_update') {
+            const updateEl = document.getElementById('lastUpdate');
+            if (updateEl) {
+                updateEl.innerHTML = `
+                    <i class="far fa-clock me-1"></i>
+                    {% trans "Updated" %}: ${new Date(data.timestamp).toLocaleTimeString()}
+                `;
+            }
+        }
+    }
+
+    // ============================================================
+    // Uptime Counter
+    // ============================================================
+    
+    function updateUptime() {
+        const startTime = new Date();
+        const uptimeEl = document.getElementById('uptime');
+        if (!uptimeEl) return;
+        
+        setInterval(() => {
+            const now = new Date();
+            const diff = Math.floor((now - startTime) / 1000);
+            const hours = Math.floor(diff / 3600);
+            const minutes = Math.floor((diff % 3600) / 60);
+            const seconds = diff % 60;
+            uptimeEl.textContent = `${hours}h ${minutes}m ${seconds}s`;
+        }, 1000);
+    }
+
+    // ============================================================
+    // Phase Progress
+    // ============================================================
+    
+    function updatePhaseProgress() {
+        const phase = {{ site_stats.build_phase|default:0 }};
+        const progress = (phase / 5) * 100;
+        const fill = document.getElementById('phaseProgress');
+        const label = document.getElementById('phaseLabel');
+        if (fill) fill.style.width = progress + '%';
+        if (label) label.textContent = `{% trans "Phase" %} ${phase}/5`;
+    }
+
+    // ============================================================
+    // Init
+    // ============================================================
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        connectWebSocket();
+        updateUptime();
+        updatePhaseProgress();
+    });
 </script>
 {% endblock %}
