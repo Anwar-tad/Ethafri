@@ -203,7 +203,8 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
+# core/settings.py ውስጥ
+ASGI_APPLICATION = 'core.asgi.application'
 # =====================================================================
 # 8. 🆕 WebSocket & Channels Configuration
 # =====================================================================
