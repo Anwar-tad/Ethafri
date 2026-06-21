@@ -146,9 +146,16 @@ LOCALE_PATHS = [
 # # =====================================================================
 # 6. Static & Media Files (Whitenoise & Cloudinary Storage)
 # =====================================================================
+
+
+# የስታቲክ ፋይሎች ቅንብር
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+# የስታቲክ ፋይሎች መንገድ (ለልማት)
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
 # 🛠️ የተሻሻለ — WhiteNoise ችግርን ለመፍታት
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
