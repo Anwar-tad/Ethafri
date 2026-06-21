@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ Enhanced SafetyNet + Multi-Site Support + Health Checks
-# 📅 ቀን፦ 2026-06-21
+# 📝 ለውጥ፦ Enhanced SafetyNet + Autonomous Agent + Health Checks
+# 📅 ቀን፦ 2026-06-22
 # ============================================================
 
 from django.apps import AppConfig
@@ -22,20 +22,28 @@ class MarketplaceConfig(AppConfig):
     def ready(self):
         """
         ሰርቨሩ በትክክል መነሳቱን ማረጋገጫ
-        ⚠️ 'evolve_market' እና 'sync_translations' በኮማንድ መልክ ሲሮጡ አላስፈላጊ የጀርባ ክር እንዳይቀሰቅሱ
+        ⚠️ የማይፈለጉ ትዕዛዞች ሲሮጡ አላስፈላጊ የጀርባ ክር እንዳይቀሰቅሱ
         """
         invalid_commands = [
             'makemigrations', 'migrate', 'collectstatic', 'shell', 'test', 
             'evolve_market', 'sync_translations', 'showmigrations',
             'flush', 'dumpdata', 'loaddata', 'sqlmigrate', 'sqlflush',
-            'check', 'compilemessages', 'createcachetable'
+            'check', 'compilemessages', 'createcachetable', 'run_agent'
         ]
         
         # መጫኛ ትዕዛዞችን እና ሌሎችን አታስኬድ
         if not any(cmd in sys.argv for cmd in invalid_commands):
-            logger.info("🚀 Starting EthAfri SafetyNet Thread...")
+            logger.info("🚀 Starting EthAfri Autonomous Agent System...")
             
-            # የጀርባ ክር ጀምር
+            # 1. 🆕 ራስ-ገዝ ኤጀንት ክር (24/7)
+            agent_thread = threading.Thread(
+                target=self.start_autonomous_agent,
+                daemon=True,
+                name="AutonomousAgentThread"
+            )
+            agent_thread.start()
+            
+            # 2. 🛡️ SafetyNet ክር (የውጭ ክሮን ፎልባክ)
             safetynet_thread = threading.Thread(
                 target=self.start_safetynet_loop,
                 daemon=True,
@@ -43,7 +51,7 @@ class MarketplaceConfig(AppConfig):
             )
             safetynet_thread.start()
             
-            # የጤና ምርመራ ክር (Health Check)
+            # 3. 🩺 Health Check ክር
             health_thread = threading.Thread(
                 target=self.start_health_check_loop,
                 daemon=True,
@@ -51,34 +59,63 @@ class MarketplaceConfig(AppConfig):
             )
             health_thread.start()
             
-            logger.info("✅ SafetyNet and HealthCheck threads started successfully.")
+            logger.info("✅ Autonomous Agent, SafetyNet and HealthCheck threads started successfully.")
         else:
-            logger.info(f"ℹ️ Skipping SafetyNet startup for command: {' '.join(sys.argv)}")
+            logger.info(f"ℹ️ Skipping agent startup for command: {' '.join(sys.argv)}")
 
+    # ============================================================
+    # 1. 🆕 ራስ-ገዝ ኤጀንት (24/7 Autonomous Agent)
+    # ============================================================
+    
+    def start_autonomous_agent(self):
+        """
+        ሙሉ በሙሉ ራሱን የሚያስተዳድር 24/7 ኤጀንት
+        ፈጽሞ አይተኛም — ሁልጊዜ የሚሰራ ስራ ይፈጥራል
+        """
+        # ሰርቨሩ መጀመሪያ ሲነሳ ዳታቤዙ እስኪረጋጋ 30 ሰከንድ ይጠብቃል
+        logger.info("🤖 Autonomous Agent waiting 30 seconds for database to stabilize...")
+        time.sleep(30)
+        
+        try:
+            from django.conf import settings
+            if not getattr(settings, 'AUTONOMOUS_AGENT_ENABLED', True):
+                logger.info("💤 Autonomous Agent is disabled in settings")
+                return
+            
+            from .growth_agent import run_autonomous_agent
+            logger.info("🤖 Autonomous Agent started successfully! Running 24/7...")
+            run_autonomous_agent()
+            
+        except ImportError as e:
+            logger.error(f"❌ Could not import growth_agent: {e}")
+        except Exception as e:
+            logger.error(f"❌ Autonomous Agent error: {e}")
+
+    # ============================================================
+    # 2. 🛡️ SafetyNet (የውጭ ክሮን ፎልባክ)
+    # ============================================================
+    
     def start_safetynet_loop(self):
         """
         የውጭው ክሮን ፌል ካደረገ ተረክቦ የሚያስነሳ የደህንነት መረብ
         አሁን ሁሉንም ንቁ ጣቢያዎች ያስተዳድራል
         """
-        # ሰርቨሩ መጀመሪያ ሲነሳ ዳታቤዙ እስኪረጋጋ 30 ሰከንድ ይጠብቃል
         logger.info("🛡️ SafetyNet waiting 30 seconds for database to stabilize...")
         time.sleep(30)
         
-        # ስህተት ቆጣሪ (Error counter for exponential backoff)
         error_count = 0
         max_errors = 5
         
         while True:
             try:
-                # 🛡️ 1. የዳታቤዝ ግንኙነቶችን ማደስ
+                # የዳታቤዝ ግንኙነቶችን ማደስ
                 from django.db import connections
                 connections.close_all()
                 
-                # ሞዴሎችን አስመጣ
                 from .models import SiteConfig, SiteRegistry
                 from .growth_agent import run_daily_market_analysis, run_single_site_analysis
                 
-                # 🛡️ 2. የመጨረሻው የውጭ ክሮን ጥሪ መቼ እንደነበረ መፈተሽ
+                # የመጨረሻው የውጭ ክሮን ጥሪ መቼ እንደነበረ መፈተሽ
                 last_ping_cfg = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
                 should_run_fallback = True
                 last_ping_time = None
@@ -98,15 +135,13 @@ class MarketplaceConfig(AppConfig):
                     except Exception as e:
                         logger.warning(f"⚠️ SafetyNet: Failed to parse last ping time: {e}")
                 
-                # 🛡️ 3. ክሮኑ ፌል ካደረገ ይህ ስራውን ይረከባል
+                # ክሮኑ ፌል ካደረገ ይህ ስራውን ይረከባል
                 if should_run_fallback:
                     logger.warning("🚨 SafetyNet Active: External Cron missed or failed! Triggering evolution fallback...")
                     
-                    # 🆕 ሁሉንም ንቁ ጣቢያዎች አስኬድ
                     active_sites = SiteRegistry.objects.filter(is_active=True)
                     
                     if not active_sites.exists():
-                        # ነባሪ ጣቢያ ከሌለ
                         try:
                             result = run_daily_market_analysis()
                             logger.info(f"🚨 SafetyNet Fallback Result (Global): {result}")
@@ -114,7 +149,6 @@ class MarketplaceConfig(AppConfig):
                             logger.error(f"❌ SafetyNet global fallback failed: {e}")
                             error_count += 1
                     else:
-                        # እያንዳንዱን ጣቢያ በተናጥል አስኬድ
                         site_count = active_sites.count()
                         logger.info(f"🔄 SafetyNet processing {site_count} active sites...")
                         
@@ -126,7 +160,6 @@ class MarketplaceConfig(AppConfig):
                                 logger.error(f"❌ SafetyNet failed for {site.name}: {e}")
                                 error_count += 1
                     
-                    # የመጨረሻውን የፎልባክ ጊዜ መዝግብ
                     try:
                         SiteConfig.objects.update_or_create(
                             key="LAST_SAFETYNET_RUN",
@@ -140,52 +173,45 @@ class MarketplaceConfig(AppConfig):
                     except Exception as e:
                         logger.error(f"❌ Failed to log SafetyNet run: {e}")
                     
-                    # ስህተቶች ከበዙ የጊዜ ክፍተት ጨምር
                     if error_count >= max_errors:
                         logger.warning(f"⚠️ SafetyNet: {error_count} errors detected. Increasing check interval.")
-                        time.sleep(1800)  # 30 ደቂቃ ይጠብቅ
+                        time.sleep(1800)
                         error_count = 0
                         continue
                 
-                # ስህተት ከሌለ ቆጣሪውን ዳግም አስጀምር
                 error_count = 0
                 
             except Exception as e:
                 logger.error(f"❌ SafetyNet Thread Error: {e}")
                 error_count += 1
                 
-                # ከባድ ስህተት ከሆነ ተጨማሪ ጊዜ ይጠብቅ
                 if error_count >= 3:
                     logger.warning("⚠️ SafetyNet: Multiple errors detected. Waiting 5 minutes...")
                     time.sleep(300)
                     error_count = 0
             
-            # 🛡️ 4. በየ10 ደቂቃው ይፈትሻል (ወይም ስህተት ከሌለ)
             time.sleep(600)
 
+    # ============================================================
+    # 3. 🩺 Health Check (የስርዓት ጤና ምርመራ)
+    # ============================================================
+    
     def start_health_check_loop(self):
         """
-        🆕 የስርዓት ጤና ምርመራ ክር
+        የስርዓት ጤና ምርመራ ክር
         በየ5 ደቂቃው የስርዓቱን ሁኔታ ይፈትሻል
         """
         logger.info("🩺 Starting Health Check Thread...")
-        
-        # ሰርቨሩ እስኪረጋጋ 60 ሰከንድ ይጠብቃል
         time.sleep(60)
         
         while True:
             try:
-                # የዳታቤዝ ግንኙነት ፍተሻ
                 from django.db import connection
                 connection.ensure_connection()
                 
-                # የስርዓት ሁኔታ ምርመራ
                 from .models import SiteRegistry, AgentErrorLog
                 
-                # ንቁ ጣቢያዎች ቆጠራ
                 active_sites = SiteRegistry.objects.filter(is_active=True).count()
-                
-                # ያልተፈቱ ስህተቶች ቆጠራ
                 unresolved_errors = AgentErrorLog.objects.filter(resolved=False).count()
                 
                 health_status = {
@@ -195,7 +221,6 @@ class MarketplaceConfig(AppConfig):
                     'timestamp': timezone.now().isoformat()
                 }
                 
-                # ከፍተኛ ስህተቶች ካሉ ማስጠንቀቂያ
                 if unresolved_errors > 10:
                     health_status['status'] = 'warning'
                     logger.warning(f"⚠️ Health Check: {unresolved_errors} unresolved errors detected.")
@@ -203,7 +228,6 @@ class MarketplaceConfig(AppConfig):
                     health_status['status'] = 'critical'
                     logger.error(f"🚨 Health Check: {unresolved_errors} unresolved errors! Critical!")
                 
-                # የጤና ሁኔታን መዝግብ
                 try:
                     from .models import SiteConfig
                     SiteConfig.objects.update_or_create(
@@ -213,19 +237,21 @@ class MarketplaceConfig(AppConfig):
                 except Exception as e:
                     logger.warning(f"⚠️ Failed to log health status: {e}")
                 
-                # ስርዓቱ ጤናማ ከሆነ
                 if health_status['status'] == 'healthy':
                     logger.debug(f"💚 Health Check: {active_sites} sites, {unresolved_errors} errors")
                 
             except Exception as e:
                 logger.error(f"❌ Health Check Thread Error: {e}")
             
-            # 🩺 5. በየ5 ደቂቃው ይፈትሻል
             time.sleep(300)
 
+    # ============================================================
+    # 4. 📊 የስርዓት ሁኔታ (System Status)
+    # ============================================================
+    
     def get_health_status(self):
         """
-        🆕 የስርዓቱን ወቅታዊ ጤና ሁኔታ ይመልሳል
+        የስርዓቱን ወቅታዊ ጤና ሁኔታ ይመልሳል
         ለExternal API ጥቅም
         """
         try:
@@ -242,3 +268,16 @@ class MarketplaceConfig(AppConfig):
             'unresolved_errors': 0,
             'timestamp': timezone.now().isoformat()
         }
+    
+    def get_agent_status(self):
+        """
+        የኤጀንቱን ወቅታዊ ሁኔታ ይመልሳል
+        """
+        try:
+            from .models import SiteConfig
+            heartbeat = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
+            if heartbeat:
+                return heartbeat.value
+        except Exception:
+            pass
+        return {'status': 'unknown', 'timestamp': None, 'cycle': 0}

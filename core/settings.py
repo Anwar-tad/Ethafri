@@ -389,3 +389,11 @@ LOGGING = {
         },
     },
 }
+
+# core/settings.py ውስጥ ጨምር
+
+# Autonomous Agent Settings
+AUTONOMOUS_AGENT_ENABLED = env.bool('AUTONOMOUS_AGENT_ENABLED', default=True)
+AGENT_INTERVAL = env('AGENT_INTERVAL', default=60)  # seconds
+AGENT_MAX_ERRORS = env('AGENT_MAX_ERRORS', default=10)
+SKIP_SHELL = env.bool('SKIP_SHELL', default=True)
