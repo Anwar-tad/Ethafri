@@ -725,7 +725,7 @@ class GrowthStrategyEngine:
 def run_single_site_analysis(site: SiteRegistry):
     """
     ለአንድ የተወሰነ ጣቢያ የዕድገት ትንተና ያካሂዳል
-    v3: Data-First, Dependency-Driven
+    v3: Data-First, Dependency-Driven — ፈጽሞ አይተኛም!
     """
     now = timezone.now()
     site_name = site.name
@@ -745,6 +745,7 @@ def run_single_site_analysis(site: SiteRegistry):
     new_tasks = trigger.evaluate_all_triggers()
     for task in new_tasks:
         results.append(f"📋 Triggered: {task.task_name}")
+        logger.info(f"📋 Triggered task: {task.task_name} for {site_name}")
     
     # 3. 🆕 Update build_phase
     trigger.update_phase()
@@ -761,20 +762,41 @@ def run_single_site_analysis(site: SiteRegistry):
         )
     ).filter(has_unfinished_dependency=False).order_by('-business_impact_score', '-priority', 'created_at')
     
-    # 5. ከፍተኛ ተጽዕኖ ያላቸውን ስራዎች ምረጥ (max 3 per cycle)
+    # 5. 🆕 ስራ ከሌለ — ራስ-ሰር ስራ ፍጠር (Self-Learning Mode)
+    if not pending_tasks.exists():
+        logger.info(f"🧠 No pending tasks for {site_name} — Activating Self-Learning Mode...")
+        
+        # 5a. የጣቢያውን ሁኔታ ተንትን
+        analysis = analyze_site_status(site)
+        
+        # 5b. አዲስ ስራ ፍጠር
+        new_task = create_self_learning_task(site, analysis)
+        if new_task:
+            results.append(f"🧠 Self-Learning: Created '{new_task.task_name}'")
+            logger.info(f"🧠 Self-Learning task created: {new_task.task_name}")
+            
+            # እንደገና የባክሎግ ስራዎችን አግኝ
+            pending_tasks = AIProjectBacklog.objects.filter(
+                site=site, status='Pending'
+            ).order_by('-business_impact_score', '-priority', 'created_at')
+    
+    # 6. ከፍተኛ ተጽዕኖ ያላቸውን ስራዎች ምረጥ (max 3 per cycle)
     target_tasks = list(pending_tasks[:3])
     
     if not target_tasks:
-        logger.info(f"🧠 No pending tasks for {site_name}")
-        return f"🧠 No tasks for {site_name}"
+        # 7. 🆕 ምንም አይነት ስራ ከሌለ — ራሱን ማስተማር (Self-Education)
+        logger.info(f"📚 No tasks available — Starting Self-Education for {site_name}")
+        education_result = self_educate(site)
+        results.append(f"📚 Self-Education: {education_result}")
+        return f"📚 Self-Educating {site_name}: {education_result}"
     
-    # 6. እያንዳንዱን ስራ አስኬድ
+    # 8. እያንዳንዱን ስራ አስኬድ
     for target_task in target_tasks:
         target_task.status = 'Running'
         target_task.save()
         
         try:
-            # 7. ፕሮምፕት ያዘጋጅ
+            # 9. ፕሮምፕት ያዘጋጅ
             prompt = f"""
             You are 'EthAfri Super AI Architect' for site: {site_name}.
             
@@ -822,7 +844,7 @@ def run_single_site_analysis(site: SiteRegistry):
                 results.append(f"❌ Fail: {err_msg[:100]}")
                 continue
             
-            # 8. አዲስ ስራዎችን መዝግብ
+            # 10. አዲስ ስራዎችን መዝግብ
             for t in data.get('backlog_tasks', []):
                 AIProjectBacklog.objects.get_or_create(
                     task_name=t['task_name'],
@@ -841,7 +863,7 @@ def run_single_site_analysis(site: SiteRegistry):
                 )
                 results.append(f"📋 Added: {t['task_name']}")
             
-            # 9. የኮድ ማሻሻያ
+            # 11. የኮድ ማሻሻያ
             updates = data.get('updates', {})
             code_changed = False
             
@@ -887,7 +909,7 @@ def run_single_site_analysis(site: SiteRegistry):
             target_task.save()
             results.append(f"✅ Completed: {target_task.task_name}")
             
-            # 10. የጣቢያ መረጃ አዘምን
+            # 12. የጣቢያ መረጃ አዘምን
             site.real_product_count = Product.objects.filter(site=site, is_active=True).count()
             site.real_customer_count = User.objects.filter(product__site=site).distinct().count()
             site.save()
@@ -899,6 +921,187 @@ def run_single_site_analysis(site: SiteRegistry):
             results.append(f"❌ Error: {str(e)[:100]}")
     
     return f"✅ Evolved {site_name}: {' | '.join(results[:5])}"
+
+
+# ============================================================
+# 🆕 Self-Learning Functions — ፈጽሞ አይተኛም!
+# ============================================================
+
+def analyze_site_status(site: SiteRegistry):
+    """የጣቢያውን ወቅታዊ ሁኔታ ተንትኖ ይመልሳል"""
+    analysis = {
+        'has_products': Product.objects.filter(site=site, is_active=True).exists(),
+        'product_count': Product.objects.filter(site=site, is_active=True).count(),
+        'has_categories': Category.objects.filter(product__site=site).exists(),
+        'category_count': Category.objects.filter(product__site=site).distinct().count(),
+        'has_users': User.objects.filter(product__site=site).exists(),
+        'user_count': User.objects.filter(product__site=site).distinct().count(),
+        'build_phase': site.build_phase,
+        'has_code': AIEvolutionLog.objects.filter(site=site).exists(),
+        'code_changes': AIEvolutionLog.objects.filter(site=site).count(),
+        'has_errors': AgentErrorLog.objects.filter(site=site, resolved=False).exists(),
+        'error_count': AgentErrorLog.objects.filter(site=site, resolved=False).count(),
+    }
+    return analysis
+
+
+def create_self_learning_task(site: SiteRegistry, analysis: dict):
+    """በጣቢያ ሁኔታ ላይ ተመስርቶ አዲስ ስራ ይፈጥራል"""
+    
+    # ስራዎችን በቅድሚያ ይምረጥ
+    if analysis['build_phase'] == 0:
+        # Scaffolding — የመጀመሪያ ስራ
+        task_name = 'Seed Real Data (Products & Customers)'
+        description = 'Phase 1: Import/seed real products and customers to start the marketplace'
+        priority = 'Critical'
+        target_file = 'data_seeding'
+        business_impact = 10
+        
+    elif analysis['build_phase'] == 1:
+        if analysis['product_count'] < 5:
+            task_name = 'Add More Products'
+            description = f'Only {analysis["product_count"]} products found. Need to add more products to attract customers.'
+            priority = 'High'
+            target_file = 'product_import'
+            business_impact = 9
+        elif analysis['user_count'] < 3:
+            task_name = 'Recruit Sellers'
+            description = f'Only {analysis["user_count"]} sellers found. Need to recruit more sellers.'
+            priority = 'High'
+            target_file = 'seller_onboarding'
+            business_impact = 9
+        else:
+            task_name = 'Build Core Features'
+            description = 'Phase 2: Build product detail, edit, delete, and user dashboard'
+            priority = 'Critical'
+            target_file = 'core_features'
+            business_impact = 9
+            
+    elif analysis['build_phase'] == 2:
+        if not analysis['has_products']:
+            task_name = 'Add Products'
+            description = 'No products found. Import or create products to populate the marketplace.'
+            priority = 'Critical'
+            target_file = 'product_import'
+            business_impact = 10
+        else:
+            task_name = 'Build Engagement Features'
+            description = 'Phase 3: Add search, filters, reviews, and notifications'
+            priority = 'High'
+            target_file = 'engagement_features'
+            business_impact = 8
+            
+    elif analysis['build_phase'] == 3:
+        task_name = 'Build Monetization'
+        description = 'Phase 4: Add payment integration and marketing campaigns'
+        priority = 'High'
+        target_file = 'monetization'
+        business_impact = 10
+        
+    elif analysis['build_phase'] == 4:
+        task_name = 'SEO Optimization'
+        description = 'Phase 5: Optimize site for search engines and grow traffic'
+        priority = 'Medium'
+        target_file = 'seo_optimization'
+        business_impact = 7
+        
+    else:
+        # Mature — አዲስ ጣቢያ ለመፍጠር
+        task_name = 'Replicate to New Niche'
+        description = 'Phase 6: Create a new site for a different niche'
+        priority = 'Medium'
+        target_file = 'site_replication'
+        business_impact = 8
+    
+    # ስራው ቀድሞ እንዳልተፈጠረ አረጋግጥ
+    existing = AIProjectBacklog.objects.filter(
+        site=site,
+        task_name=task_name,
+        status__in=['Pending', 'Running', 'Completed']
+    ).exists()
+    
+    if existing:
+        return None
+    
+    # አዲስ ስራ ፍጠር
+    task = AIProjectBacklog.objects.create(
+        site=site,
+        task_name=task_name,
+        task_type='growth',
+        target_file=target_file,
+        priority=priority,
+        status='Pending',
+        description=description,
+        business_impact_score=business_impact,
+        trigger_condition=f'Self-Learning: Phase {site.build_phase} - {task_name}'
+    )
+    
+    logger.info(f"🧠 Self-Learning task created: {task_name} for {site.name}")
+    return task
+
+
+def self_educate(site: SiteRegistry):
+    """
+    ምንም ስራ ከሌለ ራሱን ማስተማር (Self-Education)
+    የገበያ ትንተና ያካሂዳል እና ሪፖርት ይፈጥራል
+    """
+    site_name = site.name
+    logger.info(f"📚 Starting Self-Education for {site_name}")
+    
+    try:
+        # 1. የጣቢያ ሁኔታ ትንተና
+        analysis = analyze_site_status(site)
+        
+        # 2. የገበያ ግንዛቤ ፍጠር
+        insight = f"""
+        📊 **Self-Education Report for {site_name}**
+        
+        **Current Status:**
+        - Build Phase: {analysis['build_phase']}
+        - Products: {analysis['product_count']}
+        - Categories: {analysis['category_count']}
+        - Users/Sellers: {analysis['user_count']}
+        - Code Changes: {analysis['code_changes']}
+        - Errors: {analysis['error_count']}
+        
+        **Analysis:**
+        """
+        
+        if analysis['build_phase'] == 0:
+            insight += "\n- 🔧 Site is in Scaffolding phase. Need to add products and customers."
+        elif analysis['product_count'] == 0:
+            insight += "\n- 📦 No products found. Import or create products to start."
+        elif analysis['user_count'] == 0:
+            insight += "\n- 👤 No sellers/customers. Need to recruit users."
+        elif analysis['build_phase'] == 1:
+            insight += "\n- 📈 Real data phase. Building core features."
+        elif analysis['build_phase'] == 2:
+            insight += "\n- ⚙️ Core features phase. Adding engagement features."
+        elif analysis['build_phase'] == 3:
+            insight += "\n- 💰 Engagement phase. Adding monetization."
+        elif analysis['build_phase'] == 4:
+            insight += "\n- 🚀 Monetization phase. Optimizing for growth."
+        else:
+            insight += "\n- 🌟 Mature phase. Ready for replication."
+        
+        # 3. ራስ-ማስተማር ሪፖርት መዝግብ
+        SelfHealingLog.objects.create(
+            error_message=f"Self-Education: {site_name}",
+            solution_sql=insight,
+            resolved=True
+        )
+        
+        # 4. አዲስ ስራ ለመፍጠር ሞክር (ከላይ ያለው ተግባር)
+        task = create_self_learning_task(site, analysis)
+        if task:
+            return f"Created new task: {task.task_name}"
+        
+        # 5. ምንም ስራ ከሌለ ገበያ ቅኝት አድርግ
+        return f"Self-Education complete. No new tasks needed. Site is healthy."
+        
+    except Exception as e:
+        logger.error(f"❌ Self-Education error for {site_name}: {e}")
+        return f"Self-Education error: {str(e)[:100]}"
 
 
 # ============================================================
