@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/models.py
-# 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — All Models Complete
+# 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — All Models Complete (Merged)
 # 📅 ቀን፦ 2026-06-21
 # ============================================================
 
@@ -12,246 +12,6 @@ from django.utils import timezone
 import uuid
 import hashlib
 import json
-
-# ============================================================
-# 1. ነባር የማርኬት ፕሌስ ሞዴሎች
-# ============================================================
-
-class Category(models.Model):
-    """በ AI የሚፈጠሩ እና የሚደራጁ የምርት ምድቦች"""
-    name = models.CharField(max_length=100, unique=True)
-    slug = models.SlugField(max_length=150, unique=True, blank=True)
-    description = models.TextField(blank=True, default='')
-    icon = models.CharField(blank=True, default='fa-tag', max_length=50)
-    parent = models.ForeignKey(
-        'self', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
-        related_name='subcategories'
-    )
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.name)
-            if not self.slug:
-                self.slug = f"cat-{uuid.uuid4().hex[:8]}"
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.name
-
-
-class Product(models.Model):
-    """የማርኬት ፕሌሱ ዋና የምርት መረጃ መያዣ"""
-    seller = models.ForeignKey(User, on_delete=models.CASCADE)
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
-    title = models.CharField(max_length=255)
-    description = models.TextField()
-    price = models.DecimalField(max_digits=20, decimal_places=2, default=0)
-    image_url = models.URLField(blank=True, null=True)
-    image = models.ImageField(upload_to='products/', blank=True, null=True)
-    location = models.CharField(max_length=255, default='Global / ኢትዮጵያ')
-    specifications = models.TextField(default='{}', blank=True)
-    market_value_status = models.CharField(max_length=50, blank=True, default='Unknown')
-    is_active = models.BooleanField(default=True)
-    ai_tags = models.TextField(default='[]', blank=True)
-    
-    seo_score = models.IntegerField(default=0, help_text="SEO ውጤት (0-100)")
-    view_count = models.IntegerField(default=0, help_text="የተመለከቱ ብዛት")
-    inquiry_count = models.IntegerField(default=0, help_text="የጥያቄ ብዛት")
-    last_enhanced = models.DateTimeField(null=True, blank=True)
-    
-    site = models.ForeignKey(
-        'SiteRegistry',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='products',
-        help_text="ይህ ምርት የሚለጠፍበትን ጣቢያ ይምረጡ"
-    )
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def get_translated_title(self):
-        lang = get_language()
-        if lang == 'en':
-            return self.title
-        translation = getattr(self, 'translations', None)
-        if translation:
-            lang_text = getattr(translation, lang, '')
-            if lang_text and "|||" in lang_text:
-                return lang_text.split("|||")[0].strip()
-        return self.title # Default fallback if no translation or 'en' 
-
-    def __str__(self):
-        return self.title
-
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['seller']),
-            models.Index(fields=['category']),
-            models.Index(fields=['title']),
-        ]
-
-<<<<<<< HEAD
-    def __str__(self):
-        return f"{self.display_name} ({self.niche}) - Level {self.growth_level}"
-
-    def get_absolute_url(self):
-        return self.deployment_url or f"/sites/{self.name}/"
-
-    def update_traffic(self, visitors, page_views):
-        self.monthly_visitors = visitors
-        self.page_views = page_views
-        self.last_traffic_update = timezone.now()
-        self.save()
-    
-    def update_growth_level(self):
-        visitors = self.monthly_visitors or 0
-        if visitors < 100:
-            self.growth_level = 1
-        elif visitors < 1000:
-            self.growth_level = 2
-        elif visitors < 10000:
-            self.growth_level = 3
-        elif visitors < 100000:
-            self.growth_level = 4
-        else:
-            self.growth_level = 5
-        self.save()
-
-
-# ============================================================
-# 4. የንግድ እድገት እና የደንበኛ ማግኛ ሞዴሎች
-# ============================================================
-
-class CustomerAcquisitionLog(models.Model):
-    """የደንበኛ ማግኛ ተግባራትን የሚመዘግብ"""
-    ACQUISITION_CHANNELS = [
-        ('email', 'Email'),
-        ('sms', 'SMS'),
-        ('social', 'Social Media'),
-        ('referral', 'Referral'),
-        ('organic', 'Organic'),
-        ('paid', 'Paid Advertising'),
-    ]
-    
-    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='acquisition_logs')
-    channel = models.CharField(max_length=20, choices=ACQUISITION_CHANNELS)
-    contact_info = models.CharField(max_length=255)
-    name = models.CharField(max_length=255, blank=True)
-    message_sent = models.TextField(blank=True)
-    response_received = models.BooleanField(default=False)
-    converted_to_seller = models.BooleanField(default=False)
-    converted_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.get_channel_display()} - {self.contact_info}"
-
-
-class MarketingCampaign(models.Model):
-    """የግብይት ካምፔኖችን የሚያስተዳድር ሞዴል"""
-    CAMPAIGN_TYPES = [
-        ('email_blast', 'Email Blast'),
-        ('sms_blast', 'SMS Blast'),
-        ('social_post', 'Social Media Post'),
-        ('seo_campaign', 'SEO Campaign'),
-        ('referral', 'Referral Program'),
-    ]
-    
-    STATUS_CHOICES = [
-        ('draft', 'Draft'),
-        ('scheduled', 'Scheduled'),
-        ('running', 'Running'),
-        ('completed', 'Completed'),
-        ('paused', 'Paused'),
-    ]
-    
-    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='marketing_campaigns')
-    name = models.CharField(max_length=255)
-    campaign_type = models.CharField(max_length=20, choices=CAMPAIGN_TYPES)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
-    subject = models.CharField(max_length=255, blank=True)
-    message = models.TextField()
-    target_audience = models.JSONField(default=dict)
-    total_sent = models.IntegerField(default=0)
-    total_opened = models.IntegerField(default=0)
-    total_clicked = models.IntegerField(default=0)
-    total_converted = models.IntegerField(default=0)
-    scheduled_at = models.DateTimeField(null=True, blank=True)
-    sent_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.name} - {self.get_campaign_type_display()}"
-
-
-class SellerProfile(models.Model):
-    """የሻጮች መረጃ እና አፈጻጸም"""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='seller_profile')
-    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='seller_profiles', null=True, blank=True)
-    business_name = models.CharField(max_length=255, blank=True)
-    phone_number = models.CharField(max_length=20, blank=True)
-    address = models.TextField(blank=True)
-    website = models.URLField(blank=True)
-    total_products = models.IntegerField(default=0)
-    total_sales = models.IntegerField(default=0)
-    total_revenue = models.DecimalField(max_digits=20, decimal_places=2, default=0)
-    rating = models.FloatField(default=0.0, help_text="0-5 ውጤት")
-    last_active = models.DateTimeField(auto_now=True)
-    joined_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.business_name} - {self.user.username}"
-
-
-class NotificationQueue(models.Model):
-    """የአውቶማቲክ ማርኬቲንግ ማሳወቂያ ወረፋ"""
-    notification_type = models.CharField(
-        choices=[
-            ('email', 'Email'),
-            ('sms', 'SMS'),
-            ('push', 'Push Notification'),
-            ('in_app', 'In-App Notification'),
-        ],
-        max_length=20
-    )
-    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='notifications')
-    recipient = models.CharField(max_length=255)
-    subject = models.CharField(max_length=255, blank=True)
-    message = models.TextField()
-    is_sent = models.BooleanField(default=False)
-    sent_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.get_notification_type_display()} to {self.recipient} - {'Sent' if self.is_sent else 'Pending'}"
-
-
-# ============================================================
-# 5. 🆕 የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
-# ============================================================
-
-# ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/models.py
-# 📝 ለውጥ፦ Advanced Agent Features + Build Phase + Trigger Rules
-# 📅 ቀን፦ 2026-06-21
-# ============================================================
-
-from django.db import models
-from django.contrib.auth.models import User
-from django.utils.text import slugify
-from django.utils.translation import get_language
-from django.utils import timezone
-import uuid
-import hashlib
-import json
-
 
 # ============================================================
 # 1. ነባር የማርኬት ፕሌስ ሞዴሎች
@@ -670,7 +430,7 @@ class SiteRegistry(models.Model):
             models.Index(fields=['name', 'is_active']),
             models.Index(fields=['niche', 'target_market']),
             models.Index(fields=['growth_level']),
-            models.Index(fields=['build_phase']),  # 🆕
+            models.Index(fields=['build_phase']),
         ]
 
     def __str__(self):
@@ -700,7 +460,6 @@ class SiteRegistry(models.Model):
         self.save()
     
     def update_real_counts(self):
-        """እውነተኛ ምርቶችን እና ደንበኞችን ቆጠራ ያሻሽላል"""
         self.real_product_count = Product.objects.filter(site=self, is_active=True).count()
         self.real_customer_count = User.objects.filter(product__site=self).distinct().count()
         self.save()
@@ -818,42 +577,408 @@ class NotificationQueue(models.Model):
 # ============================================================
 # 5. 🆕 የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
 # ============================================================
-=======
->>>>>>> c2b4b689687e7d33371bd0d57acf649499d0dfe3
 
 class VectorMemory(models.Model):
     """
-    Stores vector embeddings for various content within the marketplace,
-    primarily for products, to enable AI-driven features like similarity search and recommendations.
+    RAG (Retrieval-Augmented Generation) ትውስታ ለኤጀንቱ
+    ያለፉ ስራዎችን፣ ስህተቶችን እና መፍትሄዎችን ያስታውሳል
     """
+    MEMORY_TYPES = [
+        ('error', 'Error Resolution'),
+        ('solution', 'Solution Pattern'),
+        ('code', 'Code Snippet'),
+        ('insight', 'Market Insight'),
+        ('strategy', 'Strategy Pattern'),
+    ]
+    
+    memory_type = models.CharField(max_length=20, choices=MEMORY_TYPES)
+    content = models.TextField(help_text="የትውስታ ይዘት")
+    embedding = models.JSONField(default=list, blank=True, help_text="pgvector embedding (future use)")
+    metadata = models.JSONField(default=dict, help_text="ተጨማሪ መረጃ (site, task, success_rate)")
+    usage_count = models.IntegerField(default=0, help_text="ምን ያህል ጊዜ ጥቅም ላይ ውሏል")
+    success_rate = models.FloatField(default=0.0, help_text="ስኬታማነት መጠን 0-100")
+    last_used = models.DateTimeField(null=True, blank=True)
+    
+    site = models.ForeignKey(
+        SiteRegistry,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='memory_entries'
+    )
+    related_task = models.ForeignKey(
+        AIProjectBacklog,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='memory_entries'
+    )
+    
+    # 🆕 ከርቀት የመጣው ለውጥ — ከProduct ጋር ማገናኘት
     product = models.ForeignKey(
-        Product, 
-        on_delete=models.CASCADE, 
-        null=True, 
-        blank=True, 
+        Product,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='vector_memories',
         help_text="The product this vector memory is associated with."
     )
-    # Can be extended to other models (e.g., Category, SiteRegistry) if their content needs vectorization.
-    
-    text_content = models.TextField(help_text="The original text content that was vectorized.")
-    vector_data = models.JSONField(help_text="JSON representation of the vector embedding.")
+    text_content = models.TextField(
+        blank=True,
+        help_text="The original text content that was vectorized."
+    )
+    vector_data = models.JSONField(
+        default=dict,
+        help_text="JSON representation of the vector embedding."
+    )
     embedding_model = models.CharField(
-        max_length=100, 
-        default='default-embedding-model', 
+        max_length=100,
+        default='default-embedding-model',
         help_text="The name or identifier of the embedding model used to generate this vector."
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['-success_rate', '-usage_count']
+        indexes = [
+            models.Index(fields=['memory_type', 'site']),
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['product']),
+            models.Index(fields=['embedding_model']),
+        ]
+
     def __str__(self):
         product_title = self.product.title if self.product else 'N/A'
-        return f"Vector for Product: {product_title} | Model: {self.embedding_model}"
+        return f"{self.get_memory_type_display()}: {self.content[:50]}... | Product: {product_title}"
+
+    def mark_used(self, success=True):
+        self.usage_count += 1
+        if success:
+            self.success_rate = ((self.success_rate * (self.usage_count - 1)) + 100) / self.usage_count
+        else:
+            self.success_rate = ((self.success_rate * (self.usage_count - 1)) + 0) / self.usage_count
+        self.last_used = timezone.now()
+        self.save()
+
+    @classmethod
+    def find_similar(cls, query, memory_type=None, site=None, limit=5):
+        queryset = cls.objects.all()
+        if memory_type:
+            queryset = queryset.filter(memory_type=memory_type)
+        if site:
+            queryset = queryset.filter(site=site)
+        keywords = query.lower().split()
+        for keyword in keywords[:5]:
+            queryset = queryset.filter(content__icontains=keyword)
+        return queryset.order_by('-success_rate', '-usage_count')[:limit]
+
+
+class AgentTask(models.Model):
+    """
+    የባለብዙ-ኤጀንት ስራ አስተዳደር
+    የተለያዩ ኤጀንቶችን ስራዎች ያስተባብራል
+    """
+    AGENT_TYPES = [
+        ('code', 'Code Agent'),
+        ('seo', 'SEO Agent'),
+        ('marketing', 'Marketing Agent'),
+        ('data', 'Data Agent'),
+        ('review', 'Review Agent'),
+        ('security', 'Security Agent'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('assigned', 'Assigned'),
+        ('running', 'Running'),
+        ('reviewing', 'Reviewing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    agent_type = models.CharField(max_length=20, choices=AGENT_TYPES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    task_name = models.CharField(max_length=255)
+    description = models.TextField()
+    priority = models.IntegerField(default=1, help_text="1-10 (10 ከፍተኛ)")
+    result_data = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    
+    site = models.ForeignKey(
+        SiteRegistry,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='agent_tasks'
+    )
+    parent_task = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='subtasks'
+    )
+    backlog_task = models.ForeignKey(
+        AIProjectBacklog,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='agent_tasks'
+    )
+    
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name_plural = "Vector Memories"
+        ordering = ['-priority', 'created_at']
         indexes = [
-            models.Index(fields=['product']), # Index for efficient lookups by product
-            models.Index(fields=['embedding_model']), # Index for filtering by embedding model
+            models.Index(fields=['agent_type', 'status']),
+            models.Index(fields=['site', 'status']),
         ]
+
+    def __str__(self):
+        return f"{self.get_agent_type_display()}: {self.task_name} ({self.status})"
+
+    def start_task(self):
+        self.status = 'running'
+        self.started_at = timezone.now()
+        self.save()
+
+    def complete_task(self, result_data=None):
+        self.status = 'completed'
+        self.completed_at = timezone.now()
+        if result_data:
+            self.result_data = result_data
+        self.save()
+
+    def fail_task(self, error_message):
+        self.status = 'failed'
+        self.error_message = error_message
+        self.completed_at = timezone.now()
+        self.save()
+
+
+class ABTest(models.Model):
+    """
+    A/B ሙከራዎችን ያስተዳድራል
+    የተለያዩ ለውጦችን ያወዳድራል
+    """
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('running', 'Running'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    
+    site = models.ForeignKey(
+        SiteRegistry,
+        on_delete=models.CASCADE,
+        related_name='ab_tests'
+    )
+    
+    variant_a = models.JSONField(help_text="የመጀመሪያ ስሪት")
+    variant_b = models.JSONField(help_text="ሁለተኛ ስሪት")
+    winner = models.CharField(max_length=10, blank=True)
+    
+    variant_a_views = models.IntegerField(default=0)
+    variant_b_views = models.IntegerField(default=0)
+    variant_a_conversions = models.IntegerField(default=0)
+    variant_b_conversions = models.IntegerField(default=0)
+    
+    started_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"AB Test: {self.name} ({self.status})"
+
+    def record_view(self, variant):
+        if variant == 'A':
+            self.variant_a_views += 1
+        else:
+            self.variant_b_views += 1
+        self.save()
+
+    def record_conversion(self, variant):
+        if variant == 'A':
+            self.variant_a_conversions += 1
+        else:
+            self.variant_b_conversions += 1
+        self.save()
+
+    def calculate_winner(self):
+        rate_a = self.variant_a_conversions / max(self.variant_a_views, 1)
+        rate_b = self.variant_b_conversions / max(self.variant_b_views, 1)
+        if rate_a > rate_b:
+            self.winner = 'A'
+        elif rate_b > rate_a:
+            self.winner = 'B'
+        else:
+            self.winner = 'Tie'
+        self.save()
+        return self.winner
+
+
+class SecurityLog(models.Model):
+    """
+    የደህንነት ቀንድ መዝገብ
+    የኤጀንቱን የደህንነት ስጋቶች ይመዘግባል
+    """
+    SEVERITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+    
+    CATEGORY_CHOICES = [
+        ('code_injection', 'Code Injection'),
+        ('sql_injection', 'SQL Injection'),
+        ('xss', 'XSS'),
+        ('auth', 'Authentication'),
+        ('data_leak', 'Data Leak'),
+        ('config', 'Configuration'),
+        ('dependency', 'Dependency'),
+    ]
+    
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES)
+    description = models.TextField()
+    file_path = models.CharField(max_length=500, blank=True)
+    line_number = models.IntegerField(null=True, blank=True)
+    is_fixed = models.BooleanField(default=False)
+    fixed_at = models.DateTimeField(null=True, blank=True)
+    fix_description = models.TextField(blank=True)
+    
+    site = models.ForeignKey(
+        SiteRegistry,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='security_logs'
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-severity', '-created_at']
+        indexes = [
+            models.Index(fields=['category', 'severity']),
+            models.Index(fields=['is_fixed']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_severity_display()}: {self.get_category_display()}"
+
+
+class PredictionLog(models.Model):
+    """
+    የትንበያ ውጤቶች መዝገብ
+    ኤጀንቱ ያደረጋቸውን ትንበያዎች ያስቀምጣል
+    """
+    PREDICTION_TYPES = [
+        ('traffic', 'Traffic Prediction'),
+        ('seo', 'SEO Score Prediction'),
+        ('sales', 'Sales Prediction'),
+        ('growth', 'Growth Prediction'),
+    ]
+    
+    prediction_type = models.CharField(max_length=20, choices=PREDICTION_TYPES)
+    predicted_value = models.FloatField()
+    actual_value = models.FloatField(null=True, blank=True)
+    confidence_score = models.FloatField(default=0.0, help_text="0-100")
+    input_data = models.JSONField(default=dict, help_text="ትንበያው የተሰራበት መረጃ")
+    model_version = models.CharField(max_length=50, blank=True)
+    
+    site = models.ForeignKey(
+        SiteRegistry,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='predictions'
+    )
+    
+    predicted_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-predicted_at']
+        indexes = [
+            models.Index(fields=['prediction_type', 'site']),
+            models.Index(fields=['-predicted_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_prediction_type_display()}: {self.predicted_value}"
+
+
+class ExternalAPI(models.Model):
+    """
+    የውጭ API ግንኙነት አስተዳደር
+    ኤጀንቱ ከውጭ አገልግሎቶች ጋር እንዲገናኝ ያስችላል
+    """
+    API_TYPES = [
+        ('google_analytics', 'Google Analytics'),
+        ('google_search_console', 'Google Search Console'),
+        ('mailchimp', 'Mailchimp'),
+        ('twilio', 'Twilio'),
+        ('social_media', 'Social Media'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('error', 'Error'),
+        ('rate_limited', 'Rate Limited'),
+    ]
+    
+    api_type = models.CharField(max_length=25, choices=API_TYPES)
+    name = models.CharField(max_length=100)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    api_key = models.CharField(max_length=255, blank=True)
+    api_secret = models.CharField(max_length=255, blank=True)
+    base_url = models.URLField(blank=True)
+    webhook_url = models.URLField(blank=True)
+    rate_limit = models.IntegerField(default=100, help_text="በደቂቃ ጥሪዎች")
+    calls_made = models.IntegerField(default=0)
+    last_reset = models.DateTimeField(auto_now=True)
+    
+    site = models.ForeignKey(
+        SiteRegistry,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='external_apis'
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['api_type', 'site']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.get_api_type_display()}: {self.name} ({self.status})"
+
+    def increment_calls(self):
+        self.calls_made += 1
+        self.save()
+
+    def reset_calls(self):
+        self.calls_made = 0
+        self.last_reset = timezone.now()
+        self.save()
