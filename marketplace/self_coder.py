@@ -1,6 +1,6 @@
 # EthAfri/marketplace/self_coder.py
 
-import requests
+import requests,os
 import json
 import base64
 import re
