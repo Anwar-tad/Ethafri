@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ለውጥ፦ Enhanced Version — Optimized AI routing, fixed duplicates, improved error handling
+# 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — RAG Memory + Multi-Agent + Predictive + Security
 # 📅 ቀን፦ 2026-06-21
 # ============================================================
 
@@ -12,6 +12,7 @@ import sys
 import time
 import random
 import hashlib
+import requests
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -22,12 +23,14 @@ from importlib import reload
 from groq import Groq
 from google import genai
 from django.db import models
-from django.db.models import Q
+from django.db.models import Q, Avg, Count
 
 from .models import (
     SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, 
     AdminOverrideInstruction, AgentErrorLog, SiteRegistry,
-    CustomerAcquisitionLog, MarketingCampaign, SellerProfile, NotificationQueue
+    CustomerAcquisitionLog, MarketingCampaign, SellerProfile, NotificationQueue,
+    # 🆕 አዲስ ሞዴሎች
+    VectorMemory, AgentTask, ABTest, SecurityLog, PredictionLog, ExternalAPI
 )
 
 logger = logging.getLogger(__name__)
@@ -356,7 +359,315 @@ def analyze_site_niche(site: SiteRegistry):
 
 
 # ============================================================
-# 6. የእድገት ስትራቴጂ ሞተር
+# 6. 🆕 RAG Memory Engine (ትውስታ ሞተር)
+# ============================================================
+
+class RAGMemoryEngine:
+    """
+    Retrieval-Augmented Generation ትውስታ ሞተር
+    ያለፉ ስራዎችን እና መፍትሄዎችን ያስታውሳል
+    """
+    
+    def __init__(self, site: SiteRegistry = None):
+        self.site = site
+    
+    def remember(self, memory_type, content, metadata=None, related_task=None):
+        """አዲስ ትውስታ ይፈጥራል"""
+        return VectorMemory.objects.create(
+            memory_type=memory_type,
+            content=content,
+            metadata=metadata or {},
+            site=self.site,
+            related_task=related_task
+        )
+    
+    def recall(self, query, memory_type=None, limit=5):
+        """ተመሳሳይ ትውስታዎችን ያገኛል"""
+        return VectorMemory.find_similar(query, memory_type, self.site, limit)
+    
+    def learn_from_task(self, task, success=True):
+        """ከተጠናቀቀ ስራ መማር"""
+        memory = VectorMemory.objects.create(
+            memory_type='solution',
+            content=f"Task: {task.task_name}\nResult: {task.result_data}",
+            metadata={
+                'agent_type': task.agent_type,
+                'success': success,
+                'site_id': task.site.id if task.site else None
+            },
+            site=self.site,
+            related_task=task.backlog_task
+        )
+        memory.mark_used(success)
+        return memory
+    
+    def get_stats(self):
+        """የትውስታ ስታቲስቲክስ ይመልሳል"""
+        return {
+            'total': VectorMemory.objects.filter(site=self.site).count(),
+            'by_type': VectorMemory.objects.filter(site=self.site).values('memory_type').annotate(count=Count('id')),
+            'avg_success': VectorMemory.objects.filter(site=self.site).aggregate(avg=Avg('success_rate'))['avg'] or 0,
+        }
+
+
+# ============================================================
+# 7. 🆕 Multi-Agent Orchestrator (ባለብዙ-ኤጀንት አስተባባሪ)
+# ============================================================
+
+class AgentOrchestrator:
+    """
+    የተለያዩ ኤጀንቶችን ያስተባብራል
+    ለእያንዳንዱ ስራ ተገቢውን ኤጀንት ይመድባል
+    """
+    
+    AGENT_HANDLERS = {
+        'code': 'handle_code_task',
+        'seo': 'handle_seo_task',
+        'marketing': 'handle_marketing_task',
+        'data': 'handle_data_task',
+        'review': 'handle_review_task',
+        'security': 'handle_security_task',
+    }
+    
+    def __init__(self, site: SiteRegistry = None):
+        self.site = site
+        self.memory = RAGMemoryEngine(site)
+    
+    def assign_task(self, task_name, description, agent_type, priority=5):
+        """አዲስ ስራ ይመድባል"""
+        task = AgentTask.objects.create(
+            agent_type=agent_type,
+            task_name=task_name,
+            description=description,
+            priority=priority,
+            site=self.site,
+            status='pending'
+        )
+        logger.info(f"📋 Assigned {agent_type} task: {task_name}")
+        return task
+    
+    def execute_task(self, task: AgentTask):
+        """አንድ ስራ ያስኬዳል"""
+        task.start_task()
+        
+        handler = getattr(self, self.AGENT_HANDLERS.get(task.agent_type), None)
+        if not handler:
+            task.fail_task(f"No handler for agent type: {task.agent_type}")
+            return
+        
+        try:
+            result = handler(task)
+            if result and 'error' not in result:
+                task.complete_task(result)
+                self.memory.learn_from_task(task, success=True)
+                logger.info(f"✅ Task {task.task_name} completed")
+            else:
+                task.fail_task(str(result))
+                self.memory.learn_from_task(task, success=False)
+                logger.error(f"❌ Task {task.task_name} failed")
+        except Exception as e:
+            task.fail_task(str(e))
+            logger.error(f"❌ Task {task.task_name} error: {e}")
+    
+    # --- የኤጀንት ስራ አስተናጋጆች (Agent Handlers) ---
+    
+    def handle_code_task(self, task):
+        """ኮድ ኤጀንት ስራ"""
+        similar = self.memory.recall(task.description, 'code', limit=3)
+        context = "\n".join([f"Previous solution: {m.content}" for m in similar])
+        
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        {context}
+        Generate code solution.
+        """
+        return ask_ai_with_failover(prompt, pool_type="coding")
+    
+    def handle_seo_task(self, task):
+        """SEO ኤጀንት ስራ"""
+        similar = self.memory.recall(task.description, 'insight', limit=3)
+        context = "\n".join([f"Previous insight: {m.content}" for m in similar])
+        
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        {context}
+        Generate SEO recommendations.
+        """
+        return ask_ai_with_failover(prompt, pool_type="analysis")
+    
+    def handle_marketing_task(self, task):
+        """ማርኬቲንግ ኤጀንት ስራ"""
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        Generate marketing content.
+        """
+        return ask_ai_with_failover(prompt, pool_type="marketing")
+    
+    def handle_data_task(self, task):
+        """ዳታ ኤጀንት ስራ"""
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        Analyze data and provide insights.
+        """
+        return ask_ai_with_failover(prompt, pool_type="analysis")
+    
+    def handle_review_task(self, task):
+        """ሪቪው ኤጀንት ስራ"""
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        Review the following and provide feedback.
+        """
+        return ask_ai_with_failover(prompt, pool_type="analysis")
+    
+    def handle_security_task(self, task):
+        """ሴኪዩሪቲ ኤጀንት ስራ"""
+        prompt = f"""
+        Task: {task.task_name}
+        Description: {task.description}
+        Identify security issues and provide fixes.
+        """
+        return ask_ai_with_failover(prompt, pool_type="coding")
+    
+    def get_stats(self):
+        """የኤጀንት ስታቲስቲክስ ይመልሳል"""
+        return {
+            'total': AgentTask.objects.filter(site=self.site).count(),
+            'by_type': AgentTask.objects.filter(site=self.site).values('agent_type').annotate(
+                count=Count('id'),
+                completed=Count('id', filter=Q(status='completed'))
+            ),
+            'by_status': AgentTask.objects.filter(site=self.site).values('status').annotate(count=Count('id')),
+        }
+
+
+# ============================================================
+# 8. 🆕 Predictive Analytics Engine (ትንበያ ሞተር)
+# ============================================================
+
+class PredictiveEngine:
+    """
+    የወደፊት አዝማሚያዎችን ይተነብያል
+    በታሪክ መረጃ ላይ ተመስርቶ
+    """
+    
+    def __init__(self, site: SiteRegistry = None):
+        self.site = site
+    
+    def predict_traffic(self, days=30):
+        """የወደፊት ትራፊክ ይተነብያል"""
+        # ባለፈው ጊዜ መረጃ ሰብስብ
+        past_data = list(SiteRegistry.objects.filter(
+            id=self.site.id if self.site else None
+        ).values_list('monthly_visitors', 'created_at'))
+        
+        if len(past_data) < 2:
+            predicted = self.site.monthly_visitors * 1.1 if self.site else 100
+        else:
+            # ቀላል ሊኒያር ትንበያ
+            predicted = sum(d[0] for d in past_data[-3:]) / len(past_data[-3:]) * 1.05
+        
+        prediction = PredictionLog.objects.create(
+            prediction_type='traffic',
+            predicted_value=predicted,
+            confidence_score=70.0,
+            input_data={'days': days, 'past_data': len(past_data)},
+            site=self.site
+        )
+        return prediction
+    
+    def predict_seo_score(self, product_id=None):
+        """የSEO ውጤት ይተነብያል"""
+        # አማካይ SEO ውጤት አስላ
+        avg_seo = Product.objects.filter(
+            seller__isnull=False
+        ).aggregate(avg=Avg('seo_score'))['avg'] or 50
+        
+        prediction = PredictionLog.objects.create(
+            prediction_type='seo',
+            predicted_value=avg_seo,
+            confidence_score=65.0,
+            input_data={'product_id': product_id},
+            site=self.site
+        )
+        return prediction
+    
+    def get_stats(self):
+        """የትንበያ ስታቲስቲክስ ይመልሳል"""
+        return {
+            'total': PredictionLog.objects.filter(site=self.site).count(),
+            'by_type': PredictionLog.objects.filter(site=self.site).values('prediction_type').annotate(count=Count('id')),
+            'avg_confidence': PredictionLog.objects.filter(site=self.site).aggregate(avg=Avg('confidence_score'))['avg'] or 0,
+        }
+
+
+# ============================================================
+# 9. 🆕 Security Scanner (የደህንነት ቅኝት)
+# ============================================================
+
+class SecurityScanner:
+    """
+    የኮድ ደህንነት ቅኝት እና ማረጋገጫ
+    """
+    
+    def __init__(self, site: SiteRegistry = None):
+        self.site = site
+    
+    def scan_code(self, code, file_path="", line_number=None):
+        """ኮድ ውስጥ የደህንነት ችግሮችን ይፈልጋል"""
+        vulnerabilities = []
+        
+        patterns = [
+            (r'SECRET_KEY\s*=\s*[\'"][^\'"]+[\'"]', 'Hardcoded secret key', 'high'),
+            (r'password\s*=\s*[\'"][^\'"]+[\'"]', 'Possible password exposure', 'high'),
+            (r'eval\s*\(', 'Use of eval()', 'critical'),
+            (r'exec\s*\(', 'Use of exec()', 'critical'),
+            (r'__import__\s*\(', 'Dynamic import', 'medium'),
+            (r'os\.system\s*\(', 'System command execution', 'high'),
+            (r'subprocess\.', 'Subprocess usage', 'medium'),
+            (r'pickle\.', 'Pickle usage (unsafe)', 'high'),
+            (r'sql[\s_]*=|\.execute\(', 'SQL Injection risk', 'critical'),
+            (r'request\.GET|request\.POST', 'Unvalidated user input', 'medium'),
+            (r'@csrf_exempt', 'CSRF protection disabled', 'medium'),
+        ]
+        
+        for pattern, description, severity in patterns:
+            if re.search(pattern, code, re.IGNORECASE):
+                vulnerabilities.append({
+                    'description': description,
+                    'severity': severity,
+                    'file_path': file_path,
+                    'line_number': line_number
+                })
+        
+        # የተገኙ ችግሮችን ወደ SecurityLog መዝግብ
+        for vuln in vulnerabilities:
+            SecurityLog.objects.get_or_create(
+                category='code_injection',
+                severity=vuln['severity'],
+                description=vuln['description'],
+                file_path=vuln['file_path'],
+                site=self.site,
+                defaults={'line_number': vuln['line_number']}
+            )
+        
+        return vulnerabilities
+    
+    def get_stats(self):
+        """የደህንነት ስታቲስቲክስ ይመልሳል"""
+        return {
+            'total': SecurityLog.objects.filter(site=self.site).count(),
+            'unfixed': SecurityLog.objects.filter(site=self.site, is_fixed=False).count(),
+            'by_severity': SecurityLog.objects.filter(site=self.site).values('severity').annotate(count=Count('id')),
+        }
+
+
+# ============================================================
+# 10. የእድገት ስትራቴጂ ሞተር
 # ============================================================
 
 class GrowthStrategyEngine:
@@ -411,7 +722,7 @@ class GrowthStrategyEngine:
 
 
 # ============================================================
-# 7. የግብይት ካምፔን ሞተር
+# 11. የግብይት ካምፔን ሞተር
 # ============================================================
 
 class MarketingEngine:
@@ -470,7 +781,7 @@ class MarketingEngine:
 
 
 # ============================================================
-# 8. የደንበኛ ማግኛ ሞተር
+# 12. የደንበኛ ማግኛ ሞተር
 # ============================================================
 
 class CustomerAcquisitionEngine:
@@ -507,25 +818,59 @@ class CustomerAcquisitionEngine:
 
 
 # ============================================================
-# 9. የአንድ ጣቢያ ትንተና (Single Site Analysis)
+# 13. የአንድ ጣቢያ ትንተና (Single Site Analysis — የተሻሻለ)
 # ============================================================
 
 def run_single_site_analysis(site: SiteRegistry):
     """
     ለአንድ የተወሰነ ጣቢያ የዕድገት ትንተና ያካሂዳል
+    ከ RAG, Multi-Agent, Security, Predictive ጋር
     """
     now = timezone.now()
     site_name = site.name
     results = []
     
-    logger.info(f"🚀 Starting analysis for site: {site_name}")
+    logger.info(f"🚀 Starting enhanced analysis for site: {site_name}")
     
+    # 🆕 RAG Memory ን ተጠቀም
+    memory_engine = RAGMemoryEngine(site)
+    
+    # 🆕 ተመሳሳይ ትውስታዎችን ፈልግ
+    similar_memories = memory_engine.recall(
+        f"Site: {site.name}, Niche: {site.niche}",
+        memory_type='strategy',
+        limit=3
+    )
+    if similar_memories:
+        logger.info(f"🧠 Found {len(similar_memories)} similar memories for {site.name}")
+        results.append(f"🧠 {len(similar_memories)} memories recalled")
+    
+    # 🆕 የደህንነት ቅኝት
     project_code, file_paths = get_site_project_state(site)
+    security_scanner = SecurityScanner(site)
+    
+    if project_code:
+        total_vulns = 0
+        for file_name, code in project_code.items():
+            if code and len(code) > 100:
+                vulns = security_scanner.scan_code(code, file_path=file_name)
+                if vulns:
+                    total_vulns += len(vulns)
+                    logger.warning(f"🔒 Found {len(vulns)} security issues in {file_name}")
+        if total_vulns > 0:
+            results.append(f"🔒 {total_vulns} security issues found")
+    
+    # 🆕 ትንበያ
+    predictive = PredictiveEngine(site)
+    traffic_pred = predictive.predict_traffic()
+    seo_pred = predictive.predict_seo_score()
+    results.append(f"📊 Traffic prediction: {traffic_pred.predicted_value:.0f}")
     
     if not project_code:
         logger.warning(f"⚠️ No code found for site: {site_name}")
         return f"⚠️ No code found for {site_name}"
     
+    # ነባር የስራ ፍለጋ
     pending_tasks = AIProjectBacklog.objects.filter(
         site=site, status='Pending'
     ).annotate(
@@ -556,6 +901,11 @@ def run_single_site_analysis(site: SiteRegistry):
     strategy_engine = GrowthStrategyEngine(site)
     strategy = strategy_engine.get_strategy()
     
+    # የተሻሻለ ፕሮምፕት (ከትውስታ ጋር)
+    memory_context = ""
+    for mem in similar_memories:
+        memory_context += f"\nPrevious successful strategy: {mem.content[:200]}\n"
+    
     prompt = f"""
     You are 'EthAfri Super AI Architect' for site: {site_name}.
     
@@ -572,6 +922,9 @@ def run_single_site_analysis(site: SiteRegistry):
     Growth Strategy Focus: {strategy['focus']}
     Target Audience: {site.target_audience}
     
+    Memory Context (past successful patterns):
+    {memory_context}
+    
     Codebase State: {json.dumps(project_code, indent=2)[:5000]}
     Active Task: {target_task.task_name if target_task else 'Audit and Discovery for this niche'}
     {forced_instruction}
@@ -582,6 +935,7 @@ def run_single_site_analysis(site: SiteRegistry):
     - Use Django best practices.
     - Focus on SEO and marketing improvements for this niche.
     - Suggest business growth actions if needed.
+    - Consider security best practices.
     """
     
     data = ask_ai_with_failover(prompt, pool_type="coding")
@@ -606,6 +960,22 @@ def run_single_site_analysis(site: SiteRegistry):
             target_task.save()
         return f"❌ Fail for {site_name}: {err_msg}"
     
+    # 🆕 ስራውን ለMulti-Agent አስተባባሪ ምደብ
+    orchestrator = AgentOrchestrator(site)
+    
+    # ከAI የተገኘውን ስራ ወደ AgentTask ቀይር
+    if data and data.get('task_type'):
+        agent_type = data.get('task_type', 'code')
+        task = orchestrator.assign_task(
+            task_name=data.get('task_name', f"Task_{timezone.now().strftime('%Y%m%d_%H%M%S')}"),
+            description=data.get('description', ''),
+            agent_type=agent_type,
+            priority=data.get('priority', 5)
+        )
+        orchestrator.execute_task(task)
+        results.append(f"🤖 Assigned to {agent_type} agent")
+    
+    # ነባር ስራዎችን መዝግብ
     for t in data.get('backlog_tasks', []):
         AIProjectBacklog.objects.get_or_create(
             task_name=t['task_name'],
@@ -622,6 +992,7 @@ def run_single_site_analysis(site: SiteRegistry):
         )
         results.append(f"📋 Added task: {t['task_name']}")
     
+    # የኮድ ማሻሻያ
     updates = data.get('updates', {})
     code_changed = False
     improvement_metrics = data.get('improvement_metrics', {})
@@ -665,6 +1036,7 @@ def run_single_site_analysis(site: SiteRegistry):
                 except Exception as e:
                     results.append(f"❌ Error updating {key}: {str(e)[:50]}")
     
+    # የእድገት ስትራቴጂ ማሻሻያ
     if data.get('growth_actions'):
         for action in data.get('growth_actions', []):
             AIProjectBacklog.objects.get_or_create(
@@ -682,10 +1054,25 @@ def run_single_site_analysis(site: SiteRegistry):
             )
             results.append(f"📈 Added growth action: {action[:30]}...")
     
+    # የማህበራዊ ሚዲያ ይዘት (ከሆነ)
     if data.get('social_media_content'):
         marketing = MarketingEngine(site)
         results.append("📱 Social media content generated")
     
+    # 🆕 ትውስታ ውስጥ አስቀምጥ
+    if data.get('task_name'):
+        memory_engine.remember(
+            memory_type='insight',
+            content=f"Site {site_name}: {data.get('task_name')} - {data.get('description', '')[:200]}",
+            metadata={
+                'success': True,
+                'task_type': data.get('task_type', 'code'),
+                'priority': data.get('priority', 5)
+            }
+        )
+        results.append("🧠 Saved to memory")
+    
+    # የጣቢያ መረጃ ማዘመን
     if improvement_metrics.get('seo_score'):
         site.total_products = Product.objects.filter(seller__isnull=False).count()
         site.save()
@@ -702,12 +1089,13 @@ def run_single_site_analysis(site: SiteRegistry):
 
 
 # ============================================================
-# 10. ዋናው የዕድገት ሞተር (run_daily_market_analysis)
+# 14. ዋናው የዕድገት ሞተር (run_daily_market_analysis)
 # ============================================================
 
 def run_daily_market_analysis():
     """
     ሙሉ አውቶኖመስ የንግድ እድገት ሞተር
+    አሁን RAG Memory, Multi-Agent, Predictive Analytics ያካትታል
     """
     now = timezone.now()
     results = []
@@ -813,326 +1201,3 @@ def run_daily_market_analysis():
     finally:
         lock.value = {'status': 'idle'}
         lock.save()
-        
-# ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ለውጥ፦ Advanced Features — RAG Memory, Multi-Agent, Predictive Analytics
-# 📅 ቀን፦ 2026-06-21
-# ============================================================
-
-# ... ነባር ኢምፖርቶች ...
-
-from .models import (
-    SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog, 
-    AdminOverrideInstruction, AgentErrorLog, SiteRegistry,
-    CustomerAcquisitionLog, MarketingCampaign, SellerProfile, NotificationQueue,
-    # 🆕 አዲስ ሞዴሎች
-    VectorMemory, AgentTask, ABTest, SecurityLog, PredictionLog, ExternalAPI
-)
-
-logger = logging.getLogger(__name__)
-
-
-# ============================================================
-# 🆕 11. RAG Memory Engine (ትውስታ ሞተር)
-# ============================================================
-
-class RAGMemoryEngine:
-    """
-    Retrieval-Augmented Generation ትውስታ ሞተር
-    ያለፉ ስራዎችን እና መፍትሄዎችን ያስታውሳል
-    """
-    
-    def __init__(self, site: SiteRegistry = None):
-        self.site = site
-    
-    def remember(self, memory_type, content, metadata=None, related_task=None):
-        """አዲስ ትውስታ ይፈጥራል"""
-        return VectorMemory.objects.create(
-            memory_type=memory_type,
-            content=content,
-            metadata=metadata or {},
-            site=self.site,
-            related_task=related_task
-        )
-    
-    def recall(self, query, memory_type=None, limit=5):
-        """ተመሳሳይ ትውስታዎችን ያገኛል"""
-        return VectorMemory.find_similar(query, memory_type, self.site, limit)
-    
-    def learn_from_task(self, task, success=True):
-        """ከተጠናቀቀ ስራ መማር"""
-        memory = VectorMemory.objects.create(
-            memory_type='solution',
-            content=f"Task: {task.task_name}\nResult: {task.result_data}",
-            metadata={
-                'agent_type': task.agent_type,
-                'success': success,
-                'site_id': task.site.id if task.site else None
-            },
-            site=self.site,
-            related_task=task.backlog_task
-        )
-        memory.mark_used(success)
-        return memory
-
-
-# ============================================================
-# 🆕 12. Multi-Agent Orchestrator (ባለብዙ-ኤጀንት አስተባባሪ)
-# ============================================================
-
-class AgentOrchestrator:
-    """
-    የተለያዩ ኤጀንቶችን ያስተባብራል
-    ለእያንዳንዱ ስራ ተገቢውን ኤጀንት ይመድባል
-    """
-    
-    AGENT_HANDLERS = {
-        'code': 'handle_code_task',
-        'seo': 'handle_seo_task',
-        'marketing': 'handle_marketing_task',
-        'data': 'handle_data_task',
-        'review': 'handle_review_task',
-        'security': 'handle_security_task',
-    }
-    
-    def __init__(self, site: SiteRegistry = None):
-        self.site = site
-        self.memory = RAGMemoryEngine(site)
-    
-    def assign_task(self, task_name, description, agent_type, priority=5):
-        """አዲስ ስራ ይመድባል"""
-        task = AgentTask.objects.create(
-            agent_type=agent_type,
-            task_name=task_name,
-            description=description,
-            priority=priority,
-            site=self.site,
-            status='pending'
-        )
-        logger.info(f"📋 Assigned {agent_type} task: {task_name}")
-        return task
-    
-    def execute_task(self, task: AgentTask):
-        """አንድ ስራ ያስኬዳል"""
-        task.start_task()
-        
-        handler = getattr(self, self.AGENT_HANDLERS.get(task.agent_type), None)
-        if not handler:
-            task.fail_task(f"No handler for agent type: {task.agent_type}")
-            return
-        
-        try:
-            result = handler(task)
-            if result and 'error' not in result:
-                task.complete_task(result)
-                self.memory.learn_from_task(task, success=True)
-                logger.info(f"✅ Task {task.task_name} completed")
-            else:
-                task.fail_task(str(result))
-                self.memory.learn_from_task(task, success=False)
-                logger.error(f"❌ Task {task.task_name} failed")
-        except Exception as e:
-            task.fail_task(str(e))
-            logger.error(f"❌ Task {task.task_name} error: {e}")
-    
-    # --- የኤጀንት ስራ አስተናጋጆች (Agent Handlers) ---
-    
-    def handle_code_task(self, task):
-        """ኮድ ኤጀንት ስራ"""
-        # ተመሳሳይ ትውስታዎችን ፈልግ
-        similar = self.memory.recall(task.description, 'code', limit=3)
-        context = "\n".join([f"Previous solution: {m.content}" for m in similar])
-        
-        prompt = f"""
-        Task: {task.task_name}
-        Description: {task.description}
-        {context}
-        Generate code solution.
-        """
-        return ask_ai_with_failover(prompt, pool_type="coding")
-    
-    def handle_seo_task(self, task):
-        """SEO ኤጀንት ስራ"""
-        similar = self.memory.recall(task.description, 'insight', limit=3)
-        context = "\n".join([f"Previous insight: {m.content}" for m in similar])
-        
-        prompt = f"""
-        Task: {task.task_name}
-        Description: {task.description}
-        {context}
-        Generate SEO recommendations.
-        """
-        return ask_ai_with_failover(prompt, pool_type="analysis")
-    
-    def handle_marketing_task(self, task):
-        """ማርኬቲንግ ኤጀንት ስራ"""
-        prompt = f"""
-        Task: {task.task_name}
-        Description: {task.description}
-        Generate marketing content.
-        """
-        return ask_ai_with_failover(prompt, pool_type="marketing")
-    
-    def handle_data_task(self, task):
-        """ዳታ ኤጀንት ስራ"""
-        prompt = f"""
-        Task: {task.task_name}
-        Description: {task.description}
-        Analyze data and provide insights.
-        """
-        return ask_ai_with_failover(prompt, pool_type="analysis")
-    
-    def handle_review_task(self, task):
-        """ሪቪው ኤጀንት ስራ"""
-        prompt = f"""
-        Task: {task.task_name}
-        Description: {task.description}
-        Review the following and provide feedback.
-        """
-        return ask_ai_with_failover(prompt, pool_type="analysis")
-    
-    def handle_security_task(self, task):
-        """ሴኪዩሪቲ ኤጀንት ስራ"""
-        prompt = f"""
-        Task: {task.task_name}
-        Description: {task.description}
-        Identify security issues and provide fixes.
-        """
-        return ask_ai_with_failover(prompt, pool_type="coding")
-
-
-# ============================================================
-# 🆕 13. Predictive Analytics Engine (ትንበያ ሞተር)
-# ============================================================
-
-class PredictiveEngine:
-    """
-    የወደፊት አዝማሚያዎችን ይተነብያል
-    በታሪክ መረጃ ላይ ተመስርቶ
-    """
-    
-    def __init__(self, site: SiteRegistry = None):
-        self.site = site
-    
-    def predict_traffic(self, days=30):
-        """የወደፊት ትራፊክ ይተነብያል"""
-        # ባለፈው ጊዜ መረጃ ሰብስብ
-        past_data = []
-        # ቀላል ሊኒያር ሬግሬሽን
-        # ... 
-        
-        prediction = PredictionLog.objects.create(
-            prediction_type='traffic',
-            predicted_value=0,  # የተሰላ እሴት
-            confidence_score=70.0,
-            input_data={'days': days},
-            site=self.site
-        )
-        return prediction
-    
-    def predict_seo_score(self, product_id):
-        """የSEO ውጤት ይተነብያል"""
-        # ...
-        pass
-
-
-# ============================================================
-# 🆕 14. Security Scanner (የደህንነት ቅኝት)
-# ============================================================
-
-class SecurityScanner:
-    """
-    የኮድ ደህንነት ቅኝት እና ማረጋገጫ
-    """
-    
-    def __init__(self, site: SiteRegistry = None):
-        self.site = site
-    
-    def scan_code(self, code, file_path="", line_number=None):
-        """ኮድ ውስጥ የደህንነት ችግሮችን ይፈልጋል"""
-        vulnerabilities = []
-        
-        patterns = [
-            (r'SECRET_KEY\s*=\s*[\'"][^\'"]+[\'"]', 'Hardcoded secret key', 'high'),
-            (r'password\s*=\s*[\'"][^\'"]+[\'"]', 'Possible password exposure', 'high'),
-            (r'eval\s*\(', 'Use of eval()', 'critical'),
-            (r'exec\s*\(', 'Use of exec()', 'critical'),
-            (r'__import__\s*\(', 'Dynamic import', 'medium'),
-            (r'os\.system\s*\(', 'System command execution', 'high'),
-            (r'subprocess\.', 'Subprocess usage', 'medium'),
-            (r'pickle\.', 'Pickle usage (unsafe)', 'high'),
-        ]
-        
-        for pattern, description, severity in patterns:
-            if re.search(pattern, code, re.IGNORECASE):
-                vulnerabilities.append({
-                    'description': description,
-                    'severity': severity,
-                    'file_path': file_path,
-                    'line_number': line_number
-                })
-        
-        # የተገኙ ችግሮችን ወደ SecurityLog መዝግብ
-        for vuln in vulnerabilities:
-            SecurityLog.objects.create(
-                category='code_injection',
-                severity=vuln['severity'],
-                description=vuln['description'],
-                file_path=vuln['file_path'],
-                line_number=vuln['line_number'],
-                site=self.site
-            )
-        
-        return vulnerabilities
-
-
-# ============================================================
-# 🆕 15. የተሻሻለ run_single_site_analysis (ከአዲሶቹ ባህሪያት ጋር)
-# ============================================================
-
-def run_single_site_analysis(site: SiteRegistry):
-    """
-    የተሻሻለ የዕድገት ትንተና — ከ RAG, Multi-Agent, Security ጋር
-    """
-    # ... ነባር ኮድ ...
-    
-    # 🆕 RAG Memory ን ተጠቀም
-    memory_engine = RAGMemoryEngine(site)
-    
-    # 🆕 ተመሳሳይ ትውስታዎችን ፈልግ
-    similar_memories = memory_engine.recall(
-        f"Site: {site.name}, Niche: {site.niche}",
-        memory_type='strategy',
-        limit=3
-    )
-    if similar_memories:
-        logger.info(f"🧠 Found {len(similar_memories)} similar memories for {site.name}")
-    
-    # 🆕 የደህንነት ቅኝት
-    security_scanner = SecurityScanner(site)
-    for file_name, code in project_code.items():
-        if code and len(code) > 100:
-            vulns = security_scanner.scan_code(code, file_path=file_name)
-            if vulns:
-                logger.warning(f"🔒 Found {len(vulns)} security issues in {file_name}")
-    
-    # ... ቀሪ ኮድ ...
-    
-    # 🆕 ስራውን ለMulti-Agent አስተባባሪ ምደብ
-    orchestrator = AgentOrchestrator(site)
-    
-    # ከAI የተገኘውን ስራ ወደ AgentTask ቀይር
-    if data and data.get('task_type'):
-        agent_type = data.get('task_type', 'code')
-        task = orchestrator.assign_task(
-            task_name=data.get('task_name', f"Task_{timezone.now().strftime('%Y%m%d_%H%M%S')}"),
-            description=data.get('description', ''),
-            agent_type=agent_type,
-            priority=data.get('priority', 5)
-        )
-        orchestrator.execute_task(task)
-    
-    # ... ቀሪ ኮድ ...
-    
-    return f"✅ Evolved {site_name}! {' | '.join(results[:5])}"
