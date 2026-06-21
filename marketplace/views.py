@@ -420,39 +420,50 @@ def admin_growth_dashboard(request):
 # 📱 10. የማርኬቲንግ ዳሽቦርድ (አዲስ)
 # ============================================================
 @staff_member_required
+# EthAfri/marketplace/views.py
+
+@staff_member_required
 def marketing_dashboard(request):
     """
-    ሁሉንም የግብይት እንቅስቃሴዎች የሚያሳይ ዳሽቦርድ [1]
+    ሁሉንም የግብይት እንቅስቃሴዎች የሚያሳይ ዳሽቦርድ
     """
     sites = SiteRegistry.objects.filter(is_active=True)
-    campaigns = MarketingCampaign.objects.all().order_by('-created_at')[:50]
-    notifications = NotificationQueue.objects.filter(is_sent=False).order_by('created_at')[:50]
-    acquisition_logs = CustomerAcquisitionLog.objects.all().order_by('-created_at')[:50]
     
+    # ⚠️ ኳሪዎችን በቅደም ተከተል አስተካክል — ቀድሞ ከማጣራት በፊት ሳይቆረጡ ይቆዩ
+    campaigns = MarketingCampaign.objects.all().order_by('-created_at')
+    notifications = NotificationQueue.objects.filter(is_sent=False).order_by('created_at')
+    acquisition_logs = CustomerAcquisitionLog.objects.all().order_by('-created_at')
+    
+    # የካምፔን ስታቲስቲክስ — ከመቁረጥ በፊት አስላ
     campaign_stats = {
         'total': campaigns.count(),
         'running': campaigns.filter(status='running').count(),
         'completed': campaigns.filter(status='completed').count(),
         'scheduled': campaigns.filter(status='scheduled').count(),
-        'total_sent': sum(c.total_sent for c in campaigns),
-        'total_opened': sum(c.total_opened for c in campaigns),
-        'total_converted': sum(c.total_converted for c in campaigns),
+        'total_sent': campaigns.aggregate(total_sent=models.Sum('total_sent'))['total_sent'] or 0,
+        'total_opened': campaigns.aggregate(total_opened=models.Sum('total_opened'))['total_opened'] or 0,
+        'total_converted': campaigns.aggregate(total_converted=models.Sum('total_converted'))['total_converted'] or 0,
     }
     
+    # የደንበኛ ማግኛ ስታቲስቲክስ
     acquisition_stats = {
         'total': acquisition_logs.count(),
         'email': acquisition_logs.filter(channel='email').count(),
         'sms': acquisition_logs.filter(channel='sms').count(),
         'social': acquisition_logs.filter(channel='social').count(),
-        'referral': acquisition_logs.filter(channel='referral').count(),
         'converted': acquisition_logs.filter(converted_to_seller=True).count(),
     }
     
+    # አሁን ለማሳየት ቁረጥ (slice)
+    campaigns_list = campaigns[:50]
+    notifications_list = notifications[:50]
+    acquisition_logs_list = acquisition_logs[:50]
+
     context = {
         'sites': sites,
-        'campaigns': campaigns,
-        'notifications': notifications,
-        'acquisition_logs': acquisition_logs,
+        'campaigns': campaigns_list,
+        'notifications': notifications_list,
+        'acquisition_logs': acquisition_logs_list,
         'campaign_stats': campaign_stats,
         'acquisition_stats': acquisition_stats,
     }
