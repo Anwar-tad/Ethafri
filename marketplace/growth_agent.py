@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 from django.utils import timezone
 from django.db import models
-from django.db.models import Q, Count, Avg, Case, When, Value, IntegerField
+from django.db.models import Q, Count, Avg, Case, When, Value, IntegerField, Sum
 from django.conf import settings
 from django.contrib.auth.models import User
 
@@ -338,7 +338,7 @@ class AutonomousGrowthEngine:
         self.cycle_count = 0
         self.error_count = 0
         self.max_errors = 10
-        self.max_cycles_per_run = 5  # ✅ አዲስ: በአንድ ሩጫ ከፍተኛ ዑደቶች
+        self.max_cycles_per_run = 5
         self.memory_engine = None
         self.cache = AICache(ttl=1800)
     
@@ -653,7 +653,7 @@ class AutonomousGrowthEngine:
         return missing
     
     # ============================================================
-    # 3.4 ተለዋዋጭ ስራ ማመንጨት (Dynamic Task Generation) — የተሻሻለ
+    # 3.4 ተለዋዋጭ ስራ ማመንጨት (Dynamic Task Generation)
     # ============================================================
     
     def _generate_dynamic_tasks(self, site, analysis):
@@ -688,19 +688,25 @@ class AutonomousGrowthEngine:
                     priority = priority_map.get(feature, 'Medium')
                     impact = self._calculate_impact(feature)
                     
-                    task = AIProjectBacklog.objects.create(
+                    # ✅ get_or_create ተጠቀም — duplicate እንዳይፈጠር
+                    task, created = AIProjectBacklog.objects.get_or_create(
                         site=site,
                         task_name=task_name,
-                        task_type='code',
-                        target_file=feature.lower().replace(' ', '_'),
-                        priority=priority,
-                        status='Pending',
-                        description=f"Implement {feature} for {site.name}",
-                        business_impact_score=impact,
-                        trigger_condition=f"Dynamic: Missing {feature}"
+                        defaults={
+                            'task_type': 'code',
+                            'target_file': feature.lower().replace(' ', '_'),
+                            'priority': priority,
+                            'status': 'Pending',
+                            'description': f"Implement {feature} for {site.name}",
+                            'business_impact_score': impact,
+                            'trigger_condition': f"Dynamic: Missing {feature}"
+                        }
                     )
-                    created.append(task)
-                    logger.info(f"📋 Dynamic task: {task_name} for {site.name}")
+                    if created:
+                        created.append(task)
+                        logger.info(f"📋 Dynamic task: {task_name} for {site.name}")
+                    else:
+                        logger.info(f"⏭️ Task already exists: {task_name}")
             
             # ✅ የስህተት መፍቻ ስራ
             if analysis.get('error_count', 0) > 0:
@@ -708,35 +714,41 @@ class AutonomousGrowthEngine:
                 error_types = analysis.get('error_types', [])
                 error_desc = ", ".join([f"{e['error_type']}: {e['count']}" for e in error_types[:3]])
                 
-                error_task = AIProjectBacklog.objects.create(
+                error_task, created = AIProjectBacklog.objects.get_or_create(
                     site=site,
                     task_name=f"Fix {error_count} errors",
-                    task_type='code',
-                    target_file='error_fix',
-                    priority='Critical',
-                    status='Pending',
-                    description=f"Fix {error_count} unresolved errors ({error_desc})",
-                    business_impact_score=10,
-                    trigger_condition=f"Dynamic: {error_count} errors"
+                    defaults={
+                        'task_type': 'code',
+                        'target_file': 'error_fix',
+                        'priority': 'Critical',
+                        'status': 'Pending',
+                        'description': f"Fix {error_count} unresolved errors ({error_desc})",
+                        'business_impact_score': 10,
+                        'trigger_condition': f"Dynamic: {error_count} errors"
+                    }
                 )
-                created.append(error_task)
-                logger.info(f"📋 Error fix task: {error_task.task_name}")
+                if created:
+                    created.append(error_task)
+                    logger.info(f"📋 Error fix task: {error_task.task_name}")
             
             # ✅ Self-Learning task
             if not created and not existing:
-                learn_task = AIProjectBacklog.objects.create(
+                learn_task, created = AIProjectBacklog.objects.get_or_create(
                     site=site,
                     task_name='Self-Learning: Analyze & Plan',
-                    task_type='growth',
-                    target_file='self_learning',
-                    priority='Medium',
-                    status='Pending',
-                    description=f"Analyze {site.name} and plan next steps",
-                    business_impact_score=6,
-                    trigger_condition="Dynamic: Self-Learning"
+                    defaults={
+                        'task_type': 'growth',
+                        'target_file': 'self_learning',
+                        'priority': 'Medium',
+                        'status': 'Pending',
+                        'description': f"Analyze {site.name} and plan next steps",
+                        'business_impact_score': 6,
+                        'trigger_condition': "Dynamic: Self-Learning"
+                    }
                 )
-                created.append(learn_task)
-                logger.info(f"📋 Self-learning task: {learn_task.task_name}")
+                if created:
+                    created.append(learn_task)
+                    logger.info(f"📋 Self-learning task: {learn_task.task_name}")
                 
         except Exception as e:
             logger.error(f"❌ Error generating tasks: {e}")
@@ -905,7 +917,6 @@ class AutonomousGrowthEngine:
                 # የፋይሉን መንገድ ወስን
                 path = None
                 if site.repo_path:
-                    # target_file ን ከፋይል ስም ጋር አዛምድ
                     file_key = target_file
                     if file_key in project_code:
                         path = os.path.join(site.repo_path, 'marketplace', f'{file_key}.py')
@@ -1260,7 +1271,7 @@ class AutonomousLoop:
                     break
                 
                 logger.info(f"💓 Heartbeat at {timezone.now()}")
-                result = self.engine.run_cycle(max_cycles=2)  # 2 cycles per run
+                result = self.engine.run_cycle(max_cycles=2)
                 logger.info(f"✅ Cycle result: {result[:200] if result else 'No result'}")
                 
                 try:

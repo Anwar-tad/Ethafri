@@ -281,3 +281,20 @@ class MarketplaceConfig(AppConfig):
         except Exception:
             pass
         return {'status': 'unknown', 'timestamp': None, 'cycle': 0}
+        
+# apps.py ውስጥ
+def _auto_repair_on_startup(self):
+    """ሲስተሙ ሲነሳ ራስ-ሰር ጥገና"""
+    time.sleep(45)
+    try:
+        from .growth_agent import AutonomousGrowthEngine
+        engine = AutonomousGrowthEngine()
+        
+        # ሁሉንም ጣቢያዎች ተንትን
+        sites = SiteRegistry.objects.filter(is_active=True)
+        for site in sites:
+            engine._analyze_and_plan(site)
+            
+        logger.info("✅ Auto-repair completed")
+    except Exception as e:
+        logger.error(f"Auto-repair error: {e}")
