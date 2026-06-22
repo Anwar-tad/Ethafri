@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
 # 📝 ለውጥ፦ ሙሉ በሙሉ ራሱን የሚያስተዳድር — 24/7 Autonomous Growth Engine
-# ✅ የተፈቱ ችግሮች፦ DB Connection Leaks, Code Context Optimization, Syntax Safety Gates
+# ✅ የተፈቱ ችግሮች፦ Syntax Errors (JSON Truncation), DB Leaks, Task Duplications
 # 📅 ቀን፦ 2026-06-22
 # ============================================================
 
@@ -15,7 +15,6 @@ import logging
 import requests
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache
 from django.utils import timezone
 from django.db import models, connection, connections
 from django.db.models import Q, Count, Avg, Case, When, Value, IntegerField, Sum
@@ -73,7 +72,7 @@ except ImportError:
                 site=site
             )
         except Exception as e:
-            logger.error(f"AIEvolutionLog creation error in apply_code_change fallback: {e}")
+            logger.error(f"Fallback AIEvolutionLog error: {e}")
         return {'success': True, 'message': f"✅ Applied {file_key} (fallback)", 'applied': True}
 
 
@@ -229,7 +228,7 @@ def ask_ethafri_ceo(prompt, pool_type="coding", use_cache=True):
 
 
 # ============================================================
-# 2. የጣቢያ ፕሮጀክት ሁኔታ (Site Project State) — የተሻሻለ
+# 2. የጣቢያ ፕሮጀክት ሁኔታ (Site Project State)
 # ============================================================
 
 _project_hashes = {}
@@ -357,7 +356,6 @@ class AutonomousGrowthEngine:
                     else:
                         results.append("⚠️ Could not create default site")
                 
-                # ትይዩ የጣቢያ ሂደት
                 if len(sites) > 1:
                     site_results = self._process_sites_parallel(sites)
                     results.extend(site_results)
@@ -373,7 +371,6 @@ class AutonomousGrowthEngine:
                             logger.error(error_msg)
                             self.error_count += 1
                 
-                # ዓለም አቀፍ ጥገና
                 maintenance_result = self._global_maintenance()
                 results.append(f"[Global] {maintenance_result}")
                 
@@ -425,7 +422,6 @@ class AutonomousGrowthEngine:
         
         finally:
             self.is_running = False
-            # የዳታቤዝ ግንኙነቶችን በጥንቃቄ መዝጋት
             connections.close_all()
         
         return " | ".join(total_results[:10]) if total_results else "No results"
@@ -435,7 +431,7 @@ class AutonomousGrowthEngine:
     # ============================================================
     
     def _process_sites_parallel(self, sites):
-        """ብዙ ጣቢያዎችን በትይዩ ያስኬዳል — በደህንነት የዳታቤዝ መዝጊያ የታገዘ"""
+        """ብዙ ጣቢያዎችን በትይዩ ያስኬዳል"""
         results = []
         max_workers = min(len(sites), 5)
         
@@ -461,7 +457,6 @@ class AutonomousGrowthEngine:
         try:
             return self._process_site(site)
         finally:
-            # ✅ በእያንዳንዱ ክር መጨረሻ ላይ ግንኙነቶችን መዝጋት (የዌብሳይት ፍጥነትን ያድናል)
             connections.close_all()
     
     # ============================================================
@@ -671,7 +666,6 @@ class AutonomousGrowthEngine:
                     priority = priority_map.get(feature, 'Medium')
                     impact = self._calculate_impact(feature)
                     
-                    # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
                     task, is_new = self._get_or_create_task_safe(
                         site=site,
                         task_name=task_name,
@@ -696,7 +690,6 @@ class AutonomousGrowthEngine:
                 error_types = analysis.get('error_types', [])
                 error_desc = ", ".join([f"{e['error_type']}: {e['count']}" for e in error_types[:3]])
                 
-                # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
                 error_task, is_new = self._get_or_create_task_safe(
                     site=site,
                     task_name=f"Fix {error_count} errors",
@@ -715,7 +708,6 @@ class AutonomousGrowthEngine:
                     logger.info(f"📋 Error fix task: {error_task.task_name}")
             
             if not created and not existing:
-                # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
                 learn_task, is_new = self._get_or_create_task_safe(
                     site=site,
                     task_name='Self-Learning: Analyze & Plan',
@@ -858,7 +850,6 @@ class AutonomousGrowthEngine:
             
             target_file = task.target_file or 'views'
             
-            # ✅ የተሻሻለ፦ JSON እንዳይቆረጥ የኮድ ይዘትን አሳጥሮ መላክ
             optimized_code = get_targeted_code_context(project_code, target_file_key=target_file)
             
             prompt = f"""
@@ -891,15 +882,12 @@ class AutonomousGrowthEngine:
                 confidence = response.get('confidence', 80)
                 target_file_confirmed = response.get('target_file', target_file)
                 
-                # ✅ የቅድመ-ትግበራ የደህንነት በር (Syntax Safety Gate)
-                # ፋይሉ ፓይተን ከሆነ ከመጻፉ በፊት ኮምፓይል በማድረግ ስህተት መኖሩን ማረጋገጥ
                 if target_file_confirmed in ['models', 'views', 'urls', 'forms', 'admin'] or target_file_confirmed.endswith('.py'):
                     try:
                         compile(code_content, '<string>', 'exec')
                     except SyntaxError as compile_err:
                         logger.error(f"⛔ Rejecting generated code for {target_file_confirmed} due to syntax error: {compile_err}")
                         
-                        # ስህተቱን ለቀጣይ ጥገና መመዝገብ
                         AgentErrorLog.objects.create(
                             site=site,
                             task_name=task.task_name,
@@ -1194,7 +1182,41 @@ class AutonomousGrowthEngine:
         """የስርዓቱን ሁኔታ ይመልሳል"""
         try:
             return {
-                'is_
+                'is_running': self.is_running,
+                'cycle_count': self.cycle_count,
+                'last_cycle': self.last_cycle.isoformat() if self.last_cycle else None,
+                'error_count': self.error_count,
+                'cache_size': len(self.cache.cache),
+                'total_sites': SiteRegistry.objects.filter(is_active=True).count(),
+                'total_tasks': AIProjectBacklog.objects.count(),
+                'pending_tasks': AIProjectBacklog.objects.filter(status='Pending').count(),
+                'total_errors': AgentErrorLog.objects.filter(resolved=False).count(),
+                'total_healings': SelfHealingLog.objects.count(),
+                'total_memories': VectorMemory.objects.count(),
+            }
+        except Exception:
+            return {
+                'is_running': self.is_running,
+                'cycle_count': self.cycle_count,
+                'last_cycle': self.last_cycle.isoformat() if self.last_cycle else None,
+                'error_count': self.error_count,
+                'cache_size': 0,
+                'total_sites': 0,
+                'total_tasks': 0,
+                'pending_tasks': 0,
+                'total_errors': 0,
+                'total_healings': 0,
+                'total_memories': 0,
+            }
+    
+    def get_heartbeat(self):
+        try:
+            heartbeat = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
+            if heartbeat:
+                return heartbeat.value
+        except:
+            pass
+        return {'status': 'unknown', 'timestamp': None}
 
 
 # ============================================================
@@ -1213,14 +1235,9 @@ class AutonomousLoop:
     def start(self):
         """ራስ-ገዝ ሉፕ ይጀምራል — ደህንነቱ በተጠበቀ ግንኙነቶች የታገዘ"""
         logger.info("🚀 Starting Autonomous Loop")
-        start_time = time.time()
         
         while self.running:
             try:
-                if time.time() - start_time > self.max_runtime:
-                    logger.info(f"⏰ Max runtime reached ({self.max_runtime}s). Restarting...")
-                    break
-                
                 logger.info(f"💓 Heartbeat at {timezone.now()}")
                 result = self.engine.run_cycle(max_cycles=2)
                 logger.info(f"✅ Cycle result: {result[:200] if result else 'No result'}")
@@ -1243,7 +1260,6 @@ class AutonomousLoop:
                     self.engine._emergency_self_heal()
                     self.engine.error_count = 0
                 
-                # የውሂብ ግንኙነቶችን በመዝጋት የሰርቨሩን አቅም ነጻ ማድረግ
                 connections.close_all()
                 time.sleep(self.interval)
                 
@@ -1287,7 +1303,9 @@ def self_educate(site, analysis):
                 priority = response.get('priority', 'Medium')
                 
                 try:
-                    task, is_new = AIProjectBacklog.objects.get_or_create(
+                    # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
+                    engine = AutonomousGrowthEngine()
+                    task, is_new = engine._get_or_create_task_safe(
                         site=site,
                         task_name=suggestion or 'AI Suggested Growth Task',
                         defaults={
@@ -1344,7 +1362,7 @@ def analyze_market(site):
 
 
 # ============================================================
-# 6. ዋና መግቢያ ተግባራት (Main Entry Points)
+# 6. ዋና መግቢያ ተግባራት
 # ============================================================
 
 def run_autonomous_agent():
