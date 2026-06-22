@@ -236,10 +236,22 @@ class AIProjectBacklog(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        """✅ የተሻሻለ — ሁልጊዜ ልዩ የሆነ task_hash ይፈጥራል"""
         if not self.task_hash:
+            import uuid
+            import time
+            from django.utils import timezone
+            
             site_id = self.site.id if self.site else "primary"
-            raw_string = f"{site_id}:{self.target_file}:{self.task_name}"
+            # ✅ ልዩነትን ለማረጋገጥ ተጨማሪ መረጃዎች
+            timestamp = int(time.time() * 1000)  # ሚሊሰከንድ
+            random_salt = uuid.uuid4().hex[:12]  # ራንደም ጨው
+            task_type = self.task_type or 'unknown'
+            priority = self.priority or 'Medium'
+            
+            raw_string = f"{site_id}:{task_type}:{self.target_file}:{self.task_name}:{timestamp}:{random_salt}"
             self.task_hash = hashlib.sha256(raw_string.encode('utf-8')).hexdigest()
+            
         super().save(*args, **kwargs)
 
     def __str__(self):
