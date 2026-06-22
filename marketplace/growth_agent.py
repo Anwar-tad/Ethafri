@@ -1142,3 +1142,48 @@ def analyze_pending_tasks(site=None):
     except Exception as e:
         logger.error(f"❌ Task analysis error: {e}")
         return {'total': 0, 'by_priority': [], 'by_type': [], 'critical': 0, 'high': 0, 'oldest': None, 'newest': None}
+        
+# growth_agent.py ውስጥ ያለውን self_educate ተግባር አስተካክል
+
+def self_educate(site: SiteRegistry, analysis: dict):
+    """ምንም ስራ ከሌለ ራሱን ያስተምራል"""
+    logger.info(f"📚 Self-learning for {site.name}")
+    
+    try:
+        from .models import SelfHealingLog  # ✅ በትክክል አስመጣ
+        
+        # 1. የገበያ ትንተና
+        market_analysis = analyze_market(site)
+        
+        # 2. የጎደሉ ባህሪያትን ይለያል
+        if analysis['missing_features']:
+            insight = f"Missing features: {', '.join(analysis['missing_features'][:3])}"
+        else:
+            insight = "Codebase looks complete. Monitoring for new opportunities."
+        
+        # 3. ራስ-ማስተማር መዝግብ
+        SelfHealingLog.objects.create(
+            error_message=f"Self-Learning: {site.name}",
+            solution_sql=insight,
+            resolved=True
+        )
+        
+        # 4. አዲስ ስራ ለመፍጠር ሞክር
+        if not analysis['missing_features']:
+            AIProjectBacklog.objects.create(
+                site=site,
+                task_name='Optimize Performance',
+                task_type='seo',
+                target_file='performance',
+                priority='Medium',
+                status='Pending',
+                description='Optimize database queries and page load times',
+                business_impact_score=7,
+                trigger_condition='Self-Learning: All features complete'
+            )
+            logger.info(f"📋 Self-learning task: Optimize Performance")
+            
+    except ImportError as e:
+        logger.error(f"❌ Could not import SelfHealingLog: {e}")
+    except Exception as e:
+        logger.error(f"❌ Self-education error for {site.name}: {e}")
