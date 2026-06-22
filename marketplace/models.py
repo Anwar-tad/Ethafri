@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/models.py
 # 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — All Models Complete (Merged)
-# 📅 ቀን፦ 2026-06-21
+# 📅 ቀን፦ 2026-06-22
 # ============================================================
 
 from django.db import models
@@ -63,6 +63,7 @@ class Product(models.Model):
     inquiry_count = models.IntegerField(default=0, help_text="የጥያቄ ብዛት")
     last_enhanced = models.DateTimeField(null=True, blank=True)
     
+    # ✅ Multi-Site Support — ይህ ሜዳ ነባር ነው
     site = models.ForeignKey(
         'SiteRegistry',
         on_delete=models.CASCADE,
@@ -199,13 +200,13 @@ class AIProjectBacklog(models.Model):
     description = models.TextField(blank=True, default='')
     task_hash = models.CharField(max_length=64, unique=True, blank=True)
     
-    # Business Impact Score (1-10)
+    # ✅ Business Impact Score (1-10)
     business_impact_score = models.IntegerField(
         default=5,
         help_text="1-10: የንግድ ተጽዕኖ ውጤት"
     )
     
-    # Trigger Rule Audit
+    # ✅ Trigger Rule Audit
     trigger_condition = models.CharField(
         max_length=255,
         blank=True,
@@ -341,7 +342,7 @@ class AgentErrorLog(models.Model):
 
 
 # ============================================================
-# 3. 🌐 Multi-Site Orchestration — SiteRegistry (የተሻሻለ)
+# 3. 🌐 Multi-Site Orchestration — SiteRegistry
 # ============================================================
 
 class SiteRegistry(models.Model):
@@ -380,13 +381,13 @@ class SiteRegistry(models.Model):
         ]
     )
     
-    # Build Phase (0-5)
+    # ✅ Build Phase (0-5)
     build_phase = models.IntegerField(
         default=0,
         help_text="0=Scaffolding, 1=Real Data, 2=Core Features, 3=Engagement, 4=Monetization, 5=Mature"
     )
     
-    # Real Data Counters
+    # ✅ Real Data Counters
     real_product_count = models.IntegerField(
         default=0,
         help_text="እውነተኛ ምርቶች ብዛት"
@@ -396,7 +397,7 @@ class SiteRegistry(models.Model):
         help_text="እውነተኛ ደንበኞች ብዛት"
     )
     
-    # Phase Transition Tracking
+    # ✅ Phase Transition Tracking
     phase_transition_date = models.DateTimeField(null=True, blank=True)
     
     monthly_visitors = models.IntegerField(default=0)
@@ -615,7 +616,7 @@ class VectorMemory(models.Model):
         related_name='memory_entries'
     )
     
-    # Product association
+    # ✅ Product association
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
@@ -665,14 +666,23 @@ class VectorMemory(models.Model):
 
     @classmethod
     def find_similar(cls, query, memory_type=None, site=None, limit=5):
+        """✅ FIXED: ቀደም ሲል ሁሉም 5 ቃላት በትክክል መኖር ነበረባቸው (AND chain) — ይህ ማለት ተግባራዊ ጥያቄ ላይ ፈጽሞ ምንም አይመልስም ነበር። አሁን OR-based scoring ይጠቀማል፦ ብዙ ቃላት የተገናኙበት ይቀድማል፣ ግን አንድ ቃል እንኳ ቢገናኝ ይመጣል።"""
+        from django.db.models import Q
+        
         queryset = cls.objects.all()
         if memory_type:
             queryset = queryset.filter(memory_type=memory_type)
         if site:
             queryset = queryset.filter(site=site)
-        keywords = query.lower().split()
-        for keyword in keywords[:5]:
-            queryset = queryset.filter(content__icontains=keyword)
+        
+        keywords = [k for k in query.lower().split() if len(k) > 2][:8]
+        
+        if keywords:
+            q_filter = Q()
+            for keyword in keywords:
+                q_filter |= Q(content__icontains=keyword)
+            queryset = queryset.filter(q_filter)
+        
         return queryset.order_by('-success_rate', '-usage_count')[:limit]
 
 

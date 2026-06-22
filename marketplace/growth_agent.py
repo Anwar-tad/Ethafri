@@ -1,6 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
 # 📝 ለውጥ፦ ሙሉ በሙሉ ራሱን የሚያስተዳድር — 24/7 Autonomous Growth Engine
+# ✅ ደረጃ 0 ጥገናዎች ሁሉ ተፈተዋል
+# 🚀 ደረጃ 1 ማሻሻያዎች ተጨምረዋል (Parallel, Caching, Smart Retry)
 # 📅 ቀን፦ 2026-06-22
 # ============================================================
 
@@ -13,16 +15,18 @@ import hashlib
 import logging
 import requests
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 from django.utils import timezone
 from django.db import models
-from django.db.models import Q, Count, Avg
+from django.db.models import Q, Count, Avg, Case, When, Value, IntegerField
 from django.conf import settings
 from django.contrib.auth.models import User
 
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# 📦 ሞዴል ኢምፖርቶች — ሁሉም ደህንነታቸው ተጠብቋል
+# 📦 ሞዴል ኢምፖርቶች
 # ============================================================
 try:
     from .models import (
@@ -33,7 +37,6 @@ try:
     )
 except ImportError as e:
     logger.warning(f"⚠️ Some models not found: {e}")
-    # ሞዴሎች ካልተገኙ ባዶ ክፍሎችን ይፍጠሩ
     class SiteRegistry: pass
     class AIProjectBacklog: pass
     class AIEvolutionLog: pass
@@ -47,16 +50,71 @@ except ImportError as e:
     class SecurityLog: pass
     class PredictionLog: pass
 
+# ============================================================
+# ✅ አዲስ ኢምፖርት — ብቸኛ ኮድ-መተግበሪያ ነጥብ
+# ============================================================
+try:
+    from .code_apply import apply_code_change
+except ImportError:
+    logger.warning("⚠️ code_apply.py not found. Using fallback.")
+    def apply_code_change(site, file_key, new_content, path, reason, confidence_score=100, backlog_task=None, push_to_github=True):
+        old_code = ""
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                old_code = f.read()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        try:
+            AIEvolutionLog.objects.create(
+                target_file=file_key,
+                reason_for_change=reason,
+                old_code_backup=old_code,
+                new_code_patch=new_content,
+                site=site
+            )
+        except:
+            pass
+        return {'success': True, 'message': f"✅ Applied {file_key} (fallback)", 'applied': True}
+
 
 # ============================================================
-# 1. የAI ጥሪ ተግባራት (AI Call Functions)
+# 1. የAI ጥሪ ተግባራት (AI Call Functions) — የተሻሻለ
 # ============================================================
 
-def ask_ai_with_failover(prompt, pool_type="coding", max_retries=2, timeout=60):
-    """
-    የተሻሻለ የኤአይ ፎልባክ ሞተር
-    በርካታ AI አቅራቢዎችን ይደግፋል
-    """
+# ✅ Smart AI Cache (TTL-based)
+class AICache:
+    """ተደጋጋሚ የAI ጥያቄዎችን ለማስታወስ"""
+    def __init__(self, ttl=3600):
+        self.cache = {}
+        self.ttl = ttl
+    
+    def get_or_compute(self, prompt, compute_func):
+        key = hashlib.md5(prompt.encode()).hexdigest()
+        if key in self.cache:
+            cached, timestamp = self.cache[key]
+            if time.time() - timestamp < self.ttl:
+                return cached
+        result = compute_func()
+        self.cache[key] = (result, time.time())
+        return result
+    
+    def clear(self):
+        self.cache = {}
+
+_ai_cache = AICache(ttl=1800)  # 30 ደቂቃ
+
+
+def ask_ai_with_failover(prompt, pool_type="coding", max_retries=2, timeout=60, use_cache=True):
+    """የተሻሻለ የኤአይ ፎልባክ ሞተር — ካሽ ይዟል"""
+    
+    # ✅ ካሽ ፍተሻ
+    if use_cache:
+        cached = _ai_cache.get_or_compute(prompt, lambda: None)
+        if cached:
+            logger.debug("💾 AI cache hit")
+            return cached
+    
     gemini_keys = [val for key, val in os.environ.items() if key.startswith("GEMINI_API_KEY") and val]
     groq_key = os.environ.get('GROQ_API_KEY')
     mistral_key = os.environ.get('MISTRAL_API_KEY')
@@ -64,12 +122,21 @@ def ask_ai_with_failover(prompt, pool_type="coding", max_retries=2, timeout=60):
     huggingface_key = os.environ.get('HUGGINGFACE_API_KEY') or os.environ.get('HF_TOKEN')
     github_token = os.environ.get('GITHUB_TOKEN')
     
+    # ✅ የተሻሻለ JSON extractor
     def extract_json(text):
         if not text: return None
         try:
+            # መጀመሪያ ```json ... ``` ን ፈልግ
+            json_block = re.search(r'```json\s*([\s\S]*?)\s*```', text)
+            if json_block:
+                return json.loads(json_block.group(1).strip())
+            # ከዚያ ተራ JSON ፈልግ
             match = re.search(r'\{.*\}', text, re.DOTALL)
-            return json.loads(match.group(0)) if match else None
-        except Exception: return None
+            if match:
+                return json.loads(match.group(0))
+            return None
+        except Exception:
+            return None
     
     def call_gemini():
         if not gemini_keys: return None
@@ -77,9 +144,13 @@ def ask_ai_with_failover(prompt, pool_type="coding", max_retries=2, timeout=60):
             try:
                 from google import genai
                 client = genai.Client(api_key=key)
-                res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+                res = client.models.generate_content(
+                    model='gemini-2.5-flash' if pool_type == "coding" else 'gemini-2.0-flash',
+                    contents=prompt
+                )
                 data = extract_json(res.text)
-                if data and "error" not in data: return data
+                if data and "error" not in data:
+                    return data
             except Exception as e:
                 logger.warning(f"🔄 Gemini Key {idx+1} exhausted: {e}")
                 time.sleep(1)
@@ -135,7 +206,14 @@ def ask_ai_with_failover(prompt, pool_type="coding", max_retries=2, timeout=60):
             logger.warning(f"⚠️ Groq error: {e}")
             return None
     
-    providers = [call_mistral, call_github, call_gemini, call_groq]
+    # ✅ የተሻሻለ provider selection (based on task type)
+    if pool_type == "coding":
+        providers = [call_mistral, call_github, call_gemini, call_groq]
+    elif pool_type == "analysis":
+        providers = [call_gemini, call_mistral, call_github]
+    else:
+        providers = [call_mistral, call_gemini, call_github, call_groq]
+    
     random.shuffle(providers)
     
     for provider in providers:
@@ -143,29 +221,32 @@ def ask_ai_with_failover(prompt, pool_type="coding", max_retries=2, timeout=60):
             try:
                 result = provider()
                 if result and "error" not in result:
+                    # ✅ ካሽ ላይ አስቀምጥ
+                    if use_cache:
+                        _ai_cache.get_or_compute(prompt, lambda: result)
                     logger.info(f"✅ Success with {provider.__name__}")
                     return result
             except Exception as e:
                 logger.warning(f"⚠️ Attempt {attempt+1} failed: {e}")
-                time.sleep(1)
+                time.sleep(2 ** attempt)  # Exponential backoff
     
     logger.error("❌ All AI providers failed")
     return {"error": "All AI providers failed after multiple attempts."}
 
 
-def ask_ethafri_ceo(prompt, pool_type="coding"):
-    """ask_ai_with_failover ን ይጠራል (ለተኳሃኝነት)"""
-    return ask_ai_with_failover(prompt, pool_type=pool_type)
+def ask_ethafri_ceo(prompt, pool_type="coding", use_cache=True):
+    return ask_ai_with_failover(prompt, pool_type=pool_type, use_cache=use_cache)
 
 
 # ============================================================
-# 2. የጣቢያ ፕሮጀክት ሁኔታ (Site Project State)
+# 2. የጣቢያ ፕሮጀክት ሁኔታ (Site Project State) — የተሻሻለ
 # ============================================================
 
-def get_site_project_state(site):
-    """
-    የጣቢያውን የፕሮጀክት ኮድ እና የፋይል መዋቅር ያነባል
-    """
+# ✅ File hash tracking for incremental analysis
+_project_hashes = {}
+
+def get_site_project_state(site, force_refresh=False):
+    """የጣቢያውን የፕሮጀክት ኮድ እና የፋይል መዋቅር ያነባል — ከካሽ ጋር"""
     if not site or not getattr(site, 'repo_path', None):
         return {}, {}
     
@@ -179,16 +260,40 @@ def get_site_project_state(site):
         'home_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'home.html'),
     }
     
+    # ✅ Incremental reading — የተቀየሩ ፋይሎችን ብቻ አንብብ
     state = {}
+    site_key = f"site_{site.id if site.id else site.name}"
+    
     for key, path in target_files.items():
+        file_key = f"{site_key}_{key}"
+        current_hash = None
+        
         if os.path.exists(path):
             try:
+                with open(path, 'rb') as f:
+                    current_hash = hashlib.md5(f.read()).hexdigest()
+            except Exception:
+                pass
+            
+            # ፋይሉ ካልተቀየረ ካሽ ተጠቀም
+            if not force_refresh and file_key in _project_hashes and _project_hashes.get(file_key) == current_hash:
+                # ቀደም ሲል የተነበበውን መረጃ ከማህደረ-ትውስታ አምጣ
+                if key in _project_hashes.get(f"{file_key}_content", {}):
+                    state[key] = _project_hashes[f"{file_key}_content"]
+                    continue
+            
+            # አዲስ አንብብ
+            try:
                 with open(path, 'r', encoding='utf-8') as f:
-                    state[key] = f.read()
+                    content = f.read()
+                    state[key] = content
+                    _project_hashes[file_key] = current_hash
+                    _project_hashes[f"{file_key}_content"] = content
             except Exception as e:
                 state[key] = f"ERROR: Could not read file - {e}"
         else:
             state[key] = f"❌ MISSING_FILE: This file doesn't exist yet."
+    
     return state, target_files
 
 
@@ -233,113 +338,160 @@ class AutonomousGrowthEngine:
         self.cycle_count = 0
         self.error_count = 0
         self.max_errors = 10
-        
+        self.max_cycles_per_run = 5  # ✅ አዲስ: በአንድ ሩጫ ከፍተኛ ዑደቶች
+        self.memory_engine = None
+        self.cache = AICache(ttl=1800)
+    
+    def _get_memory_engine(self, site):
+        try:
+            from .agent_enhancements import SelfLearningSystem
+            return SelfLearningSystem(site)
+        except ImportError:
+            return None
+    
     # ============================================================
-    # 3.1 ዋና የስራ ዑደት (Main Work Loop)
+    # 3.1 ዋና የስራ ዑደት (Main Work Loop) — የተሻሻለ
     # ============================================================
     
-    def run_cycle(self):
-        """አንድ ሙሉ የስራ ዑደት ያካሂዳል"""
+    def run_cycle(self, max_cycles=1):
+        """አንድ ወይም ብዙ የስራ ዑደቶችን ያካሂዳል"""
         if self.is_running:
             logger.info("⚠️ Already running a cycle. Skipping...")
             return "Already running"
         
         self.is_running = True
-        self.cycle_count += 1
-        start_time = timezone.now()
-        
-        results = []
+        total_results = []
+        cycles_run = 0
         
         try:
-            logger.info(f"🚀 Starting cycle #{self.cycle_count} at {start_time}")
-            
-            # 1. ሁሉንም ጣቢያዎች አግኝ
-            sites = []
-            try:
-                sites = list(SiteRegistry.objects.filter(is_active=True))
-            except Exception as e:
-                logger.error(f"❌ Failed to get sites: {e}")
+            for cycle_num in range(min(max_cycles, self.max_cycles_per_run)):
+                self.cycle_count += 1
+                start_time = timezone.now()
+                results = []
+                
+                logger.info(f"🚀 Starting cycle #{self.cycle_count} at {start_time}")
+                
+                # 1. ሁሉንም ጣቢያዎች አግኝ
                 sites = []
-            
-            if not sites:
-                # ምንም ጣቢያ ከሌለ አዲስ ፍጠር
-                primary = self._create_default_site()
-                if primary:
-                    sites = [primary]
-                    results.append(f"🏗️ Created default site: {primary.name}")
-                else:
-                    results.append("⚠️ Could not create default site")
-            
-            # 2. እያንዳንዱን ጣቢያ አስኬድ
-            for site in sites:
                 try:
-                    if site and hasattr(site, 'name'):
-                        site_result = self._process_site(site)
-                        results.append(f"[{site.name}] {site_result}")
+                    sites = list(SiteRegistry.objects.filter(is_active=True))
                 except Exception as e:
-                    error_msg = f"[{site.name if site else 'Unknown'}] ❌ Error: {str(e)[:100]}"
-                    results.append(error_msg)
-                    logger.error(error_msg)
-                    self.error_count += 1
-            
-            # 3. ዓለም አቀፍ ጥገና
-            maintenance_result = self._global_maintenance()
-            results.append(f"[Global] {maintenance_result}")
-            
-            # 4. ራስ-ጥገና (Self-Healing)
-            if self.error_count > 3:
-                heal_result = self._self_heal()
-                results.append(f"[Healing] {heal_result}")
-                self.error_count = 0
-            
-            # 5. ሪፖርት ይመዝግብ
-            self.last_cycle = timezone.now()
-            
-            # 6. የEVOLUTION_LOCK ን አዘምን
-            try:
-                SiteConfig.objects.update_or_create(
-                    key='EVOLUTION_LOCK',
-                    defaults={'value': {
-                        'status': 'idle',
-                        'last_run': self.last_cycle.isoformat(),
-                        'cycle_count': self.cycle_count,
-                        'results': results[:5]
-                    }}
-                )
-            except Exception as e:
-                logger.warning(f"⚠️ Could not update EVOLUTION_LOCK: {e}")
-            
-            # 7. ስርዓቱ በህይወት መኖሩን መዝግብ
-            try:
-                SiteConfig.objects.update_or_create(
-                    key='AGENT_HEARTBEAT',
-                    defaults={'value': {
-                        'timestamp': timezone.now().isoformat(),
-                        'status': 'alive',
-                        'cycle': self.cycle_count
-                    }}
-                )
-            except Exception as e:
-                logger.warning(f"⚠️ Could not update AGENT_HEARTBEAT: {e}")
-            
-            logger.info(f"✅ Cycle #{self.cycle_count} completed in {(timezone.now() - start_time).seconds}s")
+                    logger.error(f"❌ Failed to get sites: {e}")
+                    sites = []
+                
+                if not sites:
+                    primary = self._create_default_site()
+                    if primary:
+                        sites = [primary]
+                        results.append(f"🏗️ Created default site: {primary.name}")
+                    else:
+                        results.append("⚠️ Could not create default site")
+                
+                # ✅ አዲስ: Parallel site processing
+                if len(sites) > 1:
+                    site_results = self._process_sites_parallel(sites)
+                    results.extend(site_results)
+                else:
+                    for site in sites:
+                        try:
+                            if site and hasattr(site, 'name'):
+                                site_result = self._process_site(site)
+                                results.append(f"[{site.name}] {site_result}")
+                        except Exception as e:
+                            error_msg = f"[{site.name if site else 'Unknown'}] ❌ Error: {str(e)[:100]}"
+                            results.append(error_msg)
+                            logger.error(error_msg)
+                            self.error_count += 1
+                
+                # 3. ዓለም አቀፍ ጥገና
+                maintenance_result = self._global_maintenance()
+                results.append(f"[Global] {maintenance_result}")
+                
+                # 4. ራስ-ጥገና (Self-Healing)
+                if self.error_count > 3:
+                    heal_result = self._self_heal()
+                    results.append(f"[Healing] {heal_result}")
+                    self.error_count = 0
+                
+                # 5. ሪፖርት ይመዝግብ
+                self.last_cycle = timezone.now()
+                
+                # 6. የEVOLUTION_LOCK ን አዘምን
+                try:
+                    SiteConfig.objects.update_or_create(
+                        key='EVOLUTION_LOCK',
+                        defaults={'value': {
+                            'status': 'idle',
+                            'last_run': self.last_cycle.isoformat(),
+                            'cycle_count': self.cycle_count,
+                            'results': results[:5]
+                        }}
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not update EVOLUTION_LOCK: {e}")
+                
+                # 7. ስርዓቱ በህይወት መኖሩን መዝግብ
+                try:
+                    SiteConfig.objects.update_or_create(
+                        key='AGENT_HEARTBEAT',
+                        defaults={'value': {
+                            'timestamp': timezone.now().isoformat(),
+                            'status': 'alive',
+                            'cycle': self.cycle_count
+                        }}
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not update AGENT_HEARTBEAT: {e}")
+                
+                cycle_summary = " | ".join(results[:5]) if results else "No results"
+                total_results.append(f"Cycle #{self.cycle_count}: {cycle_summary}")
+                cycles_run += 1
+                
+                logger.info(f"✅ Cycle #{self.cycle_count} completed in {(timezone.now() - start_time).seconds}s")
+                
+                # ከፍተኛ ስህተት ካለ አቁም
+                if self.error_count > 5:
+                    self._emergency_self_heal()
+                    break
             
         except Exception as e:
-            logger.error(f"❌ Cycle failed: {e}")
-            results.append(f"❌ Cycle error: {str(e)[:100]}")
+            logger.error(f"❌ Run failed: {e}")
+            total_results.append(f"❌ Run error: {str(e)[:100]}")
             self.error_count += 1
-            
-            # ከባድ ስህተት ከሆነ ራስ-ጥገና
-            if self.error_count > 5:
-                self._emergency_self_heal()
         
         finally:
             self.is_running = False
         
-        return " | ".join(results[:10]) if results else "No results"
+        return " | ".join(total_results[:10]) if total_results else "No results"
     
     # ============================================================
-    # 3.2 የጣቢያ ሂደት (Site Processing)
+    # 3.1.1 ትይዩ የጣቢያ ሂደት (Parallel Site Processing) — ✅ አዲስ
+    # ============================================================
+    
+    def _process_sites_parallel(self, sites):
+        """ብዙ ጣቢያዎችን በትይዩ ያስኬዳል"""
+        results = []
+        max_workers = min(len(sites), 5)
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_site = {
+                executor.submit(self._process_site, site): site 
+                for site in sites if site and hasattr(site, 'name')
+            }
+            
+            for future in as_completed(future_to_site):
+                site = future_to_site[future]
+                try:
+                    result = future.result(timeout=120)
+                    results.append(f"[{site.name}] {result}")
+                except Exception as e:
+                    results.append(f"[{site.name if site else 'Unknown'}] ❌ Timeout/Error: {str(e)[:50]}")
+                    logger.error(f"❌ Parallel processing error for {site.name if site else 'Unknown'}: {e}")
+        
+        return results
+    
+    # ============================================================
+    # 3.2 የጣቢያ ሂደት (Site Processing) — የተሻሻለ
     # ============================================================
     
     def _process_site(self, site):
@@ -352,13 +504,13 @@ class AutonomousGrowthEngine:
             analysis = self._analyze_site_deep(site)
             results.append(f"📊 Analysis: {analysis.get('summary', 'OK')}")
             
-            # 2. አዲስ ስራዎችን ፍጠር (በትንተና ላይ ተመስርቶ)
+            # 2. አዲስ ስራዎችን ፍጠር
             new_tasks = self._generate_dynamic_tasks(site, analysis)
             if new_tasks:
                 results.append(f"📋 Created {len(new_tasks)} tasks")
             
-            # 3. ነባር ስራዎችን አስኬድ
-            executed = self._execute_pending_tasks(site)
+            # 3. ነባር ስራዎችን አስኬድ (ከSmart Priority ጋር)
+            executed = self._execute_pending_tasks_smart(site)
             if executed:
                 results.append(f"⚡ Executed {len(executed)} tasks")
             
@@ -370,7 +522,7 @@ class AutonomousGrowthEngine:
                 errors = AgentErrorLog.objects.filter(site=site, resolved=False)
                 if errors.exists():
                     results.append(f"⚠️ {errors.count()} errors found")
-                    fixed = self._heal_errors(site, errors[:3])
+                    fixed = self._heal_errors_smart(site, errors[:5])
                     if fixed:
                         results.append(f"🛠️ Fixed {len(fixed)} errors")
             except Exception as e:
@@ -390,7 +542,7 @@ class AutonomousGrowthEngine:
         return " | ".join(results[:5]) if results else "No results"
     
     # ============================================================
-    # 3.3 ጥልቅ ትንተና (Deep Analysis)
+    # 3.3 ጥልቅ ትንተና (Deep Analysis) — የተሻሻለ
     # ============================================================
     
     def _analyze_site_deep(self, site):
@@ -400,11 +552,11 @@ class AutonomousGrowthEngine:
         try:
             project_code, _ = get_site_project_state(site)
             code_status = {
-                'has_models': 'models' in project_code and project_code['models'],
-                'has_views': 'views' in project_code and project_code['views'],
-                'has_urls': 'urls' in project_code and project_code['urls'],
-                'has_admin': 'admin' in project_code and project_code['admin'],
-                'has_templates': 'home_html' in project_code and project_code['home_html'],
+                'has_models': 'models' in project_code and project_code['models'] and not project_code['models'].startswith('❌'),
+                'has_views': 'views' in project_code and project_code['views'] and not project_code['views'].startswith('❌'),
+                'has_urls': 'urls' in project_code and project_code['urls'] and not project_code['urls'].startswith('❌'),
+                'has_admin': 'admin' in project_code and project_code['admin'] and not project_code['admin'].startswith('❌'),
+                'has_templates': 'home_html' in project_code and project_code['home_html'] and not project_code['home_html'].startswith('❌'),
             }
         except Exception:
             code_status = {'has_models': False, 'has_views': False, 'has_urls': False, 'has_admin': False, 'has_templates': False}
@@ -432,8 +584,10 @@ class AutonomousGrowthEngine:
         # 4. የስህተት ሁኔታ
         try:
             error_count = AgentErrorLog.objects.filter(site=site, resolved=False).count()
+            error_types = AgentErrorLog.objects.filter(site=site, resolved=False).values('error_type').annotate(count=Count('id'))
         except Exception:
             error_count = 0
+            error_types = []
         
         # 5. የራስ-ጥገና ሁኔታ
         try:
@@ -458,6 +612,7 @@ class AutonomousGrowthEngine:
             'pending_count': pending_count,
             'completed_count': completed_count,
             'error_count': error_count,
+            'error_types': error_types,
             'healing_count': healing_count,
             'missing_features': missing_features,
             'summary': summary,
@@ -468,7 +623,6 @@ class AutonomousGrowthEngine:
         """የጎደሉ ባህሪያትን ይለያል"""
         missing = []
         
-        # በኮድ ሁኔታ
         if not code_status.get('has_models', False):
             missing.append('Models')
         if not code_status.get('has_views', False):
@@ -480,11 +634,9 @@ class AutonomousGrowthEngine:
         if not code_status.get('has_templates', False):
             missing.append('Templates')
         
-        # በምርት ብዛት
         if product_count < 5:
             missing.append('Products')
         
-        # በምዕራፍ
         build_phase = getattr(site, 'build_phase', 0)
         if build_phase == 0:
             missing.append('Seed Data')
@@ -501,7 +653,7 @@ class AutonomousGrowthEngine:
         return missing
     
     # ============================================================
-    # 3.4 ተለዋዋጭ ስራ ማመንጨት (Dynamic Task Generation)
+    # 3.4 ተለዋዋጭ ስራ ማመንጨት (Dynamic Task Generation) — የተሻሻለ
     # ============================================================
     
     def _generate_dynamic_tasks(self, site, analysis):
@@ -509,18 +661,31 @@ class AutonomousGrowthEngine:
         created = []
         
         try:
-            # ቀድሞ ያሉ ስራዎች
             existing = AIProjectBacklog.objects.filter(
                 site=site,
                 status__in=['Pending', 'Running']
             ).values_list('task_name', flat=True)
             
-            # የጎደሉ ባህሪያትን ለይ
+            # ✅ የተሻሻለ priority mapping
+            priority_map = {
+                'Models': 'Critical',
+                'Views': 'Critical',
+                'Admin': 'Critical',
+                'URLs': 'High',
+                'Templates': 'High',
+                'Products': 'High',
+                'Seed Data': 'Critical',
+                'More Products': 'High',
+                'Engagement Features': 'High',
+                'Monetization': 'High',
+                'SEO & Growth': 'Medium',
+            }
+            
             for feature in analysis.get('missing_features', []):
                 task_name = f"Build: {feature}"
                 
                 if task_name not in existing:
-                    priority = self._calculate_priority(feature, analysis.get('build_phase', 0))
+                    priority = priority_map.get(feature, 'Medium')
                     impact = self._calculate_impact(feature)
                     
                     task = AIProjectBacklog.objects.create(
@@ -537,9 +702,12 @@ class AutonomousGrowthEngine:
                     created.append(task)
                     logger.info(f"📋 Dynamic task: {task_name} for {site.name}")
             
-            # ስህተቶች ካሉ
+            # ✅ የስህተት መፍቻ ስራ
             if analysis.get('error_count', 0) > 0:
                 error_count = analysis['error_count']
+                error_types = analysis.get('error_types', [])
+                error_desc = ", ".join([f"{e['error_type']}: {e['count']}" for e in error_types[:3]])
+                
                 error_task = AIProjectBacklog.objects.create(
                     site=site,
                     task_name=f"Fix {error_count} errors",
@@ -547,14 +715,14 @@ class AutonomousGrowthEngine:
                     target_file='error_fix',
                     priority='Critical',
                     status='Pending',
-                    description=f"Fix {error_count} unresolved errors",
+                    description=f"Fix {error_count} unresolved errors ({error_desc})",
                     business_impact_score=10,
                     trigger_condition=f"Dynamic: {error_count} errors"
                 )
                 created.append(error_task)
                 logger.info(f"📋 Error fix task: {error_task.task_name}")
             
-            # ምንም ስራ ከሌለ — Self-Learning
+            # ✅ Self-Learning task
             if not created and not existing:
                 learn_task = AIProjectBacklog.objects.create(
                     site=site,
@@ -576,7 +744,6 @@ class AutonomousGrowthEngine:
         return created
     
     def _calculate_priority(self, feature, phase):
-        """የስራ ቅድሚያ ይወስናል"""
         critical_features = ['Seed Data', 'Products', 'Models', 'Views', 'Admin']
         high_features = ['Engagement', 'Monetization', 'Payment']
         
@@ -590,7 +757,6 @@ class AutonomousGrowthEngine:
             return 'Medium'
     
     def _calculate_impact(self, feature):
-        """የስራ ተጽዕኖ ደረጃ ይወስናል"""
         if 'error' in feature.lower():
             return 10
         elif 'Seed' in feature or 'Data' in feature:
@@ -605,27 +771,37 @@ class AutonomousGrowthEngine:
             return 7
     
     # ============================================================
-    # 3.5 የስራ አፈጻጸም (Task Execution)
+    # 3.5 የስራ አፈጻጸም (Task Execution) — ✅ Smart Priority
     # ============================================================
     
-    def _execute_pending_tasks(self, site):
-        """የታገዱ ስራዎችን ያስኬዳል"""
+    def _execute_pending_tasks_smart(self, site):
+        """የታገዱ ስራዎችን በSmart Priority ያስኬዳል"""
         executed = []
         
         try:
+            # ✅ የተሻሻለ priority ordering — ቁጥራዊ
+            priority_order = Case(
+                When(priority='Critical', then=Value(1)),
+                When(priority='High', then=Value(2)),
+                When(priority='Medium', then=Value(3)),
+                When(priority='Low', then=Value(4)),
+                default=Value(5),
+                output_field=IntegerField()
+            )
+            
             tasks = AIProjectBacklog.objects.filter(
                 site=site,
                 status='Pending'
-            ).order_by('-priority', '-business_impact_score')[:3]
+            ).annotate(
+                priority_num=priority_order
+            ).order_by('priority_num', '-business_impact_score', 'created_at')[:5]
             
             for task in tasks:
                 try:
-                    # ስራውን እንደሚሄድ ምልክት አድርግ
                     task.status = 'Running'
                     task.save()
                     
-                    # የስራ አፈጻጸም
-                    result = self._execute_task(task, site)
+                    result = self._execute_task_smart(task, site)
                     
                     if result and 'error' not in result.lower():
                         task.status = 'Completed'
@@ -647,10 +823,54 @@ class AutonomousGrowthEngine:
         
         return executed
     
-    def _execute_task(self, task, site):
-        """አንድ ስራ ያስኬዳል (AI በመጠቀም)"""
+    def _execute_task_smart(self, task, site):
+        """አንድ ስራ ያስኬዳል — ከSmart Retry ጋር"""
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                result = self._execute_task_internal(task, site)
+                
+                if result and 'error' not in result.lower():
+                    return result
+                
+                # ✅ Smart retry with backoff
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # 1, 2, 4 seconds
+                    logger.info(f"🔄 Retrying {task.task_name} in {wait_time}s (attempt {attempt+2}/{max_retries})")
+                    time.sleep(wait_time)
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Attempt {attempt+1} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+        
+        return "error: All retries failed"
+    
+    def _execute_task_internal(self, task, site):
+        """የስራውን ትክክለኛ አፈጻጸም ያካሂዳል"""
         try:
             project_code, _ = get_site_project_state(site)
+            
+            # RAG Memory ን ተጠቀም
+            memory_context = ""
+            try:
+                similar = VectorMemory.objects.filter(
+                    site=site,
+                    memory_type='solution'
+                ).order_by('-success_rate')[:3]
+                for mem in similar:
+                    memory_context += f"\nPrevious solution: {mem.content[:300]}\n"
+            except Exception as e:
+                logger.warning(f"⚠️ RAG memory error: {e}")
+            
+            # ✅ Codebase summary (ሙሉ ኮድ ሳይሆን ማጠቃለያ)
+            code_summary = {}
+            for key, content in project_code.items():
+                if isinstance(content, str) and len(content) > 100:
+                    code_summary[key] = content[:500] + "..."
+                else:
+                    code_summary[key] = content
             
             prompt = f"""
             You are the EthAfri AI Agent for site: {site.name if hasattr(site, 'name') else 'unknown'}
@@ -660,17 +880,66 @@ class AutonomousGrowthEngine:
             Priority: {task.priority}
             Impact: {task.business_impact_score}/10
             
-            Codebase: {json.dumps(project_code, indent=2)[:2000]}
+            Memory Context (past solutions):
+            {memory_context}
+            
+            Codebase Summary:
+            {json.dumps(code_summary, indent=2)[:2000]}
             
             Generate code or solution for this task.
-            Return ONLY JSON with 'code' and 'explanation' fields.
+            Return ONLY JSON with:
+            - 'code': the code to apply
+            - 'explanation': brief explanation
+            - 'confidence': number 0-100
+            - 'target_file': which file to modify
             """
             
             response = ask_ethafri_ceo(prompt, pool_type="coding")
             
             if response and isinstance(response, dict) and 'code' in response:
-                # ኮዱን ተግብር
-                self._apply_code(response.get('code', ''), site, task)
+                code_content = response.get('code', '')
+                explanation = response.get('explanation', 'No explanation')
+                confidence = response.get('confidence', 80)
+                target_file = response.get('target_file', task.target_file or 'views')
+                
+                # የፋይሉን መንገድ ወስን
+                path = None
+                if site.repo_path:
+                    # target_file ን ከፋይል ስም ጋር አዛምድ
+                    file_key = target_file
+                    if file_key in project_code:
+                        path = os.path.join(site.repo_path, 'marketplace', f'{file_key}.py')
+                    else:
+                        path = os.path.join(site.repo_path, 'marketplace', f'{file_key}.py')
+                
+                if path:
+                    result = apply_code_change(
+                        site=site,
+                        file_key=target_file,
+                        new_content=code_content,
+                        path=path,
+                        reason=f"Task: {task.task_name} - {explanation[:100]}",
+                        confidence_score=confidence,
+                        backlog_task=task,
+                        push_to_github=True
+                    )
+                    
+                    # ✅ ስኬት ከሆነ RAG ላይ አስቀምጥ
+                    if result.get('applied', False):
+                        try:
+                            VectorMemory.objects.create(
+                                site=site,
+                                memory_type='solution',
+                                content=f"Task: {task.task_name}\nSolution: {explanation[:300]}",
+                                success_rate=confidence,
+                                usage_count=0,
+                                related_task=task
+                            )
+                        except Exception as e:
+                            logger.warning(f"⚠️ Could not save to RAG: {e}")
+                    
+                    return result['message']
+                
                 return "success"
             
             return "No valid response from AI"
@@ -678,12 +947,6 @@ class AutonomousGrowthEngine:
         except Exception as e:
             logger.error(f"❌ Task execution error: {e}")
             return f"error: {str(e)[:50]}"
-    
-    def _apply_code(self, code, site, task):
-        """ኮዱን ወደ ፋይል ይጽፋል"""
-        logger.info(f"📝 Applying code for {task.task_name}")
-        # TODO: ፋይል ላይ መጻፍ ያስፈልጋል
-        pass
     
     # ============================================================
     # 3.6 ምዕራፍ አስተዳደር (Phase Management)
@@ -733,21 +996,44 @@ class AutonomousGrowthEngine:
             logger.warning(f"⚠️ Could not update phase: {e}")
     
     # ============================================================
-    # 3.7 ስህተት ጥገና (Error Healing)
+    # 3.7 ስህተት ጥገና (Error Healing) — ✅ Smart Healing
     # ============================================================
     
-    def _heal_errors(self, site, errors):
-        """ስህተቶችን ለመፍታት ይሞክራል"""
+    def _heal_errors_smart(self, site, errors):
+        """ስህተቶችን ለመፍታት ይሞክራል — ከRAG ጋር"""
         fixed = []
         
         for error in errors:
             try:
+                # RAG Memory ን ተጠቀም
+                memory_context = ""
+                try:
+                    similar = VectorMemory.objects.filter(
+                        site=site,
+                        memory_type='error',
+                        content__icontains=error.error_type
+                    ).order_by('-success_rate')[:3]
+                    for mem in similar:
+                        memory_context += f"\nSimilar error: {mem.content[:300]}\n"
+                except Exception as e:
+                    logger.warning(f"⚠️ RAG memory error: {e}")
+                
                 prompt = f"""
                 Fix this error:
                 Task: {error.task_name}
                 Type: {error.error_type}
                 Message: {error.error_message}
-                Code: {error.code_attempted[:500] if error.code_attempted else 'No code'}
+                Code attempted: {error.code_attempted[:500] if error.code_attempted else 'No code'}
+                
+                Memory Context (similar errors):
+                {memory_context}
+                
+                Return JSON:
+                {{
+                    "solution": "fix description",
+                    "confidence": 0-100,
+                    "code_fix": "fixed code if applicable"
+                }}
                 """
                 
                 response = ask_ethafri_ceo(prompt, pool_type="healing")
@@ -757,6 +1043,19 @@ class AutonomousGrowthEngine:
                     error.correction_applied = response.get('solution', '')
                     error.save()
                     fixed.append(error)
+                    
+                    # ✅ RAG ላይ አስቀምጥ
+                    try:
+                        VectorMemory.objects.create(
+                            site=site,
+                            memory_type='error',
+                            content=f"Error: {error.error_type}\nSolution: {response.get('solution', '')[:300]}",
+                            success_rate=response.get('confidence', 70),
+                            usage_count=0
+                        )
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not save to RAG: {e}")
+                    
                     logger.info(f"✅ Healed error: {error.task_name}")
                     
             except Exception as e:
@@ -765,19 +1064,25 @@ class AutonomousGrowthEngine:
         return fixed
     
     # ============================================================
-    # 3.8 ራስ-ጥገና (Self-Healing)
+    # 3.8 ራስ-ጥገና (Self-Healing) — የተሻሻለ
     # ============================================================
     
     def _self_heal(self):
-        """ራስ-ጥገና ያካሂዳል"""
+        """ራስ-ጥገና ያካሂዳል — ሐሰት-resolution የለም!"""
         try:
-            AgentErrorLog.objects.filter(resolved=False).update(resolved=True)
-            AIProjectBacklog.objects.filter(status='Running').update(status='Pending')
+            # የተጨናነቁ ስራዎችን ብቻ አጽዳ
+            stuck_count = AIProjectBacklog.objects.filter(status='Running').update(status='Pending')
+            
+            # ካሽ አጽዳ
+            self.cache.clear()
+            
             SelfHealingLog.objects.create(
-                error_message="Self-Healing: Reset all errors and stuck tasks",
+                error_message=f"Self-Healing: Reset {stuck_count} stuck tasks, cache cleared",
                 resolved=True
             )
-            return "Reset errors and stuck tasks"
+            
+            return f"Reset {stuck_count} stuck tasks, cache cleared"
+            
         except Exception as e:
             return f"Self-heal failed: {str(e)[:50]}"
     
@@ -789,14 +1094,14 @@ class AutonomousGrowthEngine:
                 defaults={'value': {'status': 'idle'}}
             )
             AIProjectBacklog.objects.filter(status='Running').update(status='Pending')
-            AgentErrorLog.objects.filter(resolved=False).update(resolved=True)
-            logger.info("🚨 Emergency self-heal completed")
+            self.cache.clear()
+            logger.info("🚨 Emergency self-heal completed (errors preserved)")
             return True
         except Exception:
             return False
     
     # ============================================================
-    # 3.9 ዓለም አቀፍ ጥገና (Global Maintenance)
+    # 3.9 ዓለም አቀፍ ጥገና (Global Maintenance) — የተሻሻለ
     # ============================================================
     
     def _global_maintenance(self):
@@ -813,20 +1118,23 @@ class AutonomousGrowthEngine:
                 old_tasks.delete()
                 results.append(f"Cleaned {count} old tasks")
             
-            duplicates = AgentErrorLog.objects.filter(
+            # የስህተት ስታቲስቲክስ
+            error_stats = AgentErrorLog.objects.filter(
                 resolved=False
-            ).values('error_message').annotate(count=Count('id')).filter(count__gt=3)
+            ).values('error_type').annotate(count=Count('id')).order_by('-count')
             
-            for dup in duplicates:
-                AgentErrorLog.objects.filter(
-                    error_message=dup['error_message'],
-                    resolved=False
-                ).exclude(id__in=AgentErrorLog.objects.filter(
-                    error_message=dup['error_message'],
-                    resolved=False
-                ).order_by('created_at')[:1].values_list('id', flat=True)
-                ).delete()
-                results.append("Deduplicated errors")
+            if error_stats.exists():
+                most_common = error_stats.first()
+                results.append(f"📊 Most common: {most_common['error_type']} ({most_common['count']})")
+            
+            # የRAG ስታቲስቲክስ
+            try:
+                memory_count = VectorMemory.objects.count()
+                if memory_count > 0:
+                    avg_success = VectorMemory.objects.aggregate(avg=Avg('success_rate'))['avg']
+                    results.append(f"🧠 RAG: {memory_count} memories, {avg_success:.0f}% avg success")
+            except Exception:
+                pass
             
             healing_stats = SelfHealingLog.objects.aggregate(
                 total=Count('id'),
@@ -882,7 +1190,7 @@ class AutonomousGrowthEngine:
             return None
     
     # ============================================================
-    # 3.11 የስርዓት ሁኔታ (System Status)
+    # 3.11 የስርዓት ሁኔታ (System Status) — የተሻሻለ
     # ============================================================
     
     def get_status(self):
@@ -893,11 +1201,13 @@ class AutonomousGrowthEngine:
                 'cycle_count': self.cycle_count,
                 'last_cycle': self.last_cycle.isoformat() if self.last_cycle else None,
                 'error_count': self.error_count,
+                'cache_size': len(self.cache.cache),
                 'total_sites': SiteRegistry.objects.filter(is_active=True).count(),
                 'total_tasks': AIProjectBacklog.objects.count(),
                 'pending_tasks': AIProjectBacklog.objects.filter(status='Pending').count(),
                 'total_errors': AgentErrorLog.objects.filter(resolved=False).count(),
                 'total_healings': SelfHealingLog.objects.count(),
+                'total_memories': VectorMemory.objects.count(),
             }
         except Exception:
             return {
@@ -905,15 +1215,16 @@ class AutonomousGrowthEngine:
                 'cycle_count': self.cycle_count,
                 'last_cycle': self.last_cycle.isoformat() if self.last_cycle else None,
                 'error_count': self.error_count,
+                'cache_size': 0,
                 'total_sites': 0,
                 'total_tasks': 0,
                 'pending_tasks': 0,
                 'total_errors': 0,
                 'total_healings': 0,
+                'total_memories': 0,
             }
     
     def get_heartbeat(self):
-        """የልብ ምት ሁኔታ ይመልሳል"""
         try:
             heartbeat = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
             if heartbeat:
@@ -924,28 +1235,32 @@ class AutonomousGrowthEngine:
 
 
 # ============================================================
-# 4. ሙሉ በሙሉ ራሱን የሚያስተዳድር ሉፕ (Autonomous Loop)
+# 4. ሙሉ በሙሉ ራሱን የሚያስተዳድር ሉፕ (Autonomous Loop) — የተሻሻለ
 # ============================================================
 
 class AutonomousLoop:
-    """
-    24/7 የሚሰራ ራስ-ገዝ ሉፕ
-    ይህ ክፍል ኤጀንቱ ፈጽሞ እንዳይተኛ ያደርጋል
-    """
+    """24/7 የሚሰራ ራስ-ገዝ ሉፕ — ከስማርት ጊዜ ገደብ ጋር"""
     
     def __init__(self):
         self.engine = AutonomousGrowthEngine()
         self.running = True
         self.interval = 60
+        self.max_runtime = 300  # 5 ደቂቃ ከፍተኛ ጊዜ
     
     def start(self):
-        """ራስ-ገዝ ሉፕ ይጀምራል"""
+        """ራስ-ገዝ ሉፕ ይጀምራል — ከጊዜ ገደብ ጋር"""
         logger.info("🚀 Starting Autonomous Loop - Will run forever")
+        start_time = time.time()
         
         while self.running:
             try:
+                # ከፍተኛ ጊዜ ሞክር
+                if time.time() - start_time > self.max_runtime:
+                    logger.info(f"⏰ Max runtime reached ({self.max_runtime}s). Restarting...")
+                    break
+                
                 logger.info(f"💓 Heartbeat at {timezone.now()}")
-                result = self.engine.run_cycle()
+                result = self.engine.run_cycle(max_cycles=2)  # 2 cycles per run
                 logger.info(f"✅ Cycle result: {result[:200] if result else 'No result'}")
                 
                 try:
@@ -979,54 +1294,65 @@ class AutonomousLoop:
 
 
 # ============================================================
-# 5. የራስ-ማስተማር ተግባር (Self-Education — ከክፍል ውጭ)
+# 5. የራስ-ማስተማር ተግባር (Self-Education) — የተሻሻለ
 # ============================================================
 
 def self_educate(site, analysis):
-    """
-    ምንም ስራ ከሌለ ራሱን ያስተምራል
-    ይህ ተግባር ከAutonomousGrowthEngine ክፍል ውጭ ነው
-    """
+    """ምንም ስራ ከሌለ ራሱን ያስተምራል — ከAI ጋር"""
     logger.info(f"📚 Starting Self-Education for {site.name if hasattr(site, 'name') else 'unknown'}")
     
     try:
-        # 1. የጎደሉ ባህሪያትን ይለያል
         if analysis and analysis.get('missing_features'):
             insight = f"Missing features: {', '.join(analysis['missing_features'][:3])}"
         else:
-            insight = "Codebase looks complete. Monitoring for new opportunities."
+            # ✅ AI ን ጠይቅ
+            prompt = f"""
+            Analyze site: {site.name if hasattr(site, 'name') else 'unknown'}
+            Niche: {site.niche if hasattr(site, 'niche') else 'general'}
+            Products: {analysis.get('product_count', 0) if analysis else 0}
+            Phase: {analysis.get('build_phase', 0) if analysis else 0}
+            
+            What should the next growth step be?
+            Return JSON: {{"insight": "string", "suggestion": "string", "priority": "High|Medium|Low"}}
+            """
+            
+            response = ask_ethafri_ceo(prompt, pool_type="analysis")
+            if response and isinstance(response, dict):
+                insight = response.get('insight', "Codebase looks complete. Monitoring for new opportunities.")
+                suggestion = response.get('suggestion', '')
+                priority = response.get('priority', 'Medium')
+                
+                # አዲስ ስራ ፍጠር
+                try:
+                    task, created = AIProjectBacklog.objects.get_or_create(
+                        site=site,
+                        task_name=suggestion or 'AI Suggested Growth Task',
+                        defaults={
+                            'task_type': 'growth',
+                            'target_file': 'ai_suggested',
+                            'priority': priority,
+                            'status': 'Pending',
+                            'description': insight,
+                            'business_impact_score': 8,
+                            'trigger_condition': 'Self-Education: AI suggestion'
+                        }
+                    )
+                    if created:
+                        logger.info(f"📋 Self-education task created: {task.task_name}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not create self-education task: {e}")
+            else:
+                insight = "Codebase looks complete. Monitoring for new opportunities."
         
-        # 2. ራስ-ማስተማር መዝግብ
         try:
             SelfHealingLog.objects.create(
                 error_message=f"Self-Learning: {site.name if hasattr(site, 'name') else 'unknown'}",
                 solution_sql=insight,
                 resolved=True
             )
-            logger.info(f"✅ Self-Education logged for {site.name if hasattr(site, 'name') else 'unknown'}")
+            logger.info(f"✅ Self-Education logged")
         except Exception as e:
             logger.warning(f"⚠️ Could not log self-education: {e}")
-        
-        # 3. አዲስ ስራ ለመፍጠር ሞክር
-        if not analysis or not analysis.get('missing_features'):
-            try:
-                task, created = AIProjectBacklog.objects.get_or_create(
-                    site=site,
-                    task_name='Optimize Performance',
-                    defaults={
-                        'task_type': 'seo',
-                        'target_file': 'performance',
-                        'priority': 'Medium',
-                        'status': 'Pending',
-                        'description': 'Optimize database queries and page load times',
-                        'business_impact_score': 7,
-                        'trigger_condition': 'Self-Learning: All features complete'
-                    }
-                )
-                if created:
-                    logger.info(f"📋 Self-learning task created: Optimize Performance")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not create self-learning task: {e}")
         
         return insight
         
@@ -1045,6 +1371,7 @@ def analyze_market(site):
         
         What features should be added next?
         What are the competitors doing?
+        Return JSON with 'features', 'competitors', 'opportunities'.
         """
         response = ask_ethafri_ceo(prompt, pool_type="analysis")
         return response
@@ -1054,7 +1381,7 @@ def analyze_market(site):
 
 
 # ============================================================
-# 6. ዋና መግቢያ ተግባራት (Main Entry Points)
+# 6. ዋና መግቢያ ተግባራት (Main Entry Points) — የተሻሻለ
 # ============================================================
 
 def run_autonomous_agent():
@@ -1066,7 +1393,13 @@ def run_autonomous_agent():
 def run_single_cycle():
     """አንድ የስራ ዑደት ብቻ ያካሂዳል (ለክሮን)"""
     engine = AutonomousGrowthEngine()
-    return engine.run_cycle()
+    return engine.run_cycle(max_cycles=1)
+
+
+def run_multiple_cycles(count=3):
+    """ብዙ ዑደቶችን ያካሂዳል"""
+    engine = AutonomousGrowthEngine()
+    return engine.run_cycle(max_cycles=count)
 
 
 def run_daily_market_analysis():
@@ -1090,6 +1423,13 @@ def get_agent_heartbeat():
     """የልብ ምት ሁኔታ ይመልሳል"""
     engine = AutonomousGrowthEngine()
     return engine.get_heartbeat()
+
+
+def clear_ai_cache():
+    """የAI ካሽ ያጸዳል"""
+    _ai_cache.clear()
+    logger.info("🧹 AI cache cleared")
+    return "AI cache cleared"
 
 
 # ============================================================
@@ -1133,7 +1473,7 @@ def discover_new_sites():
 
 
 # ============================================================
-# 8. የጣቢያ ኒች ትንተና (Niche Analysis)
+# 8. የጣቢያ ኒች ትንተና (Niche Analysis) — የተሻሻለ
 # ============================================================
 
 def analyze_site_niche(site):
@@ -1143,11 +1483,19 @@ def analyze_site_niche(site):
         if not project_code:
             return False
         
+        # የኮድ ማጠቃለያ
+        code_summary = {}
+        for key, content in project_code.items():
+            if isinstance(content, str) and len(content) > 500:
+                code_summary[key] = content[:500] + "..."
+            else:
+                code_summary[key] = content
+        
         prompt = f"""
         Analyze this website's code to determine its niche:
         Site: {site.name if hasattr(site, 'name') else 'unknown'}
         
-        Codebase: {json.dumps(project_code, indent=2)[:4000]}
+        Codebase Summary: {json.dumps(code_summary, indent=2)[:3000]}
         
         Return JSON:
         {{
@@ -1176,7 +1524,7 @@ def analyze_site_niche(site):
 
 
 # ============================================================
-# 9. የስራ ትንተና (Task Analysis)
+# 9. የስራ ትንተና (Task Analysis) — የተሻሻለ
 # ============================================================
 
 def analyze_pending_tasks(site=None):
@@ -1186,15 +1534,26 @@ def analyze_pending_tasks(site=None):
         if site:
             queryset = queryset.filter(site=site)
         
+        # ✅ የተሻሻለ ትንተና
+        priority_order = Case(
+            When(priority='Critical', then=Value(1)),
+            When(priority='High', then=Value(2)),
+            When(priority='Medium', then=Value(3)),
+            When(priority='Low', then=Value(4)),
+            default=Value(5),
+            output_field=IntegerField()
+        )
+        
         return {
             'total': queryset.count(),
             'by_priority': queryset.values('priority').annotate(count=Count('id')),
             'by_type': queryset.values('task_type').annotate(count=Count('id')),
             'critical': queryset.filter(priority='Critical').count(),
             'high': queryset.filter(priority='High').count(),
+            'total_impact': queryset.aggregate(total=Sum('business_impact_score'))['total'] or 0,
             'oldest': queryset.order_by('created_at').first(),
             'newest': queryset.order_by('-created_at').first(),
         }
     except Exception as e:
         logger.error(f"❌ Task analysis error: {e}")
-        return {'total': 0, 'by_priority': [], 'by_type': [], 'critical': 0, 'high': 0, 'oldest': None, 'newest': None}
+        return {'total': 0, 'by_priority': [], 'by_type': [], 'critical': 0, 'high': 0, 'total_impact': 0, 'oldest': None, 'newest': None}
