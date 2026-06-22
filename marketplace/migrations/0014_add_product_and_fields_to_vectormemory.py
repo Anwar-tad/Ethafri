@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/migrations/0014_add_product_and_fields_to_vectormemory.py
-# 📝 ለውጥ፦ VectorMemory ላይ አዲስ ሜዳዎች መጨመር (የተስተካከለ)
-# 📅 ቀን፦ 2026-06-21
+# 📝 ለውጥ፦ VectorMemory ላይ አዲስ ሜዳዎች — ከ0013 ጋር አያይዘው
+# 📅 ቀን፦ 2026-06-22
 # ============================================================
 
 from django.db import migrations, models
@@ -69,13 +69,7 @@ class Migration(migrations.Migration):
         ),
         
         # ============================================================
-        # 5. ⚠️ created_at እና updated_at አይጨመሩ — ቀድሞ አሉ!
-        # ============================================================
-        # migrations.AddField(... created_at ...)  ← አስወግድ
-        # migrations.AddField(... updated_at ...)  ← አስወግድ
-        
-        # ============================================================
-        # 6. VectorMemory ላይ ኢንዴክሶች መጨመር
+        # 5. VectorMemory ላይ ኢንዴክሶች መጨመር
         # ============================================================
         migrations.AddIndex(
             model_name='vectormemory',
@@ -87,7 +81,7 @@ class Migration(migrations.Migration):
         ),
         
         # ============================================================
-        # 7. AgentTask ላይ metadata መጨመር
+        # 6. AgentTask ላይ metadata መጨመር
         # ============================================================
         migrations.AddField(
             model_name='agenttask',

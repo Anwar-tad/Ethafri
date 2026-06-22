@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/migrations/0013_build_phase_and_trigger_rules.py
 # 📝 ለውጥ፦ Build Phase + Real Counters + Trigger Fields
-# 📅 ቀን፦ 2026-06-21
+# 📅 ቀን፦ 2026-06-22
 # ============================================================
 
 from django.db import migrations, models
@@ -59,4 +59,3 @@ class Migration(migrations.Migration):
             field=models.CharField(blank=True, help_text='ይህ ስራ የተፈጠረበት ትሪገር ሁኔታ', max_length=255),
         ),
     ]
-    

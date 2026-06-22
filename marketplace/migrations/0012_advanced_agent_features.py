@@ -1,6 +1,6 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/migrations/0002_advanced_agent_features.py
-# 📝 ለውጥ፦ Advanced Agent Features (VectorMemory, AgentTask, ABTest, SecurityLog, PredictionLog, ExternalAPI)
+# 📁 ፋይል፦ EthAfri/marketplace/migrations/0012_advanced_agent_features.py
+# 📝 ለውጥ፦ Advanced Agent Features — VectorMemory, AgentTask, ABTest, SecurityLog, PredictionLog, ExternalAPI
 # 📅 ቀን፦ 2026-06-22
 # ============================================================
 
@@ -11,12 +11,12 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0001_initial'),
+        ('marketplace', '0011_product_site_link'),
     ]
 
     operations = [
         # ============================================================
-        # 1. VectorMemory Model
+        # 1. VectorMemory ሞዴል
         # ============================================================
         migrations.CreateModel(
             name='VectorMemory',
@@ -29,38 +29,22 @@ class Migration(migrations.Migration):
                 ('usage_count', models.IntegerField(default=0, help_text='ምን ያህል ጊዜ ጥቅም ላይ ውሏል')),
                 ('success_rate', models.FloatField(default=0.0, help_text='ስኬታማነት መጠን 0-100')),
                 ('last_used', models.DateTimeField(blank=True, null=True)),
-                ('text_content', models.TextField(blank=True, help_text='The original text content that was vectorized.')),
-                ('vector_data', models.JSONField(default=dict, help_text='JSON representation of the vector embedding.')),
-                ('embedding_model', models.CharField(default='default-embedding-model', help_text='The name or identifier of the embedding model used to generate this vector.', max_length=100)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('product', models.ForeignKey(blank=True, help_text='The product this vector memory is associated with.', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='vector_memories', to='marketplace.product')),
-                ('related_task', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='memory_entries', to='marketplace.aiprojectbacklog')),
                 ('site', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='memory_entries', to='marketplace.siteregistry')),
+                ('related_task', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='memory_entries', to='marketplace.aiprojectbacklog')),
             ],
             options={
                 'ordering': ['-success_rate', '-usage_count'],
+                'indexes': [
+                    models.Index(fields=['memory_type', 'site'], name='marketplace_memory_ab2c6c_idx'),
+                    models.Index(fields=['-created_at'], name='marketplace_memory_20162d_idx'),
+                ],
             },
         ),
-        migrations.AddIndex(
-            model_name='vectormemory',
-            index=models.Index(fields=['memory_type', 'site'], name='marketplace_memory_78b3bd_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='vectormemory',
-            index=models.Index(fields=['-created_at'], name='marketplace_created_4e9187_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='vectormemory',
-            index=models.Index(fields=['product'], name='marketplace_product_771a46_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='vectormemory',
-            index=models.Index(fields=['embedding_model'], name='marketplace_embeddi_3bb1ff_idx'),
-        ),
-        
+
         # ============================================================
-        # 2. AgentTask Model
+        # 2. AgentTask ሞዴል
         # ============================================================
         migrations.CreateModel(
             name='AgentTask',
@@ -73,7 +57,6 @@ class Migration(migrations.Migration):
                 ('priority', models.IntegerField(default=1, help_text='1-10 (10 ከፍተኛ)')),
                 ('result_data', models.JSONField(blank=True, default=dict)),
                 ('error_message', models.TextField(blank=True)),
-                ('metadata', models.JSONField(blank=True, default=dict, help_text='Additional task metadata')),
                 ('started_at', models.DateTimeField(blank=True, null=True)),
                 ('completed_at', models.DateTimeField(blank=True, null=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
@@ -84,19 +67,15 @@ class Migration(migrations.Migration):
             ],
             options={
                 'ordering': ['-priority', 'created_at'],
+                'indexes': [
+                    models.Index(fields=['agent_type', 'status'], name='marketplace_agentty_847321_idx'),
+                    models.Index(fields=['site', 'status'], name='marketplace_site_id_6bde06_idx'),
+                ],
             },
         ),
-        migrations.AddIndex(
-            model_name='agenttask',
-            index=models.Index(fields=['agent_type', 'status'], name='marketplace_agent_1cfc13_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='agenttask',
-            index=models.Index(fields=['site', 'status'], name='marketplace_site_id_97bae9_idx'),
-        ),
-        
+
         # ============================================================
-        # 3. ABTest Model
+        # 3. ABTest ሞዴል
         # ============================================================
         migrations.CreateModel(
             name='ABTest',
@@ -122,9 +101,9 @@ class Migration(migrations.Migration):
                 'ordering': ['-created_at'],
             },
         ),
-        
+
         # ============================================================
-        # 4. SecurityLog Model
+        # 4. SecurityLog ሞዴል
         # ============================================================
         migrations.CreateModel(
             name='SecurityLog',
@@ -144,19 +123,15 @@ class Migration(migrations.Migration):
             ],
             options={
                 'ordering': ['-severity', '-created_at'],
+                'indexes': [
+                    models.Index(fields=['category', 'severity'], name='marketplace_security_128a46_idx'),
+                    models.Index(fields=['is_fixed'], name='marketplace_security_840055_idx'),
+                ],
             },
         ),
-        migrations.AddIndex(
-            model_name='securitylog',
-            index=models.Index(fields=['category', 'severity'], name='marketplace_categor_ffd254_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='securitylog',
-            index=models.Index(fields=['is_fixed'], name='marketplace_is_fixe_603c08_idx'),
-        ),
-        
+
         # ============================================================
-        # 5. PredictionLog Model
+        # 5. PredictionLog ሞዴል
         # ============================================================
         migrations.CreateModel(
             name='PredictionLog',
@@ -174,19 +149,15 @@ class Migration(migrations.Migration):
             ],
             options={
                 'ordering': ['-predicted_at'],
+                'indexes': [
+                    models.Index(fields=['prediction_type', 'site'], name='marketplace_predicti_9ce3e9_idx'),
+                    models.Index(fields=['-predicted_at'], name='marketplace_predicti_1a7d5d_idx'),
+                ],
             },
         ),
-        migrations.AddIndex(
-            model_name='predictionlog',
-            index=models.Index(fields=['prediction_type', 'site'], name='marketplace_predict_17d121_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='predictionlog',
-            index=models.Index(fields=['-predicted_at'], name='marketplace_predict_5bd771_idx'),
-        ),
-        
+
         # ============================================================
-        # 6. ExternalAPI Model
+        # 6. ExternalAPI ሞዴል
         # ============================================================
         migrations.CreateModel(
             name='ExternalAPI',
@@ -210,68 +181,5 @@ class Migration(migrations.Migration):
                 'ordering': ['-created_at'],
                 'unique_together': {('api_type', 'site')},
             },
-        ),
-        
-        # ============================================================
-        # 7. UserSearch Model
-        # ============================================================
-        migrations.CreateModel(
-            name='UserSearch',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('query', models.CharField(max_length=255)),
-                ('results_count', models.IntegerField(default=0)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-            ],
-        ),
-        
-        # ============================================================
-        # 8. MarketTrend Model
-        # ============================================================
-        migrations.CreateModel(
-            name='MarketTrend',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('niche_name', models.CharField(max_length=100)),
-                ('demand_level', models.IntegerField(default=50)),
-                ('ai_suggestion', models.TextField()),
-                ('last_updated', models.DateTimeField(auto_now=True)),
-            ],
-        ),
-        
-        # ============================================================
-        # 9. TranslationQueue Model
-        # ============================================================
-        migrations.CreateModel(
-            name='TranslationQueue',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('target_languages', models.JSONField(default=list)),
-                ('is_processed', models.BooleanField(default=False)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('product', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='pending_translations', to='marketplace.product')),
-            ],
-        ),
-        
-        # ============================================================
-        # 10. SellerProfile Model
-        # ============================================================
-        migrations.CreateModel(
-            name='SellerProfile',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('business_name', models.CharField(blank=True, max_length=255)),
-                ('phone_number', models.CharField(blank=True, max_length=20)),
-                ('address', models.TextField(blank=True)),
-                ('website', models.URLField(blank=True)),
-                ('total_products', models.IntegerField(default=0)),
-                ('total_sales', models.IntegerField(default=0)),
-                ('total_revenue', models.DecimalField(decimal_places=2, default=0, max_digits=20)),
-                ('rating', models.FloatField(default=0.0, help_text='0-5 ውጤት')),
-                ('last_active', models.DateTimeField(auto_now=True)),
-                ('joined_at', models.DateTimeField(auto_now_add=True)),
-                ('site', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='seller_profiles', to='marketplace.siteregistry')),
-                ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='seller_profile', to='auth.user')),
-            ],
         ),
     ]

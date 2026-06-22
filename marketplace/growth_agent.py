@@ -19,6 +19,8 @@ from django.db.models import Q, Count, Avg
 from django.conf import settings
 from django.contrib.auth.models import User
 
+logger = logging.getLogger(__name__)
+
 # ============================================================
 # 📦 ሞዴል ኢምፖርቶች — ሁሉም ደህንነታቸው ተጠብቋል
 # ============================================================
@@ -30,7 +32,6 @@ try:
         SecurityLog, PredictionLog, ExternalAPI, AdminOverrideInstruction
     )
 except ImportError as e:
-    logger = logging.getLogger(__name__)
     logger.warning(f"⚠️ Some models not found: {e}")
     # ሞዴሎች ካልተገኙ ባዶ ክፍሎችን ይፍጠሩ
     class SiteRegistry: pass
@@ -45,8 +46,6 @@ except ImportError as e:
     class AgentTask: pass
     class SecurityLog: pass
     class PredictionLog: pass
-
-logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -682,8 +681,8 @@ class AutonomousGrowthEngine:
     
     def _apply_code(self, code, site, task):
         """ኮዱን ወደ ፋይል ይጽፋል"""
-        # ይህ የሚወሰነው በስራው ዓይነት ላይ ነው
         logger.info(f"📝 Applying code for {task.task_name}")
+        # TODO: ፋይል ላይ መጻፍ ያስፈልጋል
         pass
     
     # ============================================================
@@ -772,25 +771,18 @@ class AutonomousGrowthEngine:
     def _self_heal(self):
         """ራስ-ጥገና ያካሂዳል"""
         try:
-            # 1. ያልተፈቱ ስህተቶችን አጽዳ
             AgentErrorLog.objects.filter(resolved=False).update(resolved=True)
-            
-            # 2. የተጨናነቁ ስራዎችን አጽዳ
             AIProjectBacklog.objects.filter(status='Running').update(status='Pending')
-            
-            # 3. ሎግ መዝግብ
             SelfHealingLog.objects.create(
                 error_message="Self-Healing: Reset all errors and stuck tasks",
                 resolved=True
             )
-            
             return "Reset errors and stuck tasks"
-            
         except Exception as e:
             return f"Self-heal failed: {str(e)[:50]}"
     
     def _emergency_self_heal(self):
-        """ድንገተኛ ራስ-ጥገና — ስርዓቱ ሲበላሽ"""
+        """ድንገተኛ ራስ-ጥገና"""
         try:
             SiteConfig.objects.update_or_create(
                 key='EVOLUTION_LOCK',
@@ -812,7 +804,6 @@ class AutonomousGrowthEngine:
         results = []
         
         try:
-            # 1. ያረጁ ስራዎችን አጽዳ
             old_tasks = AIProjectBacklog.objects.filter(
                 status='Pending',
                 created_at__lt=timezone.now() - timedelta(days=7)
@@ -822,7 +813,6 @@ class AutonomousGrowthEngine:
                 old_tasks.delete()
                 results.append(f"Cleaned {count} old tasks")
             
-            # 2. ተደጋጋሚ ስህተቶችን አጽዳ
             duplicates = AgentErrorLog.objects.filter(
                 resolved=False
             ).values('error_message').annotate(count=Count('id')).filter(count__gt=3)
@@ -838,7 +828,6 @@ class AutonomousGrowthEngine:
                 ).delete()
                 results.append("Deduplicated errors")
             
-            # 3. የራስ-ጥገና ስታቲስቲክስ
             healing_stats = SelfHealingLog.objects.aggregate(
                 total=Count('id'),
                 resolved=Count('id', filter=Q(resolved=True))
@@ -874,8 +863,6 @@ class AutonomousGrowthEngine:
             
             if created:
                 logger.info("🏗️ Created default primary site")
-                
-                # የመጀመሪያ ስራ ፍጠር
                 AIProjectBacklog.objects.create(
                     site=site,
                     task_name='Initialize EthAfri',
@@ -926,7 +913,7 @@ class AutonomousGrowthEngine:
             }
     
     def get_heartbeat(self):
-        """የልብ ምት ሁኔታ ይመልሳል (ለሞኒተሪንግ)"""
+        """የልብ ምት ሁኔታ ይመልሳል"""
         try:
             heartbeat = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
             if heartbeat:
@@ -949,7 +936,7 @@ class AutonomousLoop:
     def __init__(self):
         self.engine = AutonomousGrowthEngine()
         self.running = True
-        self.interval = 60  # በደቂቃ አንድ ጊዜ (1 ደቂቃ)
+        self.interval = 60
     
     def start(self):
         """ራስ-ገዝ ሉፕ ይጀምራል"""
@@ -957,14 +944,10 @@ class AutonomousLoop:
         
         while self.running:
             try:
-                # 1. የልብ ምት ማሳወቂያ
                 logger.info(f"💓 Heartbeat at {timezone.now()}")
-                
-                # 2. አንድ የስራ ዑደት አስኬድ
                 result = self.engine.run_cycle()
                 logger.info(f"✅ Cycle result: {result[:200] if result else 'No result'}")
                 
-                # 3. ስርዓቱ በህይወት እንዳለ መዝግብ
                 try:
                     SiteConfig.objects.update_or_create(
                         key='AUTONOMOUS_LOOP_HEARTBEAT',
@@ -978,13 +961,11 @@ class AutonomousLoop:
                 except Exception:
                     pass
                 
-                # 4. ከስህተቶች መከላከል
                 if self.engine.error_count > self.engine.max_errors:
                     logger.warning(f"⚠️ Too many errors ({self.engine.error_count}). Restarting...")
                     self.engine._emergency_self_heal()
                     self.engine.error_count = 0
                 
-                # 5. በየደቂቃው ይጠብቅ
                 time.sleep(self.interval)
                 
             except KeyboardInterrupt:
@@ -994,11 +975,86 @@ class AutonomousLoop:
                 
             except Exception as e:
                 logger.error(f"❌ Loop error: {e}")
-                time.sleep(60)  # ስህተት ከሆነ 1 ደቂቃ ይጠብቅ
+                time.sleep(60)
 
 
 # ============================================================
-# 5. ዋና መግቢያ ተግባራት (Main Entry Points)
+# 5. የራስ-ማስተማር ተግባር (Self-Education — ከክፍል ውጭ)
+# ============================================================
+
+def self_educate(site, analysis):
+    """
+    ምንም ስራ ከሌለ ራሱን ያስተምራል
+    ይህ ተግባር ከAutonomousGrowthEngine ክፍል ውጭ ነው
+    """
+    logger.info(f"📚 Starting Self-Education for {site.name if hasattr(site, 'name') else 'unknown'}")
+    
+    try:
+        # 1. የጎደሉ ባህሪያትን ይለያል
+        if analysis and analysis.get('missing_features'):
+            insight = f"Missing features: {', '.join(analysis['missing_features'][:3])}"
+        else:
+            insight = "Codebase looks complete. Monitoring for new opportunities."
+        
+        # 2. ራስ-ማስተማር መዝግብ
+        try:
+            SelfHealingLog.objects.create(
+                error_message=f"Self-Learning: {site.name if hasattr(site, 'name') else 'unknown'}",
+                solution_sql=insight,
+                resolved=True
+            )
+            logger.info(f"✅ Self-Education logged for {site.name if hasattr(site, 'name') else 'unknown'}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not log self-education: {e}")
+        
+        # 3. አዲስ ስራ ለመፍጠር ሞክር
+        if not analysis or not analysis.get('missing_features'):
+            try:
+                task, created = AIProjectBacklog.objects.get_or_create(
+                    site=site,
+                    task_name='Optimize Performance',
+                    defaults={
+                        'task_type': 'seo',
+                        'target_file': 'performance',
+                        'priority': 'Medium',
+                        'status': 'Pending',
+                        'description': 'Optimize database queries and page load times',
+                        'business_impact_score': 7,
+                        'trigger_condition': 'Self-Learning: All features complete'
+                    }
+                )
+                if created:
+                    logger.info(f"📋 Self-learning task created: Optimize Performance")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not create self-learning task: {e}")
+        
+        return insight
+        
+    except Exception as e:
+        logger.error(f"❌ Self-Education error: {e}")
+        return f"Self-Education error: {str(e)[:50]}"
+
+
+def analyze_market(site):
+    """የገበያ ትንተና ያካሂዳል"""
+    try:
+        prompt = f"""
+        Analyze the market for site: {site.name if hasattr(site, 'name') else 'unknown'}
+        Niche: {site.niche if hasattr(site, 'niche') else 'general'}
+        Target Market: {site.target_market if hasattr(site, 'target_market') else 'Global'}
+        
+        What features should be added next?
+        What are the competitors doing?
+        """
+        response = ask_ethafri_ceo(prompt, pool_type="analysis")
+        return response
+    except Exception as e:
+        logger.error(f"Market analysis error: {e}")
+        return {}
+
+
+# ============================================================
+# 6. ዋና መግቢያ ተግባራት (Main Entry Points)
 # ============================================================
 
 def run_autonomous_agent():
@@ -1037,7 +1093,7 @@ def get_agent_heartbeat():
 
 
 # ============================================================
-# 6. የአዲስ ጣቢያ ግኝት (Site Discovery)
+# 7. የአዲስ ጣቢያ ግኝት (Site Discovery)
 # ============================================================
 
 def discover_new_sites():
@@ -1077,7 +1133,7 @@ def discover_new_sites():
 
 
 # ============================================================
-# 7. የጣቢያ ኒች ትንተና (Niche Analysis)
+# 8. የጣቢያ ኒች ትንተና (Niche Analysis)
 # ============================================================
 
 def analyze_site_niche(site):
@@ -1120,7 +1176,7 @@ def analyze_site_niche(site):
 
 
 # ============================================================
-# 8. የስራ ትንተና (Task Analysis)
+# 9. የስራ ትንተና (Task Analysis)
 # ============================================================
 
 def analyze_pending_tasks(site=None):
@@ -1142,48 +1198,3 @@ def analyze_pending_tasks(site=None):
     except Exception as e:
         logger.error(f"❌ Task analysis error: {e}")
         return {'total': 0, 'by_priority': [], 'by_type': [], 'critical': 0, 'high': 0, 'oldest': None, 'newest': None}
-        
-# growth_agent.py ውስጥ ያለውን self_educate ተግባር አስተካክል
-
-def self_educate(site: SiteRegistry, analysis: dict):
-    """ምንም ስራ ከሌለ ራሱን ያስተምራል"""
-    logger.info(f"📚 Self-learning for {site.name}")
-    
-    try:
-        from .models import SelfHealingLog  # ✅ በትክክል አስመጣ
-        
-        # 1. የገበያ ትንተና
-        market_analysis = analyze_market(site)
-        
-        # 2. የጎደሉ ባህሪያትን ይለያል
-        if analysis['missing_features']:
-            insight = f"Missing features: {', '.join(analysis['missing_features'][:3])}"
-        else:
-            insight = "Codebase looks complete. Monitoring for new opportunities."
-        
-        # 3. ራስ-ማስተማር መዝግብ
-        SelfHealingLog.objects.create(
-            error_message=f"Self-Learning: {site.name}",
-            solution_sql=insight,
-            resolved=True
-        )
-        
-        # 4. አዲስ ስራ ለመፍጠር ሞክር
-        if not analysis['missing_features']:
-            AIProjectBacklog.objects.create(
-                site=site,
-                task_name='Optimize Performance',
-                task_type='seo',
-                target_file='performance',
-                priority='Medium',
-                status='Pending',
-                description='Optimize database queries and page load times',
-                business_impact_score=7,
-                trigger_condition='Self-Learning: All features complete'
-            )
-            logger.info(f"📋 Self-learning task: Optimize Performance")
-            
-    except ImportError as e:
-        logger.error(f"❌ Could not import SelfHealingLog: {e}")
-    except Exception as e:
-        logger.error(f"❌ Self-education error for {site.name}: {e}")
