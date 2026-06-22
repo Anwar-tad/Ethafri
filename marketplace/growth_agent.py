@@ -616,8 +616,32 @@ class AutonomousGrowthEngine:
     # 3.4 ተለዋዋጭ ስራ ማመንጨት (Dynamic Task Generation)
     # ============================================================
     
+    def _get_or_create_task_safe(self, site, task_name, defaults):
+        """
+        የተደጋገሙ ስራዎች ቢኖሩ እንኳ MultipleObjectsReturned ሳይጥል 
+        የመጀመሪያውን አስቀርቶ የተደጋገሙትን በራሱ የሚያጠፋ (Deduplicate) የራስ-ጥገና ተግባር
+        """
+        matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
+        
+        if matching.exists():
+            task = matching.first()
+            if matching.count() > 1:
+                deleted_count, _ = matching.exclude(id=task.id).delete()
+                logger.info(f"🧹 Self-Healing DB: Cleaned {deleted_count} duplicate tasks for '{task_name}' on {site.name}")
+            return task, False
+        
+        try:
+            task = AIProjectBacklog.objects.create(site=site, task_name=task_name, **defaults)
+            return task, True
+        except Exception as e:
+            logger.error(f"Error creating safe backlog task: {e}")
+            matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name)
+            if matching.exists():
+                return matching.first(), False
+            raise e
+
     def _generate_dynamic_tasks(self, site, analysis):
-        """በትንተና ላይ ተመስርቶ አዲስ ስራዎችን ይፈጥራል"""
+        """በትንተና ላይ ተመስርቶ አዲስ ስራዎችን ይፈጥራል — ከደህንነቱ የተጠበቀ የራስ-ጥገና ጋር"""
         created = []
         
         try:
@@ -647,7 +671,8 @@ class AutonomousGrowthEngine:
                     priority = priority_map.get(feature, 'Medium')
                     impact = self._calculate_impact(feature)
                     
-                    task, is_new = AIProjectBacklog.objects.get_or_create(
+                    # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
+                    task, is_new = self._get_or_create_task_safe(
                         site=site,
                         task_name=task_name,
                         defaults={
@@ -664,14 +689,15 @@ class AutonomousGrowthEngine:
                         created.append(task)
                         logger.info(f"📋 Dynamic task: {task_name} for {site.name}")
                     else:
-                        logger.info(f"⏭️ Task already exists: {task_name}")
+                        logger.info(f"⏭️ Task already exists (or duplicates cleaned): {task_name}")
             
             if analysis.get('error_count', 0) > 0:
                 error_count = analysis['error_count']
                 error_types = analysis.get('error_types', [])
                 error_desc = ", ".join([f"{e['error_type']}: {e['count']}" for e in error_types[:3]])
                 
-                error_task, is_new = AIProjectBacklog.objects.get_or_create(
+                # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
+                error_task, is_new = self._get_or_create_task_safe(
                     site=site,
                     task_name=f"Fix {error_count} errors",
                     defaults={
@@ -689,7 +715,8 @@ class AutonomousGrowthEngine:
                     logger.info(f"📋 Error fix task: {error_task.task_name}")
             
             if not created and not existing:
-                learn_task, is_new = AIProjectBacklog.objects.get_or_create(
+                # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
+                learn_task, is_new = self._get_or_create_task_safe(
                     site=site,
                     task_name='Self-Learning: Analyze & Plan',
                     defaults={
@@ -1138,16 +1165,19 @@ class AutonomousGrowthEngine:
             
             if created:
                 logger.info("🏗️ Created default primary site")
-                AIProjectBacklog.objects.create(
+                # ✅ ማሻሻያ፦ _get_or_create_task_safeን በመጠቀም የተባዛ ስራ መከላከል
+                self._get_or_create_task_safe(
                     site=site,
                     task_name='Initialize EthAfri',
-                    task_type='growth',
-                    target_file='init',
-                    priority='Critical',
-                    status='Pending',
-                    description='Initial setup and configuration',
-                    business_impact_score=10,
-                    trigger_condition='System bootstrap'
+                    defaults={
+                        'task_type': 'growth',
+                        'target_file': 'init',
+                        'priority': 'Critical',
+                        'status': 'Pending',
+                        'description': 'Initial setup and configuration',
+                        'business_impact_score': 10,
+                        'trigger_condition': 'System bootstrap'
+                    }
                 )
             
             return site
@@ -1164,41 +1194,7 @@ class AutonomousGrowthEngine:
         """የስርዓቱን ሁኔታ ይመልሳል"""
         try:
             return {
-                'is_running': self.is_running,
-                'cycle_count': self.cycle_count,
-                'last_cycle': self.last_cycle.isoformat() if self.last_cycle else None,
-                'error_count': self.error_count,
-                'cache_size': len(self.cache.cache),
-                'total_sites': SiteRegistry.objects.filter(is_active=True).count(),
-                'total_tasks': AIProjectBacklog.objects.count(),
-                'pending_tasks': AIProjectBacklog.objects.filter(status='Pending').count(),
-                'total_errors': AgentErrorLog.objects.filter(resolved=False).count(),
-                'total_healings': SelfHealingLog.objects.count(),
-                'total_memories': VectorMemory.objects.count(),
-            }
-        except Exception:
-            return {
-                'is_running': self.is_running,
-                'cycle_count': self.cycle_count,
-                'last_cycle': self.last_cycle.isoformat() if self.last_cycle else None,
-                'error_count': self.error_count,
-                'cache_size': 0,
-                'total_sites': 0,
-                'total_tasks': 0,
-                'pending_tasks': 0,
-                'total_errors': 0,
-                'total_healings': 0,
-                'total_memories': 0,
-            }
-    
-    def get_heartbeat(self):
-        try:
-            heartbeat = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
-            if heartbeat:
-                return heartbeat.value
-        except:
-            pass
-        return {'status': 'unknown', 'timestamp': None}
+                'is_
 
 
 # ============================================================

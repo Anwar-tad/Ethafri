@@ -131,12 +131,12 @@ class TriggerEngine:
     def _analyze_site(self):
         """የጣቢያውን ሁኔታ በጥልቀት ይተነትናል — የተሻሻሉ የዳታቤዝ ጥያቄዎች"""
         
-        # ✅ ማሻሻያ 1፦ የተደጋገሙ Count/Exist ጥያቄዎችን በአንድ ላይ ማጠቃለል (DB loadን በ 50% ይቀንሳል)
+        # ✅ የተደጋገሙ Count/Exist ጥያቄዎችን በአንድ ላይ ማጠቃለል (DB ጫናን ይቀንሳል)
         product_count = Product.objects.filter(site=self.site, is_active=True).count()
         customer_count = User.objects.filter(product__site=self.site).distinct().count()
         category_count = Category.objects.filter(product__site=self.site).distinct().count()
         
-        # ✅ ማሻሻያ 2፦ 5 የተለያዩ የኤቮሉሽን ሎግ ጥያቄዎችን በአንድ ጥያቄ መተካት (5x ፈጣን ያደርገዋል)
+        # ✅ 5 የተለያዩ የኤቮሉሽን ሎግ ጥያቄዎችን በአንድ ጥያቄ መተካት (የበለጠ ፍጥነት ይሰጣል)
         evolutions = AIEvolutionLog.objects.filter(site=self.site)
         total_changes = evolutions.count()
         existing_targets = set(evolutions.values_list('target_file', flat=True))
@@ -415,11 +415,36 @@ class TriggerEngine:
             status__in=['Pending', 'Running', 'Completed']
         ).exists()
     
+    def _get_or_create_task_safe(self, site, task_name, defaults):
+        """
+        የተደጋገሙ ስራዎች ቢኖሩ እንኳ MultipleObjectsReturned ሳይጥል 
+        የመጀመሪያውን አስቀርቶ የተደጋገሙትን በራሱ የሚያጠፋ (Deduplicate) የራስ-ጥገና ተግባር
+        """
+        matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
+        
+        if matching.exists():
+            task = matching.first()
+            if matching.count() > 1:
+                deleted_count, _ = matching.exclude(id=task.id).delete()
+                logger.info(f"🧹 Self-Healing DB: Cleaned {deleted_count} duplicate tasks for '{task_name}' on {site.name}")
+            return task, False
+        
+        try:
+            task = AIProjectBacklog.objects.create(site=site, task_name=task_name, **defaults)
+            return task, True
+        except Exception as e:
+            logger.error(f"Error creating safe backlog task: {e}")
+            matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name)
+            if matching.exists():
+                return matching.first(), False
+            raise e
+
     def _create_task_from_feature(self, feature):
         priority = 'Critical' if 'error' in feature.lower() else 'High'
         impact = 9 if 'error' in feature.lower() else 8
         
-        task, created = AIProjectBacklog.objects.get_or_create(
+        # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
+        task, created = self._get_or_create_task_safe(
             site=self.site,
             task_name=f'Build: {feature}',
             defaults={
@@ -435,14 +460,12 @@ class TriggerEngine:
         return task if created else None
     
     def _create_error_fix_task(self):
-        """
-        የስህተት ጥገና ስራ ይፈጥራል — ከስማርት የተደጋገሙ ስራዎች መከላከያ ጋር
-        """
+        """የስህተት ጥገና ስራ ይፈጥራል — ከስማርት የተደጋገሙ ስራዎች መከላከያ ጋር"""
         errors = AgentErrorLog.objects.filter(site=self.site, resolved=False)
         if not errors.exists():
             return None
         
-        # ✅ ማሻሻያ 3፦ ከአንድ በላይ የስህተት ማስተካከያ ስራዎች (Pending/Running) እንዳይፈጠሩ መከላከል (DB Task Bloat ያስቀራል)
+        # ✅ ከአንድ በላይ የስህተት ማስተካከያ ስራዎች (Pending/Running) እንዳይፈጠሩ መከላከል
         active_fix_exists = AIProjectBacklog.objects.filter(
             site=self.site,
             target_file='error_fix',
@@ -454,7 +477,9 @@ class TriggerEngine:
             return None
             
         error_msg = errors.first().error_message[:50]
-        task, created = AIProjectBacklog.objects.get_or_create(
+        
+        # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
+        task, created = self._get_or_create_task_safe(
             site=self.site,
             task_name=f'Fix: {error_msg}',
             defaults={
@@ -470,7 +495,8 @@ class TriggerEngine:
         return task if created else None
     
     def _create_data_seeding_task(self):
-        task, created = AIProjectBacklog.objects.get_or_create(
+        # ✅ get_or_create በ _get_or_create_task_safe ተተክቷል
+        task, created = self._get_or_create_task_safe(
             site=self.site,
             task_name='Seed Real Data',
             defaults={
