@@ -657,53 +657,91 @@ class AutonomousGrowthEngine:
     # ============================================================
     
     def _generate_dynamic_tasks(self, site, analysis):
-    """በትንተና ላይ ተመስርቶ አዲስ ስራዎችን ይፈጥራል"""
-    created = []
-    
-    try:
-        # ✅ ነባር ስራዎችን በስም ፈልግ
-        existing_names = set(
-            AIProjectBacklog.objects.filter(site=site)
-            .values_list('task_name', flat=True)
-        )
+        """በትንተና ላይ ተመስርቶ አዲስ ስራዎችን ይፈጥራል"""
+        created = []
         
-        for feature in analysis.get('missing_features', []):
-            task_name = f"Build: {feature}"
-            
-            # ቀድሞ ካለ አትፍጠር
-            if task_name in existing_names:
-                logger.info(f"⏭️ Task already exists: {task_name}")
-                continue
-            
-            priority = self._calculate_priority(feature, analysis.get('build_phase', 0))
-            impact = self._calculate_impact(feature)
-            
-            # ✅ get_or_create ተጠቀም (ተመሳሳይ ስራ እንዳይፈጠር)
-            task, created = AIProjectBacklog.objects.get_or_create(
+        try:
+            existing = AIProjectBacklog.objects.filter(
                 site=site,
-                task_name=task_name,
-                defaults={
-                    'task_type': 'code',
-                    'target_file': feature.lower().replace(' ', '_'),
-                    'priority': priority,
-                    'status': 'Pending',
-                    'description': f"Implement {feature} for {site.name}",
-                    'business_impact_score': impact,
-                    'trigger_condition': f"Dynamic: Missing {feature}"
-                }
-            )
+                status__in=['Pending', 'Running']
+            ).values_list('task_name', flat=True)
             
-            if created:
-                created.append(task)
-                logger.info(f"📋 Dynamic task: {task_name} for {site.name}")
-            else:
-                logger.info(f"⏭️ Task already exists (get_or_create): {task_name}")
-                existing_names.add(task_name)
+            # ✅ የተሻሻለ priority mapping
+            priority_map = {
+                'Models': 'Critical',
+                'Views': 'Critical',
+                'Admin': 'Critical',
+                'URLs': 'High',
+                'Templates': 'High',
+                'Products': 'High',
+                'Seed Data': 'Critical',
+                'More Products': 'High',
+                'Engagement Features': 'High',
+                'Monetization': 'High',
+                'SEO & Growth': 'Medium',
+            }
+            
+            for feature in analysis.get('missing_features', []):
+                task_name = f"Build: {feature}"
                 
-    except Exception as e:
-        logger.error(f"❌ Error generating tasks: {e}")
-    
-    return created
+                if task_name not in existing:
+                    priority = priority_map.get(feature, 'Medium')
+                    impact = self._calculate_impact(feature)
+                    
+                    task = AIProjectBacklog.objects.create(
+                        site=site,
+                        task_name=task_name,
+                        task_type='code',
+                        target_file=feature.lower().replace(' ', '_'),
+                        priority=priority,
+                        status='Pending',
+                        description=f"Implement {feature} for {site.name}",
+                        business_impact_score=impact,
+                        trigger_condition=f"Dynamic: Missing {feature}"
+                    )
+                    created.append(task)
+                    logger.info(f"📋 Dynamic task: {task_name} for {site.name}")
+            
+            # ✅ የስህተት መፍቻ ስራ
+            if analysis.get('error_count', 0) > 0:
+                error_count = analysis['error_count']
+                error_types = analysis.get('error_types', [])
+                error_desc = ", ".join([f"{e['error_type']}: {e['count']}" for e in error_types[:3]])
+                
+                error_task = AIProjectBacklog.objects.create(
+                    site=site,
+                    task_name=f"Fix {error_count} errors",
+                    task_type='code',
+                    target_file='error_fix',
+                    priority='Critical',
+                    status='Pending',
+                    description=f"Fix {error_count} unresolved errors ({error_desc})",
+                    business_impact_score=10,
+                    trigger_condition=f"Dynamic: {error_count} errors"
+                )
+                created.append(error_task)
+                logger.info(f"📋 Error fix task: {error_task.task_name}")
+            
+            # ✅ Self-Learning task
+            if not created and not existing:
+                learn_task = AIProjectBacklog.objects.create(
+                    site=site,
+                    task_name='Self-Learning: Analyze & Plan',
+                    task_type='growth',
+                    target_file='self_learning',
+                    priority='Medium',
+                    status='Pending',
+                    description=f"Analyze {site.name} and plan next steps",
+                    business_impact_score=6,
+                    trigger_condition="Dynamic: Self-Learning"
+                )
+                created.append(learn_task)
+                logger.info(f"📋 Self-learning task: {learn_task.task_name}")
+                
+        except Exception as e:
+            logger.error(f"❌ Error generating tasks: {e}")
+        
+        return created
     
     def _calculate_priority(self, feature, phase):
         critical_features = ['Seed Data', 'Products', 'Models', 'Views', 'Admin']
