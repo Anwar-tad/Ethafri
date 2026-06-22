@@ -296,7 +296,6 @@ def post_product(request):
 def post_success(request):
     return render(request, 'marketplace/post_success.html')
 
-
 # ============================================================
 # ⚙️ 6. ራስ-ሰር የዕድገት መቀስቀሻ (ዳራ ክሮች የታከሉበት - Non-Blocking)
 # ============================================================
@@ -329,7 +328,6 @@ def trigger_evolution(request):
             connections.close_all()
 
     try:
-        # ✅ በዳራ ክር ስራዎችን ማስጀመር (ዌብሳይቱን 100x ፈጣን ያደርገዋል)
         thread = threading.Thread(target=run_bg_evolution)
         thread.daemon = True
         thread.start()
@@ -338,8 +336,9 @@ def trigger_evolution(request):
     except Exception as e:
         messages.error(request, f"ዑደቱን ከበስተጀርባ ለማስጀመር አልተቻለም፦ {e}")
         
-    return redirect("agent_dashboard")
-
+    # ❌ የነበረው፦ return redirect("agent_dashboard")
+    # ✅ የተስተካከለው፦
+    return redirect("growth_dashboard")
 
 # ============================================================
 # 🆕 6.1 የኤጀንት ሁኔታ ዳሽቦርድ
