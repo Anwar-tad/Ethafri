@@ -1,7 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/models.py
-# 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — All Models Complete (Merged)
-# 📅 ቀን፦ 2026-06-22
+# 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — All Models Complete with blank=True JSONFields
+# ✅ የተፈቱ ችግሮች፦ Django Admin "This field is required" JSONField Validation Error
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 from django.db import models
@@ -63,7 +64,7 @@ class Product(models.Model):
     inquiry_count = models.IntegerField(default=0, help_text="የጥያቄ ብዛት")
     last_enhanced = models.DateTimeField(null=True, blank=True)
     
-    # ✅ Multi-Site Support — ይህ ሜዳ ነባር ነው
+    # Multi-Site Support
     site = models.ForeignKey(
         'SiteRegistry',
         on_delete=models.CASCADE,
@@ -200,13 +201,11 @@ class AIProjectBacklog(models.Model):
     description = models.TextField(blank=True, default='')
     task_hash = models.CharField(max_length=64, unique=True, blank=True)
     
-    # ✅ Business Impact Score (1-10)
     business_impact_score = models.IntegerField(
         default=5,
         help_text="1-10: የንግድ ተጽዕኖ ውጤት"
     )
     
-    # ✅ Trigger Rule Audit
     trigger_condition = models.CharField(
         max_length=255,
         blank=True,
@@ -236,18 +235,14 @@ class AIProjectBacklog(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        """✅ የተሻሻለ — ሁልጊዜ ልዩ የሆነ task_hash ይፈጥራል"""
         if not self.task_hash:
             import uuid
             import time
-            from django.utils import timezone
             
             site_id = self.site.id if self.site else "primary"
-            # ✅ ልዩነትን ለማረጋገጥ ተጨማሪ መረጃዎች
-            timestamp = int(time.time() * 1000)  # ሚሊሰከንድ
-            random_salt = uuid.uuid4().hex[:12]  # ራንደም ጨው
+            timestamp = int(time.time() * 1000)
+            random_salt = uuid.uuid4().hex[:12]
             task_type = self.task_type or 'unknown'
-            priority = self.priority or 'Medium'
             
             raw_string = f"{site_id}:{task_type}:{self.target_file}:{self.task_name}:{timestamp}:{random_salt}"
             self.task_hash = hashlib.sha256(raw_string.encode('utf-8')).hexdigest()
@@ -368,8 +363,10 @@ class SiteRegistry(models.Model):
     repo_path = models.CharField(max_length=500, blank=True)
     deployment_url = models.URLField(blank=True)
     
-    competitor_urls = models.JSONField(default=list)
-    primary_keywords = models.JSONField(default=list)
+    # ✅ ማሻሻያ፦ በአድሚን ገጽ ላይ የ JSON ፎርም እገዳን ለመፍታት blank=True ታክሏል (ስህተቱን በቋሚነት ይፈታል)
+    competitor_urls = models.JSONField(default=list, blank=True)
+    primary_keywords = models.JSONField(default=list, blank=True)
+    
     target_audience = models.TextField(blank=True)
     content_style = models.CharField(
         max_length=50, 
@@ -393,13 +390,11 @@ class SiteRegistry(models.Model):
         ]
     )
     
-    # ✅ Build Phase (0-5)
     build_phase = models.IntegerField(
         default=0,
         help_text="0=Scaffolding, 1=Real Data, 2=Core Features, 3=Engagement, 4=Monetization, 5=Mature"
     )
     
-    # ✅ Real Data Counters
     real_product_count = models.IntegerField(
         default=0,
         help_text="እውነተኛ ምርቶች ብዛት"
@@ -409,7 +404,6 @@ class SiteRegistry(models.Model):
         help_text="እውነተኛ ደንበኞች ብዛት"
     )
     
-    # ✅ Phase Transition Tracking
     phase_transition_date = models.DateTimeField(null=True, blank=True)
     
     monthly_visitors = models.IntegerField(default=0)
@@ -420,7 +414,9 @@ class SiteRegistry(models.Model):
     last_traffic_update = models.DateTimeField(null=True, blank=True)
     
     last_marketing_campaign = models.DateTimeField(null=True, blank=True)
-    pending_notifications = models.JSONField(default=list)
+    
+    # ✅ ማሻሻያ፦ blank=True ታክሏል
+    pending_notifications = models.JSONField(default=list, blank=True)
     
     is_active = models.BooleanField(default=True)
     auto_update_enabled = models.BooleanField(default=True)
@@ -474,6 +470,7 @@ class SiteRegistry(models.Model):
         self.save()
     
     def update_real_counts(self):
+        from .models import Product
         self.real_product_count = Product.objects.filter(site=self, is_active=True).count()
         self.real_customer_count = User.objects.filter(product__site=self).distinct().count()
         self.save()
@@ -589,7 +586,7 @@ class NotificationQueue(models.Model):
 
 
 # ============================================================
-# 5. 🆕 የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
+# 5. የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
 # ============================================================
 
 class VectorMemory(models.Model):
@@ -628,7 +625,6 @@ class VectorMemory(models.Model):
         related_name='memory_entries'
     )
     
-    # ✅ Product association
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
@@ -678,7 +674,6 @@ class VectorMemory(models.Model):
 
     @classmethod
     def find_similar(cls, query, memory_type=None, site=None, limit=5):
-        """✅ FIXED: ቀደም ሲል ሁሉም 5 ቃላት በትክክል መኖር ነበረባቸው (AND chain) — ይህ ማለት ተግባራዊ ጥያቄ ላይ ፈጽሞ ምንም አይመልስም ነበር። አሁን OR-based scoring ይጠቀማል፦ ብዙ ቃላት የተገናኙበት ይቀድማል፣ ግን አንድ ቃል እንኳ ቢገናኝ ይመጣል።"""
         from django.db.models import Q
         
         queryset = cls.objects.all()
