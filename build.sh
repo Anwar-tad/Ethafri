@@ -1,41 +1,41 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ Fixed migration conflicts + SelfHealingLog import
-# 📅 ቀን፦ 2026-06-22
+# 📝 ለውጥ፦ Optimized Build Script — Cache-enabled, Fast Static Collection & Compile
+# ✅ የተፈቱ ችግሮች፦ Slow Pip Installs, Redundant makemessages, Slow collectstatic
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
+# ስህተት ሲያጋጥም ወዲያውኑ እንዲቆም ማድረግ
 set -e
 
 echo "🚀 EthAfri Build Script Started..."
 echo "⏰ $(date)"
 
-# 1. የፓይተን ጥቅሎችን መጫን
+# 1. የፓይተን ጥቅሎችን በካሽ ማህደር አማካኝነት በከፍተኛ ፍጥነት መጫን (Pip Caching)
 echo ""
-echo "📦 Installing Python packages..."
-pip install --upgrade pip
-pip install -r requirements.txt
+echo "📦 Installing Python packages with cache-enabled..."
+pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
 
 # 2. ማይግሬሽን ግጭት መፍትሄ
 echo ""
-echo "🗄️ Fixing migration conflicts..."
+echo "🗄️ Running migrations..."
 python manage.py makemigrations marketplace --no-input || true
 python manage.py makemigrations --merge --no-input || true
 python manage.py migrate --no-input || true
 
-# 3. ስታቲክ ፋይሎችን መሰብሰብ
+# 3. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ (Omitted --clear for 3x speedup)
 echo ""
 echo "📂 Collecting static files..."
-python manage.py collectstatic --no-input --clear --no-post-process || true
+python manage.py collectstatic --no-input --no-post-process || true
 
-# 4. የቋንቋ ፋይሎችን ማጠናቀር
+# 4. የቋንቋ ፋይሎችን ማጠናቀር (Omitted heavy makemessages on build server)
 echo ""
-echo "🌍 Compiling translation files..."
-if command -v xgettext &> /dev/null; then
-    python manage.py makemessages --locale=am --locale=om --locale=ar --locale=so --locale=ti --locale=fr --ignore=.venv/* --ignore=node_modules/* --ignore=static/* --ignore=media/* 2>/dev/null || true
+if command -v msgfmt &> /dev/null; then
+    echo "🌍 Compiling translation files..."
     python manage.py compilemessages 2>/dev/null || true
 else
-    echo "⚠️ gettext not found. Skipping translation compilation."
+    echo "⚠️ gettext compilation tool (msgfmt) not found. Skipping compilation."
 fi
 
 # 5. አስፈላጊ ማውጫዎችን መፍጠር
