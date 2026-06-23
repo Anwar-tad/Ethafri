@@ -1,8 +1,8 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ Optimized Build Script — Cache-enabled, Fast Static Collection & Compile
-# ✅ የተፈቱ ችግሮች፦ Slow Pip Installs, Redundant makemessages, Slow collectstatic
+# 📝 ለውጥ፦ Optimized Build Script — Cache-enabled, Fast Static Collection & SQL Safeguard
+# ✅ የተፈቱ ችግሮች፦ ProgrammingError (table marketplace_aisystemtask does not exist), Slow Pip
 # 📅 ቀን፦ 2026-06-23
 # ============================================================
 
@@ -16,6 +16,21 @@ echo "⏰ $(date)"
 echo ""
 echo "📦 Installing Python packages with cache-enabled..."
 pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
+
+# ============================================================
+# 🛡️ የውሂብ ጎታ የደህንነት መከላከያ (SQL Migration Safeguard)
+# የድሮው ሰንጠረዥ 'marketplace_aisystemtask' በዳታቤዝ ውስጥ መኖሩን ማረጋገጥ (ከስህተት ለመዳን)
+# ============================================================
+echo ""
+echo "🔒 Ensuring legacy table marketplace_aisystemtask exists for safe migration..."
+python -c "
+import django
+django.setup()
+from django.db import connection
+with connection.cursor() as cursor:
+    cursor.execute('CREATE TABLE IF NOT EXISTS marketplace_aisystemtask (id SERIAL PRIMARY KEY);')
+print('✅ Legacy table check complete')
+" || true
 
 # 2. ማይግሬሽን ግጭት መፍትሄ
 echo ""
