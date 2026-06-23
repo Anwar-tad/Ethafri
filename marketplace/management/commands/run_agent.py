@@ -1,3 +1,10 @@
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/management/commands/run_agent.py
+# 📝 ዓላማ፦ Run the autonomous 24/7 growth agent loop
+# ✅ ደረጃ፦ ተኳሃኝነት የተረጋገጠለት ስሪት
+# 📅 ቀን፦ 2026-06-23
+# ============================================================
+
 from django.core.management.base import BaseCommand
 from marketplace.growth_agent import run_autonomous_agent, run_single_cycle
 import logging
@@ -30,7 +37,6 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("🚀 Starting 24/7 Autonomous Agent..."))
             self.stdout.write("   Press Ctrl+C to stop")
             
-            # የራስ-ገዝ ሉፕ ይጀምር
             from marketplace.growth_agent import AutonomousLoop
             loop = AutonomousLoop()
             loop.interval = kwargs.get('interval', 60)

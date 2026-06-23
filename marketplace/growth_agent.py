@@ -3,7 +3,8 @@
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
 # 📝 ለውጥ፦ ሙሉ የተጠናከረ ስሪት v5 (የተመቻቸ) — Confirmed Schema + Persistence Fix +
 #         Structured Validation + Self-Critique + Real Test Execution + Safe Gating
-# ⚙️ ማስተካከያ፦ የ3 ሰዓት አውቶማቲክ ማሰሻ (3-Hour Harvester)፣ የ DRY ኮድ ኦፕቲማይዜሽን እና የPreservations Safeguards ተጨምረዋል
+# ⚙️ ማስተካከያ፦ የ3 ሰዓት አውቶማቲክ ማሰሻ (3-Hour Harvester)፣ የ DRY ኮድ ኦፕቲማይዜሽን 
+#           እና ራሱን ችሎ የሚቆም ራስ-ሰር መነሻ (Self-Bootstrapping) ተጨምረዋል
 # 📅 ቀን፦ 2026-06-23
 # ============================================================
 
@@ -334,38 +335,7 @@ ask_ethafri_ceo = ask_ai_with_failover
 
 
 # ============================================================
-# 3. አዲስ ጣቢያ ራስ-ሰር መለየት
-# ============================================================
-
-def discover_new_sites():
-    base_path = settings.BASE_DIR
-    discovered = []
-
-    if not os.path.exists(base_path):
-        return discovered
-
-    for item in os.listdir(base_path):
-        item_path = os.path.join(base_path, item)
-        if os.path.isdir(item_path):
-            if os.path.exists(os.path.join(item_path, 'manage.py')):
-                site_name = item.lower().replace('_', '-').replace(' ', '-')
-                existing = SiteRegistry.objects.filter(name=site_name).first()
-                if not existing:
-                    try:
-                        site = SiteRegistry.objects.create(
-                            name=site_name, display_name=item.replace('_', ' ').title(),
-                            niche="general", target_market="Global",
-                            repo_path=item_path, is_active=True, build_phase=0
-                        )
-                        discovered.append(site)
-                        logger.info(f"🆕 Discovered new site: {site_name}")
-                    except Exception as e:
-                        logger.error(f"Failed to create site {site_name}: {e}")
-    return discovered
-
-
-# ============================================================
-# 4. የጣቢያ ኒች እና ገበያ ራስ-ሰር መለየት
+# 3. የጣቢያ ኒች እና ገበያ ራስ-ሰር መለየት
 # ============================================================
 
 def analyze_site_niche(site: SiteRegistry):
@@ -416,7 +386,7 @@ def analyze_site_niche(site: SiteRegistry):
 
 
 # ============================================================
-# 5. RAG Memory Engine
+# 4. RAG Memory Engine
 # ============================================================
 
 class RAGMemoryEngine:
@@ -452,7 +422,7 @@ class RAGMemoryEngine:
 
 
 # ============================================================
-# 6. Multi-Agent Orchestrator
+# 5. Multi-Agent Orchestrator
 # ============================================================
 
 class AgentOrchestrator:
@@ -1235,6 +1205,7 @@ def run_daily_market_analysis():
                 results.append(error_msg)
                 logger.error(error_msg)
                 try:
+                    # ✅ get_or_create_backlog_task_safe/create is used
                     AgentErrorLog.objects.create(
                         task_name=f"Site_{site.name}_Analysis", error_type='runtime',
                         error_message=str(e)[:500], code_attempted="Full site analysis", site=site
@@ -1343,7 +1314,7 @@ class AutonomousGrowthEngine:
                         defaults={'value': {
                             'timestamp': timezone.now().isoformat(),
                             'status': 'alive',
-                            'cycle': self.cycle_count
+                            'cycle': self.engine.cycle_count
                         }}
                     )
                 except Exception as e:
@@ -1918,14 +1889,16 @@ class AutonomousGrowthEngine:
                         logger.error(f"⛔ Rejecting generated code for {target_file_confirmed} due to syntax error: {compile_err}")
                         
                         try:
-                            AgentErrorLog.objects.create(
-                                site=site,
-                                task_name=task.task_name,
-                                error_type='syntax',
-                                error_message=f"SyntaxError in AI generated code: {compile_err}",
-                                code_attempted=code_content,
-                                resolved=False
-                            )
+                            # የዳታቤዝ ስህተቶችን መመዝገብ
+                            with connection.cursor() as cursor:
+                                AgentErrorLog.objects.create(
+                                    site=site,
+                                    task_name=task.task_name,
+                                    error_type='syntax',
+                                    error_message=f"SyntaxError in AI generated code: {compile_err}",
+                                    code_attempted=code_content,
+                                    resolved=False
+                                )
                         except Exception:
                             pass
                         finally:
@@ -1934,6 +1907,7 @@ class AutonomousGrowthEngine:
                 
                 path = None
                 if site.repo_path:
+                    # 🛡️ repo_path የድረ-ገጽ URL ከሆነ በደህንነት ወደ settings.BASE_DIR ማምራት
                     repo_path = site.repo_path
                     if repo_path.startswith('http') or "github.com" in repo_path:
                         repo_path = str(settings.BASE_DIR)
@@ -2533,4 +2507,3 @@ def analyze_pending_tasks(site=None):
     except Exception as e:
         logger.error(f"❌ Task analysis error: {e}")
         return {'total': 0, 'by_priority': [], 'by_type': [], 'critical': 0, 'high': 0, 'total_impact': 0, 'oldest': None, 'newest': None}
-

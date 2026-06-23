@@ -1,7 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/forms.py
-# 📝 ለውጥ፦ Multi-Site Support + Enhanced Product Form
-# 📅 ቀን፦ 2026-06-20
+# 📝 ለውጥ፦ Multi-Site Support + Enhanced Product Form (Optimized)
+# ✅ የተፈቱ ችግሮች፦ Invalid URL repo_path entries in registration form (UX Safeguard)
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 from django import forms
@@ -12,7 +13,6 @@ from .models import Product, Category, SiteRegistry
 class ProductForm(forms.ModelForm):
     """የምርት መለጠፊያ ፎርም — Multi-Site ድጋፍ ያለው"""
     
-    # 🆕 አዲስ መስክ — ለጣቢያ ምርጫ
     site = forms.ModelChoiceField(
         queryset=SiteRegistry.objects.filter(is_active=True),
         required=False,
@@ -75,10 +75,8 @@ class ProductForm(forms.ModelForm):
         """ፎርሙን በማስቀመጥ ላይ — Multi-Site ድጋፍ"""
         product = super().save(commit=False)
         
-        # ጣቢያ ከተመረጠ የጣቢያውን ቦታ እና ምድብ አስተካክል
         site = self.cleaned_data.get('site')
         if site:
-            # የጣቢያውን ቦታ እንደ ነባሪ አስቀምጥ
             if not product.location:
                 product.location = site.target_market
         
@@ -171,6 +169,21 @@ class SiteRegistrationForm(forms.ModelForm):
         if name and not name.replace('-', '').replace('_', '').isalnum():
             raise forms.ValidationError("Site name can only contain letters, numbers, hyphens, and underscores.")
         return name.lower()
+
+    # ============================================================
+    # 🛡️ ራስ-ሰር የጥበቃ በር (Repo Path Validation Safeguard)
+    # የውጭ ዩአርኤል (URL) በስህተት በ Repo Path ውስጥ እንዳይገባ ይከላከላል
+    # ============================================================
+    def clean_repo_path(self):
+        repo_path = self.cleaned_data.get('repo_path')
+        if repo_path:
+            clean_path = repo_path.strip().lower()
+            if clean_path.startswith('http') or 'github.com' in clean_path:
+                raise forms.ValidationError(
+                    "Repo path must be a local server directory path (e.g. /opt/render/project/src), not a GitHub URL. "
+                    "The system automatically handles GitHub syncing remotely using the site name and tokens."
+                )
+        return repo_path
 
 
 class MarketingCampaignForm(forms.Form):

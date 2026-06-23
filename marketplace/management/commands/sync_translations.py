@@ -1,7 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/sync_translations.py
-# 📝 ለውጥ፦ Multi-Site Support + Enhanced Translation
-# 📅 ቀን፦ 2026-06-20
+# 📝 ለውጥ፦ Multi-Site Support + Enhanced Translation + Schema Validation
+# ✅ የተፈቱ ችግሮች፦ View KeyError Crashes during translation parsing
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 from django.core.management.base import BaseCommand
@@ -38,11 +39,9 @@ class Command(BaseCommand):
         
         self.stdout.write(self.style.SUCCESS("🤖 EthAfri I18n Agent: አዳዲስ የቋንቋ መለያዎችን በማስተካከል ላይ..."))
         
-        # 🆕 የትኞቹን ጣቢያዎች እንደምናስኬድ ወስን
         sites_to_process = []
         
         if site_name:
-            # ለአንድ የተወሰነ ጣቢያ
             try:
                 site = SiteRegistry.objects.get(name=site_name, is_active=True)
                 sites_to_process = [site]
@@ -51,11 +50,9 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f"❌ Site '{site_name}' not found or inactive."))
                 return
         elif all_sites:
-            # ለሁሉም ንቁ ጣቢያዎች
             sites_to_process = SiteRegistry.objects.filter(is_active=True)
             self.stdout.write(f"📍 Processing translations for all {sites_to_process.count()} active sites")
         else:
-            # ነባሪ ጣቢያ ብቻ
             default_site = SiteRegistry.objects.filter(name='primary', is_active=True).first()
             if default_site:
                 sites_to_process = [default_site]
@@ -64,19 +61,15 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING("⚠️ No active sites found. Using default translation mode."))
                 sites_to_process = []
         
-        # 🆕 ለእያንዳንዱ ጣቢያ ትርጉም አስኬድ
         for site in sites_to_process:
             self.stdout.write(self.style.SUCCESS(f"\n📝 Translating for site: {site.display_name} ({site.name})"))
             self._process_site_translations(site)
         
-        # ነባሪ የሲስተም ትርጉም (ሁልጊዜ)
         self._process_system_translations()
-        
         self.stdout.write(self.style.SUCCESS("🎉 የትርጉም ስራው እና ማጠናቀሪያው ሙሉ በሙሉ ተጠናቋል!"))
 
     def _process_system_translations(self):
         """የሲስተሙን መደበኛ ትርጉም ያካሂዳል"""
-        # 1. gettext መኖሩን መፈተሽ
         has_gettext = shutil.which('xgettext') is not None
         
         if has_gettext:
@@ -132,7 +125,8 @@ class Command(BaseCommand):
                     pool_choice = "translation_huggingface"
                     self.stdout.write(f"  ➡️ Batch {current_batch_index + 1}: Routing to Hugging Face...")
 
-                translated_data = ask_ai_with_failover(prompt, pool_type=pool_choice)
+                # ✅ ማሻሻያ፦ የተዋቀረ ምላሽ ማረጋገጫ (expected_keys) መመገብ
+                translated_data = ask_ai_with_failover(prompt, pool_type=pool_choice, expected_keys=["translations"])
                 
                 if isinstance(translated_data, dict) and "error" not in translated_data:
                     translations_map = (
@@ -157,10 +151,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f"❌ Python MO Compilation Error: {compile_err}"))
 
     def _process_site_translations(self, site: SiteRegistry):
-        """
-        ለአንድ የተወሰነ ጣቢያ የተለየ ትርጉም ያካሂዳል
-        """
-        # የጣቢያውን የቋንቋ ፋይል መንገድ
+        """ለአንድ የተወሰነ ጣቢያ የተለየ ትርጉም ያካሂዳል"""
         site_locale_path = os.path.join(site.repo_path or settings.BASE_DIR, 'locale')
         
         if not os.path.exists(site_locale_path):
@@ -182,7 +173,6 @@ class Command(BaseCommand):
             if not untranslated:
                 continue
             
-            # የጣቢያውን ኒች እና ቁልፍ ቃላት ግምት ውስጥ በማስገባት ትርጉም
             site_context = f"""
             Site: {site.display_name}
             Niche: {site.niche}
@@ -205,7 +195,8 @@ class Command(BaseCommand):
                     f"Return JSON with key 'translations' mapping original to translated text."
                 )
                 
-                translated_data = ask_ai_with_failover(prompt, pool_type="translation")
+                # ✅ ማሻሻያ፦ expected_keys ማካተት
+                translated_data = ask_ai_with_failover(prompt, pool_type="translation", expected_keys=["translations"])
                 
                 if isinstance(translated_data, dict) and "error" not in translated_data:
                     translations_map = translated_data.get('translations') or translated_data

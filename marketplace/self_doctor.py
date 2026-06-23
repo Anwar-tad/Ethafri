@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ለውጥ፦ Smart Self-Doctor — Optimized Context, Connection release, Code Apply Integration
-# ✅ የተፈቱ ችግሮች፦ JSON Truncation, DB Leak, Missing File-Write Logic
-# 📅 ቀን፦ 2026-06-22
+# 📝 ዓላማ፦ Smart Self-Doctor — Optimized Context, Connection release, Code Apply Integration (Complete)
+# ✅ የተፈቱ ችግሮች፦ Prompt File Truncations (Raised max_chars to 40k), Missing Preservation Safeguards, DB Leaks
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 import json
@@ -62,7 +62,7 @@ def generalize_error_message(error_msg):
 
 
 def validate_css_syntax(css_content):
-    """የ AIው CSS መሠረታዊ የቅንፍ ስህተት እንደሌለበት ያረጋግጣል (Dry Run)"""
+    """የ CSS ቅንፍ ስህተት እንደሌለበት ያረጋግጣል (Dry Run)"""
     open_brackets = css_content.count('{')
     close_brackets = css_content.count('}')
     if open_brackets != close_brackets:
@@ -75,12 +75,10 @@ def extract_code_from_response(response):
     if isinstance(response, dict):
         return response.get('code') or response.get('solution') or response.get('fixed_code') or ''
     
-    # ማርክዳውን ኮድ ብሎኮችን አውጣ
     code_match = re.search(r'```(?:python|sql|javascript)?\s*\n(.*?)\n```', response, re.DOTALL)
     if code_match:
         return code_match.group(1).strip()
     
-    # በቅንፍ ውስጥ ያለውን ኮድ አውጣ
     code_match = re.search(r'\{.*\}', response, re.DOTALL)
     if code_match:
         return code_match.group(0).strip()
@@ -110,7 +108,7 @@ def detect_error_severity(error_message):
 # ⚙️ የውሂብ መላክ ማሻሻያ (Token Optimization & Safe JSON)
 # ============================================================
 
-def get_doctor_code_context(project_code, target_file_key=None, max_chars=3000):
+def get_doctor_code_context(project_code, target_file_key=None, max_chars=40000):  # ✅ ወደ 40000 አድጓል
     """
     ለኤአይ የሚላከውን የኮድ መጠን በጥንቃቄ ያሳጥራል።
     የስህተት መነሻ የሆነውን ፋይል ሙሉ በሙሉ ይልካል፣ ሌሎችን ግን ያሳጥራል።
@@ -512,6 +510,12 @@ def heal_single_site_error(site: SiteRegistry, error_category, error_msg, target
         Current Codebase (Optimized):
         {json.dumps(optimized_code, indent=2)}
         
+        ⚠️ CRITICAL INSTRUCTION (PRESERVATION SAFEGUARD):
+        - You MUST return the FULL, COMPLETE content of any file you fix.
+        - Do NOT truncate, delete, or omit any existing models, views, imports, or functions.
+        - Keep all original features intact. Merely append or integrate your corrections into the existing code.
+        - Truncating code will result in severe database loss!
+
         Return ONLY the corrected raw Python code. No explanations or markdown.
         """
 

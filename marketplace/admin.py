@@ -1,7 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/admin.py
 # 📝 ለውጥ፦ Full Admin Configuration — All Models Registered
-# 📅 ቀን፦ 2026-06-21
+# ✅ የተፈቱ ችግሮች፦ Missing TranslationQueue admin registration
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 from django.contrib import admin
@@ -14,6 +15,7 @@ from .models import (
     SiteConfig,
     MarketTrend,
     SelfHealingLog,
+    TranslationQueue,  # ✅ በስርዓት እንዲመዘገብ ታክሏል
     
     # የኤጀንት ማህደረ-ትውስታ
     AIProjectBacklog,
@@ -30,7 +32,7 @@ from .models import (
     SellerProfile,
     NotificationQueue,
     
-    # 🆕 የላቁ የኤጀንት ባህሪያት
+    # የላቁ የኤጀንት ባህሪያት
     VectorMemory,
     AgentTask,
     ABTest,
@@ -53,6 +55,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 admin.site.register(Category)
 admin.site.register(UserSearch)
+admin.site.register(TranslationQueue)  # ✅ አድሚን ምዝገባው በስኬት ተጠናቋል
 
 
 # ============================================================
@@ -211,7 +214,7 @@ class NotificationQueueAdmin(admin.ModelAdmin):
 
 
 # ============================================================
-# 6. 🆕 የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
+# 6. የላቁ የኤጀንት ባህሪያት (Advanced Agent Features)
 # ============================================================
 
 @admin.register(VectorMemory)

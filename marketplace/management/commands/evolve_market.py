@@ -1,11 +1,12 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/evolve_market.py
 # 📝 ለውጥ፦ Multi-Site Support + Enhanced Growth Engine
-# 📅 ቀን፦ 2026-06-20
+# ✅ የተፈቱ ችግሮች፦ Database connection leaks during cron execution (RAM leak)
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 from django.core.management.base import BaseCommand
-from django.db import close_old_connections
+from django.db import close_old_connections, connection
 from django.utils import timezone
 import logging
 import gc
@@ -39,14 +40,13 @@ class Command(BaseCommand):
         all_sites = kwargs.get('all_sites')
         discover = kwargs.get('discover')
         
-        # 🛡️ 1. የቆዩ የዳታቤዝ ግንኙነቶችን ማጽዳት
+        # 🛡️ የቆዩ የዳታቤዝ ግንኙነቶችን ማጽዳትና የቆሻሻ ሰብሳቢ (Garbage Collector) መቀስቀስ
         close_old_connections()
         gc.collect()
 
         self.stdout.write(self.style.SUCCESS(f"🚀 [{timezone.now()}] EthAfri Autonomous Growth Engine Triggered by Cron."))
         
         try:
-            # 🆕 አዲስ ጣቢያዎችን ለማግኘት
             if discover:
                 from marketplace.growth_agent import discover_new_sites
                 new_sites = discover_new_sites()
@@ -57,7 +57,6 @@ class Command(BaseCommand):
                 else:
                     self.stdout.write("🔍 No new sites discovered.")
             
-            # 🆕 የትኞቹን ጣቢያዎች እንደምናስኬድ ወስን
             sites_to_process = []
             
             if site_name:
@@ -72,7 +71,6 @@ class Command(BaseCommand):
                 sites_to_process = SiteRegistry.objects.filter(is_active=True)
                 self.stdout.write(f"📍 Processing all {sites_to_process.count()} active sites")
             else:
-                # ነባሪ ጣቢያ ብቻ
                 default_site = SiteRegistry.objects.filter(name='primary', is_active=True).first()
                 if default_site:
                     sites_to_process = [default_site]
@@ -81,7 +79,6 @@ class Command(BaseCommand):
                     self.stdout.write("📍 No active sites found. Running global analysis...")
                     sites_to_process = []
             
-            # 🆕 ለእያንዳንዱ ጣቢያ ትንተና አስኬድ
             results = []
             
             if sites_to_process:
@@ -96,35 +93,29 @@ class Command(BaseCommand):
                         results.append(error_msg)
                         self.stdout.write(self.style.ERROR(f"  ❌ {site.name} failed: {e}"))
             else:
-                # ምንም ጣቢያ ከሌለ ዓለም አቀፍ ትንተና
                 result = run_daily_market_analysis()
                 results.append(f"[Global] {result}")
             
-            # 🛡️ 2. የክሮኑን ስኬታማነት በዳታቤዝ መመዝገብ
             SiteConfig.objects.update_or_create(
                 key="LAST_SUCCESSFUL_CRON_PING", 
                 defaults={'value': {'time': timezone.now().isoformat()}}
             )
             
-            # 🛡️ 3. የመጨረሻውን የክሮን ሩጫ መዝግብ
             SiteConfig.objects.update_or_create(
                 key="LAST_CRON_RUN",
                 defaults={'value': {
                     'time': timezone.now().isoformat(),
                     'sites_processed': len(sites_to_process),
-                    'results': results[:5]  # የመጀመሪያዎቹን 5 ብቻ
+                    'results': results[:5]
                 }}
             )
             
             summary = " | ".join(results[:3]) + ("..." if len(results) > 3 else "")
             self.stdout.write(self.style.SUCCESS(f"✅ Success: {summary}"))
-            self.stdout.write(f"⏳ Process finished and exited successfully to preserve RAM.")
             
         except Exception as e:
             logger.error(f"❌ Critical Error in Growth Engine: {e}")
             self.stdout.write(self.style.ERROR(f"Error: {e}"))
-            
-            # ስህተቱን መዝግብ
             try:
                 SiteConfig.objects.update_or_create(
                     key="LAST_CRON_ERROR",
@@ -135,3 +126,6 @@ class Command(BaseCommand):
                 )
             except:
                 pass
+        finally:
+            # ✅ የዳታቤዝ ግንኙነቱን በጥንቃቄ መዝጋት
+            connection.close()
