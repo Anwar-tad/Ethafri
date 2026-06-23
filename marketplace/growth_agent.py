@@ -1,9 +1,10 @@
 
+
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
 # 📝 ለውጥ፦ ሙሉ የተጠናከረ ስሪት v5 (የተመቻቸ) — Confirmed Schema + Persistence Fix +
 #         Structured Validation + Self-Critique + Real Test Execution + Safe Gating
-# ⚙️ ማስተካከያ፦ የኮድ መቆራረጥን እና የዳታቤዝ መጥፋትን ለመከላከል Preservation Safeguards ተጨምረዋል
+# ⚙️ ማስተካከያ፦ የሩቅ ጣቢያዎችን በ GitHub API ማንበብ (Fetch Raw) እና የ Preservations Safeguards ተጨምረዋል
 # 📅 ቀን፦ 2026-06-23
 # ============================================================
 
@@ -115,6 +116,91 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
             return matching.first(), False
         raise e
 
+
+# ============================================================
+# 🌐 ጊትሃብ የሩቅ ፋይሎች ንባብ (GitHub API Raw Fetcher)
+# ============================================================
+
+def fetch_remote_file_from_github(repo, file_path, token=None):
+    """
+    ከሩቅ የጊትሃብ ሪፖዚተሪ ላይ የፋይል ይዘትን Raw በሚባል መልክ በቀጥታ ያነባል (ከዲስክ ንክኪ ነጻ)
+    """
+    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+    headers = {"Accept": "application/vnd.github.v3.raw"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    try:
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            return res.text
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to fetch remote file {file_path} from GitHub: {e}")
+    return None
+
+
+def get_site_project_state(site: SiteRegistry, force_refresh=False):
+    """
+    የጣቢያውን የኮድ ሁኔታ ያነባል። የጣቢያው repo_path የድረ-ገጽ ሊንክ (HTTP) ከሆነ
+    በራስ-ሰር በ GitHub API አማካኝነት የሩቅ ጣቢያውን ፋይሎች ከጊትሃብ ያነባል።
+    """
+    if not site:
+        return {}, {}
+    
+    repo_path = site.repo_path
+    is_remote = False
+    repo_name = ""
+    
+    if not repo_path or repo_path.startswith('http') or 'github.com' in repo_path:
+        is_remote = True
+        repo_name = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
+        if repo_path:
+            match = re.search(r"github\.com/([^/]+/[^/]+)", repo_path)
+            if match:
+                repo_name = match.group(1).replace('.git', '')
+                
+    # የውጭ ሳይት ከሆነ በሰርቨር ላይ በተለየ ጊዜያዊ ማህደር ውስጥ ማስቀመጥ (የፕራይመሪውን እንዳያጠፋ)
+    base = repo_path
+    if is_remote:
+        base = os.path.join('/tmp', 'ethafri_agent', site.name)
+    
+    target_files = {
+        'models': os.path.join(base, 'marketplace', 'models.py'),
+        'views': os.path.join(base, 'marketplace', 'views.py'),
+        'urls': os.path.join(base, 'marketplace', 'urls.py'),
+        'forms': os.path.join(base, 'marketplace', 'forms.py'),
+        'admin': os.path.join(base, 'marketplace', 'admin.py'),
+        'home_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'home.html'),
+    }
+    
+    state = {}
+    file_paths = {}
+    github_token = getattr(settings, 'GITHUB_TOKEN', None)
+    
+    for key, path in target_files.items():
+        # የኮድ ጽሕፈት ስራው የሚከናወነው በአገር ውስጥ ማህደር ውስጥ ብቻ ነው
+        local_path = os.path.join(settings.BASE_DIR, 'marketplace', f'{key}.py') if site.name == 'primary' else path
+        file_paths[key] = local_path
+        
+        if is_remote:
+            relative_path = f"marketplace/{key}.py"
+            content = fetch_remote_file_from_github(repo_name, relative_path, token=github_token)
+            if content is not None:
+                state[key] = content
+                site_key = f"site_{site.id}_{key}"
+                _project_hashes[f"{site_key}_content"] = content
+            else:
+                state[key] = "❌ MISSING_FILE: This file doesn't exist on remote repository yet."
+        else:
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        state[key] = f.read()
+                except Exception as e:
+                    state[key] = f"ERROR: Could not read file - {e}"
+            else:
+                state[key] = "❌ MISSING_FILE: This file doesn't exist yet."
+                
+    return state, file_paths
 
 # ============================================================
 # 2. የኤአይ ፎልባክ ሞተር (AI Failover Engine)
@@ -252,59 +338,6 @@ def ask_ai_with_failover(prompt, pool_type="coding", max_retries=2, timeout=60, 
 
 
 ask_ethafri_ceo = ask_ai_with_failover
-
-
-# ============================================================
-# 3. የፕሮጀክት ሁኔታ አንባቢ (Multi-Site)
-# ============================================================
-
-def get_site_project_state(site: SiteRegistry):
-    if not site.repo_path:
-        return {}, {}
-
-    base = site.repo_path
-    target_files = {
-        'models': os.path.join(base, 'marketplace', 'models.py'),
-        'views': os.path.join(base, 'marketplace', 'views.py'),
-        'urls': os.path.join(base, 'marketplace', 'urls.py'),
-        'forms': os.path.join(base, 'marketplace', 'forms.py'),
-        'admin': os.path.join(base, 'marketplace', 'admin.py'),
-        'home_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'home.html'),
-        'edit_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'edit_product.html'),
-    }
-
-    state = {}
-    for key, path in target_files.items():
-        if os.path.exists(path):
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    state[key] = f.read()
-            except Exception as e:
-                state[key] = f"ERROR: Could not read file - {e}"
-        else:
-            state[key] = "❌ MISSING_FILE: This file doesn't exist yet."
-    return state, target_files
-
-
-def get_complete_project_state():
-    """[DEPRECATED] ለነባር ተኳሃኝነት ብቻ"""
-    base = settings.BASE_DIR
-    target_files = {
-        'models': os.path.join(base, 'marketplace', 'models.py'),
-        'views': os.path.join(base, 'marketplace', 'views.py'),
-        'urls': os.path.join(base, 'marketplace', 'urls.py'),
-        'forms': os.path.join(base, 'marketplace', 'forms.py'),
-        'home_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'home.html'),
-        'edit_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'edit_product.html'),
-    }
-    state = {}
-    for key, path in target_files.items():
-        if os.path.exists(path):
-            with open(path, 'r', encoding='utf-8') as f:
-                state[key] = f.read()
-        else:
-            state[key] = "❌ MISSING_FILE: This file doesn't exist yet."
-    return state, target_files
 
 
 # ============================================================
@@ -1741,16 +1774,17 @@ class AutonomousGrowthEngine:
                     except SyntaxError as compile_err:
                         logger.error(f"⛔ Rejecting generated code for {target_file_confirmed} due to syntax error: {compile_err}")
                         
-                        # የዳታቤዝ ስህተቶችን መመዝገብ
                         try:
-                            AgentErrorLog.objects.create(
-                                site=site,
-                                task_name=task.task_name,
-                                error_type='syntax',
-                                error_message=f"SyntaxError in AI generated code: {compile_err}",
-                                code_attempted=code_content,
-                                resolved=False
-                            )
+                            # የዳታቤዝ ስህተቶችን መመዝገብ
+                            with connection.cursor() as cursor:
+                                AgentErrorLog.objects.create(
+                                    site=site,
+                                    task_name=task.task_name,
+                                    error_type='syntax',
+                                    error_message=f"SyntaxError in AI generated code: {compile_err}",
+                                    code_attempted=code_content,
+                                    resolved=False
+                                )
                         except Exception:
                             pass
                         finally:
@@ -1759,7 +1793,6 @@ class AutonomousGrowthEngine:
                 
                 path = None
                 if site.repo_path:
-                    # 🛡️ repo_path የድረ-ገጽ URL ከሆነ በደህንነት ወደ settings.BASE_DIR ማምራት
                     repo_path = site.repo_path
                     if repo_path.startswith('http') or "github.com" in repo_path:
                         repo_path = str(settings.BASE_DIR)

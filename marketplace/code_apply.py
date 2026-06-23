@@ -46,10 +46,18 @@ def apply_code_change(site, file_key, new_content, path, reason,
     # 🛡️ ራስ-ሰር የጥበቃ ሎጂክ (Path Safeguard)
     # የጣቢያው repo_path የድረ-ገጽ ሊንክ (HTTP) ሆኖ ከተገኘ በራስ-ሰር ወደ ትክክለኛው የሰርቨር ማህደር ይቀይረዋል
     # ============================================================
+    # ============================================================
+    # 🛡️ ራስ-ሰር የጥበቃ ሎጂክ (Path Safeguard)
+    # የውጭ ጣቢያዎች ኮድ በስህተት የፕራይመሪውን እንዳያጠፉ በተናጠል ማህደር ውስጥ ማዞር
+    # ============================================================
+    site_name = site.name if site else "primary"
     if not path or 'http' in path or 'github.com' in path:
-        # ትክክለኛውን የሰርቨር ማህደር መንገድ መፍጠር
-        path = os.path.join(settings.BASE_DIR, 'marketplace', f'{file_key}.py' if not file_key.endswith('.py') else file_key)
-        logger.warning(f"🛡️ Safeguard triggered: Corrected invalid URL path to local path: {path}")
+        if site_name == "primary":
+            path = os.path.join(settings.BASE_DIR, 'marketplace', f'{file_key}.py' if not file_key.endswith('.py') else file_key)
+        else:
+            # ✅ የውጭ ሳይቶች ኮድ በሰርቨር ላይ በተለየ ማህደር ውስጥ እንዲጻፍ ማዞር
+            path = os.path.join('/tmp', 'ethafri_agent', site_name, 'marketplace', f'{file_key}.py' if not file_key.endswith('.py') else file_key)
+            logger.warning(f"🛡️ Safeguard: Redirected remote site {site_name} path to sandbox: {path}")
 
     # 1. መረጃ ማረጋገጥ (Validation)
     if not path:
@@ -188,14 +196,17 @@ def apply_code_change(site, file_key, new_content, path, reason,
             site_name = site.name if site else "primary"
             commit_message = f"AI: {reason[:100]} (Confidence {confidence_score}%)"
             
-            # ✅ ትክክለኛውን አንጻራዊ የፋይል ማውጫ መንገድ (relative_path) ማግኘት (ለምሳሌ marketplace/views.py)
-            relative_path = os.path.relpath(path, settings.BASE_DIR)
+            # ✅ የ GitHub አንጻራዊ ማውጫ ፈላጊ (የ .py.py መደጋገም እንዳይፈጠር ያደርጋል)
+            if site_name == "primary":
+                relative_path = os.path.relpath(path, settings.BASE_DIR)
+            else:
+                # የሩቅ ሳይት ከሆነ በሪፖዚተሪው ውስጥ ያለውን ትክክለኛ ማህደር ለይቶ ማውጣት
+                match = re.search(r"marketplace/.*$", path.replace('\\', '/'))
+                if match:
+                    relative_path = match.group(0)
+                else:
+                    relative_path = f"marketplace/{file_key}.py" if not file_key.endswith('.py') else file_key
             
-            # ⚠️ 'https:' የሚሉ አላስፈላጊ ፎልደሮች በስህተት እንዳይፈጠሩ አንጻራዊ መንገዱን ማረጋገጥ
-            if relative_path.startswith("http") or "github.com" in relative_path:
-                relative_path = os.path.join('marketplace', f'{file_key}.py' if not file_key.endswith('.py') else file_key)
-            
-            # ✅ ማሻሻያ፦ ትክክለኛውን አንጻራዊ መንገድ (relative_path) ወደ GitHub መላክ (ይህም .py.py መደጋገሙን ያስቀራል)
             push_result = push_code_to_github(
                 file_path=relative_path,
                 file_content=new_content,
