@@ -28,6 +28,7 @@ from google import genai
 from groq import Groq
 from django.db import models, connection, connections
 from django.db.models import Q, Avg, Count, Case, When, Value, IntegerField, Sum
+from concurrent.futures import ThreadPoolExecutor
 
 from .models import (
     SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog,
