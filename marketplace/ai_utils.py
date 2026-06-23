@@ -1,7 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/ai_utils.py
-# 📝 ለውጥ፦ Multi-Site Support + Enhanced Translation
-# 📅 ቀን፦ 2026-06-20
+# 📝 ለውጥ፦ Multi-Site Support + Enhanced Translation + Schema Validation Gating
+# ✅ የተፈቱ ችግሮች፦ JSON Truncation, View KeyError Crashes
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 import json
@@ -23,7 +24,6 @@ def clean_and_parse_json(text):
         return None
     
     try:
-        # ለተጨማሪ ደህንነት ማርክዳውን ብሎኮችን ያስወግዳል
         clean_text = re.sub(r'^```json\s*|^```\s*|```$', '', str(text).strip(), flags=re.MULTILINE)
         match = re.search(r'\{.*\}', clean_text, re.DOTALL)
         if match:
@@ -35,7 +35,7 @@ def clean_and_parse_json(text):
 
 
 # ============================================================
-# 1. ነባሪ የምርት ትንተና (ሳይለወጥ)
+# 1. ነባሪ የምርት ትንተና (የተመቻቸ)
 # ============================================================
 
 def analyze_product_smartly(title, description, price):
@@ -67,12 +67,17 @@ def analyze_product_smartly(title, description, price):
     }}
     """
     
-    raw_response = ask_ai_with_failover(prompt, pool_type="translation")
+    # ✅ ማሻሻያ 1፦ የተዋቀረ ምላሽ ማረጋገጫ (expected_keys) በማካተት የ KeyError ስህተቶችን መከላከል
+    raw_response = ask_ai_with_failover(
+        prompt, 
+        pool_type="translation",
+        expected_keys=["category", "tags", "translations"]
+    )
     return clean_and_parse_json(raw_response)
 
 
 # ============================================================
-# 2. 🆕 ለአንድ የተወሰነ ጣቢያ የምርት ትንተና
+# 2. ለአንድ የተወሰነ ጣቢያ የምርት ትንተና (የተመቻቸ)
 # ============================================================
 
 def analyze_product_for_site(title, description, price, site: SiteRegistry):
@@ -119,12 +124,17 @@ def analyze_product_for_site(title, description, price, site: SiteRegistry):
     }}
     """
     
-    raw_response = ask_ai_with_failover(prompt, pool_type="translation")
+    # ✅ ማሻሻያ 2፦ የተዋቀረ ምላሽ ማረጋገጫ (expected_keys) መጨመር
+    raw_response = ask_ai_with_failover(
+        prompt, 
+        pool_type="translation",
+        expected_keys=["category", "tags", "suggested_price", "translations"]
+    )
     return clean_and_parse_json(raw_response)
 
 
 # ============================================================
-# 3. 🆕 የጣቢያ ኒች ትንተና (AI-powered Niche Discovery)
+# 3. የጣቢያ ኒች ትንተና (የተመቻቸ)
 # ============================================================
 
 def analyze_site_niche_ai(site: SiteRegistry):
@@ -139,10 +149,11 @@ def analyze_site_niche_ai(site: SiteRegistry):
         return None
     
     # የጣቢያውን ይዘት አጠቃላይ ማጠቃለያ
+    # ✅ ማሻሻያ 3፦ የኮድ ይዘቱ በድንገት ተቆርጦ የ JSON መዋቅሩ እንዳይበላሽ የእያንዳንዱን ፋይል መጠን በራሱ ማሳጠር
     code_summary = {}
     for key, value in project_code.items():
         if value:
-            code_summary[key] = value[:1500] + "..." if len(value) > 1500 else value
+            code_summary[key] = value[:1200] + "..." if len(value) > 1200 else value
     
     prompt = f"""
     [CRITICAL DIRECTIVE]
@@ -154,7 +165,7 @@ def analyze_site_niche_ai(site: SiteRegistry):
     Target Market: {site.target_market or 'Unknown'}
     
     Codebase Summary:
-    {json.dumps(code_summary, indent=2)[:8000]}
+    {json.dumps(code_summary, indent=2)}
     
     Task:
     1. Identify the primary niche/market
@@ -174,12 +185,16 @@ def analyze_site_niche_ai(site: SiteRegistry):
     }}
     """
     
-    raw_response = ask_ai_with_failover(prompt, pool_type="analysis")
+    raw_response = ask_ai_with_failover(
+        prompt, 
+        pool_type="analysis",
+        expected_keys=["niche", "primary_keywords", "competitor_urls"]
+    )
     return clean_and_parse_json(raw_response)
 
 
 # ============================================================
-# 4. 🆕 የምርት SEO ማሻሻያ (Product SEO Enhancement)
+# 4. የምርት SEO ማሻሻያ (የተመቻቸ)
 # ============================================================
 
 def enhance_product_seo(product_title, product_description, site: SiteRegistry):
@@ -216,5 +231,9 @@ def enhance_product_seo(product_title, product_description, site: SiteRegistry):
     }}
     """
     
-    raw_response = ask_ai_with_failover(prompt, pool_type="coding")
+    raw_response = ask_ai_with_failover(
+        prompt, 
+        pool_type="coding",
+        expected_keys=["optimized_title", "optimized_description", "additional_tags", "meta_description"]
+    )
     return clean_and_parse_json(raw_response)

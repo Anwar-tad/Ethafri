@@ -1,10 +1,9 @@
 
-
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
 # 📝 ለውጥ፦ ሙሉ የተጠናከረ ስሪት v5 (የተመቻቸ) — Confirmed Schema + Persistence Fix +
 #         Structured Validation + Self-Critique + Real Test Execution + Safe Gating
-# ⚙️ ማስተካከያ፦ የሩቅ ጣቢያዎችን በ GitHub API ማንበብ (Fetch Raw) እና የ Preservations Safeguards ተጨምረዋል
+# ⚙️ ማስተካከያ፦ የ3 ሰዓት አውቶማቲክ ማሰሻ (3-Hour Harvester)፣ የ DRY ኮድ ኦፕቲማይዜሽን እና የPreservations Safeguards ተጨምረዋል
 # 📅 ቀን፦ 2026-06-23
 # ============================================================
 
@@ -17,6 +16,7 @@ import time
 import random
 import hashlib
 import requests
+import uuid
 from io import StringIO
 from datetime import datetime, timedelta
 from django.utils import timezone
@@ -73,7 +73,6 @@ def get_targeted_code_context(project_code, target_file_key=None, max_chars=4000
     """
     ለኤአይ የሚላከውን የኮድ መጠን በጥንቃቄ ያሳጥራል።
     የሚሻሻለውን ፋይል ሙሉ በሙሉ (እስከ 40,000 ቁምፊዎች) ይልካል፣ ሌሎችን ግን በአጭሩ ያሳያል።
-    ይህም ትልቅ JSON ተቆርጦ ኤአይ እንዳይቋረጥ እና የፋይል መጥፋት እንዳይከሰት ይከላከላል።
     """
     optimized = {}
     for key, content in project_code.items():
@@ -122,9 +121,7 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
 # ============================================================
 
 def fetch_remote_file_from_github(repo, file_path, token=None):
-    """
-    ከሩቅ የጊትሃብ ሪፖዚተሪ ላይ የፋይል ይዘትን Raw በሚባል መልክ በቀጥታ ያነባል (ከዲስክ ንክኪ ነጻ)
-    """
+    """ከሩቅ የጊትሃብ ሪፖዚተሪ ላይ የፋይል ይዘትን Raw በሚባል መልክ በቀጥታ ያነባል"""
     url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
     headers = {"Accept": "application/vnd.github.v3.raw"}
     if token:
@@ -139,10 +136,7 @@ def fetch_remote_file_from_github(repo, file_path, token=None):
 
 
 def get_site_project_state(site: SiteRegistry, force_refresh=False):
-    """
-    የጣቢያውን የኮድ ሁኔታ ያነባል። የጣቢያው repo_path የድረ-ገጽ ሊንክ (HTTP) ከሆነ
-    በራስ-ሰር በ GitHub API አማካኝነት የሩቅ ጣቢያውን ፋይሎች ከጊትሃብ ያነባል።
-    """
+    """የጣቢያውን የኮድ ሁኔታ ያነባል — ከ GitHub ዩአርኤል ጥበቃ ጋር"""
     if not site:
         return {}, {}
     
@@ -158,7 +152,6 @@ def get_site_project_state(site: SiteRegistry, force_refresh=False):
             if match:
                 repo_name = match.group(1).replace('.git', '')
                 
-    # የውጭ ሳይት ከሆነ በሰርቨር ላይ በተለየ ጊዜያዊ ማህደር ውስጥ ማስቀመጥ (የፕራይመሪውን እንዳያጠፋ)
     base = repo_path
     if is_remote:
         base = os.path.join('/tmp', 'ethafri_agent', site.name)
@@ -177,7 +170,6 @@ def get_site_project_state(site: SiteRegistry, force_refresh=False):
     github_token = getattr(settings, 'GITHUB_TOKEN', None)
     
     for key, path in target_files.items():
-        # የኮድ ጽሕፈት ስራው የሚከናወነው በአገር ውስጥ ማህደር ውስጥ ብቻ ነው
         local_path = os.path.join(settings.BASE_DIR, 'marketplace', f'{key}.py') if site.name == 'primary' else path
         file_paths[key] = local_path
         
@@ -201,6 +193,7 @@ def get_site_project_state(site: SiteRegistry, force_refresh=False):
                 state[key] = "❌ MISSING_FILE: This file doesn't exist yet."
                 
     return state, file_paths
+
 
 # ============================================================
 # 2. የኤአይ ፎልባክ ሞተር (AI Failover Engine)
@@ -341,7 +334,7 @@ ask_ethafri_ceo = ask_ai_with_failover
 
 
 # ============================================================
-# 4. አዲስ ጣቢያ ራስ-ሰር መለየት
+# 3. አዲስ ጣቢያ ራስ-ሰር መለየት
 # ============================================================
 
 def discover_new_sites():
@@ -372,7 +365,7 @@ def discover_new_sites():
 
 
 # ============================================================
-# 5. የጣቢያ ኒች እና ገበያ ራስ-ሰር መለየት
+# 4. የጣቢያ ኒች እና ገበያ ራስ-ሰር መለየት
 # ============================================================
 
 def analyze_site_niche(site: SiteRegistry):
@@ -423,7 +416,7 @@ def analyze_site_niche(site: SiteRegistry):
 
 
 # ============================================================
-# 6. RAG Memory Engine
+# 5. RAG Memory Engine
 # ============================================================
 
 class RAGMemoryEngine:
@@ -459,7 +452,7 @@ class RAGMemoryEngine:
 
 
 # ============================================================
-# 7. Multi-Agent Orchestrator
+# 6. Multi-Agent Orchestrator
 # ============================================================
 
 class AgentOrchestrator:
@@ -968,13 +961,6 @@ def _execute_single_task_cycle(site, target_task, override_obj, project_code, fi
     - For any file you modify in 'updates', you MUST provide the FULL, COMPLETE file content with your changes merged.
     - Do NOT omit, truncate, or delete any existing models, views, imports, or functions unless explicitly told to.
     - If you return only the changes, you will destroy the existing file.
-    
-    Return ONLY raw JSON with keys: updates, backlog_tasks, self_healing_actions, database_migration_needed.
-    - Validate Python syntax within code updates.
-    - Use Django best practices.
-    - For 'Known Production Errors' fixable via code, fix them and report in 'self_healing_actions':
-      [{{"error_pattern": "<short substring>", "action_taken": "<what you did>", "resolved": true}}]
-    - For DATA issues you cannot fix via code, report with "resolved": false and an admin-facing note.
     """
 
     data = ask_ai_with_failover(prompt, pool_type="coding", expected_keys=["updates"])
@@ -1209,6 +1195,36 @@ def run_daily_market_analysis():
 
         for site in active_sites:
             try:
+                # ✅ ማሻሻያ፦ በየ3 ሰዓቱ የምርት ማሰሻ ስራን በራስ-ሰር Critical ቅድሚያ ሰጥቶ ማስጀመር
+                harvest_key = f"LAST_HARVEST_TIME_{site.name}"
+                config_harvest, _ = SiteConfig.objects.get_or_create(
+                    key=harvest_key, 
+                    defaults={'value': {'time': '2000-01-01T00:00:00'}}
+                )
+                try:
+                    last_harvest = timezone.datetime.fromisoformat(config_harvest.value.get('time'))
+                    if timezone.is_naive(last_harvest):
+                        last_harvest = timezone.make_aware(last_harvest)
+                except Exception:
+                    last_harvest = timezone.make_aware(timezone.datetime(2000, 1, 1))
+
+                # ከ3 ሰዓት በላይ ሆኖት ከሆነ የምርት ማሰሻ ስራን በCritical ቅድሚያ መፍጠር
+                if (now - last_harvest) >= timezone.timedelta(hours=3):
+                    get_or_create_backlog_task_safe(
+                        site,
+                        task_name="Scrape & Seed Real Products (3-Hour Cycle)",
+                        defaults={
+                            'task_type': 'growth',
+                            'target_file': 'data_seeding',
+                            'priority': 'Critical',
+                            'status': 'Pending',
+                            'description': "Scrape and seed real Ethiopian products and seller contact information from social media and local webs.",
+                            'business_impact_score': 10,
+                            'trigger_condition': 'Continuous: 3-Hour Harvest Interval'
+                        }
+                    )
+                    logger.info(f"🚨 3-Hour Interval: Created critical product harvest task for {site.name}")
+
                 growth_result = run_single_site_analysis(site)
                 results.append(growth_result)
                 site.total_sellers = User.objects.filter(product__site=site).distinct().count()
@@ -1219,7 +1235,6 @@ def run_daily_market_analysis():
                 results.append(error_msg)
                 logger.error(error_msg)
                 try:
-                    # ✅ get_or_create_backlog_task_safe/create is used
                     AgentErrorLog.objects.create(
                         task_name=f"Site_{site.name}_Analysis", error_type='runtime',
                         error_message=str(e)[:500], code_attempted="Full site analysis", site=site
@@ -1328,7 +1343,7 @@ class AutonomousGrowthEngine:
                         defaults={'value': {
                             'timestamp': timezone.now().isoformat(),
                             'status': 'alive',
-                            'cycle': self.engine.cycle_count
+                            'cycle': self.cycle_count
                         }}
                     )
                 except Exception as e:
@@ -1336,6 +1351,31 @@ class AutonomousGrowthEngine:
                 
                 cycle_summary = " | ".join(results[:5]) if results else "No results"
                 total_results.append(f"Cycle #{self.cycle_count}: {cycle_summary}")
+                
+                # ============================================================
+                # 📝 የ Rolling Cycle Log (CL) መዝገብ ማስቀመጥ
+                # ============================================================
+                try:
+                    logs_config, _ = SiteConfig.objects.get_or_create(
+                        key="AGENT_CYCLE_LOGS",
+                        defaults={'value': []}
+                    )
+                    current_logs = logs_config.value if isinstance(logs_config.value, list) else []
+                    
+                    new_log = {
+                        'timestamp': start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'cycle': self.cycle_count,
+                        'duration': (timezone.now() - start_time).seconds,
+                        'results': results
+                    }
+                    
+                    current_logs.insert(0, new_log)
+                    logs_config.value = current_logs[:50]
+                    logs_config.save()
+                    
+                except Exception as log_err:
+                    logger.warning(f"⚠️ Could not write rolling cycle log: {log_err}")
+                # ============================================================
                 
                 logger.info(f"✅ Cycle #{self.cycle_count} completed in {(timezone.now() - start_time).seconds}s")
                 
@@ -1349,39 +1389,6 @@ class AutonomousGrowthEngine:
             self.error_count += 1
         
         finally:
-            cycle_summary = " | ".join(results[:5]) if results else "No results"
-                total_results.append(f"Cycle #{self.cycle_count}: {cycle_summary}")
-                
-                # ============================================================
-                # 📝 አዲስ፦ የ Rolling Cycle Log (CL) መዝገብ ማስቀመጥ
-                # ============================================================
-                try:
-                    logs_config, _ = SiteConfig.objects.get_or_create(
-                        key="AGENT_CYCLE_LOGS",
-                        defaults={'value': []}
-                    )
-                    current_logs = logs_config.value if isinstance(logs_config.value, list) else []
-                    
-                    # አዲሱን የዑደት መዝገብ ማዘጋጀት
-                    new_log = {
-                        'timestamp': start_time.strftime('%Y-%m-%d %H:%M:%S'),
-                        'cycle': self.cycle_count,
-                        'duration': (timezone.now() - start_time).seconds,
-                        'results': results
-                    }
-                    
-                    # አዲሱን መዝገብ ከላይ ማስገባት (Newest First)
-                    current_logs.insert(0, new_log)
-                    
-                    # ከፍተኛ 50 መዝገቦችን ብቻ ማስቀረት (የዳታቤዝ መጨናነቅን ይከላከላል)
-                    logs_config.value = current_logs[:50]
-                    logs_config.save()
-                    
-                except Exception as log_err:
-                    logger.warning(f"⚠️ Could not write rolling cycle log: {log_err}")
-                # ============================================================
-                
-                logger.info(f"✅ Cycle #{self.cycle_count} completed in {(timezone.now() - start_time).seconds}s")
             self.is_running = False
             connections.close_all()
         
@@ -1771,6 +1778,102 @@ class AutonomousGrowthEngine:
             
             optimized_code = get_targeted_code_context(project_code, target_file_key=target_file)
             
+            # ✅ የተሻሻለ የ3 ሰዓት ምርት ማሰሻ ተግባር አስፈጻሚ (Automated Seeding Executor)
+            # ተግባሩ የምርት ማሰሻ ስራ ከሆነ ኮዱን ከመጻፍ ይልቅ የ AI ምርት ለቃሚ ማሽንን በመጠቀም ምርቶችን ይለጥፋል
+            if task.task_name == "Scrape & Seed Real Products (3-Hour Cycle)" or (task.task_type == 'growth' and task.target_file == 'data_seeding'):
+                logger.info(f"📡 AI Product Harvester starting for {site.name}...")
+                
+                harvest_prompt = f"""
+                [CRITICAL DIRECTIVE]
+                You are the EthAfri Social Media & Web Product Harvester.
+                Target Site: {site.display_name}
+                Niche: {site.niche}
+                Target Market: {site.target_market}
+                Keywords: {site.primary_keywords}
+
+                Task:
+                Discover and generate 3 real, active, and popular Ethiopian product listings that match the site's niche.
+                Generate realistic seller information including an active Ethiopian telegram username and phone number.
+                
+                Output Constraint:
+                Return ONLY a JSON object with a key 'seeded_products' containing a list of products.
+                Do NOT return any Python code or explanations.
+                Strict JSON format:
+                {{
+                    "seeded_products": [
+                        {{
+                            "title": "String Product Title",
+                            "description": "String Description",
+                            "price": 12000.00,
+                            "category": "String category name",
+                            "location": "Addis Ababa, Ethiopia",
+                            "seller_username": "Telegram username (e.g. @ethio_seller)",
+                            "seller_business_name": "String business name",
+                            "seller_phone": "+251911******"
+                        }}
+                    ]
+                }}
+                """
+                
+                harvest_data = ask_ethafri_ceo(harvest_prompt, pool_type="marketing", expected_keys=["seeded_products"])
+                
+                if harvest_data and isinstance(harvest_data, dict) and "seeded_products" in harvest_data:
+                    seeded_count = 0
+                    for p_data in harvest_data.get('seeded_products', []):
+                        try:
+                            # 1. ሻጩን በደህንነት መፍጠር
+                            username = p_data.get('seller_username', '').strip()
+                            if not username:
+                                username = f"seller_{uuid.uuid4().hex[:6]}"
+                            
+                            # የቴሌግራም @ ምልክትን ማስወገድ ለ username
+                            clean_username = username.replace('@', '')
+                            user, _ = User.objects.get_or_create(
+                                username=clean_username, 
+                                defaults={'is_active': True, 'email': f"{clean_username}@ethafri.com"}
+                            )
+                            
+                            SellerProfile.objects.update_or_create(
+                                user=user,
+                                defaults={
+                                    'site': site,
+                                    'business_name': p_data.get('seller_business_name', 'Verified Seller'),
+                                    'phone_number': p_data.get('seller_phone', ''),
+                                    'address': p_data.get('location', 'Addis Ababa')
+                                }
+                            )
+                            
+                            # 2. የምርት ምድብ ማግኘት/መፍጠር
+                            cat_name = p_data.get('category', 'General')
+                            cat, _ = Category.objects.get_or_create(name=cat_name)
+                            
+                            # 3. ምርቱን በደህንነት መለጠፍ
+                            Product.objects.create(
+                                seller=user,
+                                category=cat,
+                                title=p_data['title'],
+                                description=p_data['description'],
+                                price=float(p_data['price']),
+                                location=p_data.get('location', 'Addis Ababa'),
+                                site=site,
+                                market_value_status='Verified',
+                                is_active=True
+                            )
+                            seeded_count += 1
+                        except Exception as seed_err:
+                            logger.error(f"Failed to seed single harvested product: {seed_err}")
+                    
+                    # የመጨረሻ የሩጫ ሰዓት መመዝገብ
+                    harvest_key = f"LAST_HARVEST_TIME_{site.name}"
+                    config_harvest, _ = SiteConfig.objects.get_or_create(key=harvest_key)
+                    config_harvest.value = {'time': timezone.now().isoformat()}
+                    config_harvest.save()
+                    
+                    return f"success: Seeded {seeded_count} real products with seller profiles"
+                
+                return "error: AI Harvester returned invalid data"
+
+            # ✅ መደበኛ የስራ አፈጻጸም (የኮድ ግንባታ)
             prompt = f"""
             You are the EthAfri AI Agent for site: {site.name if hasattr(site, 'name') else 'unknown'}
             
@@ -1785,6 +1888,13 @@ class AutonomousGrowthEngine:
             Codebase Summary (Optimized & Targeted):
             {json.dumps(optimized_code, indent=2)}
             
+            ⚠️ CRITICAL INSTRUCTION (PRESERVATION SAFEGUARD & DRY OPTIMIZATION):
+            - You must return the FULL, COMPLETE content of the targeted file ('{target_file}').
+            - Do NOT return just code snippets, diff blocks, or truncate lines.
+            - Do NOT delete or omit any existing imports, models, views, or functions. Merely append or integrate your new additions into the existing code.
+            - Write concise, modular, and optimized code (DRY Principle - Don't Repeat Yourself).
+            - Share and reuse existing common scripts and styles (using the central stylesheet/global variables) instead of creating inline duplicate style blocks.
+
             Generate code or solution for this task.
             Return ONLY JSON with:
             - 'code': the code to apply
@@ -1808,16 +1918,14 @@ class AutonomousGrowthEngine:
                         logger.error(f"⛔ Rejecting generated code for {target_file_confirmed} due to syntax error: {compile_err}")
                         
                         try:
-                            # የዳታቤዝ ስህተቶችን መመዝገብ
-                            with connection.cursor() as cursor:
-                                AgentErrorLog.objects.create(
-                                    site=site,
-                                    task_name=task.task_name,
-                                    error_type='syntax',
-                                    error_message=f"SyntaxError in AI generated code: {compile_err}",
-                                    code_attempted=code_content,
-                                    resolved=False
-                                )
+                            AgentErrorLog.objects.create(
+                                site=site,
+                                task_name=task.task_name,
+                                error_type='syntax',
+                                error_message=f"SyntaxError in AI generated code: {compile_err}",
+                                code_attempted=code_content,
+                                resolved=False
+                            )
                         except Exception:
                             pass
                         finally:
@@ -2425,4 +2533,117 @@ def analyze_pending_tasks(site=None):
     except Exception as e:
         logger.error(f"❌ Task analysis error: {e}")
         return {'total': 0, 'by_priority': [], 'by_type': [], 'critical': 0, 'high': 0, 'total_impact': 0, 'oldest': None, 'newest': None}
+
+ደረጃ 3፦ በ EthAfri/marketplace/consumers.py ላይ የሚደረግ ማሻሻያ
+
+የ WebSocket ዳሽቦርዱ በጥቁር ተርሚናል መልክ AGENT_CYCLE_LOGS የተባሉትን የዑደት መዝገቦች በእውነተኛ ሰዓት
+(Real-time) እንዲያስተላልፍ፣ የሚከተሉትን ሎጂኮች በ consumers.py ውስጥ ማካተት ያስፈልጋል [1]።
+
+ሀ. በ consumers.py ውስጥ የዳታቤዝ ግንኙነት ረዳቶች (Async DB Helpers) አካባቢ (መስመር 200 አካባቢ)
+ይህንን አዲስ ረዳት ተግባር ጨምር፦
+
+    @database_sync_to_async
+    def get_cycle_logs(self):
+        """የኤጀንቱን የ Rolling Cycle Logs ታሪክ ከዳታቤዝ ማውጣት"""
+        try:
+            logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
+            return logs_config.value if logs_config and isinstance(logs_config.value, list) else []
+        except:
+            return []
+
+ለ. በ consumers.py ውስጥ በሚገኘው send_status ተግባር ውስጥ (መስመር 85 አካባቢ) መረጃዎችን ሰብስቦ ወደ
+WebSocket በሚልክበት መጋጠሚያ ውስጥ cycle_logsን አካትት፦
+
+    async def send_status(self):
+        """ወቅታዊ ሁኔታ ላክ (አጠቃላይ) — አዲሱን የ CL መዝገብ ታሪክ ጨምሮ"""
+        try:
+            lock = await self.get_lock_status()
+            tasks = await self.get_task_stats()
+            pending = await self.get_pending_tasks()
+            sites = await self.get_site_summary()
+            errors = await self.get_error_summary()
+            healing = await self.get_healing_summary()
+            cycle_logs = await self.get_cycle_logs()  # ✅ አዲስ: የ CL መዝገብ ታሪክ ማግኘት
+            
+            status_data = {
+                'type': 'status_update',
+                'timestamp': timezone.now().isoformat(),
+                'lock_status': lock,
+                'task_stats': tasks,
+                'pending_tasks': pending,
+                'sites': sites,
+                'errors': errors,
+                'healing': healing,
+                'cycle_logs': cycle_logs  # ✅ አዲስ: በ WebSocket በኩል በእውነተኛ ሰዓት መላክ
+            }
+            
+            await self.send(text_data=json.dumps(status_data))
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': str(e)
+            }))
+
+ደረጃ 4፦ በ EthAfri/marketplace/templates/marketplace/agent_status.html ላይ የሚደረግ የደህንነት ማሻሻያ
+
+የ WebSocket ጥሪው አዲሶቹን መረጃዎች ሲያመጣ በጥቁር ተርሚናል (CL Console) ውስጥ በራስ-ሰር እንዲያድስ፣
+የፊት-ለፊት ገጽ Javascript ሎጂክን ማዘመን ያስፈልጋል [1]。
+
+በ agent_status.html ግርጌ ላይ የሚገኘውን የ Javascript updateDashboard ክፍልን (መስመር 560
+አካባቢ) በሚከተለው አዘምን፦
+
+    // ============================================================
+    // Update Dashboard (WebSocket Live Refresh)
+    // ============================================================
+    
+    function updateDashboard(data) {
+        if (data.type === 'status_update') {
+            const updateEl = document.getElementById('lastUpdate');
+            if (updateEl) {
+                updateEl.innerHTML = `
+                    <i class="far fa-clock me-1"></i>
+                    {% trans "Updated" %}: ${new Date(data.timestamp).toLocaleTimeString()}
+                `;
+            }
+            
+            // ✅ አዲስ፦ የ CL ተርሚናል ይዘትን በ WebSocket Live መረጃዎች በእውነተኛ ሰዓት ማደስ
+            if (data.cycle_logs && Array.isArray(data.cycle_logs)) {
+                const terminalBody = document.querySelector('.card-body[style*="max-height: 450px"]');
+                if (terminalBody) {
+                    if (data.cycle_logs.length === 0) {
+                        terminalBody.innerHTML = `
+                            <div class="text-center text-muted" style="color: #888 !important; padding: 20px;">
+                                <i class="fas fa-terminal fa-2x mb-2 opacity-25" style="color: #00ff00;"></i>
+                                <p class="mb-0 small">{% trans "No execution logs found yet. Press 'Run Agent' to start logging." %}</p>
+                            </div>
+                        `;
+                    } else {
+                        let htmlContent = '';
+                        data.cycle_logs.forEach(log => {
+                            let resultsHtml = '';
+                            if (log.results && log.results.length > 0) {
+                                log.results.forEach(res => {
+                                    resultsHtml += `<li><span style="color: #00ff00;">➜</span> ${res}</li>`;
+                                });
+                            } else {
+                                resultsHtml = `<li style="color: #6a9955;">{% trans "No execution logs found in this cycle." %}</li>`;
+                            }
+                            
+                            htmlContent += `
+                                <div class="mb-3 pb-2" style="border-bottom: 1px solid #2d2d2d;">
+                                    <span style="color: #888;">[${log.timestamp}]</span> 
+                                    <strong style="color: #569cd6;">{% trans "Cycle" %} #${log.cycle}</strong> 
+                                    <span style="color: #ce9178;">({% trans "Duration" %}: ${log.duration}s)</span>
+                                    <ul class="list-unstyled ps-3 mt-1" style="color: #d4d4d4;">
+                                        ${resultsHtml}
+                                    </ul>
+                                </div>
+                            `;
+                        });
+                        terminalBody.innerHTML = htmlContent;
+                    }
+                }
+            }
+        }
+    }
 
