@@ -1296,6 +1296,7 @@ class AutonomousGrowthEngine:
         self.last_cycle = None
         self.cycle_count = 0
         self.error_count = 0
+        self.max_errors = 10
         self.max_cycles_per_run = 5
         self.cache = AICache(ttl=1800)
     
