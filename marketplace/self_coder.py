@@ -1,7 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_coder.py
-# 📝 ለውጥ፦ Smart Self-Coder — Fixed: Blanket Resolution, Confidence Gating, RAG OR-search
-# 📅 ቀን፦ 2026-06-22
+# 📝 ለውጥ፦ Smart Self-Coder — Safe Codebase Context & Codeapply Integration
+# ✅ የተፈቱ ችግሮች፦ File Truncations, DB Connection Leaks, Duplicate Extensions
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 import requests
@@ -12,23 +13,21 @@ import re
 import logging
 from django.conf import settings
 from django.utils import timezone
-from django.db import models
+from django.db import models, connection, connections
 from .growth_agent import ask_ethafri_ceo, get_site_project_state
 from .models import (
     SiteRegistry, AgentErrorLog, AIEvolutionLog, SiteConfig,
     VectorMemory, AgentTask, SecurityLog, PredictionLog
 )
 
-# ✅ አዲስ ኢምፖርት — ብቸኛ ኮድ-መተግበሪያ ነጥብ
+# የኮድ መተግበሪያ ነጥብ
 try:
-    from .code_apply import apply_code_change
+    from .code_apply import apply_code_change, push_code_to_github
 except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("⚠️ code_apply.py not found. Using fallback.")
     
     def apply_code_change(site, file_key, new_content, path, reason, confidence_score=100, backlog_task=None, push_to_github=True):
-        """Fallback: ቀድሞ የነበረውን መንገድ ይጠቀማል"""
-        # አሮጌውን ኮድ አስቀምጥ
         old_code = ""
         if os.path.exists(path):
             with open(path, 'r', encoding='utf-8') as f:
@@ -38,17 +37,50 @@ except ImportError:
         with open(path, 'w', encoding='utf-8') as f:
             f.write(new_content)
         
-        AIEvolutionLog.objects.create(
-            target_file=file_key,
-            reason_for_change=reason,
-            old_code_backup=old_code,
-            new_code_patch=new_content,
-            site=site
-        )
+        try:
+            AIEvolutionLog.objects.create(
+                target_file=file_key,
+                reason_for_change=reason,
+                old_code_backup=old_code,
+                new_code_patch=new_content,
+                site=site
+            )
+        except Exception as e:
+            logger.error(f"Fallback AIEvolutionLog error: {e}")
         
         return {'success': True, 'message': f"✅ Applied {file_key} (fallback)", 'applied': True}
 
+    def push_code_to_github(file_path, file_content, commit_message, site_name="primary"):
+        return "Fallback (Not Implemented)"
+
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# ⚙️ የውሂብ መላክ ማሻሻያ (Token Optimization & Safe JSON)
+# ============================================================
+
+def get_optimized_code_context(project_code, target_file_key=None, max_chars=40000):
+    """
+    ይህ ረዳት ተግባር ለኤአይ የሚላከውን የኮድ መጠን በጥንቃቄ ያሳጥራል።
+    የስህተት መነሻ የሆነውን ፋይል ሙሉ በሙሉ (እስከ 40,000 ቁምፊዎች) ይልካል፣ ሌሎችን ግን ያሳጥራል።
+    ይህም ትልቅ JSON ተቆርጦ ኤአይ እንዳይቋረጥ እና የፋይል መጥፋት እንዳይከሰት ይከላከላል።
+    """
+    optimized = {}
+    for key, content in project_code.items():
+        if not isinstance(content, str):
+            optimized[key] = content
+            continue
+        
+        if target_file_key and key == target_file_key:
+            optimized[key] = content[:max_chars] + ("\n... [Truncated due to extreme size]" if len(content) > max_chars else "")
+        else:
+            lines = content.split('\n')
+            if len(lines) > 35:
+                optimized[key] = "\n".join(lines[:35]) + f"\n... [Truncated {len(lines)-35} lines to prevent timeout]"
+            else:
+                optimized[key] = content
+    return optimized
 
 
 # ============================================================
@@ -56,7 +88,7 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 def get_render_deploy_status():
-    """የሬንደርን የቅርብ ጊዜ መጫን ሂደት ሁኔታ ያነባል (KeyError-Safe)"""
+    """የሬንደርን የቅርብ ጊዜ መጫን ሁኔታ ያነባል — በጥብቅ የጊዜ ገደብ"""
     service_id = getattr(settings, 'RENDER_SERVICE_ID', None)
     api_key = getattr(settings, 'RENDER_API_KEY', None)
     
@@ -69,7 +101,7 @@ def get_render_deploy_status():
         "Accept": "application/json"
     }
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200 and len(response.json()) > 0:
             latest_deploy = response.json()[0].get('deploy', {})
             return {
@@ -84,7 +116,7 @@ def get_render_deploy_status():
 
 
 # ============================================================
-# 2. 🆕 RAG Memory Engine for Self-Healing (የተሻሻለ)
+# 2. RAG Memory Engine for Self-Healing (የተሻሻለ)
 # ============================================================
 
 class SelfHealMemory:
@@ -118,7 +150,6 @@ class SelfHealMemory:
             logger.error(f"Failed to remember healing: {e}")
             return None
     
-    # ✅ FIXED: ከ AND ወደ OR/scoring logic ተቀይሯል
     def find_similar_healing(self, error_message, limit=3):
         """ተመሳሳይ ፈውሶችን ያገኛል — OR-based scoring"""
         try:
@@ -141,7 +172,6 @@ class SelfHealMemory:
             logger.error(f"Failed to find similar healing: {e}")
             return []
     
-    # ✅ FIXED: ከ AND ወደ OR/scoring logic ተቀይሯል
     def find_similar_errors(self, error_message, limit=3):
         """ተመሳሳይ ስህተቶችን ያገኛል — OR-based scoring"""
         try:
@@ -184,7 +214,7 @@ class SelfHealMemory:
 
 
 # ============================================================
-# 3. 🆕 Self-Heal Task Manager
+# 3. Self-Heal Task Manager
 # ============================================================
 
 class SelfHealTaskManager:
@@ -239,60 +269,7 @@ class SelfHealTaskManager:
 
 
 # ============================================================
-# 4. ወደ ጊትሃብ መግፋት (Multi-Site) — የተሻሻለ
-# ============================================================
-
-def push_code_to_github(file_path, file_content, commit_message, site_name="primary"):
-    """
-    የተጻፈውን አዲስ የፓይተን ኮድ በቀጥታ ወደ ጊትሃብ ይልካል (Push)
-    ✅ FIXED: Repo name ከ settings ያነባል
-    """
-    github_token = getattr(settings, 'GITHUB_TOKEN', None)
-    repo = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
-    
-    if not github_token:
-        logger.warning("❌ GITHUB_TOKEN Missing from settings.")
-        return "❌ GITHUB_TOKEN Missing from settings."
-
-    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
-    headers = {
-        "Authorization": f"token {github_token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-
-    sha = ""
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        if res.status_code == 200:
-            sha = res.json().get('sha', '')
-            logger.info(f"📄 Found existing file: {file_path} (sha: {sha[:8]})")
-    except Exception as e:
-        logger.warning(f"GitHub SHA retrieval failed for {file_path}: {e}")
-
-    encoded_content = base64.b64encode(file_content.encode('utf-8')).decode('utf-8')
-
-    payload = {
-        "message": commit_message,
-        "content": encoded_content,
-        "branch": "main"
-    }
-    if sha:
-        payload["sha"] = sha
-    
-    try:
-        put_res = requests.put(url, headers=headers, json=payload, timeout=10)
-        if put_res.status_code in [200, 201]:
-            logger.info(f"✅ Code pushed to GitHub for {site_name}!")
-            return f"✅ Code pushed to GitHub for {site_name}!"
-        logger.error(f"❌ Push Failed for {site_name}: {put_res.text}")
-        return f"❌ Push Failed for {site_name}: {put_res.text[:200]}"
-    except Exception as e:
-        logger.error(f"❌ GitHub Connection Failed for {site_name}: {e}")
-        return f"❌ GitHub Connection Failed for {site_name}: {e}"
-
-
-# ============================================================
-# 5. 🆕 የተሻሻለ ለአንድ ጣቢያ ራስ-ጥገና (Smart Self-Heal)
+# 5. የተሻሻለ ለአንድ ጣቢያ ራስ-ጥገና (Smart Self-Heal)
 # ============================================================
 
 def self_heal_single_site(site: SiteRegistry):
@@ -323,31 +300,38 @@ def self_heal_single_site(site: SiteRegistry):
         if not recent_errors:
             return f"✅ No errors found for {site_name}"
         
-        # 3. 🆕 ተመሳሳይ ፈውሶችን ከትውስታ ያግኝ
-        error_message = recent_errors.first().error_message
-        similar_healings = memory.find_similar_healing(error_message, limit=3)
-        similar_errors = memory.find_similar_errors(error_message, limit=3)
+        # 3. ዋነኛውን የጥፋት መነሻ ፋይል ፈልግ
+        primary_error = recent_errors.first()
+        error_message = primary_error.error_message
+        target_file_key = primary_error.task_name.lower()
+        
+        # 4. ተመሳሳይ ፈውሶችን ከትውስታ ያግኝ
+        similar_healings = memory.find_similar_healing(error_message, limit=2)
+        similar_errors = memory.find_similar_errors(error_message, limit=2)
         
         memory_context = ""
         for heal in similar_healings:
-            memory_context += f"\nPrevious successful healing: {heal.content[:300]}\n"
+            memory_context += f"\nPrevious successful healing: {heal.content[:250]}\n"
         
         error_context = ""
         for err in similar_errors:
-            error_context += f"\nSimilar error: {err.content[:200]}\n"
+            error_context += f"\nSimilar error: {err.content[:150]}\n"
         
-        # 4. ✅ FIXED: ስህተቶቹን ለ AI አቅርብ — ከ error IDs ጋር
+        # 5. የተስተካከለ እና ቶከን የሚቆጥብ የኮድ ይዘት ያዘጋጁ (JSON እንዳይቆረጥ) - 40,000 Limit
+        optimized_code = get_optimized_code_context(project_code, target_file_key=target_file_key)
+        
+        # 6. ስህተቶቹን ለ AI አቅርብ (ከ Error ID ጋር)
         error_summary = []
         for err in recent_errors:
             error_summary.append({
-                'id': err.id,  # ✅ NEW: AI የትኞቹን እንዳስተካከለ እንዲያውቅ
+                'id': err.id,
                 'task_name': err.task_name,
                 'error_type': err.error_type,
-                'error_message': err.error_message[:200],
-                'code_attempted': err.code_attempted[:500] if err.code_attempted else ''
+                'error_message': err.error_message[:150],
+                'code_attempted': err.code_attempted[:300] if err.code_attempted else ''
             })
         
-        # 5. 🆕 AI ፕሮምፕት (ከትውስታ ጋር) — ✅ FIXED: resolved_error_ids ጨምሯል
+        # 7. AI ፕሮምፕት (ከትውስታ እና አስተማማኝ JSON ጋር)
         prompt = f"""
         [CRITICAL DIRECTIVE] 
         You are the Smart Self-Healing Agent for site: {site_name}.
@@ -355,10 +339,9 @@ def self_heal_single_site(site: SiteRegistry):
         Site Information:
         - Niche: {site.niche}
         - Target Market: {site.target_market}
-        - Growth Level: {site.growth_level}
         - Build Phase: {site.build_phase}
         
-        Recent Errors (with IDs):
+        Recent Errors:
         {json.dumps(error_summary, indent=2)}
         
         Memory Context (past successful healings):
@@ -367,33 +350,35 @@ def self_heal_single_site(site: SiteRegistry):
         Similar Error Context:
         {error_context}
         
-        Current Codebase:
-        {json.dumps(project_code, indent=2)[:4000]}
+        Current Codebase (Summary & Targeted Full Files):
+        {json.dumps(optimized_code, indent=2)}
         
+        ⚠️ CRITICAL INSTRUCTION (PRESERVATION SAFEGUARD):
+        - In 'fixed_files', you MUST return the FULL, COMPLETE content of any file you fix.
+        - Do NOT truncate, delete, or omit any existing models, views, imports, or functions.
+        - Keep all original features (like Category, Product, AIProjectBacklog classes) intact.
+        - Merely append or integrate your corrections into the existing code.
+        - Truncating code will result in severe database loss!
+
         Task:
-        1. Analyze the errors with the help of past healings
-        2. Identify root causes (missing imports, syntax, logic, security)
-        3. Generate corrected code
-        4. Rate your confidence (0-100) for each fix
-        5. Check for security vulnerabilities
+        1. Analyze the errors and identify root causes
+        2. Generate corrected code
+        3. Rate your confidence (0-100) for each fix
+        4. Check for security vulnerabilities
         
-        Output Format:
+        Output Format (STRICT JSON ONLY):
         {{
             "confidence_score": 85,
             "fixed_files": {{
                 "models": "corrected models.py code",
-                "views": "corrected views.py code",
-                "growth_agent": "corrected growth_agent.py code"
+                "views": "corrected views.py code"
             }},
-            "explanation": "Brief explanation of the fix",
-            "security_issues": ["issue1", "issue2"],
-            "root_cause": "Main cause of the error",
-            "suggested_improvements": ["improvement1", "improvement2"],
+            "explanation": "Brief explanation",
+            "security_issues": ["issue1"],
+            "root_cause": "Main cause of error",
+            "suggested_improvements": ["improvement1"],
             "resolved_error_ids": [123, 456]
         }}
-        
-        ⚠️ CRITICAL: 'resolved_error_ids' must list ONLY the specific error IDs you actually addressed.
-        Do NOT mark errors you did not fix.
         """
         
         ai_response = ask_ethafri_ceo(prompt, pool_type="healing")
@@ -404,13 +389,12 @@ def self_heal_single_site(site: SiteRegistry):
         if isinstance(ai_response, dict) and "error" in ai_response:
             return f"❌ Self-Healing failed for {site_name}: {ai_response['error']}"
         
-        # 6. የAI ምላሽን መፍታት
+        # 8. የAI ምላሽን መፍታት
         fixed_files = {}
         explanation = "System self-correction"
         confidence_score = 50
         security_issues = []
         root_cause = ""
-        suggested_improvements = []
         resolved_error_ids = []
         
         if isinstance(ai_response, dict):
@@ -419,7 +403,6 @@ def self_heal_single_site(site: SiteRegistry):
             confidence_score = ai_response.get('confidence_score', 50)
             security_issues = ai_response.get('security_issues', [])
             root_cause = ai_response.get('root_cause', '')
-            suggested_improvements = ai_response.get('suggested_improvements', [])
             resolved_error_ids = ai_response.get('resolved_error_ids', [])
         else:
             try:
@@ -431,67 +414,46 @@ def self_heal_single_site(site: SiteRegistry):
                     confidence_score = data.get('confidence_score', 50)
                     security_issues = data.get('security_issues', [])
                     root_cause = data.get('root_cause', '')
-                    suggested_improvements = data.get('suggested_improvements', [])
                     resolved_error_ids = data.get('resolved_error_ids', [])
             except Exception as e:
                 logger.error(f"Failed to parse AI response: {e}")
                 return f"❌ Self-Healing failed for {site_name}: Invalid AI response format"
         
-        # 7. 🆕 የደህንነት ችግሮችን ወደ SecurityLog መዝግብ
+        # 9. የደህንነት ችግሮችን ወደ SecurityLog መዝግብ
         for issue in security_issues:
             try:
                 SecurityLog.objects.create(
-                    category='code_injection',
-                    severity='high',
-                    description=issue,
-                    file_path='multiple_files',
-                    site=site,
-                    is_fixed=False
+                    category='code_injection', severity='high', description=issue,
+                    file_path='multiple_files', site=site, is_fixed=False
                 )
             except Exception as e:
                 logger.error(f"Failed to create SecurityLog: {e}")
         
-        # 8. 🆕 ማሻሻያ ሀሳቦችን መዝግብ
-        for improvement in suggested_improvements:
-            try:
-                task_manager.create_heal_task(
-                    task_name=f"Improve_{improvement[:30]}",
-                    description=f"Suggested improvement: {improvement}",
-                    priority=3
-                )
-            except Exception as e:
-                logger.error(f"Failed to create improvement task: {e}")
+        # 10. የመተማመን ፍተሻ (Confidence Check)
+        if confidence_score < 50:
+            results.append(f"⛔ Confidence too low ({confidence_score}%) — changes NOT applied")
+            return f"⛔ Self-Heal blocked for {site_name}: Confidence too low"
         
-        # 9. ✅ FIXED: ኮድ ከመተግበሩ በፊት የመተማመን ምርመራ
-        if confidence_score < 60:
-            results.append(f"⚠️ Low confidence ({confidence_score}%) - Review recommended")
-            # ✅ ዝቅተኛ confidence → አይተገበርም!
-            if confidence_score < 50:
-                results.append(f"⛔ Confidence too low ({confidence_score}%) — changes NOT applied")
-                return f"⛔ Self-Heal blocked for {site_name}: Confidence {confidence_score}% < 50%"
-        
-        # 10. ✅ FIXED: የተስተካከሉ ፋይሎችን መተግበር — code_apply.py ን ይጠቀማል
+        # 11. የተስተካከሉ ፋይሎችን መተግበር
         changes_applied = 0
         for file_key, new_content in fixed_files.items():
-            if new_content and len(new_content.strip()) > 100:
+            if new_content and len(new_content.strip()) > 10:
                 path = file_paths.get(file_key)
+                
+                # 🛡️ repo_path የድረ-ገጽ URL ከሆነ በደህንነት ወደ settings.BASE_DIR ማምራት
+                if not path or 'http' in path or 'github.com' in path:
+                    path = os.path.join(settings.BASE_DIR, 'marketplace', f'{file_key}.py' if not file_key.endswith('.py') else file_key)
+                
                 if path:
-                    # ✅ አዲስ: apply_code_change() ን ተጠቀም
                     result = apply_code_change(
-                        site=site,
-                        file_key=file_key,
-                        new_content=new_content,
-                        path=path,
+                        site=site, file_key=file_key, new_content=new_content, path=path,
                         reason=f"Self-Heal for {site_name}: {explanation[:150]}",
-                        confidence_score=confidence_score,
-                        backlog_task=None,
-                        push_to_github=True
+                        confidence_score=confidence_score, backlog_task=None, push_to_github=True
                     )
                     results.append(result['message'])
                     
                     if result['applied']:
                         changes_applied += 1
-                        # 🆕 የተሳካ ፈውስ በትውስታ ውስጥ አስቀምጥ
                         memory.remember_healing(
                             error_type='code_healing',
                             error_message=f"Fixed {file_key}: {error_message[:100]}",
@@ -500,39 +462,25 @@ def self_heal_single_site(site: SiteRegistry):
                             confidence=confidence_score
                         )
         
-        # 11. ✅ FIXED: ስህተቶቹን እንደተፈቱ ምልክት አድርግ — የተወሰኑትን ብቻ!
+        # 12. ስህተቶቹን እንደተፈቱ ምልክት አድርጉ
         if resolved_error_ids:
             updated = AgentErrorLog.objects.filter(
-                id__in=resolved_error_ids,
-                site=site
+                id__in=resolved_error_ids, site=site
             ).update(resolved=True)
-            results.append(f"✅ Resolved {updated} specific errors (verified)")
+            results.append(f"✅ Resolved {updated} specific errors")
         else:
-            results.append("⚠️ No specific errors confirmed resolved — left unresolved for next cycle")
+            results.append("⚠️ No specific errors confirmed resolved")
         
-        # 12. 🆕 ትንበያ መዝግብ
+        # 13. ትንበያ መዝግብ
         try:
             PredictionLog.objects.create(
-                prediction_type='growth',
-                predicted_value=float(confidence_score),
+                prediction_type='growth', predicted_value=float(confidence_score),
                 confidence_score=float(confidence_score),
-                input_data={
-                    'site': site_name,
-                    'changes': changes_applied,
-                    'root_cause': root_cause,
-                    'fixes': list(fixed_files.keys())
-                },
+                input_data={'site': site_name, 'changes': changes_applied, 'fixes': list(fixed_files.keys())},
                 site=site
             )
         except Exception as e:
             logger.error(f"Failed to create PredictionLog: {e}")
-        
-        # 13. 🆕 የራስ-ጥገና ማጠቃለያ
-        success_rate = memory.get_success_rate()
-        results.append(f"📊 Success Rate: {success_rate:.1f}%")
-        
-        if changes_applied == 0:
-            results.append("⚠️ No changes were applied")
         
         return f"🛠️ Smart Self-Heal for {site_name}: {' | '.join(results)}"
     
@@ -540,10 +488,13 @@ def self_heal_single_site(site: SiteRegistry):
         error_msg = f"❌ Self-heal error for {site_name}: {str(e)}"
         logger.error(error_msg)
         return error_msg
+        
+    finally:
+        connection.close()
 
 
 # ============================================================
-# 6. 🆕 ለሁሉም ጣቢያዎች ራስ-ጥገና
+# 6. ለሁሉም ጣቢያዎች ራስ-ጥገና
 # ============================================================
 
 def self_heal_all_sites():
@@ -571,6 +522,8 @@ def self_heal_all_sites():
             error_msg = f"❌ Self-heal failed for {site.name}: {str(e)}"
             results.append(error_msg)
             logger.error(error_msg)
+        finally:
+            connection.close()
     
     return f"🛠️ Self-Heal Summary: {' | '.join(results)}"
 
@@ -580,10 +533,7 @@ def self_heal_all_sites():
 # ============================================================
 
 def self_heal_failed_build():
-    """
-    ሬንደር ላይ ቢከሽፍ AIው ራሱ መዝገቡን አንብቦ ኮዱን የሚጠግንበት ዑደት
-    አሁን RAG Memory, AgentTask, Security Scanner ይጠቀማል
-    """
+    """ሬንደር ላይ ቢከሽፍ AIው ራሱ መዝገቡን አንብቦ ኮዱን የሚጠግንበት ዑደት"""
     results = []
     
     # 1. የሬንደር ሁኔታ ፍተሻ
@@ -594,7 +544,6 @@ def self_heal_failed_build():
         
         if deploy_status == "build_failed":
             results.append(f"⚠️ Render Build Failed on Commit {commit_id[:7]}!")
-            results.append("🔧 Attempting smart self-heal...")
     
     # 2. ሁሉንም ጣቢያዎች ራስ-ጥገና አድርግ
     try:
@@ -620,6 +569,8 @@ def self_heal_failed_build():
             error_msg = f"❌ Self-heal failed for {site.name}: {str(e)}"
             results.append(error_msg)
             logger.error(error_msg)
+        finally:
+            connection.close()
     
     if not results:
         return "System status is normal, no self-healing needed."

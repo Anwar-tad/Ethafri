@@ -1,13 +1,13 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ ብቸኛው ትክክለኛ "ኮድ የመተግበር" ነጥብ (Single Source of Truth)
+# 📝 ዓላማ፦ ብቸኛው ትክክለኛ "ኮድ የመተግበሪያ" ነጥብ (Single Source of Truth)
 #           ይህ የ Persistence Mismatch (Render ephemeral filesystem) ችግርን ይፈታል።
-# ✅ የተፈቱ ችግሮች፦ Circular Imports, Thread Safety (File Lock), Subprocess hanging
-# 📅 ቀን፦ 2026-06-22
+# ✅ የተፈቱ ችግሮች፦ Circular Imports, Thread Safety, Duplicate Extensions (.py.py), HTTP Path Safeguard
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 import os
-import re
+import ast
 import logging
 import base64
 import requests
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 CONFIDENCE_THRESHOLD = 70  # ከዚህ በታች ራስ-ሰር አይተገበርም — ለ review ይቀርባል
 MAX_FILE_SIZE = 50000  # ከፍተኛ የፋይል መጠን (ባይት)
 
-# ✅ ማሻሻያ 1፦ ፋይሎች በብዙ ክሮች በአንድ ጊዜ ተጽፈው እንዳይበላሹ የሚከላከል መቆለፊያ (Thread Lock)
+# ፋይሎች በብዙ ክሮች በአንድ ጊዜ ተጽፈው እንዳይበላሹ የሚከላከል መቆለፊያ (Thread Lock)
 _file_lock = threading.Lock()
 
 
@@ -38,15 +38,19 @@ def apply_code_change(site, file_key, new_content, path, reason,
                       confidence_score=100, backlog_task=None, 
                       push_to_github=True, skip_syntax_check=False):
     """
-    ያደርጋቸው፦
-    1. Syntax ፍተሻ (compile()) — ካልተሳካ አይተገበርም
-    2. Confidence Gating — ዝቅተኛ confidence ያለው ለውጥ አይተገበርም
-    3. Local disk ላይ በደህንነት መቆለፊያ (File Locking) ይጽፋል
-    4. ወደ GitHub በደህንነት ይገፋል (Circular Import የተቃለለበት)
-    5. AIEvolutionLog ይመዘገባል
+    ኮድን በደህንነት ወደ ፋይል ይጽፋል፣ ስህተቶችን አስቀድሞ ይፈትሻል፣ እና ወደ GitHub ይገፋል
     """
     from .models import AIEvolutionLog, SiteConfig, AgentErrorLog
     
+    # ============================================================
+    # 🛡️ ራስ-ሰር የጥበቃ ሎጂክ (Path Safeguard)
+    # የጣቢያው repo_path የድረ-ገጽ ሊንክ (HTTP) ሆኖ ከተገኘ በራስ-ሰር ወደ ትክክለኛው የሰርቨር ማህደር ይቀይረዋል
+    # ============================================================
+    if not path or 'http' in path or 'github.com' in path:
+        # ትክክለኛውን የሰርቨር ማህደር መንገድ መፍጠር
+        path = os.path.join(settings.BASE_DIR, 'marketplace', f'{file_key}.py' if not file_key.endswith('.py') else file_key)
+        logger.warning(f"🛡️ Safeguard triggered: Corrected invalid URL path to local path: {path}")
+
     # 1. መረጃ ማረጋገጥ (Validation)
     if not path:
         return {
@@ -145,7 +149,6 @@ def apply_code_change(site, file_key, new_content, path, reason,
             old_code = ""
     
     # 5. ወደ ፋይል ጻፍ (Local File Write - Thread Safe)
-    # ✅ ማሻሻያ 2፦ የፋይል ይዘት እንዳይበላሽ መቆለፊያ (Threading Lock) መጠቀም
     with _file_lock:
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -178,16 +181,21 @@ def apply_code_change(site, file_key, new_content, path, reason,
                 'file_key': file_key
             }
     
-    # 6. ወደ GitHub ግፋ (GitHub Push - Decoupled)
+    # 6. ወደ GitHub ግፋ (GitHub Push - Decoupled & Exact Paths)
     push_result = "Skipped (push_to_github=False)"
     if push_to_github:
         try:
             site_name = site.name if site else "primary"
             commit_message = f"AI: {reason[:100]} (Confidence {confidence_score}%)"
             
+            # ✅ ትክክለኛውን አንጻራዊ የፋይል ማውጫ መንገድ (relative_path) ማግኘት (ለምሳሌ marketplace/views.py)
             relative_path = os.path.relpath(path, settings.BASE_DIR)
             
-            # ✅ ማሻሻያ 3፦ የተገላቢጦሽ ጥሪን (Circular Import) ለማስቀረት የ GitHub መግፊያ ሎጂክን እዚሁ መጠቀም
+            # ⚠️ 'https:' የሚሉ አላስፈላጊ ፎልደሮች በስህተት እንዳይፈጠሩ አንጻራዊ መንገዱን ማረጋገጥ
+            if relative_path.startswith("http") or "github.com" in relative_path:
+                relative_path = os.path.join('marketplace', f'{file_key}.py' if not file_key.endswith('.py') else file_key)
+            
+            # ✅ ማሻሻያ፦ ትክክለኛውን አንጻራዊ መንገድ (relative_path) ወደ GitHub መላክ (ይህም .py.py መደጋገሙን ያስቀራል)
             push_result = push_code_to_github(
                 file_path=relative_path,
                 file_content=new_content,
@@ -213,7 +221,6 @@ def apply_code_change(site, file_key, new_content, path, reason,
     except Exception as e:
         logger.warning(f"⚠️ Could not log evolution: {e}")
     finally:
-        # ✅ የዳታቤዝ ግንኙነትን በጊዜ መዝጋት
         connection.close()
     
     # 8. ተዛማጅ ስራ ሁኔታ አዘምን
@@ -242,7 +249,7 @@ def apply_code_change(site, file_key, new_content, path, reason,
 
 def push_code_to_github(file_path, file_content, commit_message, site_name="primary"):
     """
-    የተጻፈውን አዲስ ኮድ በቀጥታ ወደ ጊትሃብ ይልካል (የተሻሻለ ስሪት)
+    የተጻፈውን አዲስ ኮድ በቀጥታ ወደ ጊትሃብ ይልካል
     """
     github_token = getattr(settings, 'GITHUB_TOKEN', None)
     repo = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
@@ -259,7 +266,6 @@ def push_code_to_github(file_path, file_content, commit_message, site_name="prim
 
     sha = ""
     try:
-        # ጥብቅ ጊዜ ገደብ (5 ሰከንድ)
         res = requests.get(url, headers=headers, timeout=5)
         if res.status_code == 200:
             sha = res.json().get('sha', '')
@@ -278,22 +284,12 @@ def push_code_to_github(file_path, file_content, commit_message, site_name="prim
         payload["sha"] = sha
     
     try:
-        # በጥብቅ 6 ሰከንድ ጊዜ ገደብ መግፋት
         put_res = requests.put(url, headers=headers, json=payload, timeout=6)
         if put_res.status_code in [200, 201]:
             return "✅ Pushed successfully!"
         return f"❌ Push Failed: {put_res.text[:100]}"
     except Exception as e:
         return f"❌ Connection Failed: {e}"
-
-
-# ============================================================
-# 14. ውጫዊ መግፊያ እና ሮልባክ (Non-Blocking Webhook Support)
-# ============================================================
-
-def _safe_git_push_bg(path, reason, site_name):
-    """ጊትሃብ መግፋትን በተናጠል ክር ማስኬድ"""
-    pass
 
 
 # ============================================================
@@ -314,7 +310,6 @@ def _simple_git_push(file_path, content, commit_message, site_name="primary"):
             ['git', 'push', 'origin', 'main']
         ]
         
-        # ✅ ማሻሻያ 4፦ ሰርቨሩ ለዘላለም እንዳይቆለፍ በእያንዳንዱ ትዕዛዝ ላይ timeout=8 መጨመር
         for cmd in commands:
             result = subprocess.run(cmd, cwd=base_dir, capture_output=True, text=True, timeout=8)
             if result.returncode != 0 and 'nothing to commit' not in result.stderr:

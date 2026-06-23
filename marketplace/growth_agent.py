@@ -1,8 +1,10 @@
+
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
 # 📝 ለውጥ፦ ሙሉ የተጠናከረ ስሪት v5 (የተመቻቸ) — Confirmed Schema + Persistence Fix +
 #         Structured Validation + Self-Critique + Real Test Execution + Safe Gating
-# 📅 ቀን፦ 2026-06-22
+# ⚙️ ማስተካከያ፦ የኮድ መቆራረጥን እና የዳታቤዝ መጥፋትን ለመከላከል Preservation Safeguards ተጨምረዋል
+# 📅 ቀን፦ 2026-06-23
 # ============================================================
 
 import json
@@ -25,7 +27,7 @@ from importlib import reload
 from groq import Groq
 from google import genai
 from django.db import models, connection, connections
-from django.db.models import Q, Avg, Count, Case, When, Value, IntegerField
+from django.db.models import Q, Avg, Count, Case, When, Value, IntegerField, Sum
 
 from .models import (
     SiteConfig, Category, Product, AIProjectBacklog, AIEvolutionLog,
@@ -66,8 +68,12 @@ def _validate_response_schema(data, expected_keys=None):
     return True
 
 
-def get_targeted_code_context(project_code, target_file_key=None, max_chars=3500):
-    """ለኤአይ የሚላከውን የኮድ መጠን ያሳጥራል (JSON እንዳይቆረጥ መከላከያ)"""
+def get_targeted_code_context(project_code, target_file_key=None, max_chars=40000):
+    """
+    ለኤአይ የሚላከውን የኮድ መጠን በጥንቃቄ ያሳጥራል።
+    የሚሻሻለውን ፋይል ሙሉ በሙሉ (እስከ 40,000 ቁምፊዎች) ይልካል፣ ሌሎችን ግን በአጭሩ ያሳያል።
+    ይህም ትልቅ JSON ተቆርጦ ኤአይ እንዳይቋረጥ እና የፋይል መጥፋት እንዳይከሰት ይከላከላል።
+    """
     optimized = {}
     for key, content in project_code.items():
         if not isinstance(content, str):
@@ -75,7 +81,7 @@ def get_targeted_code_context(project_code, target_file_key=None, max_chars=3500
             continue
         
         if target_file_key and key == target_file_key:
-            optimized[key] = content[:max_chars] + ("\n... [Truncated for AI size safety]" if len(content) > max_chars else "")
+            optimized[key] = content[:max_chars] + ("\n... [Truncated due to extreme size]" if len(content) > max_chars else "")
         else:
             lines = content.split('\n')
             if len(lines) > 35:
@@ -627,7 +633,7 @@ class GrowthStrategyEngine:
 
 
 # ============================================================
-# 11. Growth Stage Engine — ✅ FIXED (get_or_create stack safety)
+# 11. Growth Stage Engine
 # ============================================================
 
 class GrowthStageEngine:
@@ -698,7 +704,6 @@ class GrowthStageEngine:
         logger.info(f"📈 [{self.site.name}] Build Phase → {phase}: {self.PHASE_NAMES.get(phase)}")
 
     def _create_seed_task(self):
-        # ✅ get_or_create_backlog_task_safe ተተክቷል
         task, _ = get_or_create_backlog_task_safe(
             self.site, "Seed Real Products & Customers",
             defaults={
@@ -719,7 +724,6 @@ class GrowthStageEngine:
         ]
         created = []
         for name, target_file, desc in specs:
-            # ✅ get_or_create_backlog_task_safe ተተክቷል
             task, _ = get_or_create_backlog_task_safe(
                 self.site, name,
                 defaults={
@@ -739,7 +743,6 @@ class GrowthStageEngine:
         ]
         created = []
         for name, target_file, desc in specs:
-            # ✅ get_or_create_backlog_task_safe ተተክቷል
             task, _ = get_or_create_backlog_task_safe(
                 self.site, name,
                 defaults={
@@ -758,7 +761,6 @@ class GrowthStageEngine:
         ]
         created = []
         for name, target_file, desc in specs:
-            # ✅ get_or_create_backlog_task_safe ተተክቷል
             task, _ = get_or_create_backlog_task_safe(
                 self.site, name,
                 defaults={
@@ -929,8 +931,12 @@ def _execute_single_task_cycle(site, target_task, override_obj, project_code, fi
     🛡️ Known Production Errors (Self-Healing Queue, unresolved):
     {json.dumps(pending_errors, indent=2, ensure_ascii=False) if pending_errors else "None"}
 
-    Engineering Rules:
-    - Return ONLY raw JSON with keys: updates, backlog_tasks, self_healing_actions, database_migration_needed.
+    ⚠️ CRITICAL INSTRUCTION (PRESERVATION SAFEGUARD):
+    - For any file you modify in 'updates', you MUST provide the FULL, COMPLETE file content with your changes merged.
+    - Do NOT omit, truncate, or delete any existing models, views, imports, or functions unless explicitly told to.
+    - If you return only the changes, you will destroy the existing file.
+    
+    Return ONLY raw JSON with keys: updates, backlog_tasks, self_healing_actions, database_migration_needed.
     - Validate Python syntax within code updates.
     - Use Django best practices.
     - For 'Known Production Errors' fixable via code, fix them and report in 'self_healing_actions':
@@ -957,7 +963,6 @@ def _execute_single_task_cycle(site, target_task, override_obj, project_code, fi
         return f"❌ Fail for {site.name}: {err_msg}"
 
     for t in data.get('backlog_tasks', []):
-        # ✅ get_or_create_backlog_task_safe ተተክቷል
         get_or_create_backlog_task_safe(
             site,
             task_name=t['task_name'],
@@ -1290,7 +1295,7 @@ class AutonomousGrowthEngine:
                         defaults={'value': {
                             'timestamp': timezone.now().isoformat(),
                             'status': 'alive',
-                            'cycle': self.cycle_count
+                            'cycle': self.engine.cycle_count
                         }}
                     )
                 except Exception as e:
@@ -1736,19 +1741,29 @@ class AutonomousGrowthEngine:
                     except SyntaxError as compile_err:
                         logger.error(f"⛔ Rejecting generated code for {target_file_confirmed} due to syntax error: {compile_err}")
                         
-                        AgentErrorLog.objects.create(
-                            site=site,
-                            task_name=task.task_name,
-                            error_type='syntax',
-                            error_message=f"SyntaxError in AI generated code: {compile_err}",
-                            code_attempted=code_content,
-                            resolved=False
-                        )
+                        # የዳታቤዝ ስህተቶችን መመዝገብ
+                        try:
+                            AgentErrorLog.objects.create(
+                                site=site,
+                                task_name=task.task_name,
+                                error_type='syntax',
+                                error_message=f"SyntaxError in AI generated code: {compile_err}",
+                                code_attempted=code_content,
+                                resolved=False
+                            )
+                        except Exception:
+                            pass
+                        finally:
+                            connection.close()
                         return f"error: AI code failed local syntax compilation validation: {compile_err}"
                 
                 path = None
                 if site.repo_path:
-                    path = os.path.join(site.repo_path, 'marketplace', f'{target_file_confirmed}.py')
+                    # 🛡️ repo_path የድረ-ገጽ URL ከሆነ በደህንነት ወደ settings.BASE_DIR ማምራት
+                    repo_path = site.repo_path
+                    if repo_path.startswith('http') or "github.com" in repo_path:
+                        repo_path = str(settings.BASE_DIR)
+                    path = os.path.join(repo_path, 'marketplace', f'{target_file_confirmed}.py')
                 
                 if path:
                     result = apply_code_change(
@@ -2344,3 +2359,4 @@ def analyze_pending_tasks(site=None):
     except Exception as e:
         logger.error(f"❌ Task analysis error: {e}")
         return {'total': 0, 'by_priority': [], 'by_type': [], 'critical': 0, 'high': 0, 'total_impact': 0, 'oldest': None, 'newest': None}
+
