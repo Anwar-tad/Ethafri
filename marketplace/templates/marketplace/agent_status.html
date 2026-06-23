@@ -1,5 +1,5 @@
 <!-- EthAfri/marketplace/templates/marketplace/agent_status.html -->
-<!-- የተሻሻለ ስሪት — Global CSS/JS በመጠቀም -->
+<!-- የተሻሻለ ስሪት — Global CSS/JS እና Rolling Cycle Logs (CL) ጨምሮ -->
 
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
@@ -428,19 +428,19 @@
         <div class="col-md-4">
             <div class="agent-status-card">
                 <div class="card-body">
-                    <div class="stat-label" style="font-size: 0.75rem;">{% trans "Site Statistics" %}</div>
+                    <div class="stat-label" style="font-size: 0.75rem;">{% trans "Target Niche Status" %}</div>
                     <div class="row text-center mt-2">
                         <div class="col-4">
-                            <div class="stat-number success">{{ site_stats.active }}</div>
-                            <div class="stat-label">{% trans "Active" %}</div>
+                            <div class="stat-number warning" style="font-size: 1.1rem; padding-top: 10px;">{{ site_stats.total }}</div>
+                            <div class="stat-label">{% trans "Total Sites" %}</div>
                         </div>
                         <div class="col-4">
-                            <div class="stat-number primary">{{ site_stats.total }}</div>
-                            <div class="stat-label">{% trans "Total" %}</div>
+                            <div class="stat-number primary" style="font-size: 1.1rem; padding-top: 10px;">{{ site_stats.active }}</div>
+                            <div class="stat-label">{% trans "Active Sites" %}</div>
                         </div>
                         <div class="col-4">
-                            <div class="stat-number warning">{{ marketing_stats.campaigns }}</div>
-                            <div class="stat-label">{% trans "Campaigns" %}</div>
+                            <div class="stat-number success" style="font-size: 1.1rem; padding-top: 10px;">{{ site_stats.build_phase|floatformat:1 }}</div>
+                            <div class="stat-label">{% trans "Avg Phase" %}</div>
                         </div>
                     </div>
                 </div>
@@ -658,6 +658,42 @@
                             <div class="stat-label" style="font-size: 0.7rem;">{% trans "SEO" %}</div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    🤖 Agent Cycle Logs (CL Console)
+    ይህ የኤጀንቱን እያንዳንዱን የዑደት ታሪክ በጥቁር ተርሚናል መልክ ያሳያል
+    ============================================================ -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm" style="background: #1e1e1e; color: #00ff00; font-family: monospace; border-radius: var(--radius-md); border: 1px solid #333;">
+                <div class="card-header d-flex justify-content-between align-items-center" style="background: #2d2d2d; color: #fff; border-bottom: 1px solid #444; border-top-left-radius: var(--radius-md); border-top-right-radius: var(--radius-md);">
+                    <span><i class="fas fa-terminal me-2" style="color: #00ff00;"></i>{% trans "Agent Cycle Logs (CL)" %}</span>
+                    <span class="badge bg-success" style="font-size: 0.8rem;">{% trans "Live Terminal" %}</span>
+                </div>
+                <div class="card-body" style="max-height: 450px; overflow-y: auto;">
+                    {% for log in cycle_logs %}
+                        <div class="mb-3 pb-2" style="border-bottom: 1px solid #2d2d2d;">
+                            <span style="color: #888;">[{{ log.timestamp }}]</span> 
+                            <strong style="color: #569cd6;">{% trans "Cycle" %} #{{ log.cycle }}</strong> 
+                            <span style="color: #ce9178;">({% trans "Duration" %}: {{ log.duration }}s)</span>
+                            <ul class="list-unstyled ps-3 mt-1" style="color: #d4d4d4;">
+                                {% for res in log.results %}
+                                    <li><span style="color: #00ff00;">➜</span> {{ res }}</li>
+                                {% empty %}
+                                    <li style="color: #6a9955;">{% trans "No execution logs found in this cycle." %}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% empty %}
+                        <div class="text-center text-muted" style="color: #888 !important; padding: 20px;">
+                            <i class="fas fa-terminal fa-2x mb-2 opacity-25" style="color: #00ff00;"></i>
+                            <p class="mb-0 small">{% trans "No execution logs found yet. Press 'Run Agent' to start logging." %}</p>
+                        </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>

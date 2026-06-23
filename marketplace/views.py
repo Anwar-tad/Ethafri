@@ -343,6 +343,9 @@ def trigger_evolution(request):
 # ============================================================
 # 🆕 6.1 የኤጀንት ሁኔታ ዳሽቦርድ
 # ============================================================
+# ============================================================
+# 🆕 የተስተካከለ የኤጀንት ሁኔታ ዳሽቦርድ (ከ CL መዝገብ ጋር)
+# ============================================================
 @staff_member_required
 def agent_status_dashboard(request):
     try:
@@ -481,6 +484,13 @@ def agent_status_dashboard(request):
             prediction_stats = {'total': 0, 'traffic': 0, 'seo': 0}
     else:
         prediction_stats = {'total': 0, 'traffic': 0, 'seo': 0}
+        
+    # ✅ አዲስ የጥበቃ ሎጂክ፦ የኤጀንቱን እያንዳንዱን የዑደት ታሪክ (Cycle Logs) ከዳታቤዝ ማውጣት
+    try:
+        logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
+        cycle_logs = logs_config.value if logs_config and isinstance(logs_config.value, list) else []
+    except Exception:
+        cycle_logs = []
     
     context = {
         'agent_status': agent_status,
@@ -497,6 +507,7 @@ def agent_status_dashboard(request):
         'security_stats': security_stats,
         'ab_test_stats': ab_test_stats,
         'prediction_stats': prediction_stats,
+        'cycle_logs': cycle_logs,  # ✅ የ CL መዝገብ ወደ ቴምፕሌቱ እንዲተላለፍ በኮንቴክስት ውስጥ ተካቷል
     }
     
     return render(request, 'marketplace/agent_status.html', context)

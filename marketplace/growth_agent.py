@@ -1349,6 +1349,39 @@ class AutonomousGrowthEngine:
             self.error_count += 1
         
         finally:
+            cycle_summary = " | ".join(results[:5]) if results else "No results"
+                total_results.append(f"Cycle #{self.cycle_count}: {cycle_summary}")
+                
+                # ============================================================
+                # 📝 አዲስ፦ የ Rolling Cycle Log (CL) መዝገብ ማስቀመጥ
+                # ============================================================
+                try:
+                    logs_config, _ = SiteConfig.objects.get_or_create(
+                        key="AGENT_CYCLE_LOGS",
+                        defaults={'value': []}
+                    )
+                    current_logs = logs_config.value if isinstance(logs_config.value, list) else []
+                    
+                    # አዲሱን የዑደት መዝገብ ማዘጋጀት
+                    new_log = {
+                        'timestamp': start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'cycle': self.cycle_count,
+                        'duration': (timezone.now() - start_time).seconds,
+                        'results': results
+                    }
+                    
+                    # አዲሱን መዝገብ ከላይ ማስገባት (Newest First)
+                    current_logs.insert(0, new_log)
+                    
+                    # ከፍተኛ 50 መዝገቦችን ብቻ ማስቀረት (የዳታቤዝ መጨናነቅን ይከላከላል)
+                    logs_config.value = current_logs[:50]
+                    logs_config.save()
+                    
+                except Exception as log_err:
+                    logger.warning(f"⚠️ Could not write rolling cycle log: {log_err}")
+                # ============================================================
+                
+                logger.info(f"✅ Cycle #{self.cycle_count} completed in {(timezone.now() - start_time).seconds}s")
             self.is_running = False
             connections.close_all()
         
