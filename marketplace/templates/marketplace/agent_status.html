@@ -773,7 +773,6 @@
     // ============================================================
     // Update Dashboard
     // ============================================================
-    
     function updateDashboard(data) {
         if (data.type === 'status_update') {
             const updateEl = document.getElementById('lastUpdate');
@@ -783,8 +782,48 @@
                     {% trans "Updated" %}: ${new Date(data.timestamp).toLocaleTimeString()}
                 `;
             }
+            
+            // ✅ አዲስ፦ የ CL ተርሚናል ይዘትን በ WebSocket Live መረጃዎች በእውነተኛ ሰዓት ማደስ
+            if (data.cycle_logs && Array.isArray(data.cycle_logs)) {
+                const terminalBody = document.querySelector('.card-body[style*="max-height: 450px"]');
+                if (terminalBody) {
+                    if (data.cycle_logs.length === 0) {
+                        terminalBody.innerHTML = `
+                            <div class="text-center text-muted" style="color: #888 !important; padding: 20px;">
+                                <i class="fas fa-terminal fa-2x mb-2 opacity-25" style="color: #00ff00;"></i>
+                                <p class="mb-0 small">{% trans "No execution logs found yet. Press 'Run Agent' to start logging." %}</p>
+                            </div>
+                        `;
+                    } else {
+                        let htmlContent = '';
+                        data.cycle_logs.forEach(log => {
+                            let resultsHtml = '';
+                            if (log.results && log.results.length > 0) {
+                                log.results.forEach(res => {
+                                    resultsHtml += `<li><span style="color: #00ff00;">➜</span> ${res}</li>`;
+                                });
+                            } else {
+                                resultsHtml = `<li style="color: #6a9955;">{% trans "No execution logs found in this cycle." %}</li>`;
+                            }
+                            
+                            htmlContent += `
+                                <div class="mb-3 pb-2" style="border-bottom: 1px solid #2d2d2d;">
+                                    <span style="color: #888;">[${log.timestamp}]</span> 
+                                    <strong style="color: #569cd6;">{% trans "Cycle" %} #${log.cycle}</strong> 
+                                    <span style="color: #ce9178;">({% trans "Duration" %}: ${log.duration}s)</span>
+                                    <ul class="list-unstyled ps-3 mt-1" style="color: #d4d4d4;">
+                                        ${resultsHtml}
+                                    </ul>
+                                </div>
+                            `;
+                        });
+                        terminalBody.innerHTML = htmlContent;
+                    }
+                }
+            }
         }
     }
+  
 
     // ============================================================
     // Uptime Counter
@@ -829,3 +868,4 @@
     });
 </script>
 {% endblock %}
+

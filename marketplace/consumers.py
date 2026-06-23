@@ -95,7 +95,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 break
     
     async def send_status(self):
-        """ወቅታዊ ሁኔታ ላክ (አጠቃላይ)"""
+        """ወቅታዊ ሁኔታ ላክ (አጠቃላይ) — አዲሱን የ CL መዝገብ ታሪክ ጨምሮ"""
         try:
             lock = await self.get_lock_status()
             tasks = await self.get_task_stats()
@@ -103,6 +103,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             sites = await self.get_site_summary()
             errors = await self.get_error_summary()
             healing = await self.get_healing_summary()
+            cycle_logs = await self.get_cycle_logs()  # ✅ የ CL መዝገብ ታሪክ ማግኘት
             
             status_data = {
                 'type': 'status_update',
@@ -112,7 +113,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'pending_tasks': pending,
                 'sites': sites,
                 'errors': errors,
-                'healing': healing
+                'healing': healing,
+                'cycle_logs': cycle_logs  # ✅ በ WebSocket በኩል በእውነተኛ ሰዓት መላክ
             }
             
             await self.send(text_data=json.dumps(status_data))
@@ -121,21 +123,69 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'type': 'error',
                 'message': str(e)
             }))
-    
+            
+    async def send_site_status(self, site_id):
+        """የአንድ ጣቢያ ሁኔታ ለይቶ መላክ"""
+        try:
+            site = await self.get_site(site_id)
+            if not site:
+                await self.send(text_data=json.dumps({
+                    'type': 'error',
+                    'message': f'Site {site_id} not found'
+                }))
+                return
+            
+            tasks = await self.get_site_tasks(site_id)
+            errors = await self.get_site_errors(site_id)
+            
+            status_data = {
+                'type': 'site_status',
+                'site': site,
+                'tasks': tasks,
+                'errors': errors,
+                'timestamp': timezone.now().isoformat()
+            }
+            
+            await self.send(text_data=json.dumps(status_data))
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': str(e)
+            }))
+            
+    async def send_error_summary(self):
+        """የስህተት ማጠቃለያ ላክ"""
+        try:
+            errors = await self.get_error_summary()
+            await self.send(text_data=json.dumps({
+                'type': 'error_summary',
+                'errors': errors,
+                'timestamp': timezone.now().isoformat()
+            }))
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': str(e)
+            }))
+            
+    async def send_recent_activity(self):
+        """የቅርብ ጊዜ እንቅስቃሴ ላክ"""
+        try:
+            activity = await self.get_recent_activity()
+            await self.send(text_data=json.dumps({
+                'type': 'recent_activity',
+                'activity': activity,
+                'timestamp': timezone.now().isoformat()
+            }))
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': str(e)
+            }))
+            
     # ============================================================
-    # 2. RAG Memory Engine for Self-Healing
+    # 🗄️ Database Helper Functions (Async)
     # ============================================================
-    
-    def handle_code_task(self, task):
-        similar = self.memory.recall(task.description, 'code', limit=3)
-        context = "\n".join([f"Previous solution: {m.content}" for m in similar])
-        prompt = f"Task: {task.task_name}\nDescription: {task.description}\n{context}\nGenerate code solution."
-        return ask_ai_with_failover(prompt, pool_type="coding")
-
-
-# ============================================================
-# ⚙️ የዳታቤዝ ረዳት መጋጠሚያዎች (Async DB Helpers)
-# ============================================================
     
     @database_sync_to_async
     def get_lock_status(self):
@@ -145,6 +195,15 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             return lock.value if lock else {'status': 'idle', 'last_run': 'Never'}
         except:
             return {'status': 'idle', 'last_run': 'Never'}
+            
+    @database_sync_to_async
+    def get_cycle_logs(self):
+        """የኤጀንቱን የ Rolling Cycle Logs ታሪክ ከዳታቤዝ ማውጣት"""
+        try:
+            logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
+            return logs_config.value if logs_config and isinstance(logs_config.value, list) else []
+        except:
+            return []
     
     @database_sync_to_async
     def get_task_stats(self):
@@ -175,7 +234,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
     def get_pending_tasks(self):
         """የታገዱ ስራዎች ዝርዝር አግኝ — በትክክለኛው የቅድሚያ አሰላለፍ (Priority Rank)"""
         try:
-            # ✅ የፊደል አሰላለፍ ችግርን ለመፍታት የ Priority Rank አሰላለፍ በ Case ተተክቷል
+            # የፊደል አሰላለፍ ችግርን ለመፍታት የ Priority Rank አሰላለፍ በ Case ተተክቷል
             rank = Case(
                 When(priority='Critical', then=Value(4)),
                 When(priority='High', then=Value(3)),
