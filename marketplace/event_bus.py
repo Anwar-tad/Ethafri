@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/event_bus.py
-# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned & Simplified Utility)
-# ✅ የተፈቱ ችግሮች፦ Redundant Background Threads (Removed 90% dead weight), RAM Leaks
-# 📅 ቀን፦ 2026-06-23
+# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned & Thread-Safe Utility)
+# ✅ የተፈቱ ችግሮች፦ InterfaceError Prevention, Database Connection Leaks, 
+#                   Safe String Slicing for Trends.
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
 """
@@ -13,7 +14,7 @@
 
 import logging
 from django.utils import timezone
-from django.db import connection
+from django.db import db  # ✅ ወደ db.close_old_connections() ተቀይሯል
 from .models import AIProjectBacklog, AgentErrorLog, VectorMemory, SiteRegistry
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         try:
             site = SiteRegistry.objects.filter(id=site_id).first() if site_id else None
             if site:
+                # ✅ Circular Dependency ለመከላከል (Lazy Import)
                 from .growth_agent import get_or_create_backlog_task_safe
                 get_or_create_backlog_task_safe(
                     site=site,
@@ -66,7 +68,7 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         except Exception as e:
             logger.warning(f"Failed to handle product creation event: {e}")
         finally:
-            connection.close()
+            db.close_old_connections()  # ✅ Thread-Safe ማጽጃ
 
     # 2. ተግባር ሲጠናቀቅ RAG ትውስታ ውስጥ ማስቀመጥ
     elif event_type == EventTypes.TASK_COMPLETED:
@@ -86,7 +88,7 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         except Exception as e:
             logger.warning(f"Failed to handle task completion event: {e}")
         finally:
-            connection.close()
+            db.close_old_connections()
 
     # 3. ስህተት ሲገኝ በራስ-ሰር ለመፍታት መሞከር
     elif event_type == EventTypes.ERROR_DETECTED:
@@ -94,9 +96,9 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         error_message = data.get('error_message')
         try:
             error = AgentErrorLog.objects.filter(id=error_id).first() if error_id else None
-            if error:
+            if error and error_message:
                 similar_errors = AgentErrorLog.objects.filter(
-                    error_message__icontains=error_message[:20],
+                    error_message__icontains=str(error_message)[:20],
                     resolved=True
                 ).count()
                 
@@ -108,25 +110,27 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         except Exception as e:
             logger.warning(f"Failed to handle error detection event: {e}")
         finally:
-            connection.close()
+            db.close_old_connections()
             
     # 4. አዲስ አዝማሚያ ሲገኝ የማርኬቲንግ ስራ መፍጠር
     elif event_type == EventTypes.TREND_DETECTED:
-        trend = data.get('trend')
+        trend = data.get('trend', 'Unknown')
         site_id = data.get('site_id')
         try:
             site = SiteRegistry.objects.filter(id=site_id).first() if site_id else None
             if site:
                 from .growth_agent import get_or_create_backlog_task_safe
+                # ✅ የ Type Safety ማረጋገጫ በ str()
+                trend_str = str(trend)
                 get_or_create_backlog_task_safe(
                     site=site,
-                    task_name=f"Marketing: {trend[:30]}",
+                    task_name=f"Marketing: {trend_str[:30]}",
                     defaults={
                         'task_type': 'marketing',
                         'target_file': 'marketing_campaign',
                         'priority': 'High',
                         'status': 'Pending',
-                        'description': f'Capitalize on trend: {trend}',
+                        'description': f'Capitalize on trend: {trend_str}',
                         'business_impact_score': 8,
                         'trigger_condition': f'Event: {event_type}'
                     }
@@ -134,4 +138,4 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         except Exception as e:
             logger.warning(f"Failed to handle trend detection event: {e}")
         finally:
-            connection.close()
+            db.close_old_connections()

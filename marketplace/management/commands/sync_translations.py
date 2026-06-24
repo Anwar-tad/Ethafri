@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/sync_translations.py
-# 📝 ለውጥ፦ Multi-Site Support + Enhanced Translation + Schema Validation
-# ✅ የተፈቱ ችግሮች፦ View KeyError Crashes during translation parsing
-# 📅 ቀን፦ 2026-06-23
+# 📝 ለውጥ፦ Multi-Site Support + Robust JSON Schema Validation
+# ✅ የተፈቱ ችግሮች፦ Clean JSON Extraction, Guard against non-dict AI mappings, Safe context joining.
+# 📅 ቀን፦ Thursday, June 25, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
@@ -15,6 +15,7 @@ import os
 import json
 import shutil
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,20 @@ class Command(BaseCommand):
         self._process_system_translations()
         self.stdout.write(self.style.SUCCESS("🎉 የትርጉም ስራው እና ማጠናቀሪያው ሙሉ በሙሉ ተጠናቋል!"))
 
+    def _clean_and_parse_json(self, raw_data):
+        """AI የሚመልሰውን ጥሬ ምላሽ አጽድቶ ወደ ዲክሽነሪ ይቀይራል (KeyError መከላከያ)"""
+        if isinstance(raw_data, dict):
+            return raw_data
+        if not isinstance(raw_data, str):
+            return {}
+        try:
+            # Markdown የኮድ ብሎኮችን (```json ... ```) የማጽዳት ስራ
+            cleaned = re.sub(r'^```json\s*|```$', '', raw_data.strip(), flags=re.MULTILINE)
+            return json.loads(cleaned)
+        except Exception as e:
+            logger.error(f"Failed to parse AI translation JSON: {e}")
+            return {}
+
     def _process_system_translations(self):
         """የሲስተሙን መደበኛ ትርጉም ያካሂዳል"""
         has_gettext = shutil.which('xgettext') is not None
@@ -97,7 +112,10 @@ class Command(BaseCommand):
 
             if not untranslated:
                 self.stdout.write(f"✨ {lang_name} - ምንም ያልተተረጎመ ቃል የለም።")
-                po.save_as_mofile(mo_file_path)
+                try:
+                    po.save_as_mofile(mo_file_path)
+                except:
+                    pass
                 continue
 
             self.stdout.write(self.style.WARNING(f"🧠 {len(untranslated)} የ {lang_name} ቃላት በ AI በባች (Batch) በመተርጎም ላይ..."))
@@ -125,23 +143,24 @@ class Command(BaseCommand):
                     pool_choice = "translation_huggingface"
                     self.stdout.write(f"  ➡️ Batch {current_batch_index + 1}: Routing to Hugging Face...")
 
-                # ✅ ማሻሻያ፦ የተዋቀረ ምላሽ ማረጋገጫ (expected_keys) መመገብ
-                translated_data = ask_ai_with_failover(prompt, pool_type=pool_choice, expected_keys=["translations"])
+                raw_translated = ask_ai_with_failover(prompt, pool_type=pool_choice, expected_keys=["translations"])
+                translated_data = self._clean_and_parse_json(raw_translated)
                 
-                if isinstance(translated_data, dict) and "error" not in translated_data:
+                if translated_data and "error" not in translated_data:
                     translations_map = (
                         translated_data.get('translations') or 
                         translated_data.get('translation') or 
                         translated_data
                     )
                     
-                    for entry in batch:
-                        translated_text = translations_map.get(entry.msgid)
-                        if translated_text and len(translated_text.strip()) > 0:
-                            entry.msgstr = translated_text.strip()
-                            count += 1
+                    if isinstance(translations_map, dict):
+                        for entry in batch:
+                            translated_text = translations_map.get(entry.msgid)
+                            if translated_text and len(str(translated_text).strip()) > 0:
+                                entry.msgstr = str(translated_text).strip()
+                                count += 1
                 else:
-                    self.stdout.write(self.style.ERROR(f"❌ Batch request failed."))
+                    self.stdout.write(self.style.ERROR(f"❌ Batch request failed or returned invalid schema."))
 
             po.save()
             try:
@@ -160,6 +179,15 @@ class Command(BaseCommand):
         
         locales = {'am': 'Amharic', 'om': 'Oromo', 'ar': 'Arabic', 'so': 'Somali', 'ti': 'Tigrinya', 'fr': 'French'}
         
+        # ✅ ማሻሻያ፦ keywords ሊስት መሆኑን በጥንቃቄ ማረጋገጥ
+        keywords_list = site.primary_keywords if isinstance(site.primary_keywords, list) else []
+        site_context = f"""
+        Site: {site.display_name}
+        Niche: {site.niche}
+        Keywords: {', '.join(keywords_list[:5])}
+        Target Market: {site.target_market}
+        """
+        
         for lang_code, lang_name in locales.items():
             po_file_path = os.path.join(site_locale_path, lang_code, 'LC_MESSAGES', 'django.po')
             mo_file_path = os.path.join(site_locale_path, lang_code, 'LC_MESSAGES', 'django.mo')
@@ -172,13 +200,6 @@ class Command(BaseCommand):
             
             if not untranslated:
                 continue
-            
-            site_context = f"""
-            Site: {site.display_name}
-            Niche: {site.niche}
-            Keywords: {', '.join(site.primary_keywords[:5])}
-            Target Market: {site.target_market}
-            """
             
             batch_size = 15
             untranslated_list = list(untranslated)
@@ -195,21 +216,22 @@ class Command(BaseCommand):
                     f"Return JSON with key 'translations' mapping original to translated text."
                 )
                 
-                # ✅ ማሻሻያ፦ expected_keys ማካተት
-                translated_data = ask_ai_with_failover(prompt, pool_type="translation", expected_keys=["translations"])
+                raw_translated = ask_ai_with_failover(prompt, pool_type="translation", expected_keys=["translations"])
+                translated_data = self._clean_and_parse_json(raw_translated)
                 
-                if isinstance(translated_data, dict) and "error" not in translated_data:
+                if translated_data and "error" not in translated_data:
                     translations_map = translated_data.get('translations') or translated_data
                     
-                    for entry in batch:
-                        translated_text = translations_map.get(entry.msgid)
-                        if translated_text and len(translated_text.strip()) > 0:
-                            entry.msgstr = translated_text.strip()
-                            count += 1
+                    if isinstance(translations_map, dict):
+                        for entry in batch:
+                            translated_text = translations_map.get(entry.msgid)
+                            if translated_text and len(str(translated_text).strip()) > 0:
+                                entry.msgstr = str(translated_text).strip()
+                                count += 1
             
             po.save()
             try:
                 po.save_as_mofile(mo_file_path)
-                self.stdout.write(self.style.SUCCESS(f"  ✅ {count} {lang_name} translations for {site.name}"))
+                self.stdout.write(self.style.SUCCESS(f"  ✅ {count} {lang_name} translations compiled for {site.name}"))
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"  ❌ Error saving {lang_name} for {site.name}: {e}"))

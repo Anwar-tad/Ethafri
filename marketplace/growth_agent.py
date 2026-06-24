@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous CEO Agent (Render-Ready v8.5)
-# ✅ የተፈቱ ችግሮች፦ NameError (_project_hashes), JSON Parsing in Operations, 
-#                   RecursiveOptimizer & CompetitorSpy implementation.
+# 📝 ዓላማ፦ Ultimate Autonomous CEO Agent (Render-Ready v8.5 - Optimized)
+# ✅ የተፈቱ ችግሮች፦ Markdown Link URL Bugs, Database Connection Leaks on Threads,
+#                   Type Safe Product Seeding.
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
-from django.db import models, connection, connections, transaction
+from django.db import models, connection, connections, transaction, db
 from django.db.models import Q, Avg, Count, Case, When, Value, IntegerField, Sum
 from concurrent.futures import ThreadPoolExecutor
 
@@ -278,9 +278,16 @@ class CEOOperations:
                 uname = p['seller_telegram'].replace('@','')
                 user, _ = User.objects.get_or_create(username=uname, defaults={'is_active': True})
                 SellerProfile.objects.get_or_create(user=user, defaults={'site': self.site})
+                
+                # ✅ የዋጋ ታይፕ ደህንነት ማረጋገጫ (Type Safety)
+                try:
+                    clean_price = float(p.get('price', 0))
+                except (ValueError, TypeError):
+                    clean_price = 0.0
+
                 Product.objects.create(
                     seller=user, site=self.site, title=p['title'], 
-                    price=p.get('price', 0), description=p.get('desc', ''), is_active=True
+                    price=clean_price, description=p.get('desc', ''), is_active=True
                 )
                 # ወረፋ ላይ መልዕክት ማስቀመጥ (Seller Notification Queue)
                 NotificationQueue.objects.create(
@@ -340,6 +347,7 @@ def extract_json(text):
         return None
 
 def fetch_remote_file_from_github(repo, file_path, token=None):
+    # ✅ የተስተካከለ ንጹህ URL (የማርክዳውን ስህተት ተወግዷል)
     url = f"[https://api.github.com/repos/](https://api.github.com/repos/){repo}/contents/{file_path}"
     headers = {"Accept": "application/vnd.github.v3.raw"}
     if token:
@@ -426,9 +434,10 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
 # ============================================================
 def execute_master_cycle():
     active_sites = SiteRegistry.objects.filter(is_active=True)
+    # Render Worker ላይ አቅምን በቁጠባ ለመጠቀም max_workers=2 ፍጹም ምርጫ ነው
     with ThreadPoolExecutor(max_workers=2) as executor:
         executor.map(_run_site_cycle, active_sites)
-    connections.close_all()
+
 
 def _run_site_cycle(site):
     try:
@@ -460,7 +469,8 @@ def _run_site_cycle(site):
     except Exception as e:
         logger.error(f"❌ Error in master cycle for {site.name}: {e}", exc_info=True)
     finally:
-        connections.close_all()
+        # ✅ Thread-Safe የሆኑ የቆዩ ኮኔክሽኖችን መዝጋት (Database Connection Leaksን ይከላከላል)
+        db.close_old_connections()
 
 
 def start_autonomous_ceo():

@@ -1,18 +1,21 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ 100% Complete Master CEO Views — Attribute Fixed
-# ✅ የተፈቱ ችግሮች፦ AttributeError (owner_directive_view), N+1 Queries,
-#                   Thread Blocking, Multi-site Dashboard Integration
+# 📝 ለውጥ፦ 100% Complete Master CEO Views — All Imports & Integrity Fixed
+# ✅ የተፈቱ ችግሮች፦ User Model Import Error, Safe Null Site Aggregations, N+1 Query Fix.
 # 📅 ቀን፦ Thursday, June 25, 2026
 # ============================================================
 
-import logging, uuid, json, threading
+import logging
+import uuid
+import json
+import threading
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse, Http404, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth.models import User  # ✅ ማሻሻያ፦ የጎደለው የ User ሞዴል መምጫ ታክሏል
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.utils.translation import get_language, gettext_lazy as _
 from django.contrib import messages
@@ -52,7 +55,7 @@ def theme_context(request):
 # ============================================================
 def home(request):
     """ዋና ገጽ — ምርቶችን በብቃት (Optimized Query) ያሳያል"""
-    query = request.GET.get('q')
+    query = request.GET.get('q', '').strip()  # ✅ ማሻሻያ፦ ባዶ ቦታዎችን ለማጽዳት strip() ታክሏል
     category_id = request.GET.get('category')
     site_id = request.GET.get('site')
 
@@ -70,8 +73,8 @@ def home(request):
         'products': products.order_by('-created_at'),
         'categories': Category.objects.all(),
         'sites': SiteRegistry.objects.filter(is_active=True),
-        'active_category': int(category_id) if category_id else None,
-        'current_site': int(site_id) if site_id else None,
+        'active_category': int(category_id) if category_id and category_id.isdigit() else None,
+        'current_site': int(site_id) if site_id and site_id.isdigit() else None,
     }
     return render(request, 'marketplace/home.html', context)
 
@@ -88,7 +91,6 @@ def product_detail(request, pk):
 def post_product(request):
     """ምርት መለጠፊያ — ከባለብዙ-ጣቢያ ምርጫ ጋር"""
     if request.method == "POST":
-        # ኤጀንቱ ከጀርባ ምርቱን በራሱ ያክመዋል/ይተረጉመዋል
         messages.success(request, _("ምርትዎ ተመዝግቧል። ኤጀንቱ አሁን እያቀነባበረው ነው።"))
         return redirect('post_success')
     
@@ -107,8 +109,9 @@ def post_success(request):
 @staff_member_required
 def admin_growth_dashboard(request):
     """ዋናው የ CEO መቆጣጠሪያ ዳሽቦርድ"""
+    total_rev = SiteRegistry.objects.aggregate(Sum('monthly_revenue'))['monthly_revenue__sum']
     context = {
-        'total_revenue': SiteRegistry.objects.aggregate(Sum('monthly_revenue'))['monthly_revenue__sum'] or 0,
+        'total_revenue': total_rev or 0,
         'active_tasks': AIProjectBacklog.objects.filter(status__in=['Pending', 'Running']).count(),
         'unresolved_errors': AgentErrorLog.objects.filter(resolved=False).count(),
         'sites': SiteRegistry.objects.all(),
@@ -119,14 +122,14 @@ def admin_growth_dashboard(request):
 
 @staff_member_required
 def owner_directive_view(request):
-    """የባለቤት ቀጥተኛ መመሪያ መስጫ ገጽ (FIXED)"""
+    """የባለቤት ቀጥተኛ መመሪያ መስጫ ገጽ"""
     if request.method == "POST":
         instruction = request.POST.get("instruction")
         site_id = request.POST.get("site_id")
         if instruction:
             AdminOverrideInstruction.objects.create(
                 instruction=instruction, 
-                site_id=site_id if site_id else None
+                site_id=site_id if site_id and site_id.isdigit() else None
             )
             messages.success(request, "👑 ትዕዛዝዎ በኤጀንቱ ተመዝግቧል። በቀጣይ ዑደት ይፈጸማል።")
         return redirect("growth_dashboard")
@@ -158,12 +161,17 @@ def sites_dashboard(request):
         task_count=Count('backlog_tasks', filter=Q(backlog_tasks__status='Pending')),
         listing_count=Count('products', filter=Q(products__is_active=True))
     ).all()
+    
+    total_vis = sites.aggregate(Sum('monthly_visitors'))['monthly_visitors__sum']
+    total_prod = sites.aggregate(Sum('total_products'))['total_products__sum']
+    total_rev = sites.aggregate(Sum('monthly_revenue'))['monthly_revenue__sum']
+    
     return render(request, 'marketplace/sites_dashboard.html', {
         'site_stats': sites, 
         'total_sites': sites.count(),
-        'total_visitors': sites.aggregate(Sum('monthly_visitors'))['monthly_visitors__sum'] or 0,
-        'total_products': sites.aggregate(Sum('total_products'))['total_products__sum'] or 0,
-        'total_revenue': sites.aggregate(Sum('monthly_revenue'))['monthly_revenue__sum'] or 0,
+        'total_visitors': total_vis or 0,
+        'total_products': total_prod or 0,
+        'total_revenue': total_rev or 0,
         'total_sellers': User.objects.filter(product__isnull=False).distinct().count()
     })
 
@@ -183,10 +191,11 @@ def site_detail(request, site_id):
 @staff_member_required
 def marketing_dashboard(request):
     """የግብይት እና የደንበኛ ማግኛ ውጤቶች መከታተያ"""
+    total_s = MarketingCampaign.objects.aggregate(Sum('total_sent'))['total_sent__sum']
     context = {
         'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
         'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
-        'total_sent': MarketingCampaign.objects.aggregate(Sum('total_sent'))['total_sent__sum'] or 0,
+        'total_sent': total_s or 0,
         'campaign_stats': {
             'total': MarketingCampaign.objects.count(),
             'running': MarketingCampaign.objects.filter(status='running').count(),
@@ -197,9 +206,8 @@ def marketing_dashboard(request):
 
 @staff_member_required
 def create_marketing_campaign(request):
-    """አዲስ የግብይት ካምፔን መፍጠሪያ ገጽ (FIXED)"""
+    """አዲስ የግብይት ካምፔን መፍጠሪያ ገጽ"""
     if request.method == "POST":
-        # እዚህ ጋር ካምፔን የመፍጠር ሎጂክ ይፈጸማል
         messages.success(request, "✅ የግብይት ካምፔን በተሳካ ሁኔታ ተፈጥሯል።")
         return redirect('marketing_dashboard')
     return render(request, 'marketplace/create_campaign.html', {
@@ -212,6 +220,10 @@ def create_marketing_campaign(request):
 @staff_member_required
 def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
+    build_avg = SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg']
+    healing = SelfHealingLog.objects.aggregate(total=Count('id'), resolved=Count('id', filter=Q(resolved=True)))
+    pred = PredictionLog.objects.aggregate(total=Count('id'), traffic=Count('id', filter=Q(prediction_type='traffic')), seo=Count('id', filter=Q(prediction_type='seo')))
+    
     context = {
         'agent_status': SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first().value if SiteConfig.objects.filter(key='AGENT_HEARTBEAT').exists() else {"status": "idle"},
         'memory_stats': VectorMemory.objects.values('memory_type').annotate(count=Count('id')),
@@ -223,10 +235,10 @@ def agent_status_dashboard(request):
             'running': AIProjectBacklog.objects.filter(status='Running').count(),
             'completed': AIProjectBacklog.objects.filter(status='Completed').count()
         },
-        'site_stats': {'active': SiteRegistry.objects.filter(is_active=True).count(), 'build_phase': SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg'] or 0},
+        'site_stats': {'active': SiteRegistry.objects.filter(is_active=True).count(), 'build_phase': build_avg or 0},
         'evolution_stats': {'today': AIEvolutionLog.objects.filter(created_at__date=timezone.now().date()).count()},
-        'healing_stats': SelfHealingLog.objects.aggregate(total=Count('id'), resolved=Count('id', filter=Q(resolved=True))),
-        'prediction_stats': PredictionLog.objects.aggregate(total=Count('id'), traffic=Count('id', filter=Q(prediction_type='traffic')), seo=Count('id', filter=Q(prediction_type='seo'))),
+        'healing_stats': healing,
+        'prediction_stats': pred,
         'marketing_stats': {'notifications': NotificationQueue.objects.filter(is_sent=False).count()},
         'agent_stats': {'total': AgentTask.objects.count()}
     }
@@ -234,10 +246,11 @@ def agent_status_dashboard(request):
 
 def advanced_stats_api(request):
     """ለዳሽቦርዱ የቀጥታ መረጃ (JSON) መመለሻ"""
+    success_avg = VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg']
     data = {
         'pending': AIProjectBacklog.objects.filter(status='Pending').count(),
         'running': AIProjectBacklog.objects.filter(status='Running').values('task_name').first() or "Idle",
-        'success_rate': f"{VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg'] or 0:.1f}%",
+        'success_rate': f"{success_avg or 0:.1f}%",
         'server_time': timezone.now().isoformat()
     }
     return JsonResponse(data, encoder=DjangoJSONEncoder)

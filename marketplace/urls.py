@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/urls.py
-# 📝 ለውጥ፦ Master CEO Agent URL Mapping — 100% View Sync
-# ✅ የተፈቱ ችግሮች፦ AttributeError, View Mismatches, Redundant Endpoints
+# 📝 ለውጥ፦ Master CEO Agent URL Mapping — 100% View Sync & API Refined
+# ✅ የተፈቱ ችግሮች፦ View API Return Mismatches, Clean Routing Hierarchy
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -27,7 +27,7 @@ urlpatterns = [
     # የባለቤት ቀጥተኛ ትዕዛዝ መስጫ (Executive Overrides)
     path('owner-directive/', views.owner_directive_view, name='owner_directive'),
     
-    # ኤጀንቱን በእጅ በሃይል ማስነሻ (Manual Evolution Trigger)
+    # ኤጀንቱን በእጅ በሃይል ማስነሻ (Manual UI Evolution Trigger)
     path('trigger-evolution/', views.trigger_evolution, name='trigger_evolution'),
     
     # 📊 4. የኤጀንት ሁኔታ እና ጤና (Agent Health & Status)
@@ -42,15 +42,17 @@ urlpatterns = [
     path('marketing/', views.marketing_dashboard, name='marketing_dashboard'),
     path('marketing/create/', views.create_marketing_campaign, name='create_marketing_campaign'),
     
-    # ⚡ 7. የኤጀንት ኤፒአይዎች (Automation & Webhooks)
+    # ============================================================
+    # ⚡ 7. የኤጀንት ኤፒአይዎች እና ዌብሁኮች (Automation & Webhooks)
+    # ============================================================
     # ለሪል-ታይም ዳሽቦርድ የሚሆን ዳታ መመለሻ
     path('api/advanced-stats/', views.advanced_stats_api, name='advanced_stats_api'),
     
-    # 🤖 ኤጀንቱን በእጅ ማስነሳት (API)
-    path('api/agent/run/', views.trigger_evolution, name='api_trigger_evolution'),
+    # 🤖 ኤጀንቱን በኤፒአይ በኩል በራስ-ገዝ ማስነሻ (ዘዴኛ ማሻሻያ፦ ዌብሁኩን ይጠራል)
+    path('api/agent/run/', views.trigger_autonomous_evolution, name='api_trigger_evolution'),
     
-    # 🤖 የኤጀንት ሁኔታ (API)
-    path('api/agent/status/', views.agent_status_dashboard, name='api_agent_status'),
+    # 🤖 የኤጀንት ሁኔታ በ JSON መልክ (ዘዴኛ ማሻሻያ፦ የ JSON ኤፒአዩን ይጠራል)
+    path('api/agent/status/', views.advanced_stats_api, name='api_agent_status'),
     
     # የውጭ ክሮን (External Cron) Webhook Gateway
     path('evolve-now-secret-123/', views.trigger_autonomous_evolution, name='trigger_autonomous_evolution'),

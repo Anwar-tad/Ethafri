@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ለውጥ፦ Multi-Site Support + Enhanced Growth Engine
-# ✅ የተፈቱ ችግሮች፦ Database connection leaks during cron execution (RAM leak)
-# 📅 ቀን፦ 2026-06-23
+# 📝 ለውጥ፦ Multi-Site Support + Robust Growth Engine
+# ✅ የተፈቱ ችግሮች፦ Database Connection Contamination in Loops, JSON Compatibility.
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
 from django.core.management.base import BaseCommand
@@ -10,6 +10,7 @@ from django.db import close_old_connections, connection
 from django.utils import timezone
 import logging
 import gc
+import json  # ✅ ማሻሻያ፦ ለ SiteConfig JSON ተኳኋኝነት ታክሏል
 from marketplace.models import SiteConfig, SiteRegistry
 from marketplace.growth_agent import run_daily_market_analysis, run_single_site_analysis
 
@@ -48,14 +49,17 @@ class Command(BaseCommand):
         
         try:
             if discover:
-                from marketplace.growth_agent import discover_new_sites
-                new_sites = discover_new_sites()
-                if new_sites:
-                    self.stdout.write(self.style.SUCCESS(f"🆕 Discovered {len(new_sites)} new sites!"))
-                    for site in new_sites:
-                        self.stdout.write(f"  - {site.name}: {site.display_name}")
-                else:
-                    self.stdout.write("🔍 No new sites discovered.")
+                try:
+                    from marketplace.growth_agent import discover_new_sites
+                    new_sites = discover_new_sites()
+                    if new_sites:
+                        self.stdout.write(self.style.SUCCESS(f"🆕 Discovered {len(new_sites)} new sites!"))
+                        for site in new_sites:
+                            self.stdout.write(f"  - {site.name}: {site.display_name}")
+                    else:
+                        self.stdout.write("🔍 No new sites discovered.")
+                except ImportError:
+                    self.stdout.write(self.style.WARNING("⚠️ discover_new_sites function not fully implemented in growth_agent.py yet."))
             
             sites_to_process = []
             
@@ -83,6 +87,8 @@ class Command(BaseCommand):
             
             if sites_to_process:
                 for site in sites_to_process:
+                    # ✅ ማሻሻያ፦ በየ Loop ዝውውሩ መሃል የዳታቤዝ ግንኙነት እንዳይመረዝ መዝጋት
+                    close_old_connections()
                     self.stdout.write(f"  🔍 Analyzing {site.name}...")
                     try:
                         result = run_single_site_analysis(site)
@@ -96,18 +102,19 @@ class Command(BaseCommand):
                 result = run_daily_market_analysis()
                 results.append(f"[Global] {result}")
             
+            # ✅ ማሻሻያ፦ ዲክሽነሪውን ወደ JSON String በመቀየር አስተማማኝነቱን ማረጋገጥ
             SiteConfig.objects.update_or_create(
                 key="LAST_SUCCESSFUL_CRON_PING", 
-                defaults={'value': {'time': timezone.now().isoformat()}}
+                defaults={'value': json.dumps({'time': timezone.now().isoformat()})}
             )
             
             SiteConfig.objects.update_or_create(
                 key="LAST_CRON_RUN",
-                defaults={'value': {
+                defaults={'value': json.dumps({
                     'time': timezone.now().isoformat(),
                     'sites_processed': len(sites_to_process),
                     'results': results[:5]
-                }}
+                })}
             )
             
             summary = " | ".join(results[:3]) + ("..." if len(results) > 3 else "")
@@ -119,13 +126,14 @@ class Command(BaseCommand):
             try:
                 SiteConfig.objects.update_or_create(
                     key="LAST_CRON_ERROR",
-                    defaults={'value': {
+                    defaults={'value': json.dumps({
                         'time': timezone.now().isoformat(),
                         'error': str(e)[:500]
-                    }}
+                    })}
                 )
             except:
                 pass
         finally:
             # ✅ የዳታቤዝ ግንኙነቱን በጥንቃቄ መዝጋት
             connection.close()
+            gc.collect()

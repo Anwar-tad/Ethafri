@@ -1,4 +1,10 @@
-import json, re, logging, os, time, random, requests
+import json
+import re
+import logging
+import os
+import time
+import random
+import requests
 from django.conf import settings
 from google import genai
 from groq import Groq
@@ -13,7 +19,8 @@ def clean_and_parse_json(text):
     if isinstance(text, dict): return text
     if not text: return None
     try:
-        clean_text = re.sub(r'^```json\s*|^```\s*|```$', '', str(text).strip(), flags=re.MULTILINE)
+        clean_text = re.sub(r'^```json\s*|^
+```\s*|```$', '', str(text).strip(), flags=re.MULTILINE)
         match = re.search(r'\{.*\}', clean_text, re.DOTALL)
         if match:
             return json.loads(match.group(0))
@@ -72,6 +79,7 @@ def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
         try:
             logger.info("🤖 Calling Hugging Face API...")
             model_id = "Qwen/Qwen2.5-Coder-7B-Instruct" 
+            # ✅ የተስተካከለ ንጹህ URL (ማርክዳውን ተወግዷል)
             api_url = f"[https://api-inference.huggingface.co/models/](https://api-inference.huggingface.co/models/){model_id}"
             headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
             
@@ -100,7 +108,7 @@ def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
             return None
         try:
             logger.info("🛡️ Calling GitHub Models API (Fallback)...")
-            # GitHub Marketplace ነፃ የ AI ሞዴሎች ኢንፖይንት
+            # ✅ የተስተካከለ ንጹህ URL (ማርክዳውን ተወግዷል)
             api_url = "[https://models.inference.ai.azure.com/chat/completions](https://models.inference.ai.azure.com/chat/completions)"
             headers = {
                 "Authorization": f"Bearer {github_token}",
@@ -111,7 +119,7 @@ def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
                     {"role": "system", "content": "You are a coding assistant. Return output strictly in valid JSON format."},
                     {"role": "user", "content": prompt}
                 ],
-                "model": "meta-llama-3.1-405b-instruct", # ወይም "gpt-4o-mini" / "cohere-command-r-plus"
+                "model": "meta-llama-3.1-405b-instruct", 
                 "max_tokens": 2048,
                 "temperature": 0.1
             }

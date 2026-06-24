@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/consumers.py
-# 📝 ለውጥ፦ Fixed Async Database Access + Enhanced Features + Missing Import Fixed
-# ✅ የተፈቱ ችግሮች፦ Missing logging import, Unsynchronized priority rank, Unhandled asyncio CancelledError
-# 📅 ቀን፦ 2026-06-23
+# 📝 ለውጥ፦ Fixed Async Database Access + Enhanced Features + Thread Safe DB Cleanup
+# ✅ የተፈቱ ችግሮች፦ Missing AIEvolutionLog import, Alphabetical priority bug in site tasks, 
+#                   Thread connection leaks.
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
 import json
@@ -11,10 +12,13 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
+from django.db import models, db
 from django.db.models import Count, Case, When, Value, IntegerField
+
+# ✅ ሁሉንም አስፈላጊ ሞዴሎች (AIEvolutionLog ን ጨምሮ) ማስገባት
 from .models import (
     AIProjectBacklog, AgentTask, SiteConfig, 
-    SiteRegistry, AgentErrorLog, SelfHealingLog
+    SiteRegistry, AgentErrorLog, SelfHealingLog, AIEvolutionLog
 )
 
 logger = logging.getLogger(__name__)
@@ -103,7 +107,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             sites = await self.get_site_summary()
             errors = await self.get_error_summary()
             healing = await self.get_healing_summary()
-            cycle_logs = await self.get_cycle_logs()  # ✅ የ CL መዝገብ ታሪክ ማግኘት
+            cycle_logs = await self.get_cycle_logs()  # የ CL መዝገብ ታሪክ ማግኘት
             
             status_data = {
                 'type': 'status_update',
@@ -114,7 +118,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'sites': sites,
                 'errors': errors,
                 'healing': healing,
-                'cycle_logs': cycle_logs  # ✅ በ WebSocket በኩል በእውነተኛ ሰዓት መላክ
+                'cycle_logs': cycle_logs  # በ WebSocket በኩል በእውነተኛ ሰዓት መላክ
             }
             
             await self.send(text_data=json.dumps(status_data))
@@ -193,8 +197,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         try:
             lock = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
             return lock.value if lock else {'status': 'idle', 'last_run': 'Never'}
-        except:
-            return {'status': 'idle', 'last_run': 'Never'}
+        finally:
+            db.close_old_connections() # የግንኙነት መከማቸትን መከላከያ
             
     @database_sync_to_async
     def get_cycle_logs(self):
@@ -202,8 +206,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         try:
             logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
             return logs_config.value if logs_config and isinstance(logs_config.value, list) else []
-        except:
-            return []
+        finally:
+            db.close_old_connections()
     
     @database_sync_to_async
     def get_task_stats(self):
@@ -229,12 +233,13 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             }
         except:
             return {'total': 0, 'pending': 0, 'running': 0, 'completed': 0, 'blocked': 0}
+        finally:
+            db.close_old_connections()
     
     @database_sync_to_async
     def get_pending_tasks(self):
         """የታገዱ ስራዎች ዝርዝር አግኝ — በትክክለኛው የቅድሚያ አሰላለፍ (Priority Rank)"""
         try:
-            # የፊደል አሰላለፍ ችግርን ለመፍታት የ Priority Rank አሰላለፍ በ Case ተተክቷል
             rank = Case(
                 When(priority='Critical', then=Value(4)),
                 When(priority='High', then=Value(3)),
@@ -265,6 +270,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.error(f"Error in ws get_pending_tasks: {e}")
             return []
+        finally:
+            db.close_old_connections()
     
     @database_sync_to_async
     def get_site_summary(self):
@@ -287,6 +294,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             ]
         except:
             return []
+        finally:
+            db.close_old_connections()
     
     @database_sync_to_async
     def get_error_summary(self):
@@ -303,6 +312,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             }
         except:
             return {'total': 0, 'unresolved': 0, 'by_type': []}
+        finally:
+            db.close_old_connections()
     
     @database_sync_to_async
     def get_healing_summary(self):
@@ -320,6 +331,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             }
         except:
             return {'total': 0, 'resolved': 0, 'pending': 0, 'success_rate': 0}
+        finally:
+            db.close_old_connections()
     
     @database_sync_to_async
     def get_site(self, site_id):
@@ -344,12 +357,26 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             }
         except:
             return None
+        finally:
+            db.close_old_connections()
     
     @database_sync_to_async
     def get_site_tasks(self, site_id):
-        """የአንድ ጣቢያ ስራዎች አግኝ"""
+        """የአንድ ጣቢያ ስራዎች አግኝ — በትክክለኛው የቅድሚያ ማዕረግ"""
         try:
-            tasks = AIProjectBacklog.objects.filter(site_id=site_id).order_by('-priority', '-created_at')[:10]
+            # ✅ የፊደል አሰላለፍ ስህተትን ለመከላከል በ Priority Rank ተተክቷል
+            rank = Case(
+                When(priority='Critical', then=Value(4)),
+                When(priority='High', then=Value(3)),
+                When(priority='Medium', then=Value(2)),
+                When(priority='Low', then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField()
+            )
+            tasks = AIProjectBacklog.objects.filter(site_id=site_id).annotate(
+                priority_rank=rank
+            ).order_by('-priority_rank', '-created_at')[:10]
+            
             return [
                 {
                     'id': task.id,
@@ -363,6 +390,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             ]
         except:
             return []
+        finally:
+            db.close_old_connections()
     
     @database_sync_to_async
     def get_site_errors(self, site_id):
@@ -381,6 +410,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             ]
         except:
             return []
+        finally:
+            db.close_old_connections()
     
     @database_sync_to_async
     def get_recent_activity(self):
@@ -408,5 +439,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 })
             
             return activity[:10]
-        except:
+        except Exception as e:
+            logger.error(f"Error in get_recent_activity: {e}")
             return []
+        finally:
+            db.close_old_connections()
