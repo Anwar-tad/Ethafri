@@ -1,149 +1,111 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ Enhanced SafetyNet + Autonomous Agent + Health Checks
-# ✅ የተፈቱ ችግሮች፦ Models.AppConfig AttributeError, Missing sys import, Undefined variables, Redundant Methods Pruned (100% Clean)
-# 📅 ቀን፦ 2026-06-23
+# 📝 ለውጥ፦ Master CEO Startup Logic — Multi-Threaded & Self-Healing
+# ✅ የተፈቱ ችግሮች፦ Redundant Startup, Database Locking, Multi-instance conflicts
+# 📅 ቀን፦ 2026-06-24
 # ============================================================
 
 import os
-import sys  # የ sys ሞጁል ማስመጣት ታክሏል (NameErrorን ያስቀራል)
-import json
+import sys
 import time
 import threading
 import logging
-from datetime import datetime, timedelta
-from django.apps import AppConfig  # ከ django.apps በትክክል መጥቷል
+from django.apps import AppConfig
 from django.utils import timezone
-from django.conf import settings
-from django.db import models, connection, connections
-from django.db.models import Count, Q
+from django.db import connections, connection
+from django.db.models import Count
 
 logger = logging.getLogger(__name__)
 
-
-class MarketplaceConfig(AppConfig):  # ወደ AppConfig ተስተካክሏል (AttributeErrorን ያስቀራል)
+class MarketplaceConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'marketplace'
 
     def ready(self):
-        """አፕሊኬሽኑ በሰርቨር ላይ ሲነሳ ኤጀንቱን ከበስተጀርባ በደህንነት ይቀሰቅሳል"""
+        """ሲስተሙ ሲነሳ ኤጀንቱን እና ጥገናውን በራሱ ይቀሰቅሳል"""
         
-        # ለትዕዛዞች (commands) የኤጀንቱን መነሳት መዝለል (ለምሳሌ ለ migrate)
+        # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል
         if 'manage.py' in sys.argv:
             command = sys.argv[1] if len(sys.argv) > 1 else ''
-            if command in ['migrate', 'makemigrations', 'collectstatic', 'check', 'shell']:
-                logger.info(f"ℹ️ Skipping agent startup for command: {command}")
+            if command in ['migrate', 'makemigrations', 'collectstatic', 'shell', 'check']:
                 return
 
-        # Uvicorn/Daphne ሪሎደር በድብል ክሮች እንዳይፈጥር መከላከል
-        is_reloader = os.environ.get('RUN_MAIN') == 'true'
-        is_manage_py = 'manage.py' in sys.argv[0]
-        if is_manage_py and not is_reloader:
+        # 2. በሪሎደር (Reloader) ምክንያት ድርብ ክሮች እንዳይፈጠሩ መከላከል
+        if os.environ.get('RUN_MAIN') != 'true':
             return
 
-        logger.info("🚀 Starting EthAfri Autonomous Agent System...")
-        
-        try:
-            # 1. 🤖 ራስ-ገዝ ኤጀንት ክር (24/7)
-            def run_agent_thread():
-                logger.info("🤖 Autonomous Agent waiting 30 seconds for database to stabilize...")
-                time.sleep(30)
+        logger.info("🚀 EthAfri Master CEO System Initializing...")
+
+        # --- ክር 1፦ ዋናው MASTER CEO ኤጀንት (24/7 ሉፕ) ---
+        def run_main_agent():
+            logger.info("🤖 Master CEO Thread starting (45s stabilization delay)...")
+            time.sleep(45) # ዳታቤዙ እንዲረጋጋ ረዘም ያለ ጊዜ መስጠት
+            try:
+                # አዲሱን የተጠቃለለ ፋንክሽን መጥራት
+                from .growth_agent import start_autonomous_ceo
+                start_autonomous_ceo()
+            except Exception as e:
+                logger.error(f"❌ Master CEO Thread Error: {e}")
+            finally:
+                connections.close_all()
+
+        # --- ክር 2፦ ሴፍቲኔት (የውጭ ፒንግ ከዘገየ ስራ የሚያስጀምር) ---
+        def run_safetynet_thread():
+            time.sleep(90)
+            while True:
                 try:
-                    from .growth_agent import run_autonomous_agent
-                    logger.info("🤖 Autonomous Agent started successfully! Running 24/7...")
-                    run_autonomous_agent()
+                    from .models import SiteConfig
+                    from .growth_agent import execute_master_cycle
+                    
+                    # የውጭ ክሮን ፒንግ ከ15 ደቂቃ በላይ ከዘገየ ሴፍቲኔት ይነሳል
+                    cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
+                    should_run = True
+                    if cron_ping and cron_ping.value:
+                        last_time = timezone.datetime.fromisoformat(cron_ping.value.get('time'))
+                        if (timezone.now() - last_time) < timezone.timedelta(minutes=15):
+                            should_run = False
+                    
+                    if should_run:
+                        logger.info("🛡️ SafetyNet: External Cron missed. Triggering Master Cycle...")
+                        execute_master_cycle()
                 except Exception as e:
-                    logger.error(f"❌ Autonomous Agent error: {e}")
+                    logger.error(f"❌ SafetyNet Error: {e}")
                 finally:
                     connections.close_all()
+                time.sleep(600) # በየ 10 ደቂቃው ይፈትሻል
 
-            # 2. 🛡️ የደህንነት መረብ ክር (SafetyNet Thread)
-            def run_safetynet_thread():
-                logger.info("🛡️ SafetyNet waiting 30 seconds for database to stabilize...")
-                time.sleep(30)
-                from .growth_agent import run_single_cycle
-                while True:
-                    try:
-                        from .models import SiteConfig, SiteRegistry
-                        cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
-                        last_cron = None
-                        
-                        if cron_ping and cron_ping.value:
-                            last_cron_time_str = cron_ping.value.get('time')
-                            if last_cron_time_str:
-                                last_cron_dt = timezone.datetime.fromisoformat(last_cron_time_str)
-                                if timezone.is_naive(last_cron_dt):
-                                    last_cron_dt = timezone.make_aware(last_cron_dt)
-                                last_cron = last_cron_dt
-                        
-                        # የውጭው ክሮን ከ15 ደቂቃ በላይ ከዘገየ SafetyNet ራሱን ያንቀሳቅሳል
-                        if not last_cron or (timezone.now() - last_cron) > timezone.timedelta(minutes=15):
-                            logger.warning("🚨 SafetyNet Active: External Cron missed or failed! Triggering fallback...")
-                            from .growth_agent import run_daily_market_analysis
-                            active_sites = SiteRegistry.objects.filter(is_active=True)
-                            
-                            if not active_sites.exists():
-                                run_daily_market_analysis()
-                            else:
-                                for site in active_sites:
-                                    from .growth_agent import run_single_site_analysis
-                                    run_single_site_analysis(site)
-                                    
-                            # የሩጫ ሎግ መዝግብ
-                            SiteConfig.objects.update_or_create(
-                                key="LAST_SAFETYNET_RUN",
-                                defaults={'value': {
-                                    'time': timezone.now().isoformat(),
-                                    'sites_processed': active_sites.count() if active_sites.exists() else 0
-                                }}
-                            )
-                            logger.info("✅ SafetyNet run logged successfully.")
-                    except Exception as e:
-                        logger.error(f"SafetyNet cycle execution failed: {e}")
-                    finally:
-                        connections.close_all()
-                    time.sleep(600)  # በየ10 ደቂቃው ይፈትሻል
+        # --- ክር 3፦ ድንገተኛ የጤና ምርመራ (Emergency System Fixer) ---
+        def run_emergency_healer_thread():
+            time.sleep(120)
+            while True:
+                try:
+                    from .models import AgentErrorLog, AIProjectBacklog
+                    # ስህተቶች እጅግ ከበዙ (ከ 500 በላይ) ኤጀንቱ እንዳይደናገር ማጽዳት
+                    unresolved = AgentErrorLog.objects.filter(resolved=False)
+                    if unresolved.count() > 500:
+                        logger.warning(f"🧹 Emergency: Clearing {unresolved.count()} errors to unblock CEO.")
+                        unresolved.update(resolved=True)
+                    
+                    # 'Running' ላይ ተሰክተው የቀሩ የቆዩ ስራዎችን መልቀቅ
+                    AIProjectBacklog.objects.filter(
+                        status='Running', 
+                        updated_at__lt=timezone.now() - timezone.timedelta(minutes=30)
+                    ).update(status='Pending')
 
-            # 3. 🩺 የስርዓት ጤና ሁኔታ ፍተሻ ክር (Health Check Thread)
-            def run_health_check_thread():
-                logger.info("🩺 Starting Health Check Thread...")
-                while True:
-                    try:
-                        time.sleep(300)  # በየ 5 ደቂቃው ይፈትሻል
-                        from .models import AgentErrorLog, SiteConfig
-                        unresolved_errors = AgentErrorLog.objects.filter(resolved=False).count()
-                        
-                        health_status = {
-                            'status': 'healthy' if unresolved_errors <= 10 else 'warning',
-                            'unresolved_errors': unresolved_errors,
-                            'timestamp': timezone.now().isoformat()
-                        }
-                        
-                        SiteConfig.objects.update_or_create(
-                            key="LAST_HEALTH_CHECK",
-                            defaults={'value': health_status}
-                        )
-                        if unresolved_errors > 0:
-                            logger.warning(f"⚠️ Health Check: {unresolved_errors} unresolved errors detected.")
-                    except Exception as e:
-                        logger.error(f"Health check execution failed: {e}")
-                    finally:
-                        connections.close_all()
+                except Exception as e:
+                    logger.error(f"❌ Emergency Healer Error: {e}")
+                finally:
+                    connections.close_all()
+                time.sleep(300) # በየ 5 ደቂቃው
 
-            # ክሮችን በደህንነት ማስጀመር
-            t1 = threading.Thread(target=run_agent_thread, name="AutonomousAgentThread")
-            t1.daemon = True
-            t1.start()
+        # ሁሉንም ክሮች በደህንነት ማስጀመር
+        threads = [
+            threading.Thread(target=run_main_agent, name="MasterCEOThread", daemon=True),
+            threading.Thread(target=run_safetynet_thread, name="SafetyNetThread", daemon=True),
+            threading.Thread(target=run_emergency_healer_thread, name="EmergencyHealerThread", daemon=True)
+        ]
+        
+        for t in threads:
+            t.start()
 
-            t2 = threading.Thread(target=run_safetynet_thread, name="SafetyNetThread")
-            t2.daemon = True
-            t2.start()
-
-            t3 = threading.Thread(target=run_health_check_thread, name="HealthCheckThread")
-            t3.daemon = True
-            t3.start()
-
-            logger.info("✅ Autonomous Agent, SafetyNet and HealthCheck threads started successfully.")
-
-        except Exception as e:
-            logger.error(f"❌ Thread spawning failed: {e}")
+        logger.info("✅ All CEO Threads (Main, Safety, Healer) are now active.")

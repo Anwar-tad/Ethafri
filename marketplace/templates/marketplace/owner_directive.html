@@ -1,7 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/owner_directive.html
-📝 ለውጥ፦ እጅግ ዘመናዊ እና ሁሉን ያሟላ የባለቤት መመሪያ ገጽ
-📅 ቀን፦ 2026-06-22
+📝 ለውጥ፦ Master CEO Command Interface — Priority & Strategic Aware
+✅ የተፈቱ ችግሮች፦ Manual Task Sync, Missing Priority Feedback
+📅 ቀን፦ 2026-06-24
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,325 +11,47 @@
 
 {% block extra_css %}
 <style>
-    /* ============================================================
-       ልዩ የዚህ ገጽ ስታይሎች
-       ============================================================ */
+    .directive-wrapper { padding: 3rem 0; background: #fdfdfd; min-height: 90vh; }
     
-    .directive-wrapper {
-        padding: 2rem 0;
-        min-height: 80vh;
-        background: var(--light-bg);
-    }
-
-    /* ዋና ካርድ */
+    /* 👑 Owner Card */
     .directive-card-main {
-        max-width: 720px;
-        margin: 0 auto;
-        border-radius: var(--radius-lg);
-        border: none;
-        overflow: hidden;
-        box-shadow: var(--shadow-lg);
-        background: var(--white);
-        transition: transform 0.3s ease;
+        max-width: 800px; margin: 0 auto; border-radius: 2rem; border: none;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1); overflow: hidden;
     }
-    .directive-card-main:hover {
-        transform: translateY(-2px);
-    }
-
-    /* ርዕስ */
+    
     .directive-header {
-        padding: 1.75rem 2rem;
-        background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
-        color: var(--text-dark);
-        text-align: center;
-        position: relative;
-        overflow: hidden;
+        background: linear-gradient(135deg, #b45309, #d97706); /* Gold/Amber Gradient */
+        padding: 3rem 2rem; text-align: center; color: white;
     }
-    .directive-header::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -20%;
-        width: 300px;
-        height: 300px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.08);
-    }
-    .directive-header .header-icon {
-        font-size: 3rem;
-        animation: bounce-crown 2s ease-in-out infinite;
-    }
-    @keyframes bounce-crown {
-        0%, 100% { transform: scale(1) rotate(0deg); }
-        50% { transform: scale(1.1) rotate(5deg); }
-    }
-    .directive-header h3 {
-        font-weight: 700;
-        margin-top: 0.5rem;
-        margin-bottom: 0;
-    }
-    .directive-header .subtitle {
-        font-size: 0.9rem;
-        opacity: 0.8;
-        margin-bottom: 0;
-    }
-
-    /* የጣቢያ መራጭ */
-    .site-selector-modern {
-        background: var(--light-bg);
-        border-radius: var(--radius-md);
-        padding: 0.75rem 1rem;
-        border: 1px dashed var(--border-color);
-        transition: all 0.3s ease;
-    }
-    .site-selector-modern:hover {
-        border-color: var(--primary-color);
-        background: var(--white);
-    }
-    .site-selector-modern .form-label {
-        font-weight: 600;
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        margin-bottom: 0;
-    }
-    .site-selector-modern .form-select {
-        border-radius: 50px;
-        border: 1px solid var(--border-color);
-        font-size: 0.9rem;
-        padding: 0.4rem 1rem;
-    }
-    .site-selector-modern .form-select:focus {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 3px rgba(26, 42, 108, 0.1);
-    }
-
-    /* የመመሪያ ቅጽ */
+    
+    .header-icon { font-size: 4rem; margin-bottom: 1rem; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)); }
+    
+    /* ✍️ Command Input */
     .directive-textarea {
-        border-radius: var(--radius-md);
-        border: 2px solid var(--border-color);
-        padding: 0.8rem 1.2rem;
-        font-size: 0.95rem;
-        line-height: 1.6;
-        min-height: 160px;
-        resize: vertical;
-        transition: all 0.3s ease;
-        width: 100%;
+        border: 2px solid #e2e8f0; border-radius: 1.5rem; padding: 1.5rem;
+        font-size: 1.1rem; line-height: 1.6; min-height: 200px; width: 100%;
+        transition: all 0.3s ease; background: #f8fafc;
     }
     .directive-textarea:focus {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 4px rgba(26, 42, 108, 0.08);
-        outline: none;
-    }
-    .directive-textarea::placeholder {
-        color: var(--text-muted);
-        opacity: 0.7;
+        border-color: #d97706; box-shadow: 0 0 0 5px rgba(217, 119, 6, 0.1);
+        outline: none; background: white;
     }
 
-    /* ምሳሌዎች */
-    .examples-modern {
-        background: var(--light-bg);
-        border-radius: var(--radius-md);
-        padding: 0.75rem 1rem;
+    /* 🏷️ Example Tags */
+    .example-tag {
+        cursor: pointer; padding: 0.5rem 1rem; border-radius: 50px;
+        background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 0.85rem;
+        transition: all 0.2s ease; display: inline-block; margin-bottom: 0.5rem;
     }
-    .examples-modern .example-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.3rem 0.8rem;
-        border-radius: 50px;
-        font-size: 0.75rem;
-        font-weight: 500;
-        background: var(--white);
-        border: 1px solid var(--border-color);
-        cursor: pointer;
-        transition: all 0.2s ease;
-        color: var(--text-dark);
-    }
-    .examples-modern .example-tag:hover {
-        border-color: var(--primary-color);
-        background: var(--primary-color);
-        color: var(--white);
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-sm);
-    }
-    .examples-modern .example-tag i {
-        font-size: 0.7rem;
-        opacity: 0.7;
-    }
-    .examples-modern .example-tag:hover i {
-        opacity: 1;
-        color: var(--white);
-    }
+    .example-tag:hover { background: #d97706; color: white; border-color: #d97706; }
 
-    /* የላክ ቁልፍ */
-    .btn-send-directive {
-        border-radius: 50px;
-        padding: 0.8rem 2.5rem;
-        font-weight: 700;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
-        color: var(--text-dark);
-        border: none;
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.75rem;
+    /* 🚀 Action Button */
+    .btn-directive {
+        background: #1e293b; color: white; border-radius: 50px;
+        padding: 1rem 3rem; font-weight: 800; border: none;
+        width: 100%; transition: all 0.3s ease; font-size: 1.2rem;
     }
-    .btn-send-directive:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 30px rgba(247, 151, 30, 0.35);
-        color: var(--text-dark);
-    }
-    .btn-send-directive:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-    }
-    .btn-send-directive i {
-        font-size: 1.1rem;
-    }
-
-    /* የታሪክ ዝርዝር */
-    .history-container {
-        max-height: 320px;
-        overflow-y: auto;
-        margin-top: 0.5rem;
-    }
-    .history-container::-webkit-scrollbar {
-        width: 4px;
-    }
-    .history-container::-webkit-scrollbar-track {
-        background: var(--border-color);
-        border-radius: 10px;
-    }
-    .history-container::-webkit-scrollbar-thumb {
-        background: var(--primary-color);
-        border-radius: 10px;
-    }
-
-    .history-item-modern {
-        padding: 0.6rem 0.8rem;
-        border-bottom: 1px solid var(--border-color);
-        transition: background 0.2s ease;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    .history-item-modern:hover {
-        background: var(--light-bg);
-    }
-    .history-item-modern:last-child {
-        border-bottom: none;
-    }
-    .history-item-modern .h-text {
-        flex: 1;
-        font-size: 0.85rem;
-        line-height: 1.4;
-    }
-    .history-item-modern .h-text .h-site {
-        font-size: 0.65rem;
-        color: var(--text-muted);
-        display: block;
-    }
-    .history-item-modern .h-meta {
-        text-align: right;
-        flex-shrink: 0;
-    }
-    .history-item-modern .h-meta .h-time {
-        font-size: 0.6rem;
-        color: var(--text-muted);
-        display: block;
-    }
-    .history-item-modern .h-status {
-        font-size: 0.6rem;
-        padding: 0.15rem 0.6rem;
-        border-radius: 50px;
-        font-weight: 600;
-    }
-    .h-status.executed { background: var(--success-light); color: var(--success-color); }
-    .h-status.pending { background: var(--warning-light); color: var(--warning-color); }
-
-    /* የመረጃ ማሳወቂያ */
-    .info-banner {
-        background: var(--light-bg);
-        border-radius: var(--radius-md);
-        padding: 0.75rem 1rem;
-        display: flex;
-        align-items: flex-start;
-        gap: 0.75rem;
-        font-size: 0.8rem;
-        color: var(--text-muted);
-    }
-    .info-banner i {
-        color: var(--warning-color);
-        font-size: 1.1rem;
-        margin-top: 0.1rem;
-    }
-    .info-banner a {
-        color: var(--primary-color);
-        text-decoration: none;
-        font-weight: 500;
-    }
-    .info-banner a:hover {
-        text-decoration: underline;
-    }
-
-    /* የማሳወቂያ አሞሌ */
-    .alert-modern {
-        border-radius: var(--radius-md);
-        border: none;
-        padding: 0.75rem 1rem;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    /* ሞባይል */
-    @media (max-width: 768px) {
-        .directive-wrapper { padding: 1rem 0; }
-        .directive-header { padding: 1.25rem 1.5rem; }
-        .directive-header .header-icon { font-size: 2.5rem; }
-        .directive-header h3 { font-size: 1.3rem; }
-        .directive-textarea { min-height: 120px; font-size: 0.9rem; }
-        .btn-send-directive { padding: 0.6rem 1.5rem; font-size: 0.9rem; }
-        .examples-modern .example-tag { font-size: 0.7rem; padding: 0.2rem 0.6rem; }
-        .history-item-modern { flex-wrap: wrap; }
-        .history-item-modern .h-meta { text-align: left; width: 100%; }
-    }
-
-    @media (max-width: 576px) {
-        .directive-header .header-icon { font-size: 2rem; }
-        .directive-header h3 { font-size: 1.1rem; }
-        .directive-textarea { min-height: 100px; font-size: 0.85rem; padding: 0.6rem 1rem; }
-        .examples-modern .example-tag { font-size: 0.65rem; padding: 0.15rem 0.5rem; }
-    }
-
-    /* ተጨማሪ አኒሜሽን */
-    .fade-slide-up {
-        animation: fadeSlideUp 0.5s ease forwards;
-        opacity: 0;
-    }
-    @keyframes fadeSlideUp {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    .fade-slide-up:nth-child(1) { animation-delay: 0.1s; }
-    .fade-slide-up:nth-child(2) { animation-delay: 0.2s; }
-    .fade-slide-up:nth-child(3) { animation-delay: 0.3s; }
-
-    /* የካውንተር */
-    .char-counter {
-        font-size: 0.7rem;
-        color: var(--text-muted);
-        text-align: right;
-        margin-top: 0.25rem;
-    }
-    .char-counter .over-limit { color: var(--danger-color); }
+    .btn-directive:hover { background: #0f172a; transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
 </style>
 {% endblock %}
 
@@ -336,277 +59,85 @@
 <div class="directive-wrapper">
     <div class="container">
 
-        <!-- ============================================================
-        ዋና ካርድ
-        ============================================================ -->
-        <div class="directive-card-main fade-slide-up">
-
+        <div class="directive-card-main fade-in">
             <!-- ርዕስ -->
             <div class="directive-header">
-                <div class="header-icon">
-                    <i class="fas fa-crown"></i>
-                </div>
-                <h3>{% trans "Owner Directive Center" %}</h3>
-                <p class="subtitle">
-                    <i class="fas fa-robot me-1"></i>
-                    {% trans "Directly command the EthAfri AI Super-Agent" %}
-                </p>
+                <div class="header-icon"><i class="fas fa-crown text-warning"></i></div>
+                <h1 class="fw-bold">{% trans "Owner Command Center" %}</h1>
+                <p class="opacity-75">Your instructions are automatically converted into <b>Critical Priority</b> AI tasks.</p>
             </div>
 
-            <!-- ይዘት -->
             <div class="card-body p-4 p-md-5">
-
-                <!-- ============================================================
-                ማሳወቂያ
-                ============================================================ -->
+                <!-- ማሳወቂያ -->
                 {% if messages %}
-                <div class="alert-modern alert-{% if message.tags == 'success' %}success{% elif message.tags == 'error' %}danger{% else %}warning{% endif %}">
-                    <i class="fas fa-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}exclamation-circle{% else %}info-circle{% endif %}"></i>
                     {% for message in messages %}
-                    <span>{{ message }}</span>
+                    <div class="alert alert-success rounded-pill px-4 shadow-sm mb-4 border-0">
+                        <i class="fas fa-check-circle me-2"></i> {{ message }}
+                    </div>
                     {% endfor %}
-                </div>
                 {% endif %}
 
-                <!-- ============================================================
-                ጣቢያ መራጭ (Multi-Site)
-                ============================================================ -->
-                {% if sites and sites|length > 1 %}
-                <div class="site-selector-modern mb-4">
-                    <form method="GET" class="row g-2 align-items-center">
-                        <div class="col-auto">
-                            <i class="fas fa-globe text-primary fs-5"></i>
-                        </div>
-                        <div class="col">
-                            <label class="form-label" for="site_select">
-                                {% trans "Target Site" %}
-                                <span class="text-muted">({% trans "optional" %})</span>
-                            </label>
-                            <select name="site" id="site_select" class="form-select" onchange="this.form.submit()">
-                                <option value="">-- {% trans "All Sites (Global)" %} --</option>
-                                {% for site in sites %}
-                                <option value="{{ site.id }}" {% if request.GET.site|add:"0" == site.id %}selected{% endif %}>
-                                    {{ site.display_name }}
-                                    {% if site.niche %}({{ site.niche }}){% endif %}
-                                    {% if site.growth_level == 5 %}🌍{% elif site.growth_level == 4 %}🌎{% elif site.growth_level == 3 %}🌏{% elif site.growth_level == 2 %}🏙️{% else %}📍{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-auto">
-                            <span class="badge bg-primary rounded-pill">
-                                <i class="fas fa-robot me-1"></i> {{ sites|length }} {% trans "sites" %}
-                            </span>
-                        </div>
-                    </form>
-                </div>
-                {% endif %}
-
-                <!-- ============================================================
-                የመመሪያ ቅጽ
-                ============================================================ -->
-                <form method="POST" id="directiveForm">
+                <!-- መመሪያ መስጫ -->
+                <form method="POST">
                     {% csrf_token %}
-                    <div class="mb-3">
-                        <label class="form-label fw-bold" for="instruction">
-                            <i class="fas fa-brain text-warning me-1"></i>
-                            {% trans "AI Instruction / Directive" %}
-                            <span class="text-danger">*</span>
-                        </label>
-                        <textarea name="instruction" id="instruction" class="directive-textarea" 
-                                  rows="6" 
-                                  placeholder='{% trans 'Example: "Build a digital checkout interface today" or "Scan regional marketplace listings" or "Optimize SEO for all product pages"...' %}'
-                                  required
-                                  maxlength="2000"></textarea>
-                        <div class="char-counter">
-                            <span id="charCount">0</span> / 2000
+                    <input type="hidden" name="action" value="create_override">
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-muted small text-uppercase ms-3">Instruction for the Agent</label>
+                        <textarea name="instruction" id="instructionInput" class="directive-textarea" 
+                                  placeholder="Describe what you want the AI to build or fix..." required></textarea>
+                    </div>
+
+                    <!-- ፈጣን መመሪያዎች -->
+                    <div class="mb-5">
+                        <p class="small text-muted mb-2 ms-3">Quick Presets:</p>
+                        <div class="d-flex flex-wrap gap-2 px-2">
+                            <span class="example-tag" onclick="setCmd('Create a comprehensive product filtering system by price and location.')">🛒 Filter System</span>
+                            <span class="example-tag" onclick="setCmd('Add a live chat button using Telegram integration on all product pages.')">💬 Telegram Chat</span>
+                            <span class="example-tag" onclick="setCmd('Build a modern dark-mode toggle for the entire website.')">🌙 Dark Mode</span>
+                            <span class="example-tag" onclick="setCmd('Implement a 5-star rating and review system for products.')">⭐ Reviews</span>
                         </div>
                     </div>
 
-                    <!-- ፈጣን ምሳሌዎች -->
-                    <div class="examples-modern mb-3">
-                        <div class="d-flex flex-wrap gap-1">
-                            <span class="small text-muted me-2">{% trans "Quick examples:" %}</span>
-                            <span class="example-tag" onclick="setExample('Build a full product review and rating system with star ratings')">
-                                <i class="fas fa-star"></i> {% trans "Reviews" %}
-                            </span>
-                            <span class="example-tag" onclick="setExample('Implement advanced SEO optimization for all product pages')">
-                                <i class="fas fa-search"></i> {% trans "SEO" %}
-                            </span>
-                            <span class="example-tag" onclick="setExample('Create a seller analytics dashboard with sales charts')">
-                                <i class="fas fa-chart-bar"></i> {% trans "Analytics" %}
-                            </span>
-                            <span class="example-tag" onclick="setExample('Add a product comparison feature for similar items')">
-                                <i class="fas fa-balance-scale"></i> {% trans "Compare" %}
-                            </span>
-                            <span class="example-tag" onclick="setExample('Build a real-time chat system for buyers and sellers')">
-                                <i class="fas fa-comment-dots"></i> {% trans "Chat" %}
-                            </span>
-                            <span class="example-tag" onclick="setExample('Implement a referral program with rewards')">
-                                <i class="fas fa-gift"></i> {% trans "Referral" %}
-                            </span>
-                        </div>
+                    <!-- የጣቢያ መራጭ -->
+                    <div class="mb-5 px-3 py-4 rounded-4" style="background: #f1f5f9;">
+                        <h6 class="fw-bold mb-3"><i class="fas fa-globe me-2"></i> Target Domain</h6>
+                        <select name="site_id" class="form-select rounded-pill border-0 shadow-sm">
+                            <option value="">Apply Globally (All Niches)</option>
+                            {% for site in sites %}
+                            <option value="{{ site.id }}">{{ site.display_name }} ({{ site.niche }})</option>
+                            {% endfor %}
+                        </select>
                     </div>
 
-                    <!-- ላክ ቁልፍ -->
-                    <button type="submit" class="btn-send-directive shadow-sm" id="sendBtn">
-                        <i class="fas fa-paper-plane"></i>
-                        {% trans "Send Directive to AI" %}
-                        <span class="badge bg-dark text-light rounded-pill ms-1" style="font-size: 0.6rem;">
-                            <i class="fas fa-bolt me-1"></i> {% trans "Priority" %}
-                        </span>
+                    <button type="submit" class="btn-directive">
+                        <i class="fas fa-bolt me-2 text-warning"></i> Issue Royal Decree
                     </button>
                 </form>
 
-                <!-- ============================================================
-                የቅርብ ጊዜ መመሪያዎች
-                ============================================================ -->
-                {% if recent_directives %}
-                <div class="mt-4 pt-3 border-top">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="fw-bold mb-0">
-                            <i class="fas fa-history me-1 text-muted"></i>
-                            {% trans "Recent Directives" %}
-                        </h6>
-                        <span class="badge bg-secondary rounded-pill">{{ recent_directives|length }}</span>
-                    </div>
-                    <div class="history-container">
-                        {% for directive in recent_directives %}
-                        <div class="history-item-modern">
-                            <div class="h-text">
-                                {{ directive.instruction|truncatechars:80 }}
-                                <span class="h-site">
-                                    {% if directive.site %}
-                                    <i class="fas fa-globe me-1"></i> {{ directive.site.display_name }}
-                                    {% else %}
-                                    <i class="fas fa-globe-americas me-1"></i> {% trans "Global" %}
-                                    {% endif %}
-                                </span>
-                            </div>
-                            <div class="h-meta">
-                                <span class="h-status {% if directive.is_processed %}executed{% else %}pending{% endif %}">
-                                    {% if directive.is_processed %}
-                                    <i class="fas fa-check me-1"></i> {% trans "Executed" %}
-                                    {% else %}
-                                    <i class="fas fa-clock me-1"></i> {% trans "Pending" %}
-                                    {% endif %}
-                                </span>
-                                <span class="h-time">{{ directive.created_at|date:"M d, H:i" }}</span>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
+                <div class="mt-5 text-center">
+                    <p class="small text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Instructions are processed in the next 10-minute cycle.
+                    </p>
+                    <a href="{% url 'growth_dashboard' %}" class="btn btn-link text-decoration-none text-muted small">
+                        <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+                    </a>
                 </div>
-                {% endif %}
-
-                <!-- ============================================================
-                መረጃ
-                ============================================================ -->
-                <div class="info-banner mt-3">
-                    <i class="fas fa-info-circle"></i>
-                    <div>
-                        {% translate "Directives are executed during the next autonomous cycle (every 5 minutes)." %}
-                        {% if request.user.is_staff %}
-                        <br>
-                        <a href="{% url 'trigger_evolution' %}">
-                            <i class="fas fa-sync-alt me-1"></i> {% translate "Run AI cycle now" %}
-                        </a>
-                        {% endif %}
-                    </div>
-                </div>
-
             </div>
         </div>
-
-        <!-- ============================================================
-        ግርጌ
-        ============================================================ -->
-        <div class="text-center text-muted small mt-4">
-            <i class="fas fa-crown me-1 text-warning"></i>
-            {% trans "EthAfri Owner Command Center v1.0" %}
-            <span class="mx-2">|</span>
-            <i class="fas fa-robot me-1"></i>
-            {% trans "AI Priority Channel" %}
-        </div>
-
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // ============================================================
-    // ምሳሌ ጽሑፍ ማስገባት
-    // ============================================================
-    function setExample(text) {
-        const textarea = document.getElementById('instruction');
-        if (textarea) {
-            textarea.value = text;
-            textarea.focus();
-            updateCharCount();
-            textarea.dispatchEvent(new Event('input'));
-        }
+    function setCmd(text) {
+        const input = document.getElementById('instructionInput');
+        input.value = text;
+        input.focus();
+        input.style.borderColor = '#d97706';
+        setTimeout(() => input.style.borderColor = '#e2e8f0', 1000);
     }
-
-    // ============================================================
-    // የቁምፊ ቆጣሪ
-    // ============================================================
-    function updateCharCount() {
-        const textarea = document.getElementById('instruction');
-        const counter = document.getElementById('charCount');
-        if (textarea && counter) {
-            const count = textarea.value.length;
-            counter.textContent = count;
-            if (count > 1900) {
-                counter.classList.add('over-limit');
-            } else {
-                counter.classList.remove('over-limit');
-            }
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        const textarea = document.getElementById('instruction');
-        if (textarea) {
-            textarea.addEventListener('input', updateCharCount);
-            updateCharCount();
-        }
-    });
-
-    // ============================================================
-    // የመላክ ሁኔታ
-    // ============================================================
-    document.addEventListener('DOMContentLoaded', function() {
-        const form = document.getElementById('directiveForm');
-        const sendBtn = document.getElementById('sendBtn');
-
-        if (form && sendBtn) {
-            form.addEventListener('submit', function() {
-                sendBtn.disabled = true;
-                sendBtn.innerHTML = `
-                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                    {% trans "Sending..." %}
-                `;
-            });
-        }
-    });
-
-    // ============================================================
-    // ማሳወቂያዎችን ራስ-ሰር ማጥፋት
-    // ============================================================
-    document.addEventListener('DOMContentLoaded', function() {
-        const alerts = document.querySelectorAll('.alert-modern');
-        alerts.forEach(function(alert) {
-            setTimeout(function() {
-                alert.style.transition = 'opacity 0.5s ease';
-                alert.style.opacity = '0';
-                setTimeout(function() {
-                    if (alert.parentNode) {
-                        alert.remove();
-                    }
-                }, 500);
-            }, 5000);
-        });
-    });
 </script>
 {% endblock %}

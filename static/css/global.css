@@ -1,587 +1,101 @@
 /* ============================================================
-📁 ፋይል፦ EthAfri/static/css/global.css
-📝 ለውጥ፦ All Shared Styles — Multi-Site Support + Product Cards
-📅 ቀን፦ 2026-06-20
-============================================================ */
+   EthAfri Ultimate Design System - CEO Agent Standard
+   ዓላማ፦ የኮድ ድግግሞሽን ማጥፋት እና ሁሉንም ቴምፕሌቶች በአንድ ቦታ መቆጣጠር
+   ============================================================ */
 
-/* ============================================================
-   1. CSS Variables & Root
-============================================================ */
 :root {
-    /* Primary Colors */
-    --primary-color: #1a2a6c;
-    --primary-light: #2d4a8e;
-    --primary-dark: #0d1a4a;
-    --accent-purple: #4e085e;
-    --accent-gold: #ffc107;
+    /* 🎨 1. Dynamic Brand Colors */
+    --primary: #1a2a6c;
+    --primary-soft: rgba(26, 42, 108, 0.1);
+    --accent: #ffc107;
+    --secondary: #4e085e;
     
-    /* Status Colors */
-    --success-color: #2e7d32;
-    --success-light: #e8f5e9;
-    --warning-color: #e65100;
-    --warning-light: #fff3e0;
-    --danger-color: #c62828;
-    --danger-light: #fce4ec;
-    --info-color: #0d47a1;
-    --info-light: #e3f2fd;
+    /* 📊 2. Semantic UI Colors */
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --info: #3b82f6;
     
-    /* Neutral Colors */
-    --light-bg: #f4f7f6;
-    --text-dark: #2d3436;
-    --text-muted: #6c757d;
-    --border-color: #e2e8f0;
+    /* ⚪ 3. Neutrals */
     --white: #ffffff;
-    
-    /* Spacing */
-    --radius-sm: 8px;
-    --radius-md: 16px;
-    --radius-lg: 24px;
-    --radius-xl: 30px;
-    
-    /* Shadows */
-    --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
-    --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
-    --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-500: #64748b;
+    --gray-900: #0f172a;
+
+    /* 📐 4. Spacing & Shapes (System-wide) */
+    --radius-sm: 0.5rem;
+    --radius-md: 1rem;
+    --radius-lg: 1.5rem;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md: 0 10px 15px -3px rgba(0,0,0,0.1);
 }
 
-/* ============================================================
-   2. Base Styles
-============================================================ */
-body {
-    background-color: var(--light-bg);
-    color: var(--text-dark);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    padding-bottom: 100px;
-    scroll-behavior: smooth;
-    min-height: 100vh;
-}
+/* 🧱 5. LAYOUT UTILITIES (ለ 50 ገጾች የሚበቁ) */
+.ceo-container { width: 95%; max-width: 1200px; margin: auto; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
 
-/* ============================================================
-   3. Navbar Styles
-============================================================ */
-.navbar {
-    background-color: var(--primary-color) !important;
-    transition: background-color 0.4s ease-in-out;
-    padding: 0.75rem 0;
-    box-shadow: var(--shadow-sm);
-}
-.navbar-brand {
-    font-weight: 700;
-    font-size: 1.25rem;
-    color: var(--white) !important;
-}
-.navbar-brand i {
-    color: var(--accent-gold);
-}
-.navbar .form-select {
-    background-color: rgba(255,255,255,0.15);
-    color: var(--white);
-    border: 1px solid rgba(255,255,255,0.2);
-}
-.navbar .form-select option {
-    color: var(--text-dark);
-}
-
-/* ============================================================
-   4. Hero Banner
-============================================================ */
-.hero-banner {
-    background: linear-gradient(135deg, var(--primary-color), var(--accent-purple));
-    color: var(--white);
-    padding: 50px 0 40px;
-    border-radius: 0 0 40px 40px;
-    box-shadow: var(--shadow-sm);
-    transition: background 0.4s ease-in-out;
-}
-.hero-banner h1 {
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
-.hero-banner .lead {
-    font-weight: 300;
-    opacity: 0.9;
-}
-
-/* ============================================================
-   5. Announcement Bar
-============================================================ */
-.announcement-bar {
-    font-size: 14px;
-    font-weight: 500;
-    background-color: var(--text-dark) !important;
-    color: var(--white) !important;
-}
-.announcement-bar i {
-    color: var(--accent-gold);
-}
-
-/* ============================================================
-   6. Product Cards (Shared: home + product_detail)
-============================================================ */
-.product-card {
-    transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1), 
-                box-shadow 0.4s ease;
-    border: none;
-    border-radius: var(--radius-lg);
-    background: var(--white);
-    overflow: hidden;
-    height: 100%;
-    box-shadow: var(--shadow-sm);
-}
-.product-card:hover {
-    transform: translateY(-10px);
-    box-shadow: var(--shadow-lg) !important;
-}
-.product-card .card-body {
-    padding: 0.9rem;
-}
-.product-card .card-title {
-    font-weight: 600;
-    font-size: 0.95rem;
-    margin-bottom: 0.35rem;
-}
-.product-card .card-text {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-}
-.product-card .price {
-    font-weight: 700;
-    color: var(--danger-color);
-    font-size: 1rem;
-}
-
-/* Product Image Container */
-.img-container {
-    height: 200px;
-    overflow: hidden;
-    position: relative;
-    background-color: var(--border-color);
-}
-.img-container img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.5s ease;
-}
-.product-card:hover .img-container img {
-    transform: scale(1.08);
-}
-
-/* Price Tag */
-.price-tag {
-    position: absolute;
-    bottom: 12px;
-    right: 12px;
-    background-color: rgba(255, 255, 255, 0.95);
-    color: var(--danger-color);
-    font-weight: 800;
-    padding: 3px 12px;
-    border-radius: 50px;
-    font-size: 0.75rem;
-    box-shadow: var(--shadow-sm);
-}
-
-/* Product Meta Badges */
-.product-card .meta-badge {
-    font-size: 7px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: #f1f3f5;
-    color: var(--text-muted);
-    border: 1px solid var(--border-color);
-}
-.product-card .location-text {
-    font-size: 9px;
-    color: var(--text-muted);
-}
-
-/* ============================================================
-   7. Related Product Cards (product_detail only)
-============================================================ */
-.related-product-card {
+/* 📦 6. REUSABLE CARD SYSTEM */
+.glass-card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
-    border: none;
-    transition: transform 0.2s, box-shadow 0.2s;
-    overflow: hidden;
-    height: 100%;
-    box-shadow: var(--shadow-sm);
-}
-.related-product-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-md);
-}
-.related-product-card .img-container {
-    height: 150px;
-    overflow: hidden;
-    background: var(--border-color);
-}
-.related-product-card .img-container img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-.related-product-card .card-body {
-    padding: 0.75rem 1rem;
-}
-.related-product-card .card-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    margin-bottom: 0.25rem;
-}
-.related-product-card .price {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--danger-color);
-}
-
-/* ============================================================
-   8. Category Badges
-============================================================ */
-.category-badge {
-    background-color: var(--white);
-    color: var(--text-dark);
-    border: 1px solid var(--border-color);
-    transition: 0.3s ease-in-out;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 14px;
-    display: inline-block;
-    margin-right: 8px;
-    padding: 0.4rem 1rem;
-    border-radius: 20px;
-}
-.category-badge:hover,
-.category-badge.active {
-    background-color: var(--primary-color) !important;
-    color: var(--white) !important;
-    transform: scale(1.05);
-    border-color: var(--primary-color);
-}
-
-/* ============================================================
-   9. Buttons
-============================================================ */
-.btn-ai {
-    background-color: var(--primary-color) !important;
-    color: var(--white) !important;
-    border-radius: 50px !important;
-    transition: all 0.3s ease-in-out;
-    padding: 0.5rem 1.5rem;
-    font-weight: 600;
-    border: none;
-}
-.btn-ai:hover {
-    background-color: var(--text-dark) !important;
-    opacity: 0.9;
-    transform: translateY(-2px);
-    color: var(--white) !important;
-}
-.btn-ai:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-}
-
-.btn-outline-ai {
-    border: 2px solid var(--primary-color) !important;
-    color: var(--primary-color) !important;
-    border-radius: 50px !important;
-    transition: all 0.3s ease-in-out;
-    font-weight: 600;
-    background: transparent;
-}
-.btn-outline-ai:hover {
-    background-color: var(--primary-color) !important;
-    color: var(--white) !important;
-}
-
-/* ============================================================
-   10. Cards & Containers
-============================================================ */
-.card-shadow {
-    border: none;
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
-    transition: box-shadow 0.3s ease, transform 0.3s ease;
-}
-.card-shadow:hover {
-    box-shadow: var(--shadow-md);
-}
-
-/* ============================================================
-   11. Site Cards (Multi-Site Dashboard)
-============================================================ */
-.site-card {
-    border-radius: var(--radius-md);
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: none;
-    overflow: hidden;
-    background: var(--white);
-    box-shadow: var(--shadow-sm);
-}
-.site-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg) !important;
-}
-.site-card .card-header {
-    border-bottom: none;
-    padding: 1.25rem 1.5rem;
-    font-weight: 600;
-    font-size: 1.1rem;
-}
-
-/* ============================================================
-   12. Growth Level Badges
-============================================================ */
-.growth-level-badge {
-    font-size: 0.75rem;
-    padding: 0.35rem 0.75rem;
-    border-radius: 20px;
-    font-weight: 600;
-}
-.level-local { background: var(--success-light); color: var(--success-color); }
-.level-city { background: var(--info-light); color: var(--info-color); }
-.level-country { background: var(--warning-light); color: var(--warning-color); }
-.level-continent { background: #f3e5f5; color: #6a1b9a; }
-.level-global { background: var(--danger-light); color: var(--danger-color); }
-
-/* ============================================================
-   13. Status Badges
-============================================================ */
-.status-badge {
-    padding: 0.3rem 0.8rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-.status-active { background: var(--success-light); color: var(--success-color); }
-.status-inactive { background: var(--danger-light); color: var(--danger-color); }
-.status-pending { background: var(--warning-light); color: var(--warning-color); }
-.status-completed { background: var(--success-light); color: var(--success-color); }
-
-/* ============================================================
-   14. Stat Cards (Dashboards)
-============================================================ */
-.stat-card {
-    border-radius: var(--radius-md);
-    border: none;
-    text-align: center;
     padding: 1.5rem;
-    transition: transform 0.2s;
-    box-shadow: var(--shadow-sm);
-}
-.stat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-md);
-}
-.stat-icon {
-    font-size: 2.5rem;
-    margin-bottom: 0.5rem;
-}
-.stat-number {
-    font-size: 2rem;
-    font-weight: 700;
-}
-
-/* ============================================================
-   15. Tabs
-============================================================ */
-.nav-tabs .nav-link {
-    border: none;
-    border-bottom: 3px solid transparent;
-    color: var(--text-muted);
-    font-weight: 600;
-    padding: 0.75rem 1.25rem;
     transition: all 0.3s ease;
 }
-.nav-tabs .nav-link:hover {
-    color: var(--primary-color);
-    border-bottom-color: var(--border-color);
-}
-.nav-tabs .nav-link.active {
-    color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
-    background: transparent;
-}
-.tab-content {
-    padding: 1.5rem;
-    background: #f8f9fa;
-    border-radius: 0 0 12px 12px;
+.hover-lift:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-md);
 }
 
-/* ============================================================
-   16. Forms
-============================================================ */
-.form-control,
-.form-select {
-    border-radius: 10px;
-    padding: 0.65rem 1rem;
-    border: 1.5px solid var(--border-color);
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-.form-control:focus,
-.form-select:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(26, 42, 108, 0.1);
-}
-.form-label {
-    font-weight: 600;
-    font-size: 0.95rem;
-}
-.form-control.is-invalid {
-    border-color: var(--danger-color);
-}
-.form-control.is-invalid:focus {
-    box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1);
-}
-
-/* ============================================================
-   17. Bottom Navigation
-============================================================ */
-.bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
+/* 📝 7. UNIVERSAL FORM STYLING */
+.input-field {
     width: 100%;
+    padding: 0.75rem 1.2rem;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--gray-200);
     background: var(--white);
-    display: flex;
-    justify-content: space-around;
-    padding: 10px 0 12px;
-    border-top: 2px solid var(--primary-color);
-    box-shadow: 0 -5px 25px rgba(0,0,0,0.08);
-    z-index: 9999;
+    transition: all 0.2s ease;
 }
-.bottom-nav a {
-    text-decoration: none;
-    color: var(--text-muted);
-    font-size: 11px;
-    text-align: center;
-    flex: 1;
-    font-weight: 600;
-    transition: color 0.3s ease;
-}
-.bottom-nav i {
-    display: block;
-    font-size: 22px;
-    color: var(--primary-color);
-    margin-bottom: 4px;
-    transition: transform 0.3s ease;
-}
-.bottom-nav a:hover {
-    color: var(--primary-color);
-}
-.bottom-nav a:hover i {
-    transform: scale(1.1);
-}
-.bottom-nav .active {
-    color: var(--primary-color);
-}
-.bottom-nav .active i {
-    transform: scale(1.1);
+.input-field:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px var(--primary-soft);
+    outline: none;
 }
 
-/* ============================================================
-   18. Result Card (Evolution Result)
-============================================================ */
-.result-card {
-    border-radius: 20px;
+/* 🔘 8. BUTTON SYSTEM */
+.btn-ceo {
+    padding: 0.8rem 2rem;
+    border-radius: 50px;
+    font-weight: 700;
+    cursor: pointer;
     border: none;
-    overflow: hidden;
-    max-width: 800px;
-    margin: 0 auto;
+    transition: 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
 }
-.result-card .card-header {
-    border-bottom: none;
-    padding: 1.5rem;
-}
-.result-status-icon {
-    font-size: 3rem;
-    animation: pulse 2s infinite;
-}
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-}
-.status-success { background: linear-gradient(135deg, var(--success-color), #43a047); color: var(--white); }
-.status-warning { background: linear-gradient(135deg, var(--warning-color), #f57c00); color: var(--white); }
-.status-error { background: linear-gradient(135deg, var(--danger-color), #e53935); color: var(--white); }
-.status-idle { background: linear-gradient(135deg, var(--info-color), #1e88e5); color: var(--white); }
+.btn-primary-ceo { background: var(--primary); color: white; }
+.btn-outline-ceo { border: 2px solid var(--primary); color: var(--primary); background: transparent; }
 
-.detail-box {
-    background: #f8f9fa;
-    border-radius: 12px;
-    padding: 1rem 1.25rem;
-    border-left: 4px solid var(--primary-color);
-    font-size: 0.95rem;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    max-height: 300px;
-    overflow-y: auto;
+/* 📱 9. AGENT FEEDBACK STYLES (Floating Indicators) */
+.agent-pulse {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
+    animation: pulse-green 2s infinite;
 }
-.detail-box::-webkit-scrollbar {
-    width: 4px;
-}
-.detail-box::-webkit-scrollbar-thumb {
-    background: #c1c7cd;
-    border-radius: 10px;
+@keyframes pulse-green {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
-/* ============================================================
-   19. Utilities
-============================================================ */
-.text-primary-custom { color: var(--primary-color); }
-.bg-primary-custom { background-color: var(--primary-color); }
-.border-primary-custom { border-color: var(--primary-color); }
-.tracking-wider { letter-spacing: 0.05em; }
-
-/* ============================================================
-   20. Responsive
-============================================================ */
+/* 🌍 10. MULTI-SITE RESPONSIVENESS */
 @media (max-width: 768px) {
-    .hero-banner {
-        padding: 30px 0 25px;
-        border-radius: 0 0 30px 30px;
-    }
-    .hero-banner h1 {
-        font-size: 1.5rem;
-    }
-    .bottom-nav a {
-        font-size: 10px;
-    }
-    .bottom-nav i {
-        font-size: 18px;
-    }
-    .stat-number {
-        font-size: 1.5rem;
-    }
-    .result-status-icon {
-        font-size: 2.5rem;
-    }
-    .product-card .card-title {
-        font-size: 0.85rem;
-    }
-    .related-product-card .img-container {
-        height: 120px;
-    }
-}
-
-@media (max-width: 576px) {
-    .hero-banner h1 {
-        font-size: 1.25rem;
-    }
-    .hero-banner .lead {
-        font-size: 0.9rem;
-    }
-    .btn-ai,
-    .btn-outline-ai {
-        font-size: 0.85rem;
-        padding: 0.4rem 1rem;
-    }
-    .product-card .img-container {
-        height: 150px;
-    }
-    .related-product-card .img-container {
-        height: 100px;
-    }
+    .ceo-container { width: 92%; }
+    .grid-auto { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 }

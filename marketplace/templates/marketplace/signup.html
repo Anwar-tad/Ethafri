@@ -1,11 +1,140 @@
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/signup.html
+📝 ለውጥ፦ Master CEO Registration Page — Modern & High-UX
+✅ የተፈቱ ችግሮች፦ Standard Form Boring UI, Missing Login Redirect
+📅 ቀን፦ 2026-06-24
+============================================================ -->
+
 {% extends 'marketplace/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .auth-wrapper {
+        min-height: 80vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 0;
+    }
+    .auth-card {
+        max-width: 450px;
+        width: 100%;
+        background: white;
+        border-radius: 2rem;
+        overflow: hidden;
+        box-shadow: var(--shadow-lg);
+        border: none;
+    }
+    .auth-header {
+        background: var(--bg-gradient);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+    }
+    .auth-body {
+        padding: 2.5rem;
+    }
+    
+    /* 📋 Django Form Styling */
+    .auth-body p {
+        margin-bottom: 1.25rem;
+    }
+    .auth-body label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .auth-body input {
+        width: 100%;
+        border: 2px solid #f1f5f9;
+        border-radius: 1rem;
+        padding: 0.75rem 1.2rem;
+        transition: all 0.3s ease;
+        background: #f8fafc;
+    }
+    .auth-body input:focus {
+        border-color: var(--primary-color);
+        background: white;
+        outline: none;
+        box-shadow: 0 0 0 4px rgba(26, 42, 108, 0.05);
+    }
+    .auth-body .helptext {
+        display: block;
+        font-size: 0.7rem;
+        color: #94a3b8;
+        margin-top: 0.25rem;
+    }
+    
+    .btn-auth {
+        background: var(--primary-color);
+        color: white;
+        border-radius: 50px;
+        padding: 0.8rem 2rem;
+        font-weight: 800;
+        width: 100%;
+        border: none;
+        transition: all 0.3s ease;
+        margin-top: 1rem;
+    }
+    .btn-auth:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px -5px rgba(26, 42, 108, 0.3);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="form-container shadow p-4 rounded-4 bg-white" style="max-width: 400px; margin: auto;">
-    <h3 class="text-center mb-4">ይመዝገቡ</h3>
-    <form method="POST">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" class="btn btn-success w-100 rounded-pill">ይመዝገቡ</button>
-    </form>
+<div class="auth-wrapper">
+    <div class="auth-card fade-in">
+        <!-- ርዕስ -->
+        <div class="auth-header">
+            <i class="fas fa-user-plus fa-3x mb-3 text-warning"></i>
+            <h2 class="fw-bold mb-0">{% trans "Join EthAfri" %}</h2>
+            <p class="opacity-75 mb-0 small">{% trans "Create an account to start selling with AI support." %}</p>
+        </div>
+
+        <div class="auth-body">
+            <form method="POST" id="signupForm">
+                {% csrf_token %}
+                
+                <!-- የዲጃንጎ ፎርም -->
+                {{ form.as_p }}
+
+                <button type="submit" class="btn-auth" id="signupBtn">
+                    {% trans "ይመዝገቡ" %}
+                </button>
+            </form>
+
+            <!-- 🔗 የመግቢያ ሊንክ -->
+            <div class="text-center mt-4 pt-3 border-top">
+                <p class="text-muted small mb-0">
+                    {% trans "Already have an account?" %} 
+                    <a href="{% url 'login' %}" class="text-primary fw-bold text-decoration-none">
+                        {% trans "ግባ / Login" %}
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('signupForm');
+        const btn = document.getElementById('signupBtn');
+
+        form.addEventListener('submit', function() {
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> {% trans "በማከናወን ላይ..." %}`;
+        });
+    });
+</script>
 {% endblock %}
