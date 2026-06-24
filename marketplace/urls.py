@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/urls.py
-# 📝 ለውጥ፦ Master CEO Agent URL Mapping — Clean & Consolidated
-# ✅ የተፈቱ ችግሮች፦ View function name mismatches, Redundant API endpoints
-# 📅 ቀን፦ 2026-06-23
+# 📝 ለውጥ፦ Master CEO Agent URL Mapping — 100% View Sync
+# ✅ የተፈቱ ችግሮች፦ AttributeError, View Mismatches, Redundant Endpoints
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
 from django.urls import path
@@ -13,6 +13,7 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('product/<int:pk>/', views.product_detail, name='product_detail'),
     path('post/', views.post_product, name='post_product'),
+    path('success/', views.post_success, name='post_success'),
     
     # 🔐 2. የተጠቃሚዎች ማንነት ማረጋገጫ (Authentication)
     path('signup/', views.signup_view, name='signup'),
@@ -29,8 +30,8 @@ urlpatterns = [
     # ኤጀንቱን በእጅ በሃይል ማስነሻ (Manual Evolution Trigger)
     path('trigger-evolution/', views.trigger_evolution, name='trigger_evolution'),
     
-    # 📊 4. የኤጀንት ሁኔታ እና ጤና (Agent Health & Stats)
-    # የኤጀንቱ ዝርዝር ሁኔታ (Memory, Predictions, Logs)
+    # 📊 4. የኤጀንት ሁኔታ እና ጤና (Agent Health & Status)
+    # የኤጀንቱን ዝርዝር ሁኔታ (Memory, Predictions, Logs)
     path('agent-status/', views.agent_status_dashboard, name='agent_status'),
     
     # 🌐 5. ባለብዙ-ጣቢያ አስተዳደር (Multi-Site Management)
@@ -43,7 +44,13 @@ urlpatterns = [
     
     # ⚡ 7. የኤጀንት ኤፒአይዎች (Automation & Webhooks)
     # ለሪል-ታይም ዳሽቦርድ የሚሆን ዳታ መመለሻ
-    path('api/v1/agent-stats/', views.advanced_stats_api, name='advanced_stats_api'),
+    path('api/advanced-stats/', views.advanced_stats_api, name='advanced_stats_api'),
+    
+    # 🤖 ኤጀንቱን በእጅ ማስነሳት (API)
+    path('api/agent/run/', views.trigger_evolution, name='api_trigger_evolution'),
+    
+    # 🤖 የኤጀንት ሁኔታ (API)
+    path('api/agent/status/', views.agent_status_dashboard, name='api_agent_status'),
     
     # የውጭ ክሮን (External Cron) Webhook Gateway
     path('evolve-now-secret-123/', views.trigger_autonomous_evolution, name='trigger_autonomous_evolution'),
