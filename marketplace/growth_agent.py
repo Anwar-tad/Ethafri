@@ -7,6 +7,7 @@
 # ============================================================
 
 import json, os, re, logging, time, hashlib, uuid, ast, requests, threading
+
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.conf import settings
@@ -24,8 +25,9 @@ from .models import (
 )
 
 # ረዳት አስፈጻሚዎች
-from .code_apply import apply_code_change
 from .ai_utils import ask_ai_with_failover, clean_and_parse_json, ask_master_ai_smart
+from .code_apply import apply_code_change
+from .self_doctor import SecurityAuditor, UniversalHealer
 
 logger = logging.getLogger(__name__)
 
