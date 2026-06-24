@@ -432,27 +432,26 @@ def execute_master_cycle():
 
 def _run_site_cycle(site):
     try:
-        # 1. 🩺 ጤና ምርመራ እና ጥገና (Universal Healer)
         UniversalHealer(site).perform_maintenance()
+        time.sleep(2) # 🛑 የ 429 ሬት ሊሚት መከላከያ እረፍት
         
-        # 2. 🔄 ራሱን ማሻሻል (Recursive Optimizer)
         RecursiveOptimizer(site).refine_strategy()
+        time.sleep(2)
         
-        # 3. 🏛️ ስልታዊ እቅድ (Strategic CEO & Owner Overrides)
         ceo = StrategicCEO(site)
         ceo.execute_planning_cycle()
+        time.sleep(2)
         
-        # 4. 🕵️ ተፎካካሪ ስለላ (Competitor Spy)
         CompetitorSpy(site).spy_and_benchmark()
+        time.sleep(2)
         
-        # 5. 📡 ማርኬቲንግ እና ምርት ማደን (CEO Operations & Seeding)
         ops = CEOOperations(site)
         ops.run_business_growth()
+        time.sleep(2)
         
-        # 6. 🛡️ ስጋቶች ማጽዳት (Fraud Hunter)
         FraudHunter(site).scan_for_scams()
+        time.sleep(2)
         
-        # 7. 🏗️ ግንባታ (New-First Recursive Builder)
         next_task = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score').first()
         if next_task:
             builder = RecursiveBuilder(site)
@@ -461,8 +460,8 @@ def _run_site_cycle(site):
     except Exception as e:
         logger.error(f"❌ Error in master cycle for {site.name}: {e}", exc_info=True)
     finally:
-        # Render ላይ Connections እንዳይጨናነቁ ሁልጊዜ መዝጋት
         connections.close_all()
+
 
 def start_autonomous_ceo():
     logger.info("🚀 EthAfri Master CEO Agent Started on Render Cloud...")
