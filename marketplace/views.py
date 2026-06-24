@@ -1,273 +1,227 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ 100% Complete Master CEO Views — Attribute Fixed
-# ✅ የተፈቱ ችግሮች፦ AttributeError (owner_directive_view), N+1 Queries,
-#                   Thread Blocking, Multi-site Dashboard Integration
-# 📅 ቀን፦ Thursday, June 25, 2026
+# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
+# 📝 ዓላማ፦ Ultimate CEO Agent — Strategic, Recursive, and Error-Free
+# ✅ የተፈቱ ችግሮች፦ AttributeError, AICache NameError, Circular Imports, Polish Loops
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
-import logging, uuid, json, threading
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.contrib.admin.views.decorators import staff_member_required
-from django.http import JsonResponse, Http404, HttpResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth import login, authenticate, logout
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from django.utils.translation import get_language, gettext_lazy as _
-from django.contrib import messages
+import json, os, re, logging, time, hashlib, uuid, ast, requests, threading
+from datetime import datetime, timedelta
 from django.utils import timezone
-from django.db.models import Count, Sum, Q, Avg
-from django.db import connection, connections
-from django.core.serializers.json import DjangoJSONEncoder
+from django.conf import settings
+from django.db import connection, connections, transaction
+from django.db.models import Count, Q, Avg, Case, When, Value, IntegerField, Sum
+from django.contrib.auth.models import User
 
-# ሁሉንም 20+ የኤጀንት ሞዴሎች ማምጣት
+# ሞዴሎች
 from .models import (
-    Product, Category, UserSearch, SiteConfig, MarketTrend, SelfHealingLog,
-    AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction, TranslationQueue,
-    SiteRegistry, CustomerAcquisitionLog, MarketingCampaign, SellerProfile, 
-    NotificationQueue, AgentErrorLog, VectorMemory, AgentTask, ABTest, 
-    SecurityLog, PredictionLog, ExternalAPI
+    SiteRegistry, AIProjectBacklog, AgentErrorLog, AIEvolutionLog, 
+    VectorMemory, SiteConfig, AdminOverrideInstruction, Product, 
+    Category, SellerProfile, ProductTranslation, NotificationQueue,
+    AgentTask, SecurityLog, PredictionLog, SelfHealingLog
 )
 
-# ከ Master Agent (growth_agent.py) የመጣ
-try:
-    from .growth_agent import execute_master_cycle
-except ImportError:
-    def execute_master_cycle():
-        logging.error("❌ Growth Agent module missing!")
+# አስፈጻሚ ሞጁሎች (ከ ai_utils እና code_apply የመጡ)
+from .ai_utils import ask_ai_with_failover, clean_and_parse_json, ask_master_ai_smart
+from .code_apply import apply_code_change
+from .self_doctor import SecurityAuditor, UniversalHealer
 
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# 🎨 1. GLOBAL UI CONTEXT (የዲዛይን ሞተር)
+# ⚙️ 1. AI CACHE SYSTEM (የጠፋው AICache ተመልሷል)
 # ============================================================
-def theme_context(request):
-    """ኤጀንቱ የሚቀይራቸውን የዲዛይን ተለዋዋጮች ለሁሉም ገጾች ያቀርባል"""
-    config = SiteConfig.objects.filter(key="DYNAMIC_UI").first()
-    return {'theme': config.value if config and config.value else {}}
+class AICache:
+    """ተደጋጋሚ የAI ጥያቄዎችን በማስታወስ ወጪና ጊዜ የሚቆጥብ"""
+    def __init__(self, ttl=1800):
+        self.cache = {}
+        self.ttl = ttl
+
+    def get_or_compute(self, prompt, compute_func):
+        key = hashlib.md5(prompt.encode()).hexdigest()
+        if key in self.cache:
+            val, ts = self.cache[key]
+            if time.time() - ts < self.ttl:
+                return val
+        result = compute_func()
+        self.cache[key] = (result, time.time())
+        return result
+
+_ai_cache = AICache()
 
 # ============================================================
-# 🏠 2. CORE MARKETPLACE (ምርት እና ንግድ)
+# 🔍 2. SURGICAL CODE READER (የኮድ ካርታ አንባቢ)
 # ============================================================
-def home(request):
-    """ዋና ገጽ — ምርቶችን በብቃት (Optimized Query) ያሳያል"""
-    query = request.GET.get('q')
-    category_id = request.GET.get('category')
-    site_id = request.GET.get('site')
-
-    products = Product.objects.select_related('seller', 'category', 'site').filter(is_active=True)
-    
-    if query:
-        products = products.filter(Q(title__icontains=query) | Q(description__icontains=query))
-        UserSearch.objects.create(query=query, results_count=products.count())
-    if category_id:
-        products = products.filter(category_id=category_id)
-    if site_id:
-        products = products.filter(site_id=site_id)
-
-    context = {
-        'products': products.order_by('-created_at'),
-        'categories': Category.objects.all(),
-        'sites': SiteRegistry.objects.filter(is_active=True),
-        'active_category': int(category_id) if category_id else None,
-        'current_site': int(site_id) if site_id else None,
+def get_site_project_state(site: SiteRegistry):
+    """የዌብሳይቱን ኮድ በጥልቀት የሚረዳ (AST Surgical Reading)"""
+    base_path = str(settings.BASE_DIR)
+    target_files = {
+        'models': os.path.join(base_path, 'marketplace', 'models.py'),
+        'views': os.path.join(base_path, 'marketplace', 'views.py'),
+        'urls': os.path.join(base_path, 'marketplace', 'urls.py'),
+        'home_html': os.path.join(base_path, 'marketplace', 'templates', 'marketplace', 'home.html'),
     }
-    return render(request, 'marketplace/home.html', context)
-
-def product_detail(request, pk):
-    """የምርት ዝርዝር — እይታን ይቆጥራል፣ ተዛማጅ ምርቶችን ያሳያል"""
-    product = get_object_or_404(Product.objects.select_related('seller', 'site'), pk=pk, is_active=True)
-    product.view_count += 1
-    product.save(update_fields=['view_count'])
-    
-    related = Product.objects.filter(category=product.category).exclude(pk=pk)[:4]
-    return render(request, 'marketplace/product_detail.html', {'product': product, 'related_products': related})
-
-@login_required
-def post_product(request):
-    """ምርት መለጠፊያ — ከባለብዙ-ጣቢያ ምርጫ ጋር"""
-    if request.method == "POST":
-        # ኤጀንቱ ከጀርባ ምርቱን በራሱ ያክመዋል/ይተረጉመዋል
-        messages.success(request, _("ምርትዎ ተመዝግቧል። ኤጀንቱ አሁን እያቀነባበረው ነው።"))
-        return redirect('post_success')
-    
-    return render(request, 'marketplace/post_product.html', {
-        'categories': Category.objects.all(),
-        'sites': SiteRegistry.objects.filter(is_active=True)
-    })
-
-def post_success(request):
-    """ምርት በስኬት መለጠፉን ማብሰሪያ"""
-    return render(request, 'marketplace/post_success.html')
+    state = {}; paths = {}
+    for key, path in target_files.items():
+        paths[key] = path
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # ለ AI እንዲመች የመጀመሪያዎቹን 120 መስመሮች ብቻ ይልካል
+                state[key] = "\n".join(content.split('\n')[:120])
+        else:
+            state[key] = "❌ MISSING"
+    return state, paths
 
 # ============================================================
-# 🧠 3. CEO COMMAND & GROWTH (የኤጀንቱ ዕዝ ማዕከል)
+# 🏛️ 3. STRATEGIC CEO (እቅድ አውጪ እና ኒች መለያ)
 # ============================================================
-@staff_member_required
-def admin_growth_dashboard(request):
-    """ዋናው የ CEO መቆጣጠሪያ ዳሽቦርድ"""
-    context = {
-        'total_revenue': SiteRegistry.objects.aggregate(Sum('monthly_revenue'))['monthly_revenue__sum'] or 0,
-        'active_tasks': AIProjectBacklog.objects.filter(status__in=['Pending', 'Running']).count(),
-        'unresolved_errors': AgentErrorLog.objects.filter(resolved=False).count(),
-        'sites': SiteRegistry.objects.all(),
-        'recent_backlog': AIProjectBacklog.objects.all().order_by('-created_at')[:8],
-        'status_info': SiteConfig.objects.filter(key='EVOLUTION_LOCK').first().value if SiteConfig.objects.filter(key='EVOLUTION_LOCK').exists() else {"status": "idle"}
-    }
-    return render(request, 'marketplace/growth_dashboard.html', context)
+class StrategicCEO:
+    """የዌብሳይቱን ደረጃ መርምሮ 'New-First' በሚል ህግ ስራዎችን የሚያደራጅ"""
+    def __init__(self, site: SiteRegistry):
+        self.site = site
 
-@staff_member_required
-def owner_directive_view(request):
-    """የባለቤት ቀጥተኛ መመሪያ መስጫ ገጽ (FIXED)"""
-    if request.method == "POST":
-        instruction = request.POST.get("instruction")
-        site_id = request.POST.get("site_id")
-        if instruction:
-            AdminOverrideInstruction.objects.create(
-                instruction=instruction, 
-                site_id=site_id if site_id else None
+    def execute_planning_cycle(self):
+        """የጎደሉ Core Features መለየት (AttributeError Fixed)"""
+        # 1. የአድሚን ትዕዛዝ ቅድሚያ
+        self._process_owner_directives()
+        
+        # 2. ባክሎግ ላይPending ስራ ካለ አዲስ ኦዲት አይደረግም
+        if AIProjectBacklog.objects.filter(site=self.site, status='Pending').exists():
+            return
+
+        state, _ = get_site_project_state(self.site)
+        prompt = f"""
+        [CEO STRATEGIC AUDIT] Site: {self.site.display_name}
+        Code Snapshot: {json.dumps(state)}
+        Task: Identify 3 MISSING core features. NO polishing existing code. 
+        Return JSON: {{"niche": "string", "backlog": [{{"name": "Task", "file": "views", "priority": "High", "desc": "logic"}}]}}
+        """
+        data = ask_master_ai_smart(prompt, task_type="analysis")
+        if data:
+            self.site.niche = data.get('niche', self.site.niche)
+            self.site.save()
+            for t in data.get('backlog', []):
+                AIProjectBacklog.objects.get_or_create(
+                    site=self.site, task_name=t['name'],
+                    defaults={'priority': t['priority'], 'status': 'Pending', 
+                              'business_impact_score': 9, 'target_file': t.get('file', 'views'), 
+                              'description': t['desc']}
+                )
+
+    def _process_owner_directives(self):
+        overrides = AdminOverrideInstruction.objects.filter(site=self.site, is_processed=False)
+        for cmd in overrides:
+            AIProjectBacklog.objects.get_or_create(
+                site=self.site, task_name=f"👑 OWNER: {cmd.instruction[:30]}",
+                defaults={'priority': 'Critical', 'status': 'Pending', 
+                          'business_impact_score': 10, 'description': cmd.instruction}
             )
-            messages.success(request, "👑 ትዕዛዝዎ በኤጀንቱ ተመዝግቧል። በቀጣይ ዑደት ይፈጸማል።")
-        return redirect("growth_dashboard")
-    
-    return render(request, 'marketplace/owner_directive.html', {
-        'sites': SiteRegistry.objects.filter(is_active=True)
-    })
+            cmd.is_processed = True; cmd.save()
 
-@staff_member_required
-def trigger_evolution(request):
-    """ኤጀንቱን ከበስተጀርባ (Background) በሃይል ማስነሻ"""
-    def run_agent_async():
+# ============================================================
+# 🏗️ 4. RECURSIVE BUILDER (ዘመናዊ ግንባታ)
+# ============================================================
+class RecursiveBuilder:
+    """ኮድ ሲጽፍ የንድፍ ሥርዓቱን ጠብቆ የሚገነባ"""
+    def __init__(self, site: SiteRegistry):
+        self.site = site
+
+    def build_next_feature(self, task):
+        """አዲስ ፊቸር መገንባት (AttributeError Fixed)"""
+        # Cooldown: የዛሬን ኮድ ዛሬ መልሶ አለመንካት
+        if AIEvolutionLog.objects.filter(site=self.site, target_file=task.target_file, created_at__date=timezone.now().date()).exists():
+            return "Cooldown"
+
+        task.status = 'Running'; task.save()
+        prompt = f"Task: {task.task_name}. Write FULL Python code for {task.target_file} using 2026 Django standards. Optimized & Secure."
+        
+        response = ask_master_ai_smart(prompt, task_type="coding")
+        if response and 'code' in response:
+            # የደህንነት ፍተሻ
+            is_safe, msg = SecurityAuditor.scan_code_safety(response['code'])
+            if is_safe:
+                apply_code_change(self.site, task.target_file, response['code'], task.task_name, backlog_task=task)
+                return "Success"
+        
+        task.status = 'Pending'; task.save()
+        return "Failed"
+
+# ============================================================
+# 📡 5. CEO OPERATIONS (Harvesting & Revenue)
+# ============================================================
+class CEOOperations:
+    """ምርት ማደን፣ ተፎካካሪ ስለላ እና ሽያጭ ማሳደጊያ"""
+    def __init__(self, site: SiteRegistry):
+        self.site = site
+
+    def run_business_growth(self):
+        """ዕለታዊ የንግድ ስራዎች (AttributeError Fixed)"""
+        self._harvest_products()
+        self._boost_revenue()
+
+    def _harvest_products(self):
+        """በየ 3 ሰዓቱ ምርት አድኖ መለጠፍ"""
+        last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
+        if last and (timezone.now() - datetime.fromisoformat(last.value['time'])) < timedelta(hours=3):
+            return
+
+        prompt = f"Discover 3 REAL products trending in Ethiopia for {self.site.niche}. Return JSON."
+        data = ask_master_ai_smart(prompt, task_type="marketing")
+        if data and 'products' in data:
+            for p in data['products']:
+                self._seed(p)
+            SiteConfig.objects.update_or_create(key=f"LAST_HARVEST_{self.site.name}", defaults={'value': {'time': timezone.now().isoformat()}})
+
+    def _seed(self, p):
+        try:
+            with transaction.atomic():
+                user, _ = User.objects.get_or_create(username=p['seller_telegram'].replace('@',''), defaults={'is_active': True})
+                SellerProfile.objects.get_or_create(user=user, defaults={'site': self.site})
+                Product.objects.create(seller=user, site=self.site, title=p['title'], price=p['price'], description=p['desc'], is_active=True)
+        except: pass
+
+    def _boost_revenue(self):
+        """በብዛት የታዩ ምርቶችን ማስተዋወቅ"""
+        hot_items = Product.objects.filter(site=self.site, view_count__gt=100)[:1]
+        for item in hot_items:
+            AIProjectBacklog.objects.get_or_create(site=self.site, task_name=f"Revenue: Promote {item.title}", defaults={'task_type': 'marketing'})
+
+# ============================================================
+# 🎡 6. MASTER CEO LOOP (24/7 ዋናው ሞተር)
+# ============================================================
+def execute_master_cycle():
+    """ሁሉንም ፋይሎች ያስተባበረው የኤጀንቱ ልብ"""
+    active_sites = SiteRegistry.objects.filter(is_active=True)
+    for site in active_sites:
+        try:
+            # 1. ጤና ምርመራ
+            UniversalHealer(site).perform_maintenance()
+            # 2. ስልታዊ እቅድ (execute_planning_cycle)
+            ceo = StrategicCEO(site)
+            ceo.execute_planning_cycle()
+            # 3. ቢዝነስ (run_business_growth)
+            ops = CEOOperations(site)
+            ops.run_business_growth()
+            # 4. ግንባታ (build_next_feature)
+            task = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score').first()
+            if task:
+                builder = RecursiveBuilder(site)
+                builder.build_next_feature(task)
+        except Exception as e:
+            logger.error(f"❌ Error in master cycle for {site.name}: {e}")
+
+    # የዳታቤዝ ግንኙነቶችን ማጽዳት
+    connections.close_all()
+
+def start_autonomous_ceo():
+    """ኤጀንቱን 24/7 የሚያንቀሳቅስ ሉፕ"""
+    logger.info("🚀 EthAfri Master CEO Agent Started...")
+    while True:
         try:
             execute_master_cycle()
-        finally:
-            connections.close_all()
-
-    threading.Thread(target=run_agent_async, daemon=True).start()
-    messages.info(request, "🚀 ኤጀንቱ የዕድገት ዑደት በጀርባ (Background) ጀምሯል።")
-    return redirect("growth_dashboard")
-
-# ============================================================
-# 🌐 4. MULTI-SITE & MARKETING (ባለብዙ-ጣቢያ አስተዳደር)
-# ============================================================
-@staff_member_required
-def sites_dashboard(request):
-    """ሁሉንም ንዑስ ጣቢያዎች (Niches) በአንድ ላይ ማሳያ"""
-    sites = SiteRegistry.objects.annotate(
-        task_count=Count('backlog_tasks', filter=Q(backlog_tasks__status='Pending')),
-        listing_count=Count('products', filter=Q(products__is_active=True))
-    ).all()
-    return render(request, 'marketplace/sites_dashboard.html', {
-        'site_stats': sites, 
-        'total_sites': sites.count(),
-        'total_visitors': sites.aggregate(Sum('monthly_visitors'))['monthly_visitors__sum'] or 0,
-        'total_products': sites.aggregate(Sum('total_products'))['total_products__sum'] or 0,
-        'total_revenue': sites.aggregate(Sum('monthly_revenue'))['monthly_revenue__sum'] or 0,
-        'total_sellers': User.objects.filter(product__isnull=False).distinct().count()
-    })
-
-@staff_member_required
-def site_detail(request, site_id):
-    """የአንድ የተወሰነ ንዑስ ጣቢያ ዝርዝር ሁኔታ"""
-    site = get_object_or_404(SiteRegistry, id=site_id)
-    context = {
-        'site': site,
-        'backlog': AIProjectBacklog.objects.filter(site=site).order_by('-priority', '-created_at')[:15],
-        'evolutions': AIEvolutionLog.objects.filter(site=site).order_by('-created_at')[:10],
-        'error_logs': AgentErrorLog.objects.filter(site=site, resolved=False),
-        'marketing_campaigns': MarketingCampaign.objects.filter(site=site)[:5]
-    }
-    return render(request, 'marketplace/site_detail.html', context)
-
-@staff_member_required
-def marketing_dashboard(request):
-    """የግብይት እና የደንበኛ ማግኛ ውጤቶች መከታተያ"""
-    context = {
-        'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
-        'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
-        'total_sent': MarketingCampaign.objects.aggregate(Sum('total_sent'))['total_sent__sum'] or 0,
-        'campaign_stats': {
-            'total': MarketingCampaign.objects.count(),
-            'running': MarketingCampaign.objects.filter(status='running').count(),
-            'scheduled': MarketingCampaign.objects.filter(status='scheduled').count()
-        }
-    }
-    return render(request, 'marketplace/marketing_dashboard.html', context)
-
-@staff_member_required
-def create_marketing_campaign(request):
-    """አዲስ የግብይት ካምፔን መፍጠሪያ ገጽ (FIXED)"""
-    if request.method == "POST":
-        # እዚህ ጋር ካምፔን የመፍጠር ሎጂክ ይፈጸማል
-        messages.success(request, "✅ የግብይት ካምፔን በተሳካ ሁኔታ ተፈጥሯል።")
-        return redirect('marketing_dashboard')
-    return render(request, 'marketplace/create_campaign.html', {
-        'sites': SiteRegistry.objects.filter(is_active=True)
-    })
-
-# ============================================================
-# 📊 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
-# ============================================================
-@staff_member_required
-def agent_status_dashboard(request):
-    """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
-    context = {
-        'agent_status': SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first().value if SiteConfig.objects.filter(key='AGENT_HEARTBEAT').exists() else {"status": "idle"},
-        'memory_stats': VectorMemory.objects.values('memory_type').annotate(count=Count('id')),
-        'security_issues': SecurityLog.objects.filter(is_fixed=False).order_by('-severity'),
-        'unresolved_errors': AgentErrorLog.objects.filter(resolved=False).order_by('-created_at')[:10],
-        'backlog_stats': {
-            'total': AIProjectBacklog.objects.count(),
-            'pending': AIProjectBacklog.objects.filter(status='Pending').count(),
-            'running': AIProjectBacklog.objects.filter(status='Running').count(),
-            'completed': AIProjectBacklog.objects.filter(status='Completed').count()
-        },
-        'site_stats': {'active': SiteRegistry.objects.filter(is_active=True).count(), 'build_phase': SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg'] or 0},
-        'evolution_stats': {'today': AIEvolutionLog.objects.filter(created_at__date=timezone.now().date()).count()},
-        'healing_stats': SelfHealingLog.objects.aggregate(total=Count('id'), resolved=Count('id', filter=Q(resolved=True))),
-        'prediction_stats': PredictionLog.objects.aggregate(total=Count('id'), traffic=Count('id', filter=Q(prediction_type='traffic')), seo=Count('id', filter=Q(prediction_type='seo'))),
-        'marketing_stats': {'notifications': NotificationQueue.objects.filter(is_sent=False).count()},
-        'agent_stats': {'total': AgentTask.objects.count()}
-    }
-    return render(request, 'marketplace/agent_status.html', context)
-
-def advanced_stats_api(request):
-    """ለዳሽቦርዱ የቀጥታ መረጃ (JSON) መመለሻ"""
-    data = {
-        'pending': AIProjectBacklog.objects.filter(status='Pending').count(),
-        'running': AIProjectBacklog.objects.filter(status='Running').values('task_name').first() or "Idle",
-        'success_rate': f"{VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg'] or 0:.1f}%",
-        'server_time': timezone.now().isoformat()
-    }
-    return JsonResponse(data, encoder=DjangoJSONEncoder)
-
-# ============================================================
-# 🔐 6. AUTHENTICATION & WEBHOOKS
-# ============================================================
-def signup_view(request):
-    if request.method == 'POST':
-        form = UserCreationForm(request.POST)
-        if form.is_valid():
-            login(request, form.save())
-            return redirect('home')
-    return render(request, 'marketplace/signup.html', {'form': UserCreationForm()})
-
-def login_view(request):
-    if request.method == 'POST':
-        form = AuthenticationForm(data=request.POST)
-        if form.is_valid():
-            login(request, form.get_user())
-            return redirect('home')
-    return render(request, 'marketplace/login.html', {'form': AuthenticationForm()})
-
-def logout_view(request):
-    logout(request)
-    return redirect('home')
-
-@csrf_exempt
-def trigger_autonomous_evolution(request):
-    """ከውጭ ክሮን (External Webhook) ኤጀንቱን ለመቀስቀስ"""
-    connections.close_all()
-    threading.Thread(target=execute_master_cycle, daemon=True).start()
-    return JsonResponse({"status": "triggered"}, status=200)
+            logger.info("💤 Master Cycle Complete. Sleeping 10 minutes...")
+            time.sleep(600)
+        except Exception as e:
+            logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
+            time.sleep(60)
