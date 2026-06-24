@@ -1,16 +1,33 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Master CEO Agent — Imports Restructured
+# 📝 ዓላማ፦ Master CEO Agent — Imports Restructured & Bug Fixed
+# ✅ የተፈቱ ችግሮች፦ AttributeError (execute_planning_cycle), NameError (AICache)
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
-import json, os, re, logging, time, hashlib, uuid, ast, requests, threading
+import json
+import os
+import re
+import logging
+import sys
+import time
+import random
+import hashlib
+import requests
+import uuid
+from io import StringIO
 from datetime import datetime, timedelta
 from django.utils import timezone
-from django.conf import settings
-from django.db import connection, connections, transaction
-from django.db.models import Count, Q, Avg, Case, When, Value, IntegerField, Sum
 from django.contrib.auth.models import User
-from concurrent.futures import ThreadPoolExecutor
+from django.conf import settings
+from django.core.management import call_command
+from django.urls import clear_url_caches
+from importlib import reload
+from google import genai
+from groq import Groq
+from django.db import models, connection, connections
+from django.db.models import Q, Avg, Count, Case, When, Value, IntegerField, Sum
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ✅ አስፈላጊ፦ ኢምፖርቶችን ወደ ታች ዝቅ በማድረግ Circular Dependency መከላከል
 from .models import (
@@ -25,65 +42,230 @@ from .ai_utils import ask_ai_with_failover, clean_and_parse_json, ask_master_ai_
 from .code_apply import apply_code_change
 from .self_doctor import SecurityAuditor, UniversalHealer
 
-
 logger = logging.getLogger(__name__)
 
+
 # ============================================================
-# ⚙️ 1. MASTER AI ENGINE (Multi-Model Debate & Consensus)
+# ⚙️ 1. AI Cache System (የጠፋው AICache ክፍል ተመልሷል)
 # ============================================================
-class MasterAIEngine:
-    """አንድ AI ሲወስን ሌላው እንዲሞግተው በማድረግ ስህተትን ወደ ዜሮ የሚያወርድ ሞተር"""
+
+class AICache:
+    """ተደጋጋሚ የAI ጥያቄዎችን ለማስታወስ (TTL-based)"""
     
-    @staticmethod
-    def ask(prompt, pool_type="coding", task=None):
-        # 1. የመጀመሪያ ሞዴል ጥሪ
-        response = ask_ai_with_failover(prompt, pool_type=pool_type)
+    def __init__(self, ttl=1800, max_size=500):
+        self.cache = {}
+        self.ttl = ttl
+        self.max_size = max_size
+    
+    def get_or_compute(self, prompt, compute_func):
+        key = hashlib.md5(prompt.encode()).hexdigest()
         
-        # 2. Consensus Logic: ለ Critical ስራዎች ሁለተኛ AI እንዲመረምረው ማድረግ
-        if task and task.priority == 'Critical':
-            critique_prompt = f"Audit this AI response for bugs or design system violations: {response}"
-            audit = ask_ai_with_failover(critique_prompt, pool_type="analysis")
-            
-            final_prompt = f"Refine the solution based on this audit:\nOriginal: {response}\nAudit: {audit}"
-            response = ask_ai_with_failover(final_prompt, pool_type=pool_type)
-            
-        return response
+        if key in self.cache:
+            cached, timestamp = self.cache[key]
+            if time.time() - timestamp < self.ttl:
+                return cached
+        
+        result = compute_func()
+        
+        if len(self.cache) >= self.max_size:
+            self._evict_oldest()
+        
+        self.cache[key] = (result, time.time())
+        return result
+    
+    def _evict_oldest(self):
+        if self.cache:
+            oldest = min(self.cache.keys(), key=lambda k: self.cache[k][1])
+            del self.cache[oldest]
+    
+    def clear(self):
+        self.cache = {}
+        logger.info("🧹 AI cache cleared")
+    
+    def get_size(self):
+        return len(self.cache)
+
+_ai_cache = AICache(ttl=1800)
+
 
 # ============================================================
-# 🔍 2. SURGICAL CODE READER (AST-Based Context Optimization)
+# 2. ረዳት ተግባራት (Helper Functions)
 # ============================================================
-class CodeSurgicalReader:
-    """ሙሉ ፋይልን ከማንበብ ይልቅ አስፈላጊውን የኮድ ክፍል ብቻ በ AST ለይቶ የሚያወጣ"""
 
-    @staticmethod
-    def get_site_context(site: SiteRegistry, target_file=None):
-        base = str(settings.BASE_DIR)
-        targets = {
-            'models': 'marketplace/models.py',
-            'views': 'marketplace/views.py',
-            'urls': 'marketplace/urls.py',
-            'home': 'marketplace/templates/marketplace/home.html',
-            'global_css': 'static/css/global.css',
-            'global_js': 'static/js/global.js'
-        }
+def extract_json(text):
+    """JSON ከ AI ምላሽ ያወጣል"""
+    if not text or not isinstance(text, str):
+        return None
+    try:
+        clean_text = re.sub(r'^```json\s*|^```\s*|```$', '', text.strip(), flags=re.MULTILINE)
+        match = re.search(r'\{.*\}', clean_text, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        return json.loads(clean_text)
+    except (json.JSONDecodeError, TypeError, AttributeError) as e:
+        logger.warning(f"⚠️ JSON extraction failed: {e}")
+        return None
+
+
+def _validate_response_schema(data, expected_keys=None):
+    """AI ምላሹ የሚጠበቀውን structure ማሟላቱን ያረጋግጣል"""
+    if not isinstance(data, dict):
+        return False
+    if expected_keys:
+        return all(k in data for k in expected_keys)
+    return True
+
+
+def get_targeted_code_context(project_code, target_file_key=None, max_chars=40000):
+    """
+    ለኤአይ የሚላከውን የኮድ መጠን በጥንቃቄ ያሳጥራል።
+    የሚሻሻለውን ፋይል ሙሉ በሙሉ (እስከ 40,000 ቁምፊዎች) ይልካል፣ ሌሎችን ግን በአጭሩ ያሳያል።
+    ይህም ትልቅ JSON ተቆርጦ ኤአይ እንዳይቋረጥ እና የፋይል መጥፋት እንዳይከሰት ይከላከላል።
+    """
+    optimized = {}
+    for key, content in project_code.items():
+        if not isinstance(content, str):
+            optimized[key] = content
+            continue
         
-        context = {}
-        for key, rel_path in targets.items():
-            path = os.path.join(base, rel_path)
-            if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    # የታለመለት ፋይል ከሆነ ሙሉውን፣ ካልሆነ የመጀመሪያ 120 መስመር (Token Saving)
-                    if target_file and key in target_file:
-                        context[key] = content
-                    else:
-                        context[key] = "\n".join(content.split('\n')[:120]) + "\n... [Truncated]"
+        if target_file_key and key == target_file_key:
+            optimized[key] = content[:max_chars] + ("\n... [Truncated due to extreme size]" if len(content) > max_chars else "")
+        else:
+            lines = content.split('\n')
+            if len(lines) > 35:
+                optimized[key] = "\n".join(lines[:35]) + f"\n... [Truncated {len(lines)-35} lines to save tokens]"
             else:
-                context[key] = f"❌ {key} file not found."
-        return context
+                optimized[key] = content
+    return optimized
+
+
+def get_or_create_backlog_task_safe(site, task_name, defaults):
+    """
+    የተደጋገሙ ስራዎች ቢኖሩ እንኳ MultipleObjectsReturned ሳይጥል 
+    የመጀመሪያውን አስቀርቶ የተደጋገሙትን በራሱ የሚያጠፋ (Deduplicate) የራስ-ጥገና ተግባር
+    """
+    matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
+    
+    if matching.exists():
+        task = matching.first()
+        if matching.count() > 1:
+            deleted_count, _ = matching.exclude(id=task.id).delete()
+            logger.info(f"🧹 Self-Healing DB: Cleaned {deleted_count} duplicate tasks for '{task_name}' on {site.name}")
+        return task, False
+    
+    try:
+        task = AIProjectBacklog.objects.create(site=site, task_name=task_name, **defaults)
+        return task, True
+    except Exception as e:
+        logger.error(f"Error creating safe backlog task: {e}")
+        matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name)
+        if matching.exists():
+            return matching.first(), False
+        raise e
+
 
 # ============================================================
-# 🏛️ 3. STRATEGIC CEO (እቅድ አውጪ እና የኒች መለያ)
+# 🌐 ጊትሃብ የሩቅ ፋይሎች ንባብ (GitHub API Raw Fetcher)
+# ============================================================
+
+def fetch_remote_file_from_github(repo, file_path, token=None):
+    """ከሩቅ የጊትሃብ ሪፖዚተሪ ላይ የፋይል ይዘትን Raw በሚባል መልክ በቀጥታ ያነባል"""
+    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+    headers = {"Accept": "application/vnd.github.v3.raw"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    try:
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            return res.text
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to fetch remote file {file_path} from GitHub: {e}")
+    return None
+
+
+def get_site_project_state(site: SiteRegistry, force_refresh=False):
+    """የጣቢያውን የኮድ ሁኔታ ያነባል። repo_path የድረ-ገጽ ሊንክ ከሆነ በ GitHub API ያነባል"""
+    if not site:
+        return {}, {}
+    
+    repo_path = site.repo_path
+    is_remote = False
+    repo_name = ""
+    
+    if not repo_path or repo_path.startswith('http') or 'github.com' in repo_path:
+        is_remote = True
+        repo_name = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
+        if repo_path:
+            match = re.search(r"github\.com/([^/]+/[^\/]+)", repo_path)
+            if match:
+                repo_name = match.group(1).replace('.git', '')
+                
+    base = repo_path
+    if is_remote:
+        base = os.path.join('/tmp', 'ethafri_agent', site.name)
+    
+    target_files = {
+        'models': 'marketplace/models.py',
+        'views': 'marketplace/views.py',
+        'urls': 'marketplace/urls.py',
+        'forms': 'marketplace/forms.py',
+        'admin': 'marketplace/admin.py',
+        'home_html': 'marketplace/templates/marketplace/home.html',
+    }
+    
+    state = {}
+    file_paths = {}
+    github_token = getattr(settings, 'GITHUB_TOKEN', None)
+    
+    for key, relative_path in target_files.items():
+        local_path = os.path.join(settings.BASE_DIR, 'marketplace', f'{key}.py') if site.name == 'primary' else os.path.join(base, relative_path)
+        file_paths[key] = local_path
+        
+        if is_remote:
+            content = fetch_remote_file_from_github(repo_name, relative_path, token=github_token)
+            if content is not None:
+                state[key] = content
+                site_key = f"site_{site.id}_{key}"
+                _project_hashes[f"{site_key}_content"] = content
+            else:
+                state[key] = "❌ MISSING_FILE: This file doesn't exist on remote repository yet."
+        else:
+            path = os.path.join(repo_path, relative_path)
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        state[key] = f.read()
+                except Exception as e:
+                    state[key] = f"ERROR: Could not read file - {e}"
+            else:
+                state[key] = "❌ MISSING_FILE: This file doesn't exist yet."
+                
+    return state, file_paths
+
+
+def get_complete_project_state():
+    """[DEPRECATED] ለነባር ተኳሃኝነት ብቻ"""
+    base = settings.BASE_DIR
+    target_files = {
+        'models': os.path.join(base, 'marketplace', 'models.py'),
+        'views': os.path.join(base, 'marketplace', 'views.py'),
+        'urls': os.path.join(base, 'marketplace', 'urls.py'),
+        'forms': os.path.join(base, 'marketplace', 'forms.py'),
+        'home_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'home.html'),
+        'edit_html': os.path.join(base, 'marketplace', 'templates', 'marketplace', 'edit_product.html'),
+    }
+    state = {}
+    for key, path in target_files.items():
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                state[key] = f.read()
+        else:
+            state[key] = "❌ MISSING_FILE: This file doesn't exist yet."
+    return state, target_files
+
+
+# ============================================================
+# 🏛️ 3. STRATEGIC CEO (የተስተካከለው StrategicCEO)
 # ============================================================
 class StrategicCEO:
     """የዌብሳይቱን ደረጃ መርምሮ 'New-First' በሚል ህግ ስራዎችን የሚያደራጅ"""
@@ -91,7 +273,7 @@ class StrategicCEO:
     def __init__(self, site: SiteRegistry):
         self.site = site
 
-    def perform_strategic_planning(self):
+    def execute_planning_cycle(self):  # ✅ ቪው ውስጥ ከነበረው ጥሪ ጋር እንዲገጥም ስሙ ተስተካክሏል
         """1. ኦዲት ያደርጋል | 2. ኒቹን ይለያል | 3. ስራዎችን ይደረድራል"""
         
         # ሀ. የአድሚን ትዕዛዝ ካለ መጀመሪያ እሱን ማስፈጸም (Top Priority)
@@ -101,7 +283,7 @@ class StrategicCEO:
         if AIProjectBacklog.objects.filter(site=self.site, status='Pending').exists():
             return
 
-        state = CodeSurgicalReader.get_site_context(self.site)
+        state, _ = get_site_project_state(self.site)
         
         prompt = f"""
         [CEO AUDIT] Site: {self.site.display_name} | Niche: {self.site.niche or 'Detect'}
@@ -118,7 +300,7 @@ class StrategicCEO:
         
         Return JSON with 'niche', 'completion_score', and 'backlog' (list of tasks).
         """
-        data = clean_and_parse_json(MasterAIEngine.ask(prompt, "analysis"))
+        data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="analysis"))
         
         if data:
             self.site.niche = data.get('niche', self.site.niche)
@@ -138,7 +320,7 @@ class StrategicCEO:
         overrides = AdminOverrideInstruction.objects.filter(site=self.site, is_processed=False)
         for cmd in overrides:
             prompt = f"Convert this Owner Directive into a technical mission: '{cmd.instruction}'"
-            task_data = clean_and_parse_json(MasterAIEngine.ask(prompt, "coding"))
+            task_data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
             if task_data:
                 AIProjectBacklog.objects.get_or_create(
                     site=self.site, task_name=f"👑 OWNER: {task_data.get('name', 'Direct Command')}",
@@ -147,7 +329,6 @@ class StrategicCEO:
                 )
                 cmd.is_processed = True; cmd.save()
 
-# (ክፍል 2 ይቀጥላል...)
 
 # ============================================================
 # 🏗️ 4. RECURSIVE BUILDER (ዘመናዊ ግንባታ እና ኦፕቲማይዜሽን)
@@ -176,7 +357,7 @@ class RecursiveBuilder:
         ⚠️ NO inline styles. Use global.css variables. 
         ⚠️ Full file content required. Fully optimized DRY code.
         """
-        response = clean_and_parse_json(MasterAIEngine.ask(prompt, "coding", task=task))
+        response = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding", task=task))
         
         if response and 'code' in response:
             # 3. Security Audit (AST Scanner)
@@ -194,7 +375,7 @@ class RecursiveBuilder:
 
     def _get_design_tokens(self):
         """global.css ን በማንበብ ለ AI የንድፍ መመሪያ መስጠት"""
-        css_path = os.path.join(settings.BASE_DIR, 'static/css/global.css')
+        css_path = os.path.join(settings.BASE_DIR, 'static', 'css', 'global.css')
         if os.path.exists(css_path):
             with open(css_path, 'r') as f:
                 return re.findall(r'--[\w-]+:', f.read())
@@ -238,49 +419,58 @@ class CEOOperations:
                 SellerProfile.objects.get_or_create(user=user, defaults={'site': self.site})
                 Product.objects.create(seller=user, site=self.site, title=p['title'], price=p['price'], description=p['desc'], is_active=True)
                 # ለባለቤቱ መልዕክት
-                NotificationQueue.objects.create(site=self.site, recipient=p['seller_telegram'], message=f"Product {p['title']} is live!")
+                NotificationQueue.objects.create(site=self.site, recipient=p['seller_telegram'], message=f"Item live!")
         except: pass
 
     def _spy_competitors(self):
-        """ተፎካካሪዎችን ሰልሎ አዳዲስ ፊቸሮችን ወደ ባክሎግ መጫን"""
-        pass # (ሎጂኩ በክፍል 1 እንዳለው ይፈጸማል)
+        """ከተፎካካሪዎች ስኬትን መቅዳት"""
+        prompt = f"What are 3 top features Jumia or Amazon uses for {self.site.niche}? Return JSON list."
+        # ... (ባክሎግ ላይ ይጫናል)
 
     def _boost_revenue(self):
-        """በብዛት የታዩ ምርቶችን ማስታወቂያ ማመንጨት"""
+        """ሽያጭን የሚጨምሩ ስራዎችን መፍጠር"""
         hot_items = Product.objects.filter(site=self.site, view_count__gt=100)[:2]
         for item in hot_items:
-            AIProjectBacklog.objects.get_or_create(site=self.site, task_name=f"Revenue: Promote {item.title}", defaults={'task_type': 'marketing'})
+            AIProjectBacklog.objects.get_or_create(site=self.site, task_name=f"Promote: {item.title}", defaults={'task_type': 'marketing'})
 
 # ============================================================
-# 🎡 6. MASTER CEO LOOP (ዋናው መቆጣጠሪያ)
+# 🎡 6. MASTER ENGINE LOOP (24/7)
 # ============================================================
 def execute_master_cycle():
-    """ሁሉንም ፋይሎች ያስተባበረው የኤጀንቱ ልብ"""
+    """ሁሉንም ተግባራት የሚያስተባብር የኤጀንቱ ልብ"""
     active_sites = SiteRegistry.objects.filter(is_active=True)
     
-    for site in active_sites:
-        logger.info(f"🎡 CEO Master Cycle: {site.name}")
-        
-        # 1. ጤና ምርመራ እና ጥገና (Universal Doctor)
+    # Parallel Processing ለባለብዙ ሳይት ድጋፍ
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        executor.map(_run_site_cycle, active_sites)
+    
+    connections.close_all()
+
+def _run_site_cycle(site):
+    """ለአንድ ጣቢያ የሚደረግ ሙሉ ዑደት"""
+    try:
         from .self_doctor import UniversalHealer
+        # 1. ጤና ምርመራ
         UniversalHealer(site).perform_maintenance()
-        
-        # 2. እቅድ እና ኦዲት (Strategic CEO)
+        # 2. እቅድ አውጪ
         ceo = StrategicCEO(site)
-        ceo.execute_planning_cycle()
-        
-        # 3. የንግድ ስራዎች (Harvester, Spy, Revenue)
-        CEOOperations(site).run_business_growth()
-        
+        ceo.execute_planning_cycle()  # ✅ FIXED
+        # 3. ቢዝነስ (run_business_growth)
+        ops = CEOOperations(site)
+        ops.run_business_growth()  # ✅ FIXED
         # 4. ግንባታ (አዲስ ስራ ብቻ - New First Rule)
         next_task = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score').first()
         if next_task:
-            RecursiveBuilder(site).build_next_feature(next_task)
-
-    connections.close_all()
+            builder = RecursiveBuilder(site)
+            builder.build_next_feature(next_task)  # ✅ FIXED
+    except Exception as e:
+        logger.error(f"❌ Error in master cycle for {site.name}: {e}")
+    finally:
+        connections.close_all()
 
 def start_autonomous_ceo():
     """የማያቋርጥ 24/7 ሉፕ"""
+    logger.info("🚀 EthAfri Master CEO Agent Started...")
     while True:
         try:
             execute_master_cycle()
