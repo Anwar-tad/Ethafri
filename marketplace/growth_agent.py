@@ -1,13 +1,9 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate CEO Agent (v6.0) — Strategic, Recursive & Universal Healer
-# ✅ የተካተቱ፦ Multi-Model Failover, AST Context, Competitor Spy, AI Harvester, 
-#           Revenue Focus, New-First Rules & Design System Awareness.
-# 📅 ቀን፦ 2026-06-24
+# 📝 ዓላማ፦ Master CEO Agent — Imports Restructured
 # ============================================================
 
 import json, os, re, logging, time, hashlib, uuid, ast, requests, threading
-
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.conf import settings
@@ -16,7 +12,7 @@ from django.db.models import Count, Q, Avg, Case, When, Value, IntegerField, Sum
 from django.contrib.auth.models import User
 from concurrent.futures import ThreadPoolExecutor
 
-# ሁሉንም 20+ ፋይሎች የተካው የሞዴል መጠቅለያ
+# ✅ አስፈላጊ፦ ኢምፖርቶችን ወደ ታች ዝቅ በማድረግ Circular Dependency መከላከል
 from .models import (
     SiteRegistry, AIProjectBacklog, AgentErrorLog, AIEvolutionLog, 
     VectorMemory, SiteConfig, AdminOverrideInstruction, Product, 
@@ -24,10 +20,11 @@ from .models import (
     AgentTask, SecurityLog, PredictionLog, SelfHealingLog
 )
 
-# ረዳት አስፈጻሚዎች
+# ✅ ረዳት አስፈጻሚዎችን ከ ai_utils በቀጥታ መጥራት
 from .ai_utils import ask_ai_with_failover, clean_and_parse_json, ask_master_ai_smart
 from .code_apply import apply_code_change
 from .self_doctor import SecurityAuditor, UniversalHealer
+
 
 logger = logging.getLogger(__name__)
 
