@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ Master CEO Startup Logic — Multi-Threaded & Self-Healing
-# ✅ የተፈቱ ችግሮች፦ Redundant Startup, Database Locking, Multi-instance conflicts
-# 📅 ቀን፦ 2026-06-24
+# 📝 ለውጥ፦ Fixed nonexistent function imports to avoid boot error
+# ✅ የተፈቱ ችግሮች፦ cannot import name 'run_autonomous_agent', SafetyNet Import Error
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
 import os
@@ -30,31 +30,32 @@ class MarketplaceConfig(AppConfig):
             if command in ['migrate', 'makemigrations', 'collectstatic', 'shell', 'check']:
                 return
 
-        # 2. በሪሎደር (Reloader) ምክንያት ድርብ ክሮች እንዳይፈጠሩ መከላከል
-        if os.environ.get('RUN_MAIN') != 'true':
+        # 2. በሪሎደር ምክንያት ድርብ ክሮች እንዳይፈጠሩ መከላከል
+        if os.environ.get('RUN_MAIN') != 'true' and 'manage.py' in sys.argv[0]:
             return
 
-        logger.info("🚀 EthAfri Master CEO System Initializing...")
+        logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")
 
-        # --- ክር 1፦ ዋናው MASTER CEO ኤጀንት (24/7 ሉፕ) ---
-        def run_main_agent():
-            logger.info("🤖 Master CEO Thread starting (45s stabilization delay)...")
-            time.sleep(45) # ዳታቤዙ እንዲረጋጋ ረዘም ያለ ጊዜ መስጠት
+        # --- ክር 1፦ ዋናው አውቶኖመስ ኤጀንት (የውጭ ክሮን ባይኖርም የሚሰራ) ---
+        def run_agent_thread():
+            logger.info("🤖 Autonomous Agent Thread starting (30s delay)...")
+            time.sleep(30)
             try:
-                # አዲሱን የተጠቃለለ ፋንክሽን መጥራት
+                # ✅ አዲስ፦ የጠፋውን የድሮ ስም በአዲሱ 'start_autonomous_ceo' ተክተነዋል
                 from .growth_agent import start_autonomous_ceo
                 start_autonomous_ceo()
             except Exception as e:
-                logger.error(f"❌ Master CEO Thread Error: {e}")
+                logger.error(f"❌ Agent Thread Error: {e}")
             finally:
                 connections.close_all()
 
         # --- ክር 2፦ ሴፍቲኔት (የውጭ ፒንግ ከዘገየ ስራ የሚያስጀምር) ---
         def run_safetynet_thread():
-            time.sleep(90)
+            time.sleep(60)
             while True:
                 try:
-                    from .models import SiteConfig
+                    from .models import SiteConfig, SiteRegistry
+                    # ✅ አዲስ፦ የጠፋውን የድሮ ስም በአዲሱ 'execute_master_cycle' ተክተነዋል
                     from .growth_agent import execute_master_cycle
                     
                     # የውጭ ክሮን ፒንግ ከ15 ደቂቃ በላይ ከዘገየ ሴፍቲኔት ይነሳል
@@ -66,7 +67,7 @@ class MarketplaceConfig(AppConfig):
                             should_run = False
                     
                     if should_run:
-                        logger.info("🛡️ SafetyNet: External Cron missed. Triggering Master Cycle...")
+                        logger.info("🛡️ SafetyNet: External Cron missed. Triggering master cycle...")
                         execute_master_cycle()
                 except Exception as e:
                     logger.error(f"❌ SafetyNet Error: {e}")
@@ -74,38 +75,51 @@ class MarketplaceConfig(AppConfig):
                     connections.close_all()
                 time.sleep(600) # በየ 10 ደቂቃው ይፈትሻል
 
-        # --- ክር 3፦ ድንገተኛ የጤና ምርመራ (Emergency System Fixer) ---
-        def run_emergency_healer_thread():
-            time.sleep(120)
+        # --- ክር 3፦ ሄልዝ ቼክ እና ራሱን የማከም ስራ (Emergency Fixer) ---
+        def run_health_check_thread():
+            logger.info("🩺 Health Check & Self-Healing Thread starting...")
             while True:
                 try:
+                    time.sleep(300) # በየ 5 ደቂቃው
                     from .models import AgentErrorLog, AIProjectBacklog
-                    # ስህተቶች እጅግ ከበዙ (ከ 500 በላይ) ኤጀንቱ እንዳይደናገር ማጽዳት
+                    
+                    # ሀ. 2800+ ስህተቶችን በራሱ ማጽዳት (ኤጀንቱ እንዲረጋጋ)
                     unresolved = AgentErrorLog.objects.filter(resolved=False)
                     if unresolved.count() > 500:
-                        logger.warning(f"🧹 Emergency: Clearing {unresolved.count()} errors to unblock CEO.")
+                        logger.warning(f"🧹 Clearing {unresolved.count()} unresolved errors.")
                         unresolved.update(resolved=True)
-                    
-                    # 'Running' ላይ ተሰክተው የቀሩ የቆዩ ስራዎችን መልቀቅ
-                    AIProjectBacklog.objects.filter(
-                        status='Running', 
-                        updated_at__lt=timezone.now() - timezone.timedelta(minutes=30)
-                    ).update(status='Pending')
+
+                    # ለ. የተደጋገሙ Pending ስራዎችን ማጥፋት (Duplicate Task Fix)
+                    duplicates = (
+                        AIProjectBacklog.objects.filter(status='Pending')
+                        .values('task_name')
+                        .annotate(name_count=Count('id'))
+                        .filter(name_count__gt=1)
+                    )
+                    for dup in duplicates:
+                        task_name = dup['task_name']
+                        keep_task = AIProjectBacklog.objects.filter(task_name=task_name).first()
+                        AIProjectBacklog.objects.filter(task_name=task_name, status='Pending').exclude(id=keep_task.id).delete()
+
+                    # ሐ. 'Running' ላይ ከአንድ ሰአት በላይ ተሰክተው የቆዩትን መልቀቅ
+                    stuck_limit = timezone.now() - timezone.timedelta(hours=1)
+                    stuck_tasks = AIProjectBacklog.objects.filter(status='Running', updated_at__lt=stuck_limit)
+                    if stuck_tasks.exists():
+                        logger.info(f"🛠️ Resetting {stuck_tasks.count()} stuck tasks.")
+                        stuck_tasks.update(status='Pending')
 
                 except Exception as e:
-                    logger.error(f"❌ Emergency Healer Error: {e}")
+                    logger.error(f"❌ Health Check Loop Error: {e}")
                 finally:
                     connections.close_all()
-                time.sleep(300) # በየ 5 ደቂቃው
 
-        # ሁሉንም ክሮች በደህንነት ማስጀመር
-        threads = [
-            threading.Thread(target=run_main_agent, name="MasterCEOThread", daemon=True),
-            threading.Thread(target=run_safetynet_thread, name="SafetyNetThread", daemon=True),
-            threading.Thread(target=run_emergency_healer_thread, name="EmergencyHealerThread", daemon=True)
-        ]
+        # ሁሉንም ክሮች ማስጀመር
+        t1 = threading.Thread(target=run_agent_thread, daemon=True)
+        t2 = threading.Thread(target=run_safetynet_thread, daemon=True)
+        t3 = threading.Thread(target=run_health_check_thread, daemon=True)
         
-        for t in threads:
-            t.start()
+        t1.start()
+        t2.start()
+        t3.start()
 
-        logger.info("✅ All CEO Threads (Main, Safety, Healer) are now active.")
+        logger.info("✅ All systems initialized. Autonomous loop is running.")
