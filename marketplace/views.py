@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ 100% Complete Master CEO Views — All Imports & Integrity Fixed
-# ✅ የተፈቱ ችግሮች፦ User Model Import Error, Safe Null Site Aggregations, N+1 Query Fix.
+# 📝 ለውጥ፦ 100% Complete Master CEO Views — Production Ready & Safe JSON Parsing
+# ✅ የተፈቱ ችግሮች፦ Dynamic UI Dict Parsing Safeguard, Safe Background Connections
 # 📅 ቀን፦ Thursday, June 25, 2026
 # ============================================================
 
@@ -15,7 +15,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse, Http404, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, authenticate, logout
-from django.contrib.auth.models import User  # ✅ ማሻሻያ፦ የጎደለው የ User ሞዴል መምጫ ታክሏል
+from django.contrib.auth.models import User  # ✅ የ User ሞዴል መምጫ
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.utils.translation import get_language, gettext_lazy as _
 from django.contrib import messages
@@ -38,9 +38,20 @@ try:
     from .growth_agent import execute_master_cycle
 except ImportError:
     def execute_master_cycle():
-        logging.error("❌ Growth Agent module missing!")
+        logger.error("❌ Growth Agent module missing!")
 
 logger = logging.getLogger(__name__)
+
+def _safe_json_decode(value, default_dict):
+    """የመረጃ ቋቱ የ JSON እሴቶችን በ String መልክ ቢመልስ እንኳ እንዳይከሽፍ ማጽጃ"""
+    if not value:
+        return default_dict
+    if isinstance(value, dict):
+        return value
+    try:
+        return json.loads(value)
+    except:
+        return default_dict
 
 # ============================================================
 # 🎨 1. GLOBAL UI CONTEXT (የዲዛይን ሞተር)
@@ -48,14 +59,14 @@ logger = logging.getLogger(__name__)
 def theme_context(request):
     """ኤጀንቱ የሚቀይራቸውን የዲዛይን ተለዋዋጮች ለሁሉም ገጾች ያቀርባል"""
     config = SiteConfig.objects.filter(key="DYNAMIC_UI").first()
-    return {'theme': config.value if config and config.value else {}}
+    return {'theme': _safe_json_decode(config.value, {}) if config else {}}
 
 # ============================================================
 # 🏠 2. CORE MARKETPLACE (ምርት እና ንግድ)
 # ============================================================
 def home(request):
     """ዋና ገጽ — ምርቶችን በብቃት (Optimized Query) ያሳያል"""
-    query = request.GET.get('q', '').strip()  # ✅ ማሻሻያ፦ ባዶ ቦታዎችን ለማጽዳት strip() ታክሏል
+    query = request.GET.get('q', '').strip()  
     category_id = request.GET.get('category')
     site_id = request.GET.get('site')
 
@@ -110,13 +121,17 @@ def post_success(request):
 def admin_growth_dashboard(request):
     """ዋናው የ CEO መቆጣጠሪያ ዳሽቦርድ"""
     total_rev = SiteRegistry.objects.aggregate(Sum('monthly_revenue'))['monthly_revenue__sum']
+    
+    lock_config = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
+    status_info = _safe_json_decode(lock_config.value, {"status": "idle"}) if lock_config else {"status": "idle"}
+    
     context = {
         'total_revenue': total_rev or 0,
         'active_tasks': AIProjectBacklog.objects.filter(status__in=['Pending', 'Running']).count(),
         'unresolved_errors': AgentErrorLog.objects.filter(resolved=False).count(),
         'sites': SiteRegistry.objects.all(),
         'recent_backlog': AIProjectBacklog.objects.all().order_by('-created_at')[:8],
-        'status_info': SiteConfig.objects.filter(key='EVOLUTION_LOCK').first().value if SiteConfig.objects.filter(key='EVOLUTION_LOCK').exists() else {"status": "idle"}
+        'status_info': status_info
     }
     return render(request, 'marketplace/growth_dashboard.html', context)
 
@@ -224,8 +239,11 @@ def agent_status_dashboard(request):
     healing = SelfHealingLog.objects.aggregate(total=Count('id'), resolved=Count('id', filter=Q(resolved=True)))
     pred = PredictionLog.objects.aggregate(total=Count('id'), traffic=Count('id', filter=Q(prediction_type='traffic')), seo=Count('id', filter=Q(prediction_type='seo')))
     
+    heartbeat_config = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
+    agent_status = _safe_json_decode(heartbeat_config.value, {"status": "idle"}) if heartbeat_config else {"status": "idle"}
+
     context = {
-        'agent_status': SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first().value if SiteConfig.objects.filter(key='AGENT_HEARTBEAT').exists() else {"status": "idle"},
+        'agent_status': agent_status,
         'memory_stats': VectorMemory.objects.values('memory_type').annotate(count=Count('id')),
         'security_issues': SecurityLog.objects.filter(is_fixed=False).order_by('-severity'),
         'unresolved_errors': AgentErrorLog.objects.filter(resolved=False).order_by('-created_at')[:10],
