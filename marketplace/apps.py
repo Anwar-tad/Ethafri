@@ -12,7 +12,9 @@ import threading
 import logging
 from django.apps import AppConfig
 from django.utils import timezone
-from django.db import connections, connection
+
+from django.db import connection, connections  # ✅ ትክክለኛው መንገድ
+
 from django.db.models import Count
 
 logger = logging.getLogger(__name__)
