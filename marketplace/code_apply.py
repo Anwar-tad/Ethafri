@@ -1,3 +1,10 @@
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/code_apply.py
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (Fixed)
+# ✅ የተፈቱ ችግሮች፦ AST check on HTML files, 'home_html' mapping bug, Path Traversal vulnerability
+# 📅 ቀን፦ 2026-06-25
+# ============================================================
+
 import os
 import ast
 import logging
@@ -8,107 +15,157 @@ from .models import AIEvolutionLog
 
 logger = logging.getLogger(__name__)
 
-def apply_code_change(site, file_key, new_content, reason, confidence_score=100, backlog_task=None):
-    """ኮድን በደህንነት ይተገብራል"""
-    
-    # 1. የሲንታክስ (Syntax) ፍተሻ - ኮዱ ሳይቱን እንዳያቆመው
-    try:
-        ast.parse(new_content)
-    except SyntaxError as e:
-        logger.error(f"❌ Syntax Error Blocked: {e}")
-        return {'success': False, 'applied': False, 'message': f"❌ Syntax Error: {e}"}
+# ============================================================
+# 🛠️ ዋናው የኮድ መተግበሪያ ተግባር (apply_code_change)
+# ============================================================
 
-    try:
-        # 2. ፋይልን መፈለጊያ (Path Resolver - የደህንነት ማጠናከሪያ)
-        base_dir = str(settings.BASE_DIR)
-        
-        # የ file_key አጻጻፍን ማስተካከል
-        if not file_key.endswith(('.py', '.html')):
-            file_name = f"{file_key}.py"
+def apply_code_change(site, file_key, new_content, reason="", path=None, 
+                      confidence_score=100, backlog_task=None, push_to_github=True):
+    """
+    ኮድን በደህንነት ይተገብራል፣ የፓይተን ሲንታክስ ብቻ ይፈትሻል፣ እና ወደ GitHub ይገፋል (Sync)
+    """
+    
+    # 1. 🛡️ የፋይል ስም እና ማውጫ መፍቻ (Smarter Path & Extension Resolver)
+    base_dir = str(settings.BASE_DIR)
+    
+    if not path:
+        # 'home_html' የሚለውን ቁልፍ ወደ ትክክለኛው የ HTML ፋይል መለወጥ (home_html.py መደጋገምን ያስቀራል)
+        if file_key == 'home_html':
+            file_name = 'templates/marketplace/home.html'
         else:
-            file_name = file_key
+            file_name = f"{file_key}.py" if not file_key.endswith(('.py', '.html')) else file_key
             
-        # በማርኬትፕሌይስ ዙሪያ የሚፈጠርን የፓዝ መደጋገም መከላከል
-        if 'marketplace' in file_name:
-            path = os.path.normpath(os.path.join(base_dir, file_name))
-        else:
-            path = os.path.normpath(os.path.join(base_dir, 'marketplace', file_name))
-        
-        # 3. የአሮጌውን ኮድ Backup መያዝ
-        old_code = ""
-        if os.path.exists(path):
+        path = os.path.join(base_dir, 'marketplace', file_name)
+    
+    # 2. 🛡️ የደህንነት ጥበቃ አጥር (Path Traversal Gating - 100% Secure)
+    # AIው ከ base_dir ውጪ በስህተትም ሆነ በቅንነት ኮድ እንዳይጽፍ ይከላከላል
+    real_path = os.path.abspath(path)
+    real_base = os.path.abspath(base_dir)
+    if not real_path.startswith(real_base):
+        error_msg = f"❌ Security Block: Path Traversal Attempted for path {path}"
+        logger.error(error_msg)
+        return {
+            'success': False,
+            'applied': False,
+            'message': error_msg,
+            'path': path,
+            'file_key': file_key
+        }
+
+    # 3. 🛡️ የሲንታክስ (Syntax) ፍተሻ - ለፓይተን ፋይሎች ብቻ!
+    # ይህ ማስተካከያ HTML ገጾች (templates) ያለ ምንም እንቅፋት እንዲሻሻሉ በር ይከፍታል
+    if path.endswith('.py'):
+        try:
+            ast.parse(new_content)
+        except SyntaxError as e:
+            return {
+                'success': False, 
+                'applied': False, 
+                'message': f"❌ Python Syntax Error blocked: {e}",
+                'path': path,
+                'file_key': file_key
+            }
+
+    # 4. የአሮጌውን ኮድ አስቀምጥ (Backup for Rollback)
+    old_code = ""
+    if os.path.exists(path):
+        try:
             with open(path, 'r', encoding='utf-8') as f:
                 old_code = f.read()
+        except Exception as e:
+            logger.warning(f"⚠️ Could not read old file for backup: {e}")
 
-        # 4. ወደ ፋይል መጻፍ (Local Write)
+    # 5. ወደ ፋይል ጻፍ (Local File Write)
+    try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w', encoding='utf-8') as f:
             f.write(new_content)
-        
-        # 5. ወደ GitHub መግፋት (Sync)
-        # ማሳሰቢያ፦ ይህ የሚሰራው የ GITHUB_TOKEN በ settings/env ላይ ሲገኝ ብቻ ነው
-        github_status = push_to_github_raw(path, new_content, reason)
-        
-        # 6. ለውጡን መመዝገብ (Evolution Log)
+        logger.info(f"💾 Written successfully to: {path}")
+    except Exception as e:
+        error_msg = f"❌ File write error: {e}"
+        logger.error(error_msg)
+        return {
+            'success': False,
+            'applied': False,
+            'message': error_msg,
+            'path': path,
+            'file_key': file_key
+        }
+
+    # 6. ወደ GitHub ግፋ (GitHub Push - Decoupled)
+    push_status = "Skipped"
+    if push_to_github:
+        try:
+            # ለ GitHub የሚሆን አንጻራዊ መንገድ (Relative Path)
+            rel_path = os.path.relpath(path, settings.BASE_DIR).replace('\\', '/')
+            push_status = push_to_github_raw(rel_path, new_content, reason)
+        except Exception as e:
+            push_status = f"GitHub Error: {e}"
+            logger.error(push_status)
+
+    # 7. ለውጥ መዝግብ (Evolution Log)
+    try:
         AIEvolutionLog.objects.create(
-            site=site, 
-            target_file=file_key, 
+            site=site,
+            target_file=file_key,
             reason_for_change=reason,
-            old_code_backup=old_code[:5000], 
-            new_code_patch=new_content[:5000],
+            old_code_backup=old_code[:10000],  # ከፍተኛ 10k ፊደላት
+            new_code_patch=new_content[:10000],
             backlog_task=backlog_task
         )
-        
-        return {'success': True, 'applied': True, 'message': f"✅ Applied & Sync: {github_status}"}
     except Exception as e:
-        logger.critical(f"❌ Fatal Write Error in apply_code_change: {e}")
-        return {'success': False, 'applied': False, 'message': f"❌ Write Error: {e}"}
+        logger.warning(f"⚠️ Could not log evolution entry: {e}")
+
+    # 8. ተዛማጅ ስራ ሁኔታ አዘምን
+    if backlog_task:
+        try:
+            backlog_task.status = 'Completed'
+            backlog_task.save()
+        except Exception as e:
+            logger.warning(f"⚠️ Could not update task status: {e}")
+
+    return {
+        'success': True,
+        'applied': True,
+        'message': f"✅ Applied {file_key} | GitHub: {push_status}",
+        'path': path,
+        'file_key': file_key
+    }
+
+
+# ============================================================
+# 🚀 ጊትሃብ መግፊያ ሎጂክ (Raw API)
+# ============================================================
 
 def push_to_github_raw(file_path, content, message):
-    """GitHub API በመጠቀም ኮድን በቀጥታ መግፋት"""
+    """GitHub API በመጠቀም ኮድን በቀጥታ ወደ ሪፖዚተሪ መግፋት"""
     token = getattr(settings, 'GITHUB_TOKEN', None)
     repo = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
-    
-    # 👑 የደህንነት መከላከያ፦ ቶክን ከሌለ ወይም ፑሽ እንዲደረግ ትዕዛዝ ካልተሰጠ ወደ 깃ሃብ አይገፋም
     if not token: 
-        return "Local only (No Token System)"
+        return "Local only (No Token)"
+
+    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+    headers = {
+        "Authorization": f"token {token}", 
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    # የፋይሉን SHA ማግኘት (ለመተካት አስፈላጊ ነው)
+    res = requests.get(url, headers=headers)
+    sha = res.json().get('sha') if res.status_code == 200 else None
+
+    payload = {
+        "message": f"AI: {message[:100]}",
+        "content": base64.b64encode(content.encode('utf-8')).decode('utf-8'),
+        "branch": "main"
+    }
+    if sha: 
+        payload["sha"] = sha
 
     try:
-        # ለ GitHub የሚሆን አንጻራዊ መንገድ (Relative Path)
-        rel_path = os.path.relpath(file_path, settings.BASE_DIR).replace('\\', '/')
-        url = f"https://api.github.com/repos/{repo}/contents/{rel_path}"
-        headers = {
-            "Authorization": f"token {token}", 
-            "Accept": "application/vnd.github.v3+json"
-        }
-
-        # የፋይሉን SHA ማግኘት (ለመተካት ወሳኝ ነው)
-        res = requests.get(url, headers=headers, timeout=10)
-        sha = None
-        if res.status_code == 200:
-            sha = res.json().get('sha')
-        elif res.status_code == 404:
-            # ፋይሉ በ GitHub ላይ አዲስ ከሆነ SHA አያስፈልገውም
-            sha = None
-        else:
-            logger.warning(f"⚠️ Unexpected GitHub SHA response: {res.status_code}")
-            return f"GitHub Link Issue ({res.status_code})"
-
-        payload = {
-            "message": f"AI: {message[:50]}",
-            "content": base64.b64encode(content.encode()).decode('utf-8'),
-            "branch": "main"
-        }
-        if sha: 
-            payload["sha"] = sha
-
-        put_res = requests.put(url, headers=headers, json=payload, timeout=15)
+        put_res = requests.put(url, headers=headers, json=payload, timeout=8)
         if put_res.status_code in [200, 201]:
-            return "GitHub Sync OK"
-        else:
-            logger.error(f"❌ GitHub Put Error {put_res.status_code}: {put_res.text}")
-            return f"GitHub Error {put_res.status_code}"
-            
+            return "Sync OK"
+        return f"Error {put_res.status_code}"
     except Exception as e:
-        logger.error(f"🚨 Exception in push_to_github_raw: {e}")
-        return "GitHub Timeout/Error"
+        return f"Connection Error: {e}"
