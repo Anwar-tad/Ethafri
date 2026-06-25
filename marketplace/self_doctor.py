@@ -85,6 +85,9 @@ class SecurityAuditor:
 # ============================================================
 # 🚑 2. UNIVERSAL HEALER (ሁለንተናዊ ፈዋሽ - FIXED SITE COLLISION & INFINITE LOOP)
 # ============================================================
+# ============================================================
+# 🚑 2. UNIVERSAL HEALER (የደህንነት እና የኮድ ስህተቶችን ፈልጎ ፈዋሽ)
+# ============================================================
 class UniversalHealer:
     """ኤጀንቱን፣ ዳታቤዙን እና የዌብሳይቱን ስህተት የሚጠግን ማዕከል"""
 
@@ -98,46 +101,70 @@ class UniversalHealer:
         # 1. የዳታቤዝ ግንኙነትን ማጽዳት (Memory Leak ለመከላከል)
         connections.close_all()
         
-        # 2. የተሰኩ ስራዎችን ነጻ ማውጣት (Stuck Loop Fix)
-        stuck_tasks = AIProjectBacklog.objects.filter(
-            site=self.site, status='Running',
-            updated_at__lt=timezone.now() - timezone.timedelta(minutes=15)
-        )
-        if stuck_tasks.exists():
-            logger.warning(f"🔄 Resetting {stuck_tasks.count()} stuck tasks.")
-            stuck_tasks.update(status='Pending')
+        # 2. የተሰኩ ስራዎችን መፍታት (Stuck Loop Fix)
+        try:
+            stuck_tasks = AIProjectBacklog.objects.filter(
+                site=self.site, status='Running',
+                updated_at__lt=timezone.now() - timezone.timedelta(minutes=15)
+            )
+            if stuck_tasks.exists():
+                logger.warning(f"🔄 Resetting {stuck_tasks.count()} stuck tasks.")
+                stuck_tasks.update(status='Pending')
+        except Exception as e:
+            logger.error(f"Failed to reset stuck tasks: {e}")
 
         # 3. የዌብሳይት ስህተቶችን (500 Errors) ፈልጎ መፍትሄ መስጠት
         self._heal_production_errors()
+        
+        # 4. ✅ አዲስ፦ የደህንነት ስጋቶችን (Security Logs) ፈልጎ ማረም
+        self._heal_security_issues()
 
     def _heal_production_errors(self):
-        """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል (Fixed Site Filter & Loop)"""
-        # በ models.py መሠረት ትክክለኛው ፊልድ 'error_message' እና 'task_name' ነው (100% correct)
+        """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
         errors = AgentErrorLog.objects.filter(site=self.site, resolved=False).order_by('-created_at')[:3]
-        
         for err in errors:
             task_name = f"🚑 EMERGENCY FIX: {err.task_name}"
-            
-            # ✅ ማሻሻያ 1፦ የ 'site' ማጣሪያ (Filter) ታክሏል (የ Tenant ግጭቶችን ያስቀራል)
-            # ✅ ማሻሻያ 2፦ 'Pending' ወይም 'Running' ስራ ካለ አዲስ ድግግሞሽ እንዳይፈጠር ይከላከላል
-            active_fix_exists = AIProjectBacklog.objects.filter(
-                site=self.site, 
-                task_name=task_name, 
-                status__in=['Pending', 'Running']
-            ).exists()
-            
-            if not active_fix_exists:
+            if not AIProjectBacklog.objects.filter(task_name=task_name, status__in=['Pending', 'Running']).exists():
                 AIProjectBacklog.objects.create(
                     site=self.site,
                     task_name=task_name,
                     task_type='code',
-                    target_file='views', # ስህተቶች በብዛት views.py ላይ ስለሚከሰቱ
+                    target_file='views',
                     priority='Critical',
-                    description=f"Automated Healing for error: {err.error_message}",
-                    business_impact_score=10,
-                    trigger_condition=f"UniversalHealer: {err.error_type}"
+                    description=f"Automated Healing for error: {err.error_message}. Fix this immediately to restore uptime.",
+                    business_impact_score=10
                 )
-                logger.info(f"🚑 Created healing task for error on {self.site.name}: {err.task_name}")
+                logger.info(f"🚑 Created healing task for: {err.task_name}")
+
+    def _heal_security_issues(self):
+        """✅ አዲስ፦ የደህንነት ስጋቶችን (Security Logs) ለይቶ የጥገና ስራዎችን ይፈጥራል"""
+        try:
+            # የክብደት ቅደም ተከተል ለማምጣት (ከፍተኛ የሆኑትን መጀመሪያ ለመጠገን)
+            vulns = SecurityLog.objects.filter(site=self.site, is_fixed=False).order_by('-severity')[:2]
+            
+            for vuln in vulns:
+                task_name = f"🛡️ SECURITY FIX: {vuln.description}"
+                
+                # የተደጋገመ የጥገና ስራ እንዳይፈጠር መፈተሽ
+                active_fix_exists = AIProjectBacklog.objects.filter(
+                    site=self.site,
+                    task_name=task_name,
+                    status__in=['Pending', 'Running']
+                ).exists()
+                
+                if not active_fix_exists:
+                    AIProjectBacklog.objects.create(
+                        site=self.site,
+                        task_name=task_name,
+                        task_type='code',
+                        target_file=vuln.file_path if vuln.file_path and not vuln.file_path.startswith("multiple") else "views",
+                        priority='Critical' if vuln.severity == 'critical' else 'High',
+                        description=f"Secure code vulnerability: {vuln.description} in {vuln.file_path}. Ensure inputs are strictly validated and sanitize output.",
+                        business_impact_score=9 if vuln.severity == 'critical' else 8
+                    )
+                    logger.info(f"🛡️ Created security healing task for: {vuln.description}")
+        except Exception as e:
+            logger.error(f"Failed to run security healing check: {e}")
 
 # ============================================================
 # 🩺 3. LOG PROTECTOR

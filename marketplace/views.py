@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ 100% Complete Master CEO Views — Production Ready & Safe JSON Parsing
-# ✅ የተፈቱ ችግሮች፦ Dynamic UI Dict Parsing Safeguard, Safe Background Connections
+# 📝 ለውጥ፦ 100% Complete Master CEO Views — Threading & URL Fixed
+# ✅ የተፈቱ ችግሮች፦ NoReverseMatch (dashboard -> growth_dashboard), 504 Gateway Timeout, Safe JSON
 # 📅 ቀን፦ Thursday, June 25, 2026
 # ============================================================
 
@@ -15,7 +15,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse, Http404, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, authenticate, logout
-from django.contrib.auth.models import User  # ✅ የ User ሞዴል መምጫ
+from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.utils.translation import get_language, gettext_lazy as _
 from django.contrib import messages
@@ -32,13 +32,6 @@ from .models import (
     NotificationQueue, AgentErrorLog, VectorMemory, AgentTask, ABTest, 
     SecurityLog, PredictionLog, ExternalAPI
 )
-
-# ከ Master Agent (growth_agent.py) የመጣ
-try:
-    from .growth_agent import execute_master_cycle
-except ImportError:
-    def execute_master_cycle():
-        logger.error("❌ Growth Agent module missing!")
 
 logger = logging.getLogger(__name__)
 
@@ -154,23 +147,31 @@ def owner_directive_view(request):
     })
 
 @staff_member_required
-# 📄 ፋይል፦ EthAfri/marketplace/views.py
-
 def trigger_evolution(request):
-    # ❌ ከላይ የነበረውን Import አስወግደህ እዚህ ውስጥ አስገባው፦
-    try:
-        from marketplace.growth_agent import run_daily_market_analysis
-        # የኤጀንቱን ስራ አስጀምር
-        run_daily_market_analysis()
-        messages.success(request, "Evolution triggered successfully!")
-    except ImportError as e:
-        logger.error(f"❌ Growth Agent module missing or broken: {e}")
-        messages.error(request, "System core module is temporarily unavailable.")
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        
-    return redirect('dashboard')
+    """ኤጀንቱን ከበስተጀርባ (Background) በሃይል ማስነሻ - FIXED 504 TIMEOUT & NOREVERSEMATCH"""
+    def run_bg_evolution():
+        try:
+            from marketplace.growth_agent import run_daily_market_analysis
+            run_daily_market_analysis()
+        except ImportError as e:
+            logger.error(f"❌ Growth Agent module missing or broken: {e}")
+        except Exception as e:
+            logger.error(f"Error during manual evolution trigger: {e}")
+        finally:
+            connections.close_all()
 
+    try:
+        # ✅ ማሻሻያ 1፦ የ AI ስራው በጀርባ ክር (Background Thread) እንዲሄድ ማድረግ (የሰርቨር መቆምን ይከላከላል)
+        thread = threading.Thread(target=run_bg_evolution)
+        thread.daemon = True
+        thread.start()
+        
+        messages.success(request, "🔄 የራስ-ገዝ ኤጀንት የዕድገት ዑደት ከበስተጀርባ (Background) በተሳካ ሁኔታ ተጀምሯል።")
+    except Exception as e:
+        messages.error(request, f"ዑደቱን ከበስተጀርባ ለማስጀመር አልተቻለም፦ {e}")
+        
+    # ✅ ማሻሻያ 2፦ ወደ ትክክለኛው የዩአርኤል ስም 'growth_dashboard' ማምራት (NoReverseMatchን ይፈታል)
+    return redirect('growth_dashboard')
 
 # ============================================================
 # 🌐 4. MULTI-SITE & MARKETING (ባለብዙ-ጣቢያ አስተዳደር)

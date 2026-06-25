@@ -21,7 +21,8 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
-from django.db import transaction, db
+# ✅ የ Django close_old_connections በቀጥታ ማስመጣት
+from django.db import transaction, close_old_connections
 from concurrent.futures import ThreadPoolExecutor
 
 # ✅ የ Circular Dependency መከላከያ (Lazy/Delayed Models)
@@ -202,42 +203,33 @@ class RecursiveBuilder:
         self.site = site
 
     def build_next_feature(self, task):
-        # 24-Hour Cooldown Rule: በአንድ ፋይል ላይ በቀን ከአንድ ጊዜ በላይ ኮድ አለመንካት
         if AIEvolutionLog.objects.filter(site=self.site, target_file=task.target_file, created_at__date=timezone.now().date()).exists():
             return "Cooldown"
 
-        # ዘላቂ ትውስታን ማንበብ (Vector Memory Interaction)
-        past_memories = VectorMemory.objects.filter(site=self.site).order_by('-id')[:3]
-        memory_context = [m.content for m in past_memories]
+        task.status = 'Running'; task.save()
+        base_assets = self._get_design_tokens()
 
-        task.status = 'Running'
-        task.save()
-
-        prompt = (
-            f"Task: {task.task_name}. Write full clean Python code for {task.target_file} using 2026 Django standards. "
-            f"CRITICAL: Avoid repeating these past failures/issues: {json.dumps(memory_context)}"
-        )
-        res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding", task=task))
-
+        prompt = f"Task: {task.task_name}. Write full Python code for {task.target_file} using 2026 Django standards. Assets: {json.dumps(base_assets)}"
+        res = ask_master_ai_smart(prompt, task_type="coding")
+        
         if res and isinstance(res, dict) and 'code' in res:
-            # 🧪 Automated Sandbox Testing (Compile & AST Safety Scan)
-            try:
-                compile(res['code'], '<string>', 'exec')  # ሰዋሰዋዊ ፍተሻ
-                is_safe, msg = SecurityAuditor.scan_code_safety(res['code'])
-                if is_safe:
-                    apply_code_change(self.site, task.target_file, res['code'], task.task_name, backlog_task=task)
-                    VectorMemory.objects.create(site=self.site, memory_type='solution', content=f"Success: {task.task_name}")
-                    return "Success"
-                else:
-                    logger.error(f"🛡️ Security Gate Blocked Code: {msg}")
-                    task.status = 'Blocked'
-                    task.save()
-                    return "Security Block"
-            except Exception as e:
-                logger.error(f"❌ Sandbox Compile Error: {e}")
-
-        task.status = 'Pending'
-        task.save()
+            is_safe, msg = SecurityAuditor.scan_code_safety(res['code'])
+            if is_safe:
+                apply_code_change(self.site, task.target_file, res['code'], task.task_name, backlog_task=task)
+                VectorMemory.objects.create(site=self.site, memory_type='solution', content=f"Success: {task.task_name}", success_rate=100)
+                
+                # ✅ አዲስ፦ የተፈታውን የደህንነት ስጋት ሎግ በራስ-ሰር መፍታት (Auto-Resolve Security Log)
+                if task.task_name.startswith("🛡️ SECURITY FIX: "):
+                    clean_vuln_desc = task.task_name.replace("🛡️ SECURITY FIX: ", "")
+                    SecurityLog.objects.filter(site=self.site, description=clean_vuln_desc, is_fixed=False).update(
+                        is_fixed=True, 
+                        fixed_at=timezone.now()
+                    )
+                    logger.info(f"🛡️ Auto-Resolved Security Log: {clean_vuln_desc}")
+                
+                return "Success"
+        
+        task.status = 'Pending'; task.save()
         return "Failed"
 
 

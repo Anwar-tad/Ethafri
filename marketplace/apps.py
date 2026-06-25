@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ Fixed nonexistent function imports to avoid boot error
-# ✅ የተፈቱ ችግሮች፦ cannot import name 'run_autonomous_agent', SafetyNet Import Error
+# 📝 ለውጥ፦ Robust SafetyNet + Fixed Thread Crash Vulnerability
+# ✅ የተፈቱ ችግሮች፦ TypeError (fromisoformat on None), Django Reloader Conflicts, DB Connection Leaks
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -10,11 +10,10 @@ import sys
 import time
 import threading
 import logging
+from datetime import datetime  # ✅ አዲስ፡ የፓይተን ንጹህ datetime ማስመጣት
 from django.apps import AppConfig
 from django.utils import timezone
-
-from django.db import connection, connections  # ✅ ትክክለኛው መንገድ
-
+from django.db import connection, connections
 from django.db.models import Count
 
 logger = logging.getLogger(__name__)
@@ -43,7 +42,7 @@ class MarketplaceConfig(AppConfig):
             logger.info("🤖 Autonomous Agent Thread starting (30s delay)...")
             time.sleep(30)
             try:
-                # ✅ አዲስ፦ የጠፋውን የድሮ ስም በአዲሱ 'start_autonomous_ceo' ተክተነዋል
+                # የጠፋውን የድሮ ስም በአዲሱ 'start_autonomous_ceo' ተክተነዋል
                 from .growth_agent import start_autonomous_ceo
                 start_autonomous_ceo()
             except Exception as e:
@@ -57,16 +56,25 @@ class MarketplaceConfig(AppConfig):
             while True:
                 try:
                     from .models import SiteConfig, SiteRegistry
-                    # ✅ አዲስ፦ የጠፋውን የድሮ ስም በአዲሱ 'execute_master_cycle' ተክተነዋል
                     from .growth_agent import execute_master_cycle
                     
                     # የውጭ ክሮን ፒንግ ከ15 ደቂቃ በላይ ከዘገየ ሴፍቲኔት ይነሳል
                     cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
                     should_run = True
+                    
                     if cron_ping and cron_ping.value:
-                        last_time = timezone.datetime.fromisoformat(cron_ping.value.get('time'))
-                        if (timezone.now() - last_time) < timezone.timedelta(minutes=15):
-                            should_run = False
+                        time_str = cron_ping.value.get('time')
+                        # ✅ ማሻሻያ፦ የሰዓት እሴቱ በእርግጥ ቴክስት (String) መሆኑን ማረጋገጥ (TypeErrorን ያስቀራል)
+                        if isinstance(time_str, str):
+                            try:
+                                last_time = datetime.fromisoformat(time_str)
+                                if timezone.is_naive(last_time):
+                                    last_time = timezone.make_aware(last_time)
+                                if (timezone.now() - last_time) < timezone.timedelta(minutes=15):
+                                    should_run = False
+                            except ValueError:
+                                # የሰዓት ፎርማቱ የተሳሳተ ከሆነ ጥሪው እንዳይቋረጥ ማለፍ
+                                pass
                     
                     if should_run:
                         logger.info("🛡️ SafetyNet: External Cron missed. Triggering master cycle...")

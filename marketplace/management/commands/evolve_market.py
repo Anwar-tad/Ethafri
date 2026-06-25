@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ለውጥ፦ Robust Growth Engine + Protected Imports & Bulletproof Exceptions
-# ✅ የተፈቱ ችግሮች፦ Import Vulnerabilities, Database Connection Contamination.
+# 📝 ለውጥ፦ Robust Growth Engine + Protected Imports & Safe JSON Serialization
+# ✅ የተፈቱ ችግሮች፦ Double Serialization AttributeError on JSONField, Import Vulnerabilities
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -10,7 +10,6 @@ from django.db import close_old_connections, connection
 from django.utils import timezone
 import logging
 import gc
-import json
 from marketplace.models import SiteConfig, SiteRegistry
 
 logger = logging.getLogger(__name__)
@@ -58,9 +57,10 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(error_msg))
                 logger.critical(error_msg)
                 
+                # ✅ ማሻሻያ 1፦ json.dumps ሳይጠቀሙ ቀጥተኛ የፓይተን ዲክሽነሪ መመገብ (AttributeErrorን ይከላከላል)
                 SiteConfig.objects.update_or_create(
                     key="LAST_CRON_ERROR",
-                    defaults={'value': json.dumps({'time': timezone.now().isoformat(), 'error': error_msg})}
+                    defaults={'value': {'time': timezone.now().isoformat(), 'error': error_msg}}
                 )
                 return
 
@@ -102,7 +102,6 @@ class Command(BaseCommand):
                     self.stdout.write(f"  🔍 Analyzing {site.name}...")
                     try:
                         result = run_single_site_analysis(site)
-                        # የጽሑፉን ርዝመት ለደህንነት ማሳጠር
                         clean_result = str(result)[:100]
                         results.append(f"[{site.name}] {clean_result}")
                         self.stdout.write(self.style.SUCCESS(f"  ✅ {site.name} completed"))
@@ -118,19 +117,20 @@ class Command(BaseCommand):
                     results.append(f"[Global] ❌ Error: {str(ge)[:100]}")
                     self.stdout.write(self.style.ERROR(f"  ❌ Global analysis failed: {ge}"))
             
-            # ✅ የዳታቤዝ ማሻሻያዎችን ማስቀመጥ
+            # ✅ ማሻሻያ 2፦ JSONField አውቶማቲክ ስለሚሠራ json.dumps እዚህ አያስፈልግም
             SiteConfig.objects.update_or_create(
                 key="LAST_SUCCESSFUL_CRON_PING", 
-                defaults={'value': json.dumps({'time': timezone.now().isoformat()})}
+                defaults={'value': {'time': timezone.now().isoformat()}}
             )
             
+            # ✅ ማሻሻያ 3፦ ቀጥተኛ ዲክሽነሪ ጥሪ
             SiteConfig.objects.update_or_create(
                 key="LAST_CRON_RUN",
-                defaults={'value': json.dumps({
+                defaults={'value': {
                     'time': timezone.now().isoformat(),
                     'sites_processed': len(sites_to_process),
                     'results': results[:5]
-                })}
+                }}
             )
             
             summary = " | ".join(results[:3]) + ("..." if len(results) > 3 else "")
@@ -142,10 +142,10 @@ class Command(BaseCommand):
             try:
                 SiteConfig.objects.update_or_create(
                     key="LAST_CRON_ERROR",
-                    defaults={'value': json.dumps({
+                    defaults={'value': {
                         'time': timezone.now().isoformat(),
                         'error': str(e)[:200]
-                    })}
+                    }}
                 )
             except:
                 pass
