@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ለውጥ፦ Multi-Site Support + Robust Growth Engine
-# ✅ የተፈቱ ችግሮች፦ Database Connection Contamination in Loops, JSON Compatibility.
+# 📝 ለውጥ፦ Robust Growth Engine + Protected Imports & Bulletproof Exceptions
+# ✅ የተፈቱ ችግሮች፦ Import Vulnerabilities, Database Connection Contamination.
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -10,9 +10,8 @@ from django.db import close_old_connections, connection
 from django.utils import timezone
 import logging
 import gc
-import json  # ✅ ማሻሻያ፦ ለ SiteConfig JSON ተኳኋኝነት ታክሏል
+import json
 from marketplace.models import SiteConfig, SiteRegistry
-from marketplace.growth_agent import run_daily_market_analysis, run_single_site_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -41,28 +40,41 @@ class Command(BaseCommand):
         all_sites = kwargs.get('all_sites')
         discover = kwargs.get('discover')
         
-        # 🛡️ የቆዩ የዳታቤዝ ግንኙነቶችን ማጽዳትና የቆሻሻ ሰብሳቢ (Garbage Collector) መቀስቀስ
         close_old_connections()
         gc.collect()
 
-        self.stdout.write(self.style.SUCCESS(f"🚀 [{timezone.now()}] EthAfri Autonomous Growth Engine Triggered by Cron."))
+        self.stdout.write(self.style.SUCCESS(f"🚀 [{timezone.now()}] EthAfri Autonomous Growth Engine Triggered."))
         
         try:
+            # 🛡️ ላለፈው የ "Growth Agent module missing" ስህተት መከላከያ (Lazy Import)
+            try:
+                from marketplace.growth_agent import (
+                    run_daily_market_analysis, 
+                    run_single_site_analysis,
+                    discover_new_sites
+                )
+            except ImportError as ie:
+                error_msg = f"❌ Critical Import Error: growth_agent.py module is broken or missing. Details: {ie}"
+                self.stdout.write(self.style.ERROR(error_msg))
+                logger.critical(error_msg)
+                
+                SiteConfig.objects.update_or_create(
+                    key="LAST_CRON_ERROR",
+                    defaults={'value': json.dumps({'time': timezone.now().isoformat(), 'error': error_msg})}
+                )
+                return
+
             if discover:
                 try:
-                    from marketplace.growth_agent import discover_new_sites
                     new_sites = discover_new_sites()
                     if new_sites:
                         self.stdout.write(self.style.SUCCESS(f"🆕 Discovered {len(new_sites)} new sites!"))
-                        for site in new_sites:
-                            self.stdout.write(f"  - {site.name}: {site.display_name}")
                     else:
                         self.stdout.write("🔍 No new sites discovered.")
-                except ImportError:
-                    self.stdout.write(self.style.WARNING("⚠️ discover_new_sites function not fully implemented in growth_agent.py yet."))
+                except Exception as de:
+                    self.stdout.write(self.style.WARNING(f"⚠️ Discover failed: {de}"))
             
             sites_to_process = []
-            
             if site_name:
                 try:
                     site = SiteRegistry.objects.get(name=site_name, is_active=True)
@@ -84,25 +96,29 @@ class Command(BaseCommand):
                     sites_to_process = []
             
             results = []
-            
             if sites_to_process:
                 for site in sites_to_process:
-                    # ✅ ማሻሻያ፦ በየ Loop ዝውውሩ መሃል የዳታቤዝ ግንኙነት እንዳይመረዝ መዝጋት
                     close_old_connections()
                     self.stdout.write(f"  🔍 Analyzing {site.name}...")
                     try:
                         result = run_single_site_analysis(site)
-                        results.append(f"[{site.name}] {result}")
+                        # የጽሑፉን ርዝመት ለደህንነት ማሳጠር
+                        clean_result = str(result)[:100]
+                        results.append(f"[{site.name}] {clean_result}")
                         self.stdout.write(self.style.SUCCESS(f"  ✅ {site.name} completed"))
                     except Exception as e:
-                        error_msg = f"[{site.name}] ❌ Error: {str(e)}"
-                        results.append(error_msg)
+                        error_summary = str(e)[:100]
+                        results.append(f"[{site.name}] ❌ Error: {error_summary}")
                         self.stdout.write(self.style.ERROR(f"  ❌ {site.name} failed: {e}"))
             else:
-                result = run_daily_market_analysis()
-                results.append(f"[Global] {result}")
+                try:
+                    result = run_daily_market_analysis()
+                    results.append(f"[Global] {str(result)[:100]}")
+                except Exception as ge:
+                    results.append(f"[Global] ❌ Error: {str(ge)[:100]}")
+                    self.stdout.write(self.style.ERROR(f"  ❌ Global analysis failed: {ge}"))
             
-            # ✅ ማሻሻያ፦ ዲክሽነሪውን ወደ JSON String በመቀየር አስተማማኝነቱን ማረጋገጥ
+            # ✅ የዳታቤዝ ማሻሻያዎችን ማስቀመጥ
             SiteConfig.objects.update_or_create(
                 key="LAST_SUCCESSFUL_CRON_PING", 
                 defaults={'value': json.dumps({'time': timezone.now().isoformat()})}
@@ -128,12 +144,11 @@ class Command(BaseCommand):
                     key="LAST_CRON_ERROR",
                     defaults={'value': json.dumps({
                         'time': timezone.now().isoformat(),
-                        'error': str(e)[:500]
+                        'error': str(e)[:200]
                     })}
                 )
             except:
                 pass
         finally:
-            # ✅ የዳታቤዝ ግንኙነቱን በጥንቃቄ መዝጋት
             connection.close()
             gc.collect()
