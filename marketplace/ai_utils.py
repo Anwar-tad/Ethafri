@@ -337,3 +337,13 @@ def ask_master_ai_smart(prompt, task_type="analysis", system_instruction="", tas
             "depending on the task. Never add conversational filler or intro/outro text."
         )
     return smart_ai_router(task_type, prompt, system_instruction)
+    
+# ai_utils.py መጨረሻ ላይ የሚተካ (የሕግ 3 ጥበቃ)
+def clean_and_parse_json(raw_text):
+    """ከ AI የሚመጣን ምላሽ አጽድቶ ወደ Python Dictionary/List ይቀይራል (Dependency Guard)"""
+    cleaned = clean_json_response(raw_text)
+    try:
+        return json.loads(cleaned)
+    except Exception as e:
+        logger.error(f"Failed to parse cleaned JSON: {e}. Raw text was: {raw_text[:200]}")
+        return {}

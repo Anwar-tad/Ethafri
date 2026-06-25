@@ -151,12 +151,12 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
 
-# ✅ FIXED: በምርት ላይ የ WhiteNoise የላቀ የስታቲክ ፋይሎች መጨመቂያን ያንቀሳቅሳል (የሕግ 4 ጥበቃ)
+# settings.py staticfiles_storage ክፍል ላይ የሚተካ (የሕግ 4 ኦፕቲማይዜሽን)
+# ✅ FIXED: በምርት ላይ ድረ-ገጹ በማንኛውም የፋይል መጥፋት እንዳይዘጋ (Zero-Crash) CompressedStaticFilesStorage ተተክቷል
 if not DEBUG:
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 else:
     STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
-
 WHITENOISE_USE_FINDERS = True
 WHITENOISE_AUTOREFRESH = True
 WHITENOISE_MAX_AGE = 31536000
