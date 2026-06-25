@@ -18,7 +18,8 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
-from django.db import transaction, db
+# marketplace/growth_agent.py መስመር 19 ላይ የሚተካ (የሕግ 3 ጥበቃ)
+from django.db import transaction  # ✅ FIXED: Unused 'db' import removed to prevent startup crash
 from concurrent.futures import ThreadPoolExecutor
 
 # የ circular dependency መከላከያ የዳታቤዝ ሞዴሎች
