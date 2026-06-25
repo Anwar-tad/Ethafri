@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/ai_utils.py
-# 📝 ለውጥ፦ Smart AI Model Router — Pruned, Safe String Literals & Correct URLs
-# ✅ የተፈቱ ችግሮች፦ SyntaxError on Line 22, Hugging Face & GitHub API Markdown URL Bugs
+# 📝 ለውጥ፦ Smart AI Model Router — Task-Aware Routing
+# ✅ የተፈቱ ችግሮች፦ Gemini for Translation, Groq for Design, Rotating fallback
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -18,31 +18,26 @@ from groq import Groq
 
 logger = logging.getLogger(__name__)
 
-# 🕒 የ Hugging Face የመጨረሻ ጥሪ የተደረገበትን ሰዓት ለመመዝገብ (Global Variable)
+# 🕒 የ Hugging Face የመጨረሻ ጥሪ የተደረገበትን ሰዓት ለመመዝገብ
 LAST_HF_CALL_TIME = 0
 
 def clean_and_parse_json(text):
-    """የ AI ምላሽን አጽድቶ ወደ ዲክሽነሪ ይቀይራል"""
-    if isinstance(text, dict): 
-        return text
-    if not text: 
-        return None
+    """የ AI ምላሽን አጽድቶ ወደ Python Dictionary ይቀይራል"""
+    if isinstance(text, dict): return text
+    if not text: return None
     try:
-        # ✅ ማሻሻያ 1፦ የነበረው ባለ ሁለት መስመር የተቆረጠው Regex በአንድ መስመር ላይ ተስተካክሏል (SyntaxErrorን ይፈታል)
         clean_text = re.sub(r'^```json\s*|^```\s*|```$', '', str(text).strip(), flags=re.MULTILINE)
         match = re.search(r'\{.*\}', clean_text, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        return json.loads(clean_text)
+        return json.loads(match.group(0)) if match else json.loads(clean_text)
     except Exception as e:
         logger.error(f"⚠️ JSON Parsing Error: {e}")
         return None
 
 def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
-    """ሁሉንም AI ሞዴሎች የሚያስተባብር እና አንዱ ሲከሽፍ ሌላውን የሚጠራ ዋና ሞተር"""
+    """ሁሉንም AI ሞዴሎች የሚያስተባብር እና በስራው ክብደት ላይ ተመስርቶ ቅድሚያ የሚመርጥ"""
     global LAST_HF_CALL_TIME
     
-    # የ API ቁልፎችን ከአካባቢ ተለዋዋጮች ማንበብ
+    # API Keys ከአካባቢ ተለዋዋጮች ማንበብ
     gemini_keys = [val for key, val in os.environ.items() if key.startswith("GEMINI_API_KEY") and val]
     groq_key = os.environ.get('GROQ_API_KEY')
     hf_token = os.environ.get('HUGGINGFACE_TOKEN')
@@ -74,21 +69,18 @@ def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
             return None
 
     def call_huggingface():
-        """🔴 የ 1 ደቂቃ የጊዜ ክፍተት (Cooldown) የሚጠብቅ ተጠባባቂ AI"""
         global LAST_HF_CALL_TIME
         if not hf_token: return None
         
-        # ⏱️ ካለፈው ጥሪ 60 ሰከንድ ማለፉን ማረጋገጥ
         current_time = time.time()
         elapsed = current_time - LAST_HF_CALL_TIME
         if elapsed < 60:
-            logger.info(f"⏳ Hugging Face በእረፍት ላይ ነው ({int(60 - elapsed)} ሰከንድ ይቀረዋል)። ይዘለላል...")
+            logger.info(f"⏳ Hugging Face cooldown ({int(60 - elapsed)}s remaining). Skipping...")
             return None
             
         try:
             logger.info("🤖 Calling Hugging Face API...")
             model_id = "Qwen/Qwen2.5-Coder-7B-Instruct" 
-            # ✅ ማሻሻያ 2፦ የተስተካከለ ንጹህ የ Hugging Face ዩአርኤል (Markdown ተወግዷል)
             api_url = f"https://api-inference.huggingface.co/models/{model_id}"
             headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
             
@@ -99,30 +91,21 @@ def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
             
             response = requests.post(api_url, headers=headers, json=payload, timeout=20)
             if response.status_code == 200:
-                LAST_HF_CALL_TIME = time.time() # 🔄 የጥሪ ሰዓቱን ማደስ
+                LAST_HF_CALL_TIME = time.time()
                 res_json = response.json()
                 generated_text = res_json[0].get('generated_text', '') if isinstance(res_json, list) else res_json.get('generated_text', '')
                 return clean_and_parse_json(generated_text)
-            else:
-                logger.warning(f"Hugging Face API returned status {response.status_code}")
-                return None
+            return None
         except Exception as e:
             logger.warning(f"Hugging Face failed: {e}")
             return None
 
     def call_github_models():
-        """🍏 በሃንጊንግ ፌስ ክፍተት መሃል ተክቶ የሚሰራው GitHub Models API"""
-        if not github_token: 
-            logger.warning("⚠️ GITHUB_TOKEN አልተገኘም!")
-            return None
+        if not github_token: return None
         try:
-            logger.info("🛡️ Calling GitHub Models API (Fallback)...")
-            # ✅ ማሻሻያ 3፦ የተስተካከለ ንጹህ የ GitHub Models ዩአርኤል (Markdown ተወግዷል)
+            logger.info("🛡️ Calling GitHub Models API...")
             api_url = "https://models.inference.ai.azure.com/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {github_token}",
-                "Content-Type": "application/json"
-            }
+            headers = {"Authorization": f"Bearer {github_token}", "Content-Type": "application/json"}
             payload = {
                 "messages": [
                     {"role": "system", "content": "You are a coding assistant. Return output strictly in valid JSON format."},
@@ -132,35 +115,36 @@ def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
                 "max_tokens": 2048,
                 "temperature": 0.1
             }
-            
             response = requests.post(api_url, headers=headers, json=payload, timeout=25)
             if response.status_code == 200:
                 res_data = response.json()
-                content = res_data['choices'][0]['message']['content']
-                return clean_and_parse_json(content)
-            else:
-                logger.warning(f"GitHub Models API returned status {response.status_code}: {response.text}")
-                return None
+                return clean_and_parse_json(res_data['choices'][0]['message']['content'])
+            return None
         except Exception as e:
             logger.warning(f"GitHub Models API failed: {e}")
             return None
 
-    # 🔀 መጀመሪያ ሁለቱ ዋና የ AI አቅራቢዎች በዘፈቀደ ይመረጣሉ
-    primary_providers = [call_gemini, call_groq]
-    random.shuffle(primary_providers)
-    
-    # 🔗 የጥሪ ቅደም ተከተል፦ [ዋና 1፣ ዋና 2፣ ሃንጊንግ ፌስ፣ ጊትሃብ]
-    providers = primary_providers + [call_huggingface, call_github_models]
+    # 🔀 በስራው አይነት ላይ ተመስርቶ የሞዴል ቅደም ተከተል መወሰን (Smart Model Routing)
+    if pool_type == 'translation':
+        # 1. ጂሚኒ ለትርጉም ስራዎች (ምርጥ የአማርኛ ችሎታ አለው)
+        providers = [call_gemini, call_github_models, call_groq, call_huggingface]
+    elif pool_type == 'design':
+        # 2. ግሮክ ለዲዛይንና HTML ስራዎች (እጅግ ፈጣንና ቀልጣፋ)
+        providers = [call_groq, call_gemini, call_github_models, call_huggingface]
+    else:
+        # 3. ጊትሃብ እና ሃንጊንግ ፌስ ለኮድ ግንባታ መፈራረቅ
+        primary_coding = [call_github_models, call_huggingface]
+        random.shuffle(primary_coding)
+        providers = primary_coding + [call_groq, call_gemini]
 
     for provider in providers:
         result = provider()
         if result and isinstance(result, dict) and "error" not in result:
             logger.info(f"✅ Success with {provider.__name__}")
             return result
-        time.sleep(1.5) # በሞዴሎች መለዋወጫ መሃል የ 1.5 ሰከንድ ጥበቃ
+        time.sleep(1.5)
 
-    return {"error": "All AI providers (Gemini, Groq, HF, GitHub) failed."}
+    return {"error": "All AI providers failed."}
 
 def ask_master_ai_smart(prompt, task_type="coding"):
-    """ከ Master Agent የሚጠራ ቀሊል መጋጠሚያ"""
     return ask_ai_with_failover(prompt, pool_type=task_type)
