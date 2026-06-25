@@ -247,12 +247,16 @@ def create_marketing_campaign(request):
 # ============================================================
 # 📊 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
 # ============================================================
+# views.py ውስጥ የሚገኘው agent_status_dashboard ቪው ሙሉ በሙሉ በዚህ ይተካል
 @staff_member_required
 def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
     build_avg = SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg']
     healing = SelfHealingLog.objects.aggregate(total=Count('id'), resolved=Count('id', filter=Q(resolved=True)))
     pred = PredictionLog.objects.aggregate(total=Count('id'), traffic=Count('id', filter=Q(prediction_type='traffic')), seo=Count('id', filter=Q(prediction_type='seo')))
+    
+    # ✅ FIXED: የRAG ቬክተር ትውስታዎችን አማካኝ የስኬት መቶኛ ማስላት (የሕግ 4 ኦፕቲማይዜሽን)
+    success_avg = VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg']
     
     heartbeat_config = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
     agent_status = _safe_json_decode(heartbeat_config.value, {"status": "idle"}) if heartbeat_config else {"status": "idle"}
@@ -272,6 +276,8 @@ def agent_status_dashboard(request):
         'evolution_stats': {'today': AIEvolutionLog.objects.filter(created_at__date=timezone.now().date()).count()},
         'healing_stats': healing,
         'prediction_stats': pred,
+        # ✅ FIXED: የስኬት መቶኛው በዳሽቦርዱ ላይ በእውነተኛ ሰዓት እንዲታይ በኮንቴክስት ተጨምሯል (የሕግ 3 ጥበቃ)
+        'success_rate': success_avg or 0,
         'marketing_stats': {'notifications': NotificationQueue.objects.filter(is_sent=False).count()},
         'agent_stats': {'total': AgentTask.objects.count()}
     }
