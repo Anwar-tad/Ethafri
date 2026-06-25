@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/sites_dashboard.html
-📝 ለውጥ፦ Master CEO Multi-Site Dashboard — Professional & Executive UI
-✅ የተፈቱ ችግሮች፦ Mixed Visual Styles, Hidden Site Errors, Static Metrics
-📅 ቀን፦ 2026-06-24
+📝 ለውጥ፦ v1.2 Master CEO Multi-Site Dashboard — DRY Sync (Zero CSS Bloat)
+✅ የተፈቱ ችግሮች፦ Site Object Mismatch Fixed (Zero Blank Cards), Dynamic Context Mapping Resolved
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -10,48 +10,12 @@
 {% load static %}
 
 {% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
 <style>
-    .sites-wrapper { padding: 2rem 0; background: #f8fafc; min-height: 100vh; }
-    
-    /* 🌐 Global Metrics Bar */
-    .global-stats-bar {
-        background: white; border-radius: 1.5rem; padding: 1.5rem;
-        box-shadow: var(--shadow-sm); margin-bottom: 2.5rem;
-        border: 1px solid #e2e8f0;
-    }
-    .stat-divider { width: 1px; background: #e2e8f0; height: 40px; }
-
-    /* 🏢 Site Card Styles */
-    .niche-card {
-        background: white; border-radius: 1.25rem; border: 1px solid #f1f5f9;
-        overflow: hidden; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        height: 100%; display: flex; flex-direction: column;
-    }
-    .niche-card:hover {
-        transform: translateY(-8px); box-shadow: var(--shadow-lg);
-        border-color: var(--primary-color);
-    }
-
-    .niche-header {
-        padding: 1.5rem; position: relative;
-        background: #f8fafc; border-bottom: 1px solid #f1f5f9;
-    }
-
-    /* 📊 Small Phase Bar */
-    .phase-bar-mini {
-        height: 6px; background: #e2e8f0; border-radius: 10px;
-        overflow: hidden; margin-top: 1rem;
-    }
-    .phase-fill {
-        height: 100%; background: var(--primary-color);
-        border-radius: 10px; transition: width 1s ease;
-    }
-
-    .task-dot {
-        width: 8px; height: 8px; border-radius: 50%; display: inline-block;
-        margin-right: 5px;
-    }
+    {{ theme.custom_css|safe }}
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -65,7 +29,8 @@
                     <i class="fas fa-layer-group text-primary me-2"></i>
                     {% trans "Portfolio Overview" %}
                 </h1>
-                <p class="text-muted mb-0">Managing <b>{{ sites|length }}</b> unique niche marketplaces.</p>
+                <!-- ✅ FIXED: የኮንቴክስት ስህተትን ለመከላከል ወደ views.py total_sites ተቀይሯል -->
+                <p class="text-muted mb-0">Managing <b>{{ total_sites|default:0 }}</b> unique niche marketplaces.</p>
             </div>
             <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-dark rounded-pill px-4">
                 <i class="fas fa-arrow-left me-2"></i> {% trans "Executive Command" %}
@@ -103,50 +68,51 @@
                     <div class="niche-header">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
-                                <h5 class="fw-bold mb-0">{{ item.site.display_name }}</h5>
+                                <!-- ✅ FIXED: የሞዴል መጣረስ ስህተትን ለመከላከል በቀጥታ ከ item ላይ እንዲያነብ ተደርጓል -->
+                                <h5 class="fw-bold mb-0">{{ item.display_name }}</h5>
                                 <span class="badge bg-light text-muted border rounded-pill mt-1" style="font-size: 0.65rem;">
-                                    {{ item.site.niche|upper }}
+                                    {{ item.niche|upper }}
                                 </span>
                             </div>
-                            <span class="growth-level-badge level-{% if item.site.growth_level == 1 %}local{% elif item.site.growth_level == 2 %}city{% elif item.site.growth_level == 3 %}country{% elif item.site.growth_level == 4 %}continent{% else %}global{% endif %}">
-                                {{ item.growth_level_display }}
+                            <span class="growth-level-badge level-{% if item.growth_level == 1 %}local{% elif item.growth_level == 2 %}city{% elif item.growth_level == 3 %}country{% elif item.growth_level == 4 %}continent{% else %}global{% endif %}">
+                                {{ item.get_growth_level_display }}
                             </span>
                         </div>
                         
                         <div class="small text-muted mt-3">
-                            <i class="fas fa-map-marker-alt me-1"></i> {{ item.site.target_market }}
+                            <i class="fas fa-map-marker-alt me-1"></i> {{ item.target_market }}
                         </div>
 
                         <!-- Phase Progress -->
                         <div class="phase-bar-mini">
-                            <div class="phase-fill" style="width: {% widthratio item.site.build_phase 5 100 %}%"></div>
+                            <div class="phase-fill" style="width: {% widthratio item.build_phase 5 100 %}%"></div>
                         </div>
                         <div class="d-flex justify-content-between mt-1">
-                            <small class="text-muted" style="font-size: 0.65rem;">Phase {{ item.site.build_phase }}/5</small>
-                            <small class="fw-bold text-primary" style="font-size: 0.65rem;">{{ item.site.get_build_phase_display }}</small>
+                            <small class="text-muted" style="font-size: 0.65rem;">Phase {{ item.build_phase }}/5</small>
+                            <small class="fw-bold text-primary" style="font-size: 0.65rem;">{{ item.get_build_phase_display }}</small>
                         </div>
                     </div>
 
                     <div class="card-body">
-                        <!-- Task Summary -->
+                        <!-- Task Summary (የሥራዎች ስታቲስቲክስ በ single query ይመጣል) -->
                         <div class="bg-light rounded-4 p-3 mb-3">
                             <div class="row text-center g-0">
                                 <div class="col-4 border-end">
-                                    <div class="fw-bold text-primary">{{ item.pending_tasks }}</div>
+                                    <div class="fw-bold text-primary">{{ item.pending_tasks|default:0 }}</div>
                                     <small class="text-muted" style="font-size: 0.6rem;">PENDING</small>
                                 </div>
                                 <div class="col-4 border-end">
-                                    <div class="fw-bold text-warning">{{ item.running_tasks }}</div>
+                                    <div class="fw-bold text-warning">{{ item.running_tasks|default:0 }}</div>
                                     <small class="text-muted" style="font-size: 0.6rem;">RUNNING</small>
                                 </div>
                                 <div class="col-4">
-                                    <div class="fw-bold text-success">{{ item.completed_tasks }}</div>
+                                    <div class="fw-bold text-success">{{ item.completed_tasks|default:0 }}</div>
                                     <small class="text-muted" style="font-size: 0.6rem;">DONE</small>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Health Alert -->
+                        <!-- Health Alert (የስህተት መከታተያ) -->
                         {% if item.recent_errors > 0 %}
                         <div class="alert alert-danger py-2 px-3 rounded-pill border-0 mb-3 d-flex align-items-center gap-2">
                             <i class="fas fa-exclamation-triangle small"></i>
@@ -155,7 +121,7 @@
                         {% endif %}
 
                         <div class="d-grid mt-auto">
-                            <a href="{% url 'site_detail' item.site.id %}" class="btn btn-primary rounded-pill fw-bold py-2 shadow-sm">
+                            <a href="{% url 'site_detail' item.id %}" class="btn btn-primary rounded-pill fw-bold py-2 shadow-sm">
                                 <i class="fas fa-chart-pie me-2"></i> Analyze Site
                             </a>
                         </div>

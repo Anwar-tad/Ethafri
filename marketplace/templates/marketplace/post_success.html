@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/post_success.html
-📝 ለውጥ፦ Master CEO Success Page — Strategic Feedback UI
-✅ የተፈቱ ችግሮች፦ Standard Boring Feedback, Static User Journey
-📅 ቀን፦ 2026-06-24
+📝 ለውጥ፦ v1.1 Master CEO Success Page — Static CSS Migrated (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic Agent report alignment, zero inline style sheets
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,78 +10,12 @@
 {% load static %}
 
 {% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
 <style>
-    .success-wrapper {
-        min-height: 80vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .success-card {
-        max-width: 550px;
-        width: 100%;
-        background: white;
-        border-radius: 2rem;
-        overflow: hidden;
-        box-shadow: var(--shadow-lg);
-        border: none;
-        text-align: center;
-    }
-    .success-header {
-        background: linear-gradient(135deg, #10b981, #059669); /* Green Success Gradient */
-        color: white;
-        padding: 3rem 2rem;
-    }
-    .success-icon {
-        font-size: 5rem;
-        margin-bottom: 1rem;
-        animation: success-bounce 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    @keyframes success-bounce {
-        0% { transform: scale(0); opacity: 0; }
-        80% { transform: scale(1.1); }
-        100% { transform: scale(1); opacity: 1; }
-    }
-    .ceo-report-box {
-        background: #f8fafc;
-        border-radius: 1rem;
-        padding: 1.5rem;
-        margin: 2rem 0;
-        border: 1px solid #e2e8f0;
-    }
-    .btn-success-action {
-        background: var(--primary-color);
-        color: white;
-        border-radius: 50px;
-        padding: 0.8rem 2rem;
-        font-weight: 800;
-        text-decoration: none;
-        transition: all 0.3s ease;
-        display: inline-block;
-        width: 100%;
-        margin-bottom: 1rem;
-    }
-    .btn-success-action:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 20px -5px rgba(26, 42, 108, 0.3);
-        color: white;
-    }
-    .btn-outline-custom {
-        border: 2px solid #e2e8f0;
-        border-radius: 50px;
-        padding: 0.8rem 2rem;
-        font-weight: 700;
-        text-decoration: none;
-        color: var(--text-dark);
-        display: inline-block;
-        width: 100%;
-        transition: all 0.3s ease;
-    }
-    .btn-outline-custom:hover {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-    }
+    {{ theme.custom_css|safe }}
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}

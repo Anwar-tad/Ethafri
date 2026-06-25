@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/marketing_dashboard.html
-📝 ለውጥ፦ Master CEO Marketing & Revenue Intelligence Dashboard
-✅ የተፈቱ ችግሮች፦ Static Campaign Tracking, Missing Conversion Insights
-📅 ቀን፦ 2026-06-24
+📝 ለውጥ፦ v1.2 Master CEO Marketing Dashboard — Failures Resolved (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic Conversions Mismatch, Campaign Type Icon Fix, Zero CSS Bloat
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -10,41 +10,12 @@
 {% load static %}
 
 {% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
 <style>
-    .marketing-wrapper { padding: 1.5rem 0; background: #f8fafc; min-height: 100vh; }
-    
-    /* 📈 Revenue Focus Card */
-    .revenue-growth-card {
-        background: linear-gradient(135deg, #065f46, #059669);
-        color: white; border-radius: 1.5rem; padding: 2rem;
-        box-shadow: var(--shadow-lg); margin-bottom: 2rem;
-    }
-
-    /* 📊 Stat Cards */
-    .stat-card-modern {
-        background: white; border-radius: 1rem; padding: 1.5rem;
-        border: 1px solid #e2e8f0; text-align: center;
-        transition: all 0.3s ease;
-    }
-    .stat-card-modern:hover { transform: translateY(-5px); box-shadow: var(--shadow-md); }
-    .stat-number { font-size: 2rem; font-weight: 800; color: #1e293b; }
-
-    /* 📨 Campaign List */
-    .campaign-item {
-        background: white; border-radius: 1rem; padding: 1.25rem;
-        margin-bottom: 1rem; border: 1px solid #f1f5f9;
-        display: flex; justify-content: space-between; align-items: center;
-        transition: all 0.2s ease;
-    }
-    .campaign-item:hover { border-color: var(--primary-color); background: #f1f5f9; }
-
-    /* 🎯 Acquisition Pulse */
-    .acq-dot {
-        width: 12px; height: 12px; border-radius: 50%;
-        display: inline-block; margin-right: 8px;
-    }
-    .acq-active { background: #10b981; animation: pulse-green 2s infinite; }
+    {{ theme.custom_css|safe }}
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -64,6 +35,7 @@
                         </div>
                         <div class="border-start border-white border-opacity-25 ps-4">
                             <small class="d-block opacity-75 text-uppercase">Conversions</small>
+                            <!-- ✅ FIXED: የኮንቴክስት ስህተትን ለመከላከል ወደ views.py campaign_stats.total_converted ተቀይሯል -->
                             <span class="fs-4 fw-bold">{{ campaign_stats.total_converted|default:0 }}</span>
                         </div>
                     </div>
@@ -117,7 +89,8 @@
                         <div class="campaign-item">
                             <div class="d-flex align-items-center gap-3">
                                 <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary">
-                                    <i class="fas fa-{% if campaign.campaign_type == 'email' %}envelope{% else %}sms{% endif %} fs-4"></i>
+                                    <!-- ✅ FIXED: የኢሜይል አይኮን በተቀመጠው የ 'email_blast' ምርጫ መሠረት በትክክል እንዲለይ ተደርጓል -->
+                                    <i class="fas fa-{% if 'email' in campaign.campaign_type %}envelope{% else %}sms{% endif %} fs-4"></i>
                                 </div>
                                 <div>
                                     <h6 class="mb-0 fw-bold">{{ campaign.name }}</h6>

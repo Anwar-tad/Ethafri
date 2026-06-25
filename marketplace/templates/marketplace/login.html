@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/login.html
-📝 ለውጥ፦ Master CEO Login Page — Clean, Modern & Secure UI
-✅ የተፈቱ ችግሮች፦ Standard Django Form Look, Consistency with Signup
-📅 ቀን፦ 2026-06-24
+📝 ለውጥ፦ v1.1 Master CEO Login Page — DRY & Clean UI (No Style Bloat)
+✅ የተፈቱ ችግሮች፦ Model Form Alignment, Unified User Experience
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,79 +10,12 @@
 {% load static %}
 
 {% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
 <style>
-    .auth-wrapper {
-        min-height: 80vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem 0;
-    }
-    .auth-card {
-        max-width: 420px;
-        width: 100%;
-        background: white;
-        border-radius: 2rem;
-        overflow: hidden;
-        box-shadow: var(--shadow-lg);
-        border: none;
-    }
-    .auth-header {
-        background: var(--bg-gradient);
-        color: white;
-        padding: 2.5rem 2rem;
-        text-align: center;
-    }
-    .auth-body {
-        padding: 2.5rem;
-    }
-    
-    /* 📋 Django Form Selectors (targeting generic tags) */
-    .auth-body p {
-        margin-bottom: 1.25rem;
-    }
-    .auth-body label {
-        display: block;
-        font-weight: 600;
-        font-size: 0.85rem;
-        color: var(--text-muted);
-        margin-bottom: 0.4rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .auth-body input {
-        width: 100%;
-        border: 2px solid #f1f5f9;
-        border-radius: 1rem;
-        padding: 0.75rem 1.2rem;
-        transition: all 0.3s ease;
-        background: #f8fafc;
-    }
-    .auth-body input:focus {
-        border-color: var(--primary-color);
-        background: white;
-        outline: none;
-        box-shadow: 0 0 0 4px rgba(26, 42, 108, 0.05);
-    }
-    
-    .btn-auth {
-        background: var(--primary-color);
-        color: white;
-        border-radius: 50px;
-        padding: 0.85rem 2rem;
-        font-weight: 800;
-        width: 100%;
-        border: none;
-        transition: all 0.3s ease;
-        margin-top: 1rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .btn-auth:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 20px -5px rgba(26, 42, 108, 0.3);
-    }
+    {{ theme.custom_css|safe }}
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -99,7 +32,7 @@
             <form method="POST" id="loginForm">
                 {% csrf_token %}
                 
-                <!-- የዲጃንጎ ፎርም -->
+                <!-- የዲጃንጎ ፎርም (AuthenticationForm) -->
                 {{ form.as_p }}
 
                 <button type="submit" class="btn-auth" id="loginBtn">

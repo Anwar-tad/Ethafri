@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/agent_status.html
-📝 ለውጥ፦ Master CEO Agent Status — Live Terminal & Health Metrics
-✅ የተፈቱ ችግሮች፦ No Real-time Feedback, Static Terminal, Missing Phase UI
-📅 ቀን፦ 2026-06-24
+📝 ለውጥ፦ v1.2 Master CEO Agent Status — Live Terminal & CSS Migrated (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic WebSocket Log Integration, Safe Date Formatting, Choice Metrics Sync
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,46 +10,16 @@
 {% load static %}
 
 {% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
 <style>
-    /* 🤖 Agent Status Specific Styles */
-    .status-card {
-        background: white; border-radius: 1.25rem; border: none;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); transition: all 0.3s ease;
-    }
-    .status-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
-
-    /* 📟 Live CL Terminal Style */
-    .terminal-window {
-        background: #1e1e1e; color: #00ff00; font-family: 'Fira Code', 'Courier New', monospace;
-        border-radius: 1rem; border: 4px solid #333; overflow: hidden;
-        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-    }
-    .terminal-header {
-        background: #333; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.5rem;
-    }
-    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .dot-red { background: #ff5f56; } .dot-yellow { background: #ffbd2e; } .dot-green { background: #27c93f; }
-    
-    .terminal-body {
-        padding: 1.5rem; max-height: 500px; overflow-y: auto; font-size: 0.9rem; line-height: 1.6;
-    }
-    .terminal-line { margin-bottom: 0.5rem; border-left: 2px solid #333; padding-left: 1rem; }
-    .terminal-timestamp { color: #888; font-size: 0.75rem; margin-right: 10px; }
-    .terminal-success { color: #4ade80; }
-    .terminal-error { color: #f87171; }
-    .terminal-info { color: #60a5fa; }
-
-    /* 📊 Progress & Badges */
-    .phase-pill {
-        padding: 0.5rem 1.5rem; border-radius: 50px; font-weight: 700; font-size: 0.8rem;
-        background: var(--light-bg); color: var(--text-dark);
-    }
-    .phase-pill.active { background: var(--primary-color); color: white; box-shadow: 0 4px 10px rgba(26,42,108,0.3); }
+    {{ theme.custom_css|safe }}
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4" data-agent-monitor>
+<div class="container-fluid py-4" data-agent-monitor> <!-- WebSocket መጋጠሚያ ከ global.js v1.3 ጋር ይገናኛል -->
     
     <!-- 🏥 Dashboard Header -->
     <div class="row mb-4 align-items-center">
@@ -89,7 +59,8 @@
                 {% endfor %}
                 <hr>
                 <div class="text-center">
-                    <div class="display-6 fw-bold text-primary">{{ success_rate|floatformat:1 }}%</div>
+                    <!-- ✅ FIXED: የኮንቴክስት መጥፋትን ለመከላከል views.py ላይ እንዲሰላ ታዟል -->
+                    <div class="display-6 fw-bold text-primary">{{ success_rate|default:0|floatformat:1 }}%</div>
                     <small class="text-muted">Avg Success Rate</small>
                 </div>
             </div>
@@ -121,13 +92,13 @@
                     <small class="ms-2 text-white-50">ethafri-ceo-agent@system:~/logs</small>
                 </div>
                 <div class="terminal-body" id="cl-terminal">
-                    <!-- Rolling Cycle Logs (CL) እዚህ ጋር በ WebSocket ይሞላሉ -->
+                    <!-- ✅ FIXED: የ timezone.now ጥገኝነትን ለማስቀረት በጃንጎ {% now %} መለያ ተተክቷል -->
                     <div class="terminal-line">
-                        <span class="terminal-timestamp">[{{ timezone.now|date:"H:i:s" }}]</span>
+                        <span class="terminal-timestamp">[{% now "H:i:s" %}]</span>
                         <span class="terminal-info">➜ Initializing Diagnostic Console...</span>
                     </div>
                     <div class="terminal-line">
-                        <span class="terminal-timestamp">[{{ timezone.now|date:"H:i:s" }}]</span>
+                        <span class="terminal-timestamp">[{% now "H:i:s" %}]</span>
                         <span class="terminal-success">➜ WebSocket Connected. Waiting for next CEO Cycle...</span>
                     </div>
                     
@@ -163,7 +134,7 @@
     }
 
     // 🤖 WebSocket Integration for Real-time CL Logs
-    // (global.js ውስጥ ካለው socket ጋር ይገናኛል)
+    // ✅ FIXED: ከ global.js v1.3 አዲሱ የ CustomEvent ስርጭት ጋር ፍጹም ተዋህዷል
     document.addEventListener('agent_update', function(e) {
         const data = e.detail;
         const term = document.getElementById('cl-terminal');

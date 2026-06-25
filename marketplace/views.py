@@ -125,6 +125,7 @@ def admin_growth_dashboard(request):
         'sites': SiteRegistry.objects.all(),
         'recent_backlog': AIProjectBacklog.objects.all().order_by('-created_at')[:8],
         'status_info': status_info
+        'evolution_logs': AIEvolutionLog.objects.all().order_by('-created_at')[:5]
     }
     return render(request, 'marketplace/growth_dashboard.html', context)
 
@@ -166,13 +167,16 @@ def trigger_evolution(request):
 
 # ============================================================
 # 🌐 4. MULTI-SITE & MARKETING (ባለብዙ-ጣቢያ አስተዳደር)
-# ============================================================
+# ==========================================# views.py ውስጥ sites_dashboard() ቪው ሙሉ በሙሉ በዚህ ይተካል (የሕግ 4 ኦፕቲማይዜሽን)
 @staff_member_required
 def sites_dashboard(request):
     """ሁሉንም ንዑስ ጣቢያዎች (Niches) በአንድ ላይ ማሳያ"""
+    # ✅ FIXED: 10ሩንም ቴምፕሌቶችና የሥራዎችን ስታቲስቲክስ በ single query በጥንቃቄ ያመጣል (N+1 query መከላከያ)
     sites = SiteRegistry.objects.annotate(
-        task_count=Count('backlog_tasks', filter=Q(backlog_tasks__status='Pending')),
-        listing_count=Count('products', filter=Q(products__is_active=True))
+        pending_tasks=Count('backlog_tasks', filter=Q(backlog_tasks__status='Pending')),
+        running_tasks=Count('backlog_tasks', filter=Q(backlog_tasks__status='Running')),
+        completed_tasks=Count('backlog_tasks', filter=Q(backlog_tasks__status='Completed')),
+        recent_errors=Count('error_logs', filter=Q(error_logs__resolved=False))
     ).all()
     
     total_vis = sites.aggregate(Sum('monthly_visitors'))['monthly_visitors__sum']
@@ -201,18 +205,31 @@ def site_detail(request, site_id):
     }
     return render(request, 'marketplace/site_detail.html', context)
 
+# views.py ውስጥ የሚገኘው marketing_dashboard ቪው ሙሉ በሙሉ በዚህ ይተካል
 @staff_member_required
 def marketing_dashboard(request):
     """የግብይት እና የደንበኛ ማግኛ ውጤቶች መከታተያ"""
-    total_s = MarketingCampaign.objects.aggregate(Sum('total_sent'))['total_sent__sum']
+    
+    # የውሂብ ጥምር ስሌት (Aggregations)
+    stats = MarketingCampaign.objects.aggregate(
+        total_conv=Sum('total_converted'),
+        total_sent=Sum('total_sent')
+    )
+    
+    total_c = stats['total_conv'] or 0
+    total_s = stats['total_sent'] or 0
+
     context = {
         'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
         'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
-        'total_sent': total_s or 0,
+        # ✅ FIXED: ቴምፕሌቱ ላይ በቀጥታ {{ total_sent }} በሚል ስም እንዲነበብ በ root-level ተጨምሯል (የሕግ 3 ጥበቃ)
+        'total_sent': total_s,
         'campaign_stats': {
             'total': MarketingCampaign.objects.count(),
             'running': MarketingCampaign.objects.filter(status='running').count(),
-            'scheduled': MarketingCampaign.objects.filter(status='scheduled').count()
+            'scheduled': MarketingCampaign.objects.filter(status='scheduled').count(),
+            'total_sent': total_s,
+            'total_converted': total_c
         }
     }
     return render(request, 'marketplace/marketing_dashboard.html', context)

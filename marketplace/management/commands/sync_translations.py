@@ -1,14 +1,15 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/sync_translations.py
-# 📝 ለውጥ፦ Multi-Site Support + Robust JSON Schema Validation
-# ✅ የተፈቱ ችግሮች፦ Clean JSON Extraction, Guard against non-dict AI mappings, Safe context joining.
+# 📝 ለውጥ፦ Dynamic API Pacing Translation Guard + Naming Sync (v1.1)
+# ✅ የተፈቱ ችግሮች፦ ask_ai_with_failover ImportError Fixed, clean_and_parse_json DRY Sync, Safe Keyword Joining
 # 📅 ቀን፦ Thursday, June 25, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
 from django.core.management import call_command
 from django.conf import settings
-from marketplace.growth_agent import ask_ai_with_failover
+# ✅ FIXED: የዲፔንደንሲ ክራሽን ለመከላከል ወደ smart_ai_router መፍቻ አቅጣጫ ተቀይሯል (የሕግ 3 ጥበቃ)
+from marketplace.ai_utils import ask_master_ai_smart, clean_and_parse_json
 from marketplace.models import SiteRegistry
 import polib
 import os
@@ -18,6 +19,14 @@ import logging
 import re
 
 logger = logging.getLogger(__name__)
+
+# ✅ FIXED: ask_ai_with_failoverን በስማርት ሁኔታ ወደ ai_utils translation ሞተር ማዞር (የሕግ 4 ጥበቃ)
+def ask_ai_with_failover(prompt, pool_type="translation", expected_keys=None):
+    """
+    [Dependency Resolver] በልዩ ሁኔታ የተዘጋጀውን የትርጉም ሥራ ወደ ai_utils.ask_master_ai_smart ያዞራል
+    """
+    return ask_master_ai_smart(prompt, task_type="translation")
+
 
 class Command(BaseCommand):
     help = 'በዌብሳይቱ ላይ ያሉ አዳዲስ የቋንቋ መለያዎችን (i18n tags) በ AI በራስ-ሰር ይተረጉማል'
@@ -71,17 +80,8 @@ class Command(BaseCommand):
 
     def _clean_and_parse_json(self, raw_data):
         """AI የሚመልሰውን ጥሬ ምላሽ አጽድቶ ወደ ዲክሽነሪ ይቀይራል (KeyError መከላከያ)"""
-        if isinstance(raw_data, dict):
-            return raw_data
-        if not isinstance(raw_data, str):
-            return {}
-        try:
-            # Markdown የኮድ ብሎኮችን (```json ... ```) የማጽዳት ስራ
-            cleaned = re.sub(r'^```json\s*|```$', '', raw_data.strip(), flags=re.MULTILINE)
-            return json.loads(cleaned)
-        except Exception as e:
-            logger.error(f"Failed to parse AI translation JSON: {e}")
-            return {}
+        # ✅ FIXED: የኮድ ድግግሞሽን ለማስቀረት የ ai_utils ንፁህ የ JSON ማጽጃ ሎጂክ ጥቅም ላይ ውሏል (ሕግ 4)
+        return clean_and_parse_json(raw_data)
 
     def _process_system_translations(self):
         """የሲስተሙን መደበኛ ትርጉም ያካሂዳል"""
@@ -181,10 +181,11 @@ class Command(BaseCommand):
         
         # ✅ ማሻሻያ፦ keywords ሊስት መሆኑን በጥንቃቄ ማረጋገጥ
         keywords_list = site.primary_keywords if isinstance(site.primary_keywords, list) else []
+        # ✅ FIXED: የ TypeError ስህተትን ለመከላከል እያንዳንዱ የቁልፍ ቃል ወደ String እንዲቀየር ተደርጓል
         site_context = f"""
         Site: {site.display_name}
         Niche: {site.niche}
-        Keywords: {', '.join(keywords_list[:5])}
+        Keywords: {', '.join(str(k) for k in keywords_list[:5])}
         Target Market: {site.target_market}
         """
         

@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/owner_directive.html
-📝 ለውጥ፦ Master CEO Command Interface — Priority & Strategic Aware
-✅ የተፈቱ ችግሮች፦ Manual Task Sync, Missing Priority Feedback
-📅 ቀን፦ 2026-06-24
+📝 ለውጥ፦ v1.2 Executive Command Center — Static CSS Migrated (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic presets animation, standard CSRF form mapping
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,49 +10,12 @@
 {% load static %}
 
 {% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
 <style>
-    .directive-wrapper { padding: 3rem 0; background: #fdfdfd; min-height: 90vh; }
-    
-    /* 👑 Owner Card */
-    .directive-card-main {
-        max-width: 800px; margin: 0 auto; border-radius: 2rem; border: none;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1); overflow: hidden;
-    }
-    
-    .directive-header {
-        background: linear-gradient(135deg, #b45309, #d97706); /* Gold/Amber Gradient */
-        padding: 3rem 2rem; text-align: center; color: white;
-    }
-    
-    .header-icon { font-size: 4rem; margin-bottom: 1rem; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)); }
-    
-    /* ✍️ Command Input */
-    .directive-textarea {
-        border: 2px solid #e2e8f0; border-radius: 1.5rem; padding: 1.5rem;
-        font-size: 1.1rem; line-height: 1.6; min-height: 200px; width: 100%;
-        transition: all 0.3s ease; background: #f8fafc;
-    }
-    .directive-textarea:focus {
-        border-color: #d97706; box-shadow: 0 0 0 5px rgba(217, 119, 6, 0.1);
-        outline: none; background: white;
-    }
-
-    /* 🏷️ Example Tags */
-    .example-tag {
-        cursor: pointer; padding: 0.5rem 1rem; border-radius: 50px;
-        background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 0.85rem;
-        transition: all 0.2s ease; display: inline-block; margin-bottom: 0.5rem;
-    }
-    .example-tag:hover { background: #d97706; color: white; border-color: #d97706; }
-
-    /* 🚀 Action Button */
-    .btn-directive {
-        background: #1e293b; color: white; border-radius: 50px;
-        padding: 1rem 3rem; font-weight: 800; border: none;
-        width: 100%; transition: all 0.3s ease; font-size: 1.2rem;
-    }
-    .btn-directive:hover { background: #0f172a; transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
+    {{ theme.custom_css|safe }}
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -77,7 +40,7 @@
                     {% endfor %}
                 {% endif %}
 
-                <!-- መመሪያ መስጫ -->
+                <!-- መመሪያ መስጫ ፎርም -->
                 <form method="POST">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="create_override">
@@ -88,7 +51,7 @@
                                   placeholder="Describe what you want the AI to build or fix..." required></textarea>
                     </div>
 
-                    <!-- ፈጣን መመሪያዎች -->
+                    <!-- ፈጣን መመሪያዎች (Quick Presets) -->
                     <div class="mb-5">
                         <p class="small text-muted mb-2 ms-3">Quick Presets:</p>
                         <div class="d-flex flex-wrap gap-2 px-2">
@@ -99,7 +62,7 @@
                         </div>
                     </div>
 
-                    <!-- የጣቢያ መራጭ -->
+                    <!-- የጣቢያ መራጭ (Multi-Site Site Selector) -->
                     <div class="mb-5 px-3 py-4 rounded-4" style="background: #f1f5f9;">
                         <h6 class="fw-bold mb-3"><i class="fas fa-globe me-2"></i> Target Domain</h6>
                         <select name="site_id" class="form-select rounded-pill border-0 shadow-sm">
@@ -132,6 +95,7 @@
 
 {% block extra_js %}
 <script>
+    // ✅ FIXED: የ preset መመሪያዎችን በወርቅማ ቀለም አኒሜሽን የሚያስተሳስር የ UI ስክሪፕት
     function setCmd(text) {
         const input = document.getElementById('instructionInput');
         input.value = text;

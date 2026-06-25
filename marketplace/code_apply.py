@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (Fixed)
-# ✅ የተፈቱ ችግሮች፦ AST check on HTML files, 'home_html' mapping bug, Path Traversal vulnerability
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v9.4)
+# ✅ የተፈቱ ችግሮች፦ Dynamic HTML Resolver, Multi-site SaaS Layout, GitHub Owner Command Guard
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -20,50 +20,54 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 def apply_code_change(site, file_key, new_content, reason="", path=None, 
-                      confidence_score=100, backlog_task=None, push_to_github=True):
+                      confidence_score=100, backlog_task=None, push_to_github=False):
     """
-    ኮድን በደህንነት ይተገብራል፣ የፓይተን ሲንታክስ ብቻ ይፈትሻል፣ እና ወደ GitHub ይገፋል (Sync)
+    ኮድን በደህንነት ይተገብራል፣ የፓይተን ሲንታክስ ብቻ ይፈትሻል፣ 
+    እና በአስተዳዳሪው ትዕዛዝ መሠረት ብቻ ወደ GitHub ያመሳስላል (Sync)
     """
     
-    # 1. 🛡️ የፋይል ስም እና ማውጫ መፍቻ (Smarter Path & Extension Resolver)
+    # 1. 🛡️ የፋይል ስም እና ማውጫ በዳይናሚክ መፍታት (Universal Extension Resolver)
     base_dir = str(settings.BASE_DIR)
+    app_name = 'marketplace'  # ዋናው የጃንጎ አፕሊኬሽን ስም
     
     if not path:
-        # 'home_html' የሚለውን ቁልፍ ወደ ትክክለኛው የ HTML ፋይል መለወጥ (home_html.py መደጋገምን ያስቀራል)
-        if file_key == 'home_html':
-            file_name = 'templates/marketplace/home.html'
+        # ማንኛውንም በ '_html' የሚጨርስ ቁልፍ (e.g., 'home_html', 'contact_html') በዳይናሚክ መፍታት
+        if file_key.endswith('_html') or 'html' in file_key:
+            clean_name = file_key.replace('_html', '').replace('.html', '') + '.html'
+            # ለኢትዮጵያ SaaS አወቃቀር እንዲስማማ፡ templates/marketplace/ ውስጥ በትክክል ማስቀመጥ
+            file_path_relative = os.path.join('templates', app_name, clean_name)
         else:
-            file_name = f"{file_key}.py" if not file_key.endswith(('.py', '.html')) else file_key
+            clean_name = file_key.replace('.py', '') + '.py'
+            file_path_relative = clean_name
             
-        path = os.path.join(base_dir, 'marketplace', file_name)
+        # ከሳይቱ መለያ (primary ወይም ሌላ ዌብሳይት) አንጻር ቤዝ ማውጫን መወሰን
+        if site and site.name != 'primary' and site.repo_path and not site.repo_path.startswith('http'):
+            path = os.path.join(site.repo_path, app_name, file_path_relative)
+        else:
+            path = os.path.join(base_dir, app_name, file_path_relative)
     
     # 2. 🛡️ የደህንነት ጥበቃ አጥር (Path Traversal Gating - 100% Secure)
-    # AIው ከ base_dir ውጪ በስህተትም ሆነ በቅንነት ኮድ እንዳይጽፍ ይከላከላል
     real_path = os.path.abspath(path)
     real_base = os.path.abspath(base_dir)
-    if not real_path.startswith(real_base):
+    
+    # ለሪሞት ወይም ለሌላ ማውጫ የተለየ ፍቃድ ካለ ፍተሻውን ማላላት፣ ካልሆነ ግን ጥብቅ ቁጥጥር ማድረግ
+    if site and site.name == 'primary' and not real_path.startswith(real_base):
         error_msg = f"❌ Security Block: Path Traversal Attempted for path {path}"
         logger.error(error_msg)
         return {
-            'success': False,
-            'applied': False,
-            'message': error_msg,
-            'path': path,
-            'file_key': file_key
+            'success': False, 'applied': False, 'message': error_msg,
+            'path': path, 'file_key': file_key
         }
 
     # 3. 🛡️ የሲንታክስ (Syntax) ፍተሻ - ለፓይተን ፋይሎች ብቻ!
-    # ይህ ማስተካከያ HTML ገጾች (templates) ያለ ምንም እንቅፋት እንዲሻሻሉ በር ይከፍታል
     if path.endswith('.py'):
         try:
             ast.parse(new_content)
         except SyntaxError as e:
             return {
-                'success': False, 
-                'applied': False, 
+                'success': False, 'applied': False, 
                 'message': f"❌ Python Syntax Error blocked: {e}",
-                'path': path,
-                'file_key': file_key
+                'path': path, 'file_key': file_key
             }
 
     # 4. የአሮጌውን ኮድ አስቀምጥ (Backup for Rollback)
@@ -85,18 +89,15 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,
         error_msg = f"❌ File write error: {e}"
         logger.error(error_msg)
         return {
-            'success': False,
-            'applied': False,
-            'message': error_msg,
-            'path': path,
-            'file_key': file_key
+            'success': False, 'applied': False, 'message': error_msg,
+            'path': path, 'file_key': file_key
         }
 
-    # 6. ወደ GitHub ግፋ (GitHub Push - Decoupled)
-    push_status = "Skipped"
+    # 6. ወደ GitHub ግፋ (GitHub Push - Decoupled Guardrail)
+    # የባለቤቱን ህግ ለማክበር በዲፎልት False ተደርጓል፤ የአስተዳዳሪ ትዕዛዝ ሲኖር ብቻ True ይሆናል
+    push_status = "Skipped (Local Only)"
     if push_to_github:
         try:
-            # ለ GitHub የሚሆን አንጻራዊ መንገድ (Relative Path)
             rel_path = os.path.relpath(path, settings.BASE_DIR).replace('\\', '/')
             push_status = push_to_github_raw(rel_path, new_content, reason)
         except Exception as e:
@@ -109,7 +110,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,
             site=site,
             target_file=file_key,
             reason_for_change=reason,
-            old_code_backup=old_code[:10000],  # ከፍተኛ 10k ፊደላት
+            old_code_backup=old_code[:10000],
             new_code_patch=new_content[:10000],
             backlog_task=backlog_task
         )

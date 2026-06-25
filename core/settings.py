@@ -1,7 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/core/settings.py
-# 📝 ለውጥ፦ Advanced Agent Features — pgvector, WebSocket, Cache
-# 📅 ቀን፦ 2026-06-21
+# 📝 ለውጥ፦ Advanced Agent Features — pgvector, WebSocket, Cache (v1.1)
+# ✅ የተፈቱ ችግሮች፦ Daphne InstalledApps ASGI Crash Fixed, WhiteNoise CompressedManifest Storage Optimized
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
 import os
@@ -45,6 +46,8 @@ CSRF_TRUSTED_ORIGINS = [
 # 3. Application Definition
 # =====================================================================
 INSTALLED_APPS = [
+    # 🆕 Daphne for Django Channels ASGI (WebSocket እንዲሰራ ከሁሉም በላይ መሆን አለበት - የሕግ 3 ጥበቃ)
+    'daphne',
     'cloudinary_storage',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -54,10 +57,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'marketplace',
     'cloudinary',
-    # 🆕 Channels for WebSocket
     'channels',
-    # 🆕 pgvector for RAG (ከተጫነ በኋላ)
-    # 'pgvector',
+    # 'pgvector', # pgvector for RAG (ከተጫነ በኋላ ለማንቃት)
 ]
 
 MIDDLEWARE = [
@@ -106,7 +107,7 @@ if database_url:
         'default': dj_database_url.config(
             default=database_url,
             conn_max_age=600,
-            ssl_require=True
+            ssl_require=True if not DEBUG else False # ሎካል ማሽን ላይ SSL በስህተት እንዳይጠይቅ ጥበቃ
         )
     }
 else:
@@ -150,7 +151,11 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
 
-STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+# ✅ FIXED: በምርት ላይ የ WhiteNoise የላቀ የስታቲክ ፋይሎች መጨመቂያን ያንቀሳቅሳል (የሕግ 4 ጥበቃ)
+if not DEBUG:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 WHITENOISE_USE_FINDERS = True
 WHITENOISE_AUTOREFRESH = True
@@ -203,33 +208,19 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-# core/settings.py ውስጥ
-ASGI_APPLICATION = 'core.asgi.application'
+
 # =====================================================================
 # 8. 🆕 WebSocket & Channels Configuration
 # =====================================================================
-
-# Channels Layer (In-memory for development)
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
 
-# ለምርት (Production) Redis መጠቀም ከፈለግክ
-# CHANNEL_LAYERS = {
-#     'default': {
-#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
-#         'CONFIG': {
-#             "hosts": [('127.0.0.1', 6379)],
-#         },
-#     },
-# }
-
 # =====================================================================
 # 9. 🆕 Cache Configuration
 # =====================================================================
-
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -237,37 +228,21 @@ CACHES = {
     }
 }
 
-# Redis ለምርት ከፈለግክ
-# CACHES = {
-#     'default': {
-#         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-#         'LOCATION': 'redis://127.0.0.1:6379/1',
-#     }
-# }
-
-# Cache Timeouts
 CACHE_TTL = {
-    'short': 60,       # 1 ደቂቃ
-    'medium': 300,     # 5 ደቂቃ
-    'long': 3600,      # 1 ሰዓት
-    'very_long': 86400, # 1 ቀን
+    'short': 60,
+    'medium': 300,
+    'long': 3600,
+    'very_long': 86400,
 }
 
 # =====================================================================
 # 10. 🆕 pgvector Configuration (RAG Memory)
 # =====================================================================
-
-# pgvector extension ን ለመጠቀም
-# ማይግሬሽን ከሄደ በኋላ ይህንን አንቃ
-# INSTALLED_APPS ላይ 'pgvector' ን ተጨምር
-
-# Vector dimension for embeddings
-VECTOR_DIMENSION = 1536  # OpenAI embedding size
+VECTOR_DIMENSION = 1536
 
 # =====================================================================
 # 11. Multi-Site Configuration
 # =====================================================================
-
 DEFAULT_SITE_CONFIG = {
     'name': 'primary',
     'display_name': 'EthAfri Primary',
@@ -299,7 +274,6 @@ AUTO_MARKETING_CONFIG = {
 # =====================================================================
 # 12. Logging Configuration
 # =====================================================================
-
 try:
     from marketplace.log_handlers import SelfHealingDBHandler
 except ImportError:
@@ -376,7 +350,6 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
-        # 🆕 Channels logging
         'channels': {
             'handlers': ['console'],
             'level': 'INFO',
@@ -390,10 +363,8 @@ LOGGING = {
     },
 }
 
-# core/settings.py ውስጥ ጨምር
-
 # Autonomous Agent Settings
 AUTONOMOUS_AGENT_ENABLED = env.bool('AUTONOMOUS_AGENT_ENABLED', default=True)
-AGENT_INTERVAL = env('AGENT_INTERVAL', default=60)  # seconds
+AGENT_INTERVAL = env('AGENT_INTERVAL', default=60)
 AGENT_MAX_ERRORS = env('AGENT_MAX_ERRORS', default=10)
 SKIP_SHELL = env.bool('SKIP_SHELL', default=True)

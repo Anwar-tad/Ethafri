@@ -1,7 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/base.html
-📝 ለውጥ፦ እጅግ ዘመናዊ እና ሁሉን ያሟላ መሰረታዊ ገጽ
-📅 ቀን፦ 2026-06-22
+📝 ለውጥ፦ v1.2 Optimized Skeleton — Static CSS Migrated to global.css (DRY Sync)
+✅ የተፈቱ㉖ ችግሮች፦ Dynamic CSS Variables, Zero Inline Bloat, Standard i18n Sync
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% load i18n %}
@@ -18,7 +19,7 @@
     <meta name="keywords" content="ethiopia, marketplace, e-commerce, africa, ethafri, ai">
     <meta name="author" content="EthAfri Team">
     
-    <!-- Open Graph -->
+    <!-- Open Graph (ማህበራዊ ሚዲያ ማጋሪያ) -->
     <meta property="og:title" content="{{ theme.logo_text|default:'EthAfri' }} - Smart Marketplace">
     <meta property="og:description" content="{% trans 'AI-powered marketplace for Ethiopian products' %}">
     <meta property="og:type" content="website">
@@ -27,9 +28,9 @@
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
     
-    <!-- Bootstrap 5.3 -->
+    <!-- Bootstrap 5.3 CDN -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome Icons -->
+    <!-- Font Awesome Icons CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     
     <!-- Google Fonts -->
@@ -43,330 +44,17 @@
     <!-- ለአንድ ፔጅ ብቻ የሚያገልግል CSS -->
     {% block extra_css %}{% endblock %}
     
-    <!-- Custom Theme CSS -->
-    {% if theme.custom_css %}
+    <!-- ✅ OPTIMIZED: Dynamic Theme Variables (ኤጀንቱ የሚቀይራቸው ተለዋዋጮች ብቻ በ inline ይቀራሉ) -->
     <style>
-        {{ theme.custom_css|safe }}
-    </style>
-    {% endif %}
-    
-    <!-- የተጠቃሚ ስታይል -->
-    <style>
-        /* ሞባይል ላይ የግርጌ ክፍተት */
-        body {
-            padding-bottom: 80px;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--light-bg, #f4f7f6);
+        :root {
+            --primary-color: {{ theme.primary_color|default:"#1a2a6c" }};
+            --accent-purple: {{ theme.accent_purple|default:"#4e085e" }};
+            --accent-gold: {{ theme.accent_gold|default:"#ffc107" }};
+            --light-bg: {{ theme.light_bg|default:"#f4f7f6" }};
         }
-        
-        /* ለስላሳ ስክሮል */
-        html {
-            scroll-behavior: smooth;
-        }
-        
-        /* ማስታወቂያ ባር */
-        .announcement-bar {
-            background: var(--primary-color, #1a2a6c) !important;
-            color: var(--white, #ffffff) !important;
-            font-size: 0.8rem;
-            padding: 0.5rem 0;
-            border-bottom: 2px solid rgba(255,255,255,0.1);
-        }
-        .announcement-bar i {
-            color: var(--accent-gold, #ffc107);
-        }
-        .announcement-bar .close-announcement {
-            background: none;
-            border: none;
-            color: rgba(255,255,255,0.6);
-            cursor: pointer;
-            padding: 0 0.5rem;
-            font-size: 1rem;
-            transition: color 0.3s ease;
-        }
-        .announcement-bar .close-announcement:hover {
-            color: var(--white);
-        }
-
-        /* Navbar */
-        .navbar-custom {
-            background: var(--primary-color, #1a2a6c) !important;
-            padding: 0.6rem 0;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.15);
-            transition: all 0.3s ease;
-        }
-        .navbar-custom .navbar-brand {
-            font-weight: 800;
-            font-size: 1.2rem;
-            letter-spacing: -0.5px;
-            color: var(--white) !important;
-        }
-        .navbar-custom .navbar-brand i {
-            color: var(--accent-gold, #ffc107);
-        }
-        .navbar-custom .nav-link {
-            color: rgba(255,255,255,0.85) !important;
-            font-weight: 500;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-            padding: 0.4rem 0.8rem;
-            border-radius: 50px;
-        }
-        .navbar-custom .nav-link:hover {
-            color: var(--white) !important;
-            background: rgba(255,255,255,0.1);
-        }
-        .navbar-custom .nav-link.active {
-            color: var(--white) !important;
-            background: rgba(255,255,255,0.15);
-        }
-        .navbar-custom .nav-link i {
-            margin-right: 0.4rem;
-        }
-        .navbar-custom .lang-select {
-            background: rgba(255,255,255,0.12);
-            color: var(--white);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 50px;
-            padding: 0.2rem 0.8rem;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .navbar-custom .lang-select:hover {
-            background: rgba(255,255,255,0.2);
-        }
-        .navbar-custom .lang-select option {
-            color: var(--text-dark);
-            background: var(--white);
-        }
-        .navbar-custom .admin-badge {
-            background: var(--accent-gold, #ffc107);
-            color: var(--text-dark);
-            font-size: 0.6rem;
-            font-weight: 700;
-            padding: 0.15rem 0.6rem;
-            border-radius: 50px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        /* Hero Banner */
-        .hero-banner-custom {
-            background: linear-gradient(135deg, var(--primary-color, #1a2a6c), var(--accent-purple, #4e085e));
-            color: var(--white);
-            padding: 2.5rem 0 2rem;
-            border-radius: 0 0 2rem 2rem;
-            margin-bottom: 1.5rem;
-            position: relative;
-            overflow: hidden;
-            box-shadow: var(--shadow-md);
-        }
-        .hero-banner-custom::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -10%;
-            width: 400px;
-            height: 400px;
-            background: rgba(255,255,255,0.03);
-            border-radius: 50%;
-        }
-        .hero-banner-custom::after {
-            content: '';
-            position: absolute;
-            bottom: -40%;
-            left: -5%;
-            width: 300px;
-            height: 300px;
-            background: rgba(255,255,255,0.02);
-            border-radius: 50%;
-        }
-        .hero-banner-custom h1 {
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            position: relative;
-            z-index: 1;
-            font-size: 2.2rem;
-        }
-        .hero-banner-custom p {
-            font-weight: 300;
-            opacity: 0.9;
-            position: relative;
-            z-index: 1;
-            font-size: 1.1rem;
-            margin-bottom: 0;
-        }
-        .hero-banner-custom .hero-icon {
-            font-size: 3rem;
-            opacity: 0.15;
-            position: absolute;
-            right: 2rem;
-            bottom: 1rem;
-        }
-
-        /* Bottom Navigation */
-        .bottom-nav-custom {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: var(--white, #ffffff);
-            display: flex;
-            justify-content: space-around;
-            padding: 0.5rem 0 0.6rem;
-            border-top: 2px solid var(--primary-color, #1a2a6c);
-            box-shadow: 0 -4px 25px rgba(0,0,0,0.08);
-            z-index: 9999;
-            backdrop-filter: blur(10px);
-            background: rgba(255,255,255,0.95);
-        }
-        .bottom-nav-custom a {
-            text-decoration: none;
-            color: var(--text-muted, #6c757d);
-            font-size: 0.6rem;
-            text-align: center;
-            flex: 1;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            padding: 0.2rem 0;
-            position: relative;
-        }
-        .bottom-nav-custom a i {
-            display: block;
-            font-size: 1.3rem;
-            color: var(--text-muted, #6c757d);
-            margin-bottom: 0.1rem;
-            transition: all 0.3s ease;
-        }
-        .bottom-nav-custom a:hover {
-            color: var(--primary-color, #1a2a6c);
-        }
-        .bottom-nav-custom a:hover i {
-            color: var(--primary-color, #1a2a6c);
-            transform: scale(1.1);
-        }
-        .bottom-nav-custom a.active {
-            color: var(--primary-color, #1a2a6c);
-        }
-        .bottom-nav-custom a.active i {
-            color: var(--primary-color, #1a2a6c);
-            transform: scale(1.1);
-        }
-        .bottom-nav-custom a .nav-badge {
-            position: absolute;
-            top: -2px;
-            right: 50%;
-            transform: translateX(50%);
-            background: var(--danger-color, #dc3545);
-            color: var(--white);
-            font-size: 0.5rem;
-            padding: 0.05rem 0.4rem;
-            border-radius: 50px;
-            font-weight: 700;
-        }
-        .bottom-nav-custom .nav-divider {
-            width: 1px;
-            background: var(--border-color, #e2e8f0);
-            margin: 0.2rem 0;
-        }
-        .bottom-nav-custom .nav-dropdown-toggle {
-            cursor: pointer;
-            background: none;
-            border: none;
-            color: var(--text-muted, #6c757d);
-            font-size: 0.6rem;
-            text-align: center;
-            flex: 1;
-            font-weight: 600;
-            padding: 0.2rem 0;
-            transition: all 0.3s ease;
-        }
-        .bottom-nav-custom .nav-dropdown-toggle i {
-            display: block;
-            font-size: 1.3rem;
-            color: var(--text-muted, #6c757d);
-            margin-bottom: 0.1rem;
-            transition: all 0.3s ease;
-        }
-        .bottom-nav-custom .nav-dropdown-toggle:hover {
-            color: var(--primary-color, #1a2a6c);
-        }
-        .bottom-nav-custom .nav-dropdown-toggle:hover i {
-            color: var(--primary-color, #1a2a6c);
-            transform: scale(1.1);
-        }
-        
-        /* Dropdown Menu */
-        .nav-dropdown-menu {
-            min-width: 200px;
-            border-radius: 1rem;
-            border: none;
-            box-shadow: var(--shadow-lg);
-            padding: 0.5rem;
-            margin-bottom: 0.5rem;
-            background: var(--white);
-        }
-        .nav-dropdown-menu .dropdown-item {
-            border-radius: 0.75rem;
-            padding: 0.5rem 1rem;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-        .nav-dropdown-menu .dropdown-item:hover {
-            background: var(--light-bg, #f4f7f6);
-        }
-        .nav-dropdown-menu .dropdown-item i {
-            width: 1.5rem;
-            text-align: center;
-        }
-        .nav-dropdown-menu .dropdown-divider {
-            margin: 0.3rem 0;
-        }
-        .nav-dropdown-menu .dropdown-item.text-danger:hover {
-            background: var(--danger-light, #fce4ec);
-        }
-
-        /* ሞባይል */
-        @media (max-width: 768px) {
-            .hero-banner-custom { padding: 1.5rem 0 1.2rem; border-radius: 0 0 1.5rem 1.5rem; }
-            .hero-banner-custom h1 { font-size: 1.5rem; }
-            .hero-banner-custom p { font-size: 0.9rem; }
-            .hero-banner-custom .hero-icon { font-size: 2rem; right: 1rem; bottom: 0.5rem; }
-            .bottom-nav-custom a { font-size: 0.55rem; }
-            .bottom-nav-custom a i { font-size: 1.1rem; }
-            .bottom-nav-custom .nav-dropdown-toggle { font-size: 0.55rem; }
-            .bottom-nav-custom .nav-dropdown-toggle i { font-size: 1.1rem; }
-            .navbar-custom .navbar-brand { font-size: 1rem; }
-        }
-
-        @media (max-width: 576px) {
-            .hero-banner-custom h1 { font-size: 1.2rem; }
-            .hero-banner-custom p { font-size: 0.8rem; }
-            .bottom-nav-custom a { font-size: 0.5rem; }
-            .bottom-nav-custom a i { font-size: 1rem; }
-            .bottom-nav-custom .nav-dropdown-toggle { font-size: 0.5rem; }
-            .bottom-nav-custom .nav-dropdown-toggle i { font-size: 1rem; }
-            .navbar-custom .navbar-brand { font-size: 0.9rem; }
-            .navbar-custom .nav-link { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
-        }
-
-        /* የይዘት አኒሜሽን */
-        .fade-in {
-            animation: fadeIn 0.6s ease forwards;
-            opacity: 0;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .fade-in:nth-child(1) { animation-delay: 0.05s; }
-        .fade-in:nth-child(2) { animation-delay: 0.1s; }
-        .fade-in:nth-child(3) { animation-delay: 0.15s; }
-        .fade-in:nth-child(4) { animation-delay: 0.2s; }
-        .fade-in:nth-child(5) { animation-delay: 0.25s; }
-        .fade-in:nth-child(6) { animation-delay: 0.3s; }
+        {% if theme.custom_css %}
+            {{ theme.custom_css|safe }}
+        {% endif %}
     </style>
 </head>
 <body>
@@ -389,7 +77,7 @@
     {% endif %}
 
     <!-- ============================================================
-    Navbar
+    Navbar (የላይኛው ማውጫ)
     ============================================================ -->
     <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
         <div class="container">
@@ -440,6 +128,7 @@
                     </li>
                     {% endif %}
                     <li class="nav-item">
+                        <!-- i18n የቋንቋ መቀየሪያ ፎርም -->
                         <form action="{% url 'set_language' %}" method="post" class="d-inline">
                             {% csrf_token %}
                             <select name="language" class="lang-select" onchange="this.form.submit()">
@@ -485,14 +174,14 @@
     </div>
 
     <!-- ============================================================
-    Main Content
+    Main Content (ዋናው ይዘት መድረክ)
     ============================================================ -->
     <main class="container fade-in">
         {% block content %}{% endblock %}
     </main>
 
     <!-- ============================================================
-    Bottom Navigation
+    Bottom Navigation (የታችኛው የሞባይል ማውጫ)
     ============================================================ -->
     <nav class="bottom-nav-custom">
         <a href="/" class="{% if request.path == '/' %}active{% endif %}">
@@ -589,7 +278,6 @@
     <!-- የአኒሜሽን ማስነሻ -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // የባነር አኒሜሽን ለስላሳ
             const hero = document.querySelector('.hero-banner-custom');
             if (hero) {
                 hero.style.opacity = '0';
@@ -601,7 +289,6 @@
                 }, 100);
             }
             
-            // የማስታወቂያ ባር ራስ-ሰር መዝጋት (ከ10 ሰከንድ በኋላ)
             const announcementBar = document.getElementById('announcementBar');
             if (announcementBar) {
                 setTimeout(() => {

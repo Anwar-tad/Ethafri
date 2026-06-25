@@ -1,8 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/event_bus.py
-# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned & Thread-Safe Utility)
-# ✅ የተፈቱ ችግሮች፦ InterfaceError Prevention, Database Connection Leaks, 
-#                   Safe String Slicing for Trends.
+# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned & Thread-Safe Utility - v1.1)
+# ✅ የተፈቱ ችግሮች፦ close_old_connections ImportError Fixed, Thread-safe database connections
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -14,7 +13,8 @@
 
 import logging
 from django.utils import timezone
-from django.db import db  # ✅ ወደ db.close_old_connections() ተቀይሯል
+# ✅ FIXED: የዲፔንደንሲ ክራሽን ለመከላከል close_old_connections በቀጥታ ገብቷል (የሕግ 3 ጥበቃ)
+from django.db import close_old_connections
 from .models import AIProjectBacklog, AgentErrorLog, VectorMemory, SiteRegistry
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,8 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         except Exception as e:
             logger.warning(f"Failed to handle product creation event: {e}")
         finally:
-            db.close_old_connections()  # ✅ Thread-Safe ማጽጃ
+            # ✅ FIXED: close_old_connections በቀጥታ በጥንቃቄ ተጠርቷል
+            close_old_connections()
 
     # 2. ተግባር ሲጠናቀቅ RAG ትውስታ ውስጥ ማስቀመጥ
     elif event_type == EventTypes.TASK_COMPLETED:
@@ -88,7 +89,7 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         except Exception as e:
             logger.warning(f"Failed to handle task completion event: {e}")
         finally:
-            db.close_old_connections()
+            close_old_connections()
 
     # 3. ስህተት ሲገኝ በራስ-ሰር ለመፍታት መሞከር
     elif event_type == EventTypes.ERROR_DETECTED:
@@ -110,7 +111,7 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         except Exception as e:
             logger.warning(f"Failed to handle error detection event: {e}")
         finally:
-            db.close_old_connections()
+            close_old_connections()
             
     # 4. አዲስ አዝማሚያ ሲገኝ የማርኬቲንግ ስራ መፍጠር
     elif event_type == EventTypes.TREND_DETECTED:
@@ -138,4 +139,4 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         except Exception as e:
             logger.warning(f"Failed to handle trend detection event: {e}")
         finally:
-            db.close_old_connections()
+            close_old_connections()

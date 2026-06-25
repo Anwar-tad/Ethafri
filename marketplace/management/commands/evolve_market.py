@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ለውጥ፦ Robust Growth Engine + Protected Imports & Safe JSON Serialization
-# ✅ የተፈቱ ችግሮች፦ Double Serialization AttributeError on JSONField, Import Vulnerabilities
+# 📝 ለውጥ፦ Robust Growth Engine + Fixed Naming & Import Sync (v1.1)
+# ✅ የተፈቱ ችግሮች፦ Growth Agent Import Error Fixed (Mapped to execute_master_cycle & _run_site_cycle)
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -13,6 +13,24 @@ import gc
 from marketplace.models import SiteConfig, SiteRegistry
 
 logger = logging.getLogger(__name__)
+
+# ✅ FIXED: የ growth_agent v9.4 አስገቢዎችን የዲፔንደንሲ ግጭት ለማስቀረት የተሰሩ የሥራ መጋጠሚያዎች (የሕግ 3 ጥበቃ)
+def run_single_site_analysis(site):
+    """የአንድን ንዑስ ጣቢያ የዕድገት ዑደት ከዋናው _run_site_cycle ጋር ያገናኛል"""
+    from marketplace.growth_agent import _run_site_cycle
+    _run_site_cycle(site)
+    return "Site analysis completed successfully."
+
+def run_daily_market_analysis():
+    """ሁሉንም ጣቢያዎች በዳይናሚክ Concurrency የሚያስነሳውን execute_master_cycle ይጠራል"""
+    from marketplace.growth_agent import execute_master_cycle
+    execute_master_cycle()
+    return "Global daily market analysis completed successfully."
+
+def discover_new_sites():
+    """SaaS አዲስ ጣቢያ መፈለጊያ (Dynamic Explorer እራሱ ስለሚሰራው ባዶ ዝርዝር ይመልሳል)"""
+    return []
+
 
 class Command(BaseCommand):
     help = 'በየቀኑ ገበያውን አጥንቶ ሲስተሙን ያሳድጋል (ክሮን ጆብ ተስማሚ - Run Once & Exit)'
@@ -45,19 +63,16 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"🚀 [{timezone.now()}] EthAfri Autonomous Growth Engine Triggered."))
         
         try:
-            # 🛡️ ላለፈው የ "Growth Agent module missing" ስህተት መከላከያ (Lazy Import)
+            # 🛡️ ላለፈው የ "Growth Agent module missing" ስህተት መከላከያ (የሕግ 3 ጥበቃ)
             try:
-                from marketplace.growth_agent import (
-                    run_daily_market_analysis, 
-                    run_single_site_analysis,
-                    discover_new_sites
-                )
+                # የውህደት ፍተሻ (ኮዱ በትክክል መኖሩን ያረጋግጣል)
+                from marketplace.growth_agent import execute_master_cycle
             except ImportError as ie:
                 error_msg = f"❌ Critical Import Error: growth_agent.py module is broken or missing. Details: {ie}"
                 self.stdout.write(self.style.ERROR(error_msg))
                 logger.critical(error_msg)
                 
-                # ✅ ማሻሻያ 1፦ json.dumps ሳይጠቀሙ ቀጥተኛ የፓይተን ዲክሽነሪ መመገብ (AttributeErrorን ይከላከላል)
+                # json.dumps ሳይጠቀሙ ቀጥተኛ የፓይተን ዲክሽነሪ መመገብ
                 SiteConfig.objects.update_or_create(
                     key="LAST_CRON_ERROR",
                     defaults={'value': {'time': timezone.now().isoformat(), 'error': error_msg}}
@@ -117,13 +132,13 @@ class Command(BaseCommand):
                     results.append(f"[Global] ❌ Error: {str(ge)[:100]}")
                     self.stdout.write(self.style.ERROR(f"  ❌ Global analysis failed: {ge}"))
             
-            # ✅ ማሻሻያ 2፦ JSONField አውቶማቲክ ስለሚሠራ json.dumps እዚህ አያስፈልግም
+            # JSONField አውቶማቲክ ስለሚሠራ json.dumps እዚህ አያስፈልግም
             SiteConfig.objects.update_or_create(
                 key="LAST_SUCCESSFUL_CRON_PING", 
                 defaults={'value': {'time': timezone.now().isoformat()}}
             )
             
-            # ✅ ማሻሻያ 3፦ ቀጥተኛ ዲክሽነሪ ጥሪ
+            # ቀጥተኛ ዲክሽነሪ ጥሪ
             SiteConfig.objects.update_or_create(
                 key="LAST_CRON_RUN",
                 defaults={'value': {

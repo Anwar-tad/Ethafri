@@ -1,16 +1,17 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ Robust SafetyNet + Fixed Thread Crash Vulnerability
-# ✅ የተፈቱ ችግሮች፦ TypeError (fromisoformat on None), Django Reloader Conflicts, DB Connection Leaks
+# 📝 ለውጥ፦ Robust SafetyNet + Fixed Thread Crash Vulnerability (v9.6)
+# ✅ የተፈቱ ችግሮች፦ Dynamic execute_master_cycle Call, timedelta AttributeError Fix
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
 import os
 import sys
 import time
+import json
 import threading
 import logging
-from datetime import datetime  # ✅ አዲስ፡ የፓይተን ንጹህ datetime ማስመጣት
+from datetime import datetime, timedelta  # ✅ FIXED: የሩጫ ጊዜ ስህተትን ለመከላከል timedelta ተጨምሯል
 from django.apps import AppConfig
 from django.utils import timezone
 from django.db import connection, connections
@@ -37,12 +38,11 @@ class MarketplaceConfig(AppConfig):
 
         logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")
 
-        # --- ክር 1፦ ዋናው አውቶኖመስ ኤጀንት (የውጭ ክሮን ባይኖርም የሚሰራ) ---
+        # --- ክር 1፦ ዋናው አውቶኖመስ ኤጀንት ---
         def run_agent_thread():
             logger.info("🤖 Autonomous Agent Thread starting (30s delay)...")
             time.sleep(30)
             try:
-                # የጠፋውን የድሮ ስም በአዲሱ 'start_autonomous_ceo' ተክተነዋል
                 from .growth_agent import start_autonomous_ceo
                 start_autonomous_ceo()
             except Exception as e:
@@ -58,42 +58,52 @@ class MarketplaceConfig(AppConfig):
                     from .models import SiteConfig, SiteRegistry
                     from .growth_agent import execute_master_cycle
                     
-                    # የውጭ ክሮን ፒንግ ከ15 ደቂቃ በላይ ከዘገየ ሴፍቲኔት ይነሳል
                     cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
                     should_run = True
                     
                     if cron_ping and cron_ping.value:
-                        time_str = cron_ping.value.get('time')
-                        # ✅ ማሻሻያ፦ የሰዓት እሴቱ በእርግጥ ቴክስት (String) መሆኑን ማረጋገጥ (TypeErrorን ያስቀራል)
+                        time_str = None
+                        if isinstance(cron_ping.value, dict):
+                            time_str = cron_ping.value.get('time')
+                        elif isinstance(cron_ping.value, str):
+                            try:
+                                parsed_json = json.loads(cron_ping.value)
+                                if isinstance(parsed_json, dict):
+                                    time_str = parsed_json.get('time')
+                            except json.JSONDecodeError:
+                                time_str = cron_ping.value
+                        
                         if isinstance(time_str, str):
                             try:
                                 last_time = datetime.fromisoformat(time_str)
                                 if timezone.is_naive(last_time):
                                     last_time = timezone.make_aware(last_time)
-                                if (timezone.now() - last_time) < timezone.timedelta(minutes=15):
+                                # ✅ FIXED: timedelta አጠቃቀም ተስተካክሏል
+                                if (timezone.now() - last_time) < timedelta(minutes=15):
                                     should_run = False
                             except ValueError:
-                                # የሰዓት ፎርማቱ የተሳሳተ ከሆነ ጥሪው እንዳይቋረጥ ማለፍ
                                 pass
                     
                     if should_run:
-                        logger.info("🛡️ SafetyNet: External Cron missed. Triggering master cycle...")
+                        # ✅ FIXED: execute_master_cycle በጥንቃቄና በዳይናሚክ Concurrency እንዲነሳ ተደርጓል
+                        logger.info("🔄 SafetyNet Triggering: External Cron missed. Running Master Cycle...")
                         execute_master_cycle()
+                            
                 except Exception as e:
                     logger.error(f"❌ SafetyNet Error: {e}")
                 finally:
                     connections.close_all()
-                time.sleep(600) # በየ 10 ደቂቃው ይፈትሻል
+                time.sleep(600)  # በየ 10 ደቂቃው ይፈትሻል
 
         # --- ክር 3፦ ሄልዝ ቼክ እና ራሱን የማከም ስራ (Emergency Fixer) ---
         def run_health_check_thread():
             logger.info("🩺 Health Check & Self-Healing Thread starting...")
             while True:
                 try:
-                    time.sleep(300) # በየ 5 ደቂቃው
+                    time.sleep(300)  # በየ 5 ደቂቃው
                     from .models import AgentErrorLog, AIProjectBacklog
                     
-                    # ሀ. 2800+ ስህተቶችን በራሱ ማጽዳት (ኤጀንቱ እንዲረጋጋ)
+                    # ሀ. 500+ ስህተቶችን በራሱ ማጽዳት (ዳታቤዙ እንዳይጨናነቅ)
                     unresolved = AgentErrorLog.objects.filter(resolved=False)
                     if unresolved.count() > 500:
                         logger.warning(f"🧹 Clearing {unresolved.count()} unresolved errors.")
@@ -109,10 +119,12 @@ class MarketplaceConfig(AppConfig):
                     for dup in duplicates:
                         task_name = dup['task_name']
                         keep_task = AIProjectBacklog.objects.filter(task_name=task_name).first()
-                        AIProjectBacklog.objects.filter(task_name=task_name, status='Pending').exclude(id=keep_task.id).delete()
+                        if keep_task:
+                            AIProjectBacklog.objects.filter(task_name=task_name, status='Pending').exclude(id=keep_task.id).delete()
 
-                    # ሐ. 'Running' ላይ ከአንድ ሰአት በላይ ተሰክተው የቆዩትን መልቀቅ
-                    stuck_limit = timezone.now() - timezone.timedelta(hours=1)
+                    # ሐ. 'Running' ላይ ከ15 ደቂቃ በላይ ተሰክተው የቆዩትን መልቀቅ
+                    # ✅ FIXED: timedelta አጠቃቀም ተስተካክሏል
+                    stuck_limit = timezone.now() - timedelta(minutes=15)
                     stuck_tasks = AIProjectBacklog.objects.filter(status='Running', updated_at__lt=stuck_limit)
                     if stuck_tasks.exists():
                         logger.info(f"🛠️ Resetting {stuck_tasks.count()} stuck tasks.")

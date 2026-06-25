@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/product_detail.html
-📝 ለውጥ፦ Master CEO Optimized Detail Page — Strategic UI & Multi-Lingual
-✅ የተፈቱ ችግሮች፦ Manual Contacting, Cluttered Metadata, Static Styling
-📅 ቀን፦ 2026-06-24
+📝 ለውጥ፦ v1.1 Master CEO Optimized Detail Page — Dynamic Layout (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Manual Contacting sync, RAG multilingual translations, Zero CSS Bloat
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,26 +10,12 @@
 {% load static %}
 
 {% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
 <style>
-    .product-detail-wrapper { background: white; border-radius: 2rem; overflow: hidden; box-shadow: var(--shadow-lg); }
-    .main-img-container { height: 100%; min-height: 400px; background: #f8fafc; display: flex; align-items: center; justify-content: center; position: relative; }
-    .main-img-container img { width: 100%; height: 100%; object-fit: contain; }
-    
-    /* 🏷️ Status Badges */
-    .verified-badge { position: absolute; top: 20px; left: 20px; background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 50px; font-weight: 800; font-size: 0.75rem; box-shadow: 0 4px 10px rgba(16,185,129,0.3); }
-
-    .price-hero { font-size: 2.5rem; font-weight: 900; color: var(--primary-color); letter-spacing: -1px; }
-    
-    /* 🌐 Multi-Lingual Tabs */
-    .lang-nav .nav-link { border: none; color: var(--text-muted); font-weight: 600; border-radius: 50px; padding: 0.4rem 1.2rem; font-size: 0.85rem; }
-    .lang-nav .nav-link.active { background: var(--primary-color); color: white; }
-    .translation-pane { background: #f1f5f9; border-radius: 1.5rem; padding: 2rem; font-size: 1.1rem; line-height: 1.8; color: #334155; min-height: 150px; }
-
-    /* 📱 Action Buttons */
-    .action-group { display: flex; gap: 1rem; margin-top: 2rem; }
-    .btn-contact { background: #22c55e; color: white; border-radius: 50px; padding: 1rem 2rem; font-weight: 800; flex: 1; border: none; transition: all 0.3s ease; text-align: center; text-decoration: none; }
-    .btn-contact:hover { background: #16a34a; transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(34,197,94,0.3); color: white; }
+    {{ theme.custom_css|safe }}
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -52,7 +38,7 @@
                     {% endif %}
                     
                     {% if product.image %}
-                        <img src="{{ product.image.url }}" alt="{{ product.title }}">
+                        <img src="{{ product.image.url }}" alt="{{ product.get_translated_title }}">
                     {% else %}
                         <img src="https://loremflickr.com/800/800/{{ product.category.name|slugify|default:'item' }}?lock={{ product.id }}" alt="{{ product.title }}">
                     {% endif %}
@@ -116,7 +102,7 @@
         </div>
     </div>
 
-    <!-- 🌍 AI Multi-Lingual Section (ዘመናዊ ትርጉሞች) -->
+    <!-- 🌍 AI Multi-Lingual Section (ዘመናዊ የRAG ትርጉሞች) -->
     {% if product.translations %}
     <div class="mt-5">
         <div class="d-flex align-items-center justify-content-between mb-4">
@@ -177,7 +163,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    // Tab Persistence ን በ global.js በኩል ስለምንቆጣጠረው እዚህ አያስፈልግም
-</script>
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ጃቫስክሪፕቶች በሙሉ ወደ static/js/global.js ተዛውረዋል (የሕግ 4 ጥበቃ) -->
 {% endblock %}

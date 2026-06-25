@@ -1,8 +1,8 @@
 /* ============================================================
-📁 ፋይል፦ EthAfri/static/js/global.js
-📝 ለውጥ፦ Master CEO Agent Aware - Real-time Status + UI Optimizations
-✅ የተፈቱ ችግሮች፦ Page Reload Dependency, Static UI Feedback
-📅 ቀን፦ 2026-06-24
+📁 ፋይል፦ EthAfri/marketplace/static/js/global.js
+📝 ለውጥ፦ v1.3 WebSocket Event Publisher (Dashboard Integration)
+✅ የተፈቱ ችግሮች፦ Dynamic CustomEvent 'agent_update' broadcast for templates
+📅 ቀን፦ 2026-06-25
 ============================================================ */
 
 (function() {
@@ -11,13 +11,15 @@
     document.addEventListener("DOMContentLoaded", function() {
         console.log("🚀 EthAfri Smart System Initialized.");
 
-        // መሠረታዊ ተግባራትን አስነሳ
+        // መሠረታዊ ተግባራትን በአንድነት ማስነሳት
         initLanguageSwitcher();
         initBottomNav();
         initAutoDismissAlerts();
         initProductImageLazyLoading();
-        initAgentStatusObserver(); // 🤖 አዲስ፡ የኤጀንቱን ሁኔታ በሪል-ታይም መከታተያ
+        initAgentStatusObserver(); 
         initKeyboardShortcuts();
+        initGlobalImageFallback(); // 📦 አዲስ፡ ምስሎች መጫን ሲሳናቸው ጥበቃ የሚያደርግ የጋራ ሎጂክ
+        initScrollDraggables();    // 📦 አዲስ፡ ማንኛውንም አግድም ማውጫ በጣት እንዲንቀሳቀስ የሚያደርግ
     });
 
     // ============================================================
@@ -27,25 +29,28 @@
         const dashboard = document.querySelector('[data-agent-monitor]');
         if (!dashboard) return;
 
-        // የ WebSocket ግንኙነት መክፈቻ (ከ consumers.py ጋር ይገናኛል)
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(protocol + window.location.host + '/ws/agent-status/');
 
         socket.onmessage = function(e) {
             const data = JSON.parse(e.data);
+            
+            // ✅ FIXED: የ CL ተርሚናሉ (agent_status.html) በእውነተኛ ሰዓት እንዲያድግ ክስተቱን በፕሮጀክቱ ውስጥ ማሰራጨት
+            const event = new CustomEvent('agent_update', { detail: data });
+            document.dispatchEvent(event);
+            
             if (data.type === 'status_update') {
                 updateDashboardUI(data);
             }
         };
 
         socket.onclose = function() {
-            console.warn("⚠️ Agent socket closed. Reconnecting in 5s...");
+            console.warn("⚠️ Agent status socket closed. Reconnecting...");
             setTimeout(initAgentStatusObserver, 5000);
         };
     }
 
     function updateDashboardUI(data) {
-        // ዳሽቦርዱ ላይ ያሉ ቁጥሮችን በሪል-ታይም መቀየር
         const pendingEl = document.getElementById('pending-tasks-count');
         const runningEl = document.getElementById('running-task-name');
         
@@ -71,7 +76,8 @@
 
     function initBottomNav() {
         const currentPath = window.location.pathname;
-        document.querySelectorAll(".bottom-nav a").forEach(link => {
+        // ✅ FIXED: የግርጌ ሊንኮችን በሁለቱም የክላስ አይነቶች ፈልጎ ለማግኘት (የሕግ 4 ጥበቃ)
+        document.querySelectorAll(".bottom-nav-custom a, .bottom-nav a").forEach(link => {
             if (link.getAttribute("href") === currentPath) {
                 link.classList.add("active");
             }
@@ -89,7 +95,7 @@
     }
 
     // ============================================================
-    // 📦 3. PRODUCT TOOLS
+    // 📦 3. PRODUCT TOOLS (LAZY LOADING & FALLBACK)
     // ============================================================
     function initProductImageLazyLoading() {
         if ('IntersectionObserver' in window) {
@@ -106,19 +112,52 @@
         }
     }
 
+    // ✅ FIXED: ምስሎች መጫን ሲሳናቸው በቋሚነት ጥበቃ የሚያደርግ የጋራ ሎጂክ (የሕግ 4 ጥበቃ)
+    function initGlobalImageFallback() {
+        document.querySelectorAll('img').forEach(img => {
+            img.addEventListener('error', function() {
+                this.src = 'https://loremflickr.com/400/300/product?lock=' + Date.now();
+            });
+        });
+    }
+
+    // ✅ FIXED: ማንኛውንም በአግድም የሚጎተት ማውጫ (.scroll-draggable) በጣት እንዲንቀሳቀስ የሚያደርግ
+    function initScrollDraggables() {
+        document.querySelectorAll('.scroll-draggable').forEach(scrollContainer => {
+            let isDown = false;
+            let startX;
+            let scrollLeft;
+
+            scrollContainer.addEventListener('mousedown', (e) => {
+                isDown = true;
+                startX = e.pageX - scrollContainer.offsetLeft;
+                scrollLeft = scrollContainer.scrollLeft;
+            });
+
+            scrollContainer.addEventListener('mouseleave', () => { isDown = false; });
+            scrollContainer.addEventListener('mouseup', () => { isDown = false; });
+
+            scrollContainer.addEventListener('mousemove', (e) => {
+                if (!isDown) return;
+                e.preventDefault();
+                const x = e.pageX - scrollContainer.offsetLeft;
+                const walk = (x - startX) * 1.5;
+                scrollContainer.scrollLeft = scrollLeft - walk;
+            });
+        });
+    }
+
     // ============================================================
     // ⌨️ 4. ADMIN KEYBOARD SHORTCUTS
     // ============================================================
     function initKeyboardShortcuts() {
         document.addEventListener('keydown', function(e) {
-            // Ctrl + G -> ወደ Growth Dashboard ለመሄድ
             if (e.ctrlKey && e.key === 'g') {
                 window.location.href = '/growth-dashboard/';
             }
         });
     }
 
-    // 📋 Utility: Copy to Clipboard
     window.copyToClipboard = function(text, btn) {
         navigator.clipboard.writeText(text).then(() => {
             const originalIcon = btn.innerHTML;

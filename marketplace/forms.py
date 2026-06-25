@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/forms.py
-# 📝 ለውጥ፦ Multi-Site Support + Enhanced Product Form (Optimized)
-# ✅ የተፈቱ ችግሮች፦ Invalid URL repo_path entries in registration form (UX Safeguard)
-# 📅 ቀን፦ 2026-06-23
+# 📝 ለውጥ፦ Multi-Site Support + Enhanced Product Form (v1.1)
+# ✅ የተፈቱ ችግሮች፦ Unstyled site/category Dropdowns Fixed (Design System Alignment)
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
 from django import forms
@@ -13,16 +13,20 @@ from .models import Product, Category, SiteRegistry
 class ProductForm(forms.ModelForm):
     """የምርት መለጠፊያ ፎርም — Multi-Site ድጋፍ ያለው"""
     
+    # ✅ FIXED: የዲዛይን አንድነትን ለመጠበቅ form-select ክላስ ተገጥሞለታል (የሕግ 4 ጥበቃ)
     site = forms.ModelChoiceField(
         queryset=SiteRegistry.objects.filter(is_active=True),
         required=False,
         empty_label="Select Site (optional)",
+        widget=forms.Select(attrs={'class': 'form-select'}),
         help_text="ይህ ምርት የሚለጠፍበትን ጣቢያ ይምረጡ"
     )
     
+    # ✅ FIXED: የዲዛይን አንድነትን ለመጠበቅ form-select ክላስ ተገጥሞለታል
     category = forms.ModelChoiceField(
         queryset=Category.objects.all(),
         required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
         empty_label="Select Category"
     )
     
@@ -170,10 +174,6 @@ class SiteRegistrationForm(forms.ModelForm):
             raise forms.ValidationError("Site name can only contain letters, numbers, hyphens, and underscores.")
         return name.lower()
 
-    # ============================================================
-    # 🛡️ ራስ-ሰር የጥበቃ በር (Repo Path Validation Safeguard)
-    # የውጭ ዩአርኤል (URL) በስህተት በ Repo Path ውስጥ እንዳይገባ ይከላከላል
-    # ============================================================
     def clean_repo_path(self):
         repo_path = self.cleaned_data.get('repo_path')
         if repo_path:

@@ -1,9 +1,9 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ Optimized Build Script — Cache-enabled, Fast Static Collection & SQL Safeguard
-# ✅ የተፈቱ ችግሮች፦ ProgrammingError (table marketplace_aisystemtask does not exist), Slow Pip
-# 📅 ቀን፦ 2026-06-23
+# 📝 ለውጥ፦ v1.1 Optimized Build Script — WhiteNoise Sync (Zero Runtime Crash)
+# ✅ የተፈቱ ችግሮች፦ ValueError (Missing staticfiles manifest entry) Fix, Pipeline Safety
+# 📅 ቀን፦ 2026-06-25
 # ============================================================
 
 # ስህተት ሲያጋጥም ወዲያውኑ እንዲቆም ማድረግ
@@ -39,10 +39,11 @@ python manage.py makemigrations marketplace --no-input || true
 python manage.py makemigrations --merge --no-input || true
 python manage.py migrate --no-input || true
 
-# 3. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ (Omitted --clear for 3x speedup)
+# 3. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ 
 echo ""
 echo "📂 Collecting static files..."
-python manage.py collectstatic --no-input --no-post-process || true
+# ✅ FIXED: የ WhiteNoise ስህተትን ለመከላከል --no-post-process ተወግዶ በጥራት እንዲሰበሰብ ተደርጓል (የሕግ 4 ጥበቃ)
+python manage.py collectstatic --no-input || true
 
 # 4. የቋንቋ ፋይሎችን ማጠናቀር (Omitted heavy makemessages on build server)
 echo ""

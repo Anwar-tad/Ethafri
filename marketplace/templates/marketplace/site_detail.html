@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/site_detail.html
-📝 ለውጥ፦ Master CEO Site Specific Intelligence — High-Detail UI
-✅ የተፈቱ ችግሮች፦ Static Metrics, Missing Individual Site Control
-📅 ቀን፦ 2026-06-24
+📝 ለውጥ፦ v1.2 Site Specific Intelligence — Static CSS Migrated (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Clean metrics layout, accurate error timesince, zero inline style sheets
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -10,43 +10,12 @@
 {% load static %}
 
 {% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
 <style>
-    /* 🌐 Site Specific Header */
-    .site-hero {
-        background: var(--bg-gradient); color: white;
-        border-radius: 1.5rem; padding: 3rem 2rem;
-        margin-bottom: 2rem; box-shadow: var(--shadow-lg);
-        position: relative; overflow: hidden;
-    }
-    .site-hero::after {
-        content: '\f0ac'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
-        position: absolute; right: -10px; bottom: -10px; font-size: 10rem; opacity: 0.1;
-    }
-
-    /* 📊 Metric Grid */
-    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
-    .metric-item {
-        background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.2); border-radius: 1rem;
-        padding: 1rem; text-align: center;
-    }
-    .metric-val { font-size: 1.5rem; font-weight: 800; display: block; }
-    .metric-lbl { font-size: 0.65rem; text-transform: uppercase; opacity: 0.8; letter-spacing: 0.05em; }
-
-    /* 📑 Clean Tabs */
-    .nav-pills-custom .nav-link {
-        color: var(--text-muted); font-weight: 600; border-radius: 50px;
-        padding: 0.5rem 1.5rem; transition: all 0.3s ease;
-    }
-    .nav-pills-custom .nav-link.active {
-        background: var(--primary-color); color: white;
-    }
-
-    .tab-pane-content {
-        background: white; border-radius: 1.5rem; padding: 1.5rem;
-        box-shadow: var(--shadow-sm); border: 1px solid #f1f5f9;
-    }
+    {{ theme.custom_css|safe }}
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}

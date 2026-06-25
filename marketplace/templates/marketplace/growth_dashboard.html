@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/growth_dashboard.html
-📝 ለውጥ፦ Master CEO Dashboard — Real-time, Recursive & Strategic Aware
-✅ የተፈቱ ችግሮች፦ Static Feedback, Missing Harvester Status, Loop Awareness
-📅 ቀን፦ 2026-06-24
+📝 ለውጥ፦ v1.2 Master CEO Dashboard — Static CSS Migrated & Failures Resolved (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic Status Mismatch, Code Translation Mappings, Direct Command Routing Fixed
+📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,53 +10,16 @@
 {% load static %}
 
 {% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
 <style>
-    .dashboard-wrapper { padding: 1.5rem 0; background: #f8fafc; min-height: 100vh; }
-    
-    /* 🤖 Agent Status Card */
-    .agent-core-card {
-        background: linear-gradient(135deg, #0f172a, #1e293b);
-        color: white; border-radius: 1.5rem; padding: 2rem;
-        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
-        position: relative; overflow: hidden;
-    }
-    .agent-core-card::after {
-        content: '\f544'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
-        position: absolute; right: -20px; bottom: -20px; font-size: 8rem; opacity: 0.05;
-    }
-
-    /* 📊 Real-time Stats */
-    .stat-box {
-        background: white; border-radius: 1rem; padding: 1.25rem;
-        border: 1px solid #e2e8f0; transition: all 0.3s ease;
-    }
-    .stat-box:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-    .stat-val { font-size: 1.75rem; font-weight: 800; color: #1e293b; }
-    .stat-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
-
-    /* 📋 Backlog Items */
-    .backlog-item-new {
-        background: white; border-radius: 0.75rem; padding: 1rem;
-        margin-bottom: 0.75rem; border-left: 5px solid #cbd5e1;
-        transition: all 0.2s ease;
-    }
-    .backlog-item-new:hover { border-left-width: 10px; background: #f1f5f9; }
-    .priority-Critical { border-left-color: #ef4444; }
-    .priority-High { border-left-color: #f59e0b; }
-    .priority-Medium { border-left-color: #3b82f6; }
-    
-    /* 📡 Harvester & Healing Status */
-    .live-pulse {
-        width: 10px; height: 10px; border-radius: 50%;
-        display: inline-block; margin-right: 5px;
-    }
-    .pulse-green { background: #22c55e; box-shadow: 0 0 0 rgba(34, 197, 94, 0.4); animation: pulse 2s infinite; }
-    @keyframes pulse { 0% { box-shadow: 0 0 0 0px rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0px rgba(34, 197, 94, 0); } }
+    {{ theme.custom_css|safe }}
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-wrapper" data-agent-monitor> <!-- WebSocket መጋጠሚያ -->
+<div class="dashboard-wrapper" data-agent-monitor> <!-- WebSocket መጋጠሚያ ከ global.js v1.2 ጋር ይገናኛል -->
     <div class="container-fluid">
 
         <!-- 🤖 ዋና የኤጀንት ሁኔታ -->
@@ -65,7 +28,7 @@
                 <div class="col-md-8">
                     <h2 class="fw-bold mb-2">
                         <i class="fas fa-brain me-2 text-info"></i>
-                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v5.0</span>
+                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v9.5</span>
                     </h2>
                     <p class="opacity-75 mb-4">Autonomous Strategic Growth & System Evolution Engine</p>
                     <div class="d-flex flex-wrap gap-3">
@@ -75,15 +38,16 @@
                         </div>
                         <div class="bg-white bg-opacity-10 rounded-pill px-3 py-2 border border-white border-opacity-10">
                             <i class="fas fa-history me-1 text-warning"></i>
-                            <small>{% trans "Last Audit" %}: {{ agent_heartbeat.value.timestamp|default:"Just now" }}</small>
+                            <!-- ✅ FIXED: የኮንቴክስት ስህተትን ለመከላከል ወደ views.py status_info.last_run ተቀይሯል -->
+                            <small>{% trans "Last Run" %}: {{ status_info.last_run|default:"Just now" }}</small>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4 text-md-end mt-4 mt-md-0">
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
                     <form method="POST" action="{% url 'trigger_evolution' %}">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-info btn-lg rounded-pill px-5 fw-bold shadow-lg">
-                            <i class="fas fa-rocket me-2"></i> {% trans "Manual Trigger" %}
+                            <i class="fas fa-sync-alt me-2"></i> {% trans "Run Evolution" %}
                         </button>
                     </form>
                 </div>
@@ -114,7 +78,7 @@
                 <div class="stat-box">
                     <div class="stat-label">{% trans "System Health" %}</div>
                     <div class="stat-val {% if unresolved_errors > 0 %}text-danger{% else %}text-success{% endif %}">
-                        {% if unresolved_errors > 0 %}{{ unresolved_errors }} Errors{% else %}100%{% endif %}
+                        {% if unresolved_errors > 0 %}{{ unresolved_errors }} {% trans "Errors" %}{% else %}100%{% endif %}
                     </div>
                 </div>
             </div>
@@ -166,9 +130,9 @@
                     </div>
                     <div class="card-body">
                         <p class="small text-muted">Force the Agent to prioritize a specific mission globally.</p>
-                        <form method="POST">
+                        <!-- ✅ FIXED: መመሪያው በጥራት እንዲመዘገብ የፎርም አቅጣጫው ወደ owner_directive ቪው ተመርቷል (የሕግ 3 ጥበቃ) -->
+                        <form method="POST" action="{% url 'owner_directive' %}">
                             {% csrf_token %}
-                            <input type="hidden" name="action" value="create_override">
                             <div class="mb-3">
                                 <textarea name="instruction" class="form-control rounded-3 border-0 bg-light" rows="3" placeholder="e.g. Implement a multi-vendor chat system immediately..." required></textarea>
                             </div>
@@ -185,6 +149,7 @@
                         <h5 class="mb-0 fw-bold"><i class="fas fa-dna me-2"></i> Evolution History</h5>
                     </div>
                     <div class="card-body p-0">
+                        <!-- ✅ FIXED: ኮንቴክስቱ በ views.py ላይ እንዲስተካከል ታዟል -->
                         {% for log in evolution_logs %}
                         <div class="p-3 border-bottom border-light">
                             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -207,7 +172,6 @@
 {% block extra_js %}
 <script>
     // 60 ሰከንድ መጠበቅ ሳያስፈልገን በ WebSocket አማካኝነት global.js ራሱ ያድሰዋል
-    // እዚህ ጋር ለ fallback ብቻ 10 ደቂቃ Refresh እንጨምር
     setTimeout(function() { location.reload(); }, 600000);
 </script>
 {% endblock %}

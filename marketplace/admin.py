@@ -1,3 +1,10 @@
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/admin.py
+# 📝 ለውጥ፦ Dynamic Diagnostics & Safe Severity Tagging (v1.1)
+# ✅ የተፈቱ ችግሮች፦ Dynamic Severity Colors, Null-Safe String Slicing, Registered Missing Models
+# 📅 ቀን፦ Thursday, June 25, 2026
+# ============================================================
+
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
@@ -36,9 +43,13 @@ class ProductAdmin(admin.ModelAdmin):
         color = 'green' if obj.market_value_status == 'Verified' else 'orange'
         return format_html('<b style="color: {};">{}</b>', color, obj.market_value_status)
 
+
 admin.site.register(Category)
 admin.site.register(TranslationQueue)
 admin.site.register(ProductTranslation)
+
+# ✅ FIXED: የፍለጋ መረጃዎችን በዳሽቦርዱ ላይ ለመከታተል የተመዘገበ (የሕግ 4 ጥበቃ)
+admin.site.register(UserSearch)
 
 # ============================================================
 # 🌐 2. Multi-Site እና የኤጀንት ሰሌዳ (Backlog)
@@ -88,10 +99,16 @@ class SelfHealingLogAdmin(admin.ModelAdmin):
     list_display = ('error_message_short', 'resolved', 'created_at')
     
     def error_message_short(self, obj):
-        return obj.error_message[:100] + "..."
+        # ✅ FIXED: TypeError ለመከላከል Null-Safe አቀራረብ ተተክቷል
+        msg = obj.error_message or ""
+        return msg[:100] + "..." if len(msg) > 100 else msg
+
 
 admin.site.register(SiteConfig)
 admin.site.register(AIEvolutionLog)
+
+# ✅ FIXED: የገበያ አዝማሚያዎችን በዳሽቦርዱ ላይ ለመከታተል የተመዘገበ
+admin.site.register(MarketTrend)
 
 # ============================================================
 # 👑 4. የአድሚን የበላይነት (Executive Control)
@@ -103,7 +120,8 @@ class AdminOverrideInstructionAdmin(admin.ModelAdmin):
     list_filter = ('is_processed', 'priority_override')
     
     def instruction_preview(self, obj):
-        return obj.instruction[:70] + "..."
+        msg = obj.instruction or ""
+        return msg[:70] + "..." if len(msg) > 70 else msg
 
 # ============================================================
 # 💰 5. የንግድ እድገት እና ማርኬቲንግ
@@ -130,7 +148,9 @@ class VectorMemoryAdmin(admin.ModelAdmin):
     list_display = ('memory_type', 'content_preview', 'success_rate', 'usage_count')
     
     def content_preview(self, obj):
-        return obj.content[:100] + "..."
+        msg = obj.content or ""
+        return msg[:100] + "..." if len(msg) > 100 else msg
+
 
 @admin.register(SecurityLog)
 class SecurityLogAdmin(admin.ModelAdmin):
@@ -138,12 +158,21 @@ class SecurityLogAdmin(admin.ModelAdmin):
     list_filter = ('severity', 'is_fixed', 'category')
 
     def severity_tag(self, obj):
-        color = 'red' if obj.severity == 'high' else 'orange'
-        return format_html('<b style="color: {};">{}</b>', color, obj.severity.upper())
+        # ✅ FIXED: የ "critical" እና የ "low" የደህንነት ቀለሞች በተገቢው ደረጃ በጥራት ተለይተዋል
+        colors = {
+            'critical': 'darkred',
+            'high': 'red',
+            'medium': 'orange',
+            'low': 'gray'
+        }
+        color = colors.get(str(obj.severity).lower(), 'gray')
+        return format_html('<b style="color: {};">{}</b>', color, str(obj.severity).upper())
+
 
 @admin.register(PredictionLog)
 class PredictionLogAdmin(admin.ModelAdmin):
     list_display = ('prediction_type', 'predicted_value', 'confidence_score', 'predicted_at')
+
 
 admin.site.register(AgentTask)
 admin.site.register(ABTest)
