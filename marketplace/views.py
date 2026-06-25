@@ -154,17 +154,23 @@ def owner_directive_view(request):
     })
 
 @staff_member_required
-def trigger_evolution(request):
-    """ኤጀንቱን ከበስተጀርባ (Background) በሃይል ማስነሻ"""
-    def run_agent_async():
-        try:
-            execute_master_cycle()
-        finally:
-            connections.close_all()
+# 📄 ፋይል፦ EthAfri/marketplace/views.py
 
-    threading.Thread(target=run_agent_async, daemon=True).start()
-    messages.info(request, "🚀 ኤጀንቱ የዕድገት ዑደት በጀርባ (Background) ጀምሯል።")
-    return redirect("growth_dashboard")
+def trigger_evolution(request):
+    # ❌ ከላይ የነበረውን Import አስወግደህ እዚህ ውስጥ አስገባው፦
+    try:
+        from marketplace.growth_agent import run_daily_market_analysis
+        # የኤጀንቱን ስራ አስጀምር
+        run_daily_market_analysis()
+        messages.success(request, "Evolution triggered successfully!")
+    except ImportError as e:
+        logger.error(f"❌ Growth Agent module missing or broken: {e}")
+        messages.error(request, "System core module is temporarily unavailable.")
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        
+    return redirect('dashboard')
+
 
 # ============================================================
 # 🌐 4. MULTI-SITE & MARKETING (ባለብዙ-ጣቢያ አስተዳደር)
