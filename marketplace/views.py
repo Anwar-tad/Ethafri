@@ -146,31 +146,22 @@ def owner_directive_view(request):
         'sites': SiteRegistry.objects.filter(is_active=True)
     })
 
+# views.py ውስጥ የነበረውን trigger_evolution እንዲህ አድርገው፦
 @staff_member_required
 def trigger_evolution(request):
-    """ኤጀንቱን ከበስተጀርባ (Background) በሃይል ማስነሻ - FIXED 504 TIMEOUT & NOREVERSEMATCH"""
+    """ኤጀንቱን በእጅ ለመቀስቀስ"""
     def run_bg_evolution():
         try:
-            from marketplace.growth_agent import run_daily_market_analysis
-            run_daily_market_analysis()
-        except ImportError as e:
-            logger.error(f"❌ Growth Agent module missing or broken: {e}")
+            # ✅ ማሻሻያ፦ Lazy Import
+            from marketplace.growth_agent import execute_master_cycle
+            execute_master_cycle()
         except Exception as e:
             logger.error(f"Error during manual evolution trigger: {e}")
         finally:
             connections.close_all()
 
-    try:
-        # ✅ ማሻሻያ 1፦ የ AI ስራው በጀርባ ክር (Background Thread) እንዲሄድ ማድረግ (የሰርቨር መቆምን ይከላከላል)
-        thread = threading.Thread(target=run_bg_evolution)
-        thread.daemon = True
-        thread.start()
-        
-        messages.success(request, "🔄 የራስ-ገዝ ኤጀንት የዕድገት ዑደት ከበስተጀርባ (Background) በተሳካ ሁኔታ ተጀምሯል።")
-    except Exception as e:
-        messages.error(request, f"ዑደቱን ከበስተጀርባ ለማስጀመር አልተቻለም፦ {e}")
-        
-    # ✅ ማሻሻያ 2፦ ወደ ትክክለኛው የዩአርኤል ስም 'growth_dashboard' ማምራት (NoReverseMatchን ይፈታል)
+    threading.Thread(target=run_bg_evolution, daemon=True).start()
+    messages.success(request, "🔄 የራስ-ገዝ ኤጀንት የዕድገት ዑደት በተሳካ ሁኔታ ተጀምሯል።")
     return redirect('growth_dashboard')
 
 # ============================================================
@@ -307,5 +298,7 @@ def logout_view(request):
 def trigger_autonomous_evolution(request):
     """ከውጭ ክሮን (External Webhook) ኤጀንቱን ለመቀስቀስ"""
     connections.close_all()
+    # ✅ ማሻሻያ፦ የነበረውን የ NameError ለመከላከል Lazy Import መጠቀም
+    from marketplace.growth_agent import execute_master_cycle
     threading.Thread(target=execute_master_cycle, daemon=True).start()
     return JsonResponse({"status": "triggered"}, status=200)

@@ -1,3 +1,10 @@
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/ai_utils.py
+# 📝 ለውጥ፦ Smart AI Model Router — Pruned, Safe String Literals & Correct URLs
+# ✅ የተፈቱ ችግሮች፦ SyntaxError on Line 22, Hugging Face & GitHub API Markdown URL Bugs
+# 📅 ቀን፦ 2026-06-25
+# ============================================================
+
 import json
 import re
 import logging
@@ -16,11 +23,13 @@ LAST_HF_CALL_TIME = 0
 
 def clean_and_parse_json(text):
     """የ AI ምላሽን አጽድቶ ወደ ዲክሽነሪ ይቀይራል"""
-    if isinstance(text, dict): return text
-    if not text: return None
+    if isinstance(text, dict): 
+        return text
+    if not text: 
+        return None
     try:
-        clean_text = re.sub(r'^```json\s*|^
-```\s*|```$', '', str(text).strip(), flags=re.MULTILINE)
+        # ✅ ማሻሻያ 1፦ የነበረው ባለ ሁለት መስመር የተቆረጠው Regex በአንድ መስመር ላይ ተስተካክሏል (SyntaxErrorን ይፈታል)
+        clean_text = re.sub(r'^```json\s*|^```\s*|```$', '', str(text).strip(), flags=re.MULTILINE)
         match = re.search(r'\{.*\}', clean_text, re.DOTALL)
         if match:
             return json.loads(match.group(0))
@@ -37,7 +46,7 @@ def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
     gemini_keys = [val for key, val in os.environ.items() if key.startswith("GEMINI_API_KEY") and val]
     groq_key = os.environ.get('GROQ_API_KEY')
     hf_token = os.environ.get('HUGGINGFACE_TOKEN')
-    github_token = os.environ.get('GITHUB_TOKEN') # 👈 የ GitHub Models API ቁልፍ
+    github_token = os.environ.get('GITHUB_TOKEN')
 
     def call_gemini():
         if not gemini_keys: return None
@@ -79,8 +88,8 @@ def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
         try:
             logger.info("🤖 Calling Hugging Face API...")
             model_id = "Qwen/Qwen2.5-Coder-7B-Instruct" 
-            # ✅ የተስተካከለ ንጹህ URL (ማርክዳውን ተወግዷል)
-            api_url = f"[https://api-inference.huggingface.co/models/](https://api-inference.huggingface.co/models/){model_id}"
+            # ✅ ማሻሻያ 2፦ የተስተካከለ ንጹህ የ Hugging Face ዩአርኤል (Markdown ተወግዷል)
+            api_url = f"https://api-inference.huggingface.co/models/{model_id}"
             headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
             
             payload = {
@@ -108,8 +117,8 @@ def ask_ai_with_failover(prompt, pool_type="coding", expected_keys=None):
             return None
         try:
             logger.info("🛡️ Calling GitHub Models API (Fallback)...")
-            # ✅ የተስተካከለ ንጹህ URL (ማርክዳውን ተወግዷል)
-            api_url = "[https://models.inference.ai.azure.com/chat/completions](https://models.inference.ai.azure.com/chat/completions)"
+            # ✅ ማሻሻያ 3፦ የተስተካከለ ንጹህ የ GitHub Models ዩአርኤል (Markdown ተወግዷል)
+            api_url = "https://models.inference.ai.azure.com/chat/completions"
             headers = {
                 "Authorization": f"Bearer {github_token}",
                 "Content-Type": "application/json"
