@@ -124,7 +124,7 @@ def admin_growth_dashboard(request):
         'unresolved_errors': AgentErrorLog.objects.filter(resolved=False).count(),
         'sites': SiteRegistry.objects.all(),
         'recent_backlog': AIProjectBacklog.objects.all().order_by('-created_at')[:8],
-        'status_info': status_info
+        'status_info': status_info,
         'evolution_logs': AIEvolutionLog.objects.all().order_by('-created_at')[:5]
     }
     return render(request, 'marketplace/growth_dashboard.html', context)

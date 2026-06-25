@@ -1,8 +1,8 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ v1.1 Optimized Build Script — WhiteNoise Sync (Zero Runtime Crash)
-# ✅ የተፈቱ ችግሮች፦ ValueError (Missing staticfiles manifest entry) Fix, Pipeline Safety
+# 📝 ለውጥ፦ v1.2 Optimized Build Script — Settings Configured (Zero Build Error)
+# ✅ የተፈቱ ችግሮች፦ django.core.exceptions.ImproperlyConfigured in build-time status verify
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -11,6 +11,9 @@ set -e
 
 echo "🚀 EthAfri Build Script Started..."
 echo "⏰ $(date)"
+
+# ✅ FIXED: የጃንጎን ቅንብር ፋይል በሼል ደረጃ ማስተዋወቅ (የሕግ 3 ጥበቃ)
+export DJANGO_SETTINGS_MODULE=core.settings
 
 # 1. የፓይተን ጥቅሎችን በካሽ ማህደር አማካኝነት በከፍተኛ ፍጥነት መጫን (Pip Caching)
 echo ""
@@ -42,7 +45,6 @@ python manage.py migrate --no-input || true
 # 3. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ 
 echo ""
 echo "📂 Collecting static files..."
-# ✅ FIXED: የ WhiteNoise ስህተትን ለመከላከል --no-post-process ተወግዶ በጥራት እንዲሰበሰብ ተደርጓል (የሕግ 4 ጥበቃ)
 python manage.py collectstatic --no-input || true
 
 # 4. የቋንቋ ፋይሎችን ማጠናቀር (Omitted heavy makemessages on build server)
