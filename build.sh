@@ -1,8 +1,8 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ v1.2 Optimized Build Script — Settings Configured (Zero Build Error)
-# ✅ የተፈቱ ችግሮች፦ django.core.exceptions.ImproperlyConfigured in build-time status verify
+# 📝 ለውጥ፦ v1.4 Optimized Build Script — PostgreSQL Dual Index Safeguard (v1.4)
+# ✅ የተፈቱ ችግሮች፦ relation marketplace_agent_t_ab7613_idx already exists (Postgres dual-way migration fixed!)
 # 📅 ቀን፦ 2026-06-25
 # ============================================================
 
@@ -12,7 +12,7 @@ set -e
 echo "🚀 EthAfri Build Script Started..."
 echo "⏰ $(date)"
 
-# ✅ FIXED: የጃንጎን ቅንብር ፋይል በሼል ደረጃ ማስተዋወቅ (የሕግ 3 ጥበቃ)
+# የጃንጎን ቅንብር ፋይል በሼል ደረጃ ማስተዋወቅ
 export DJANGO_SETTINGS_MODULE=core.settings
 
 # 1. የፓይተን ጥቅሎችን በካሽ ማህደር አማካኝነት በከፍተኛ ፍጥነት መጫን (Pip Caching)
@@ -22,72 +22,21 @@ pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
 
 # ============================================================
 # 🛡️ የውሂብ ጎታ የደህንነት መከላከያ (SQL Migration Safeguard)
-# የድሮው ሰንጠረዥ 'marketplace_aisystemtask' በዳታቤዝ ውስጥ መኖሩን ማረጋገጥ (ከስህተት ለመዳን)
 # ============================================================
 echo ""
-echo "🔒 Ensuring legacy table marketplace_aisystemtask exists for safe migration..."
+echo "🔒 Ensuring legacy tables and indexes exist for safe migration..."
 python -c "
 import django
 django.setup()
 from django.db import connection
 with connection.cursor() as cursor:
+    # ሀ. የቆዩ ሰንጠረዦች መኖራቸውን ማረጋገጥ
     cursor.execute('CREATE TABLE IF NOT EXISTS marketplace_aisystemtask (id SERIAL PRIMARY KEY);')
-print('✅ Legacy table check complete')
-" || true
-
-# 2. ማይግሬሽን ግጭት መፍትሄ
-echo ""
-echo "🗄️ Running migrations..."
-python manage.py makemigrations marketplace --no-input || true
-python manage.py makemigrations --merge --no-input || true
-python manage.py migrate --no-input || true
-
-# 3. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ 
-echo ""
-echo "📂 Collecting static files..."
-python manage.py collectstatic --no-input || true
-
-# 4. የቋንቋ ፋይሎችን ማጠናቀር (Omitted heavy makemessages on build server)
-echo ""
-if command -v msgfmt &> /dev/null; then
-    echo "🌍 Compiling translation files..."
-    python manage.py compilemessages 2>/dev/null || true
-else
-    echo "⚠️ gettext compilation tool (msgfmt) not found. Skipping compilation."
-fi
-
-# 5. አስፈላጊ ማውጫዎችን መፍጠር
-echo ""
-echo "📁 Creating required directories..."
-mkdir -p staticfiles
-mkdir -p media
-mkdir -p logs
-mkdir -p tmp
-
-# 6. የመጀመሪያ ውሂብ መፍጠር
-echo ""
-echo "🔧 Setting up initial data..."
-python create_admin.py || true
-
-# 7. የስርዓት ሁኔታ ፍተሻ
-echo ""
-echo "🔍 Verifying system status..."
-python -c "
-import django
-django.setup()
-from django.db import connection
-from marketplace.models import SiteRegistry, AIProjectBacklog
-
-connection.ensure_connection()
-print('✅ Database connection successful')
-
-sites = SiteRegistry.objects.filter(is_active=True)
-print(f'✅ Active sites: {sites.count()}')
-
-tasks = AIProjectBacklog.objects.filter(status='Pending')
-print(f'✅ Pending tasks: {tasks.count()}')
-" || true
-
-echo ""
-echo "✅ Build completed successfully!"
-echo "⏰ $(date)"
+    cursor.execute('CREATE TABLE IF NOT EXISTS marketplace_agenttask (id SERIAL PRIMARY KEY, agent_type VARCHAR(20), status VARCHAR(20));')
+    
+    # ለ. ✅ FIXED: ግጭት የሚፈጥረውን አዲሱን ኢንዴክስ በ SQL አስቀድሞ ማጥፋት (already exists ስህተትን ይፈታል!) (የሕግ 3 ጥበቃ)
+    cursor.execute('DROP INDEX IF EXISTS marketplace_agent_t_ab7613_idx;')
+    
+    # ሐ. ✅ FIXED: ጃንጎ የሚቀይረውን የድሮውን ኢንዴክስ በ SQL አስቀድሞ መፍጠር (does not exist ስህተትን ይፈታል!)
+    cursor.execute('CREATE INDEX IF NOT EXISTS marketplace_agentty_847321_idx ON marketplace_agenttask (agent_type, status);')
+print('✅ Legacy table and index check comp
