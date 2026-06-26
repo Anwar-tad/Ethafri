@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/admin.py
 # 📝 ለውጥ፦ Dynamic Diagnostics & Safe Severity Tagging (v1.2)
-# ✅ የተፈቱ ችግሮች፦ AIEvolutionLog Truncation and Formatting, Productis_active List Display
+# ✅ የተፈቱ ችግሮች፦ Missing is_active and auto settings on SiteRegistryAdmin fieldsets
 # 📅 ቀን፦ Friday, June 26, 2026
 # ============================================================
 
@@ -30,7 +30,6 @@ from .models import (
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    # ✅ FIXED: የትኞቹ ምርቶች ንቁ መሆናቸውን በቀጥታ ለማረጋገጥ is_active በ display ዝርዝር ውስጥ ገብቷል (የሕግ 4 ጥበቃ)
     list_display = ('title', 'get_site', 'price', 'category', 'is_active', 'market_status', 'view_count', 'created_at')
     list_filter = ('site', 'category', 'is_active', 'market_value_status')
     search_fields = ('title', 'description', 'location')
@@ -64,6 +63,8 @@ class SiteRegistryAdmin(admin.ModelAdmin):
         ('መሠረታዊ መረጃ', {'fields': ('name', 'display_name', 'niche', 'target_market')}),
         ('ቴክኒክ (Repo/URL)', {'fields': ('repo_path', 'deployment_url')}),
         ('የእድገት ሁኔታ', {'fields': ('growth_level', 'build_phase', 'real_product_count', 'monthly_visitors')}),
+        # ✅ FIXED: የኤጀንቱ ማስነሻ፣ ማቆሚያና ማርኬቲንግ ማብሪያዎች በአድሚኑ ማሻሻያ ገጽ ላይ እንዲታዩ ተጨምረዋል (የሕግ 3 ጥበቃ)
+        ('የኤጀንት መቆጣጠሪያ (Agent Control)', {'fields': ('is_active', 'auto_update_enabled', 'auto_marketing_enabled')}),
     )
 
 @admin.register(AIProjectBacklog)
@@ -83,7 +84,7 @@ class AIProjectBacklogAdmin(admin.ModelAdmin):
         return format_html('<b style="color: {};">{}</b>', colors.get(obj.status, 'black'), obj.status)
 
 
-# ✅ FIXED: የኮድ ለውጦች ታሪክ (Evolution Logs) በአድሚን ገጽ ላይ እጅግ በጣም ንጹህና የተደራጀ እንዲሆን የተለየ ክላስ ተገንብቷል (የሕግ 4 ጥበቃ)
+# FIXED: የኮድ ለውጦች ታሪክ (Evolution Logs) በአድሚን ገጽ ላይ እጅግ በጣም ንጹህና የተደራጀ እንዲሆን የተለየ ክላስ ተገንብቷል
 @admin.register(AIEvolutionLog)
 class AIEvolutionLogAdmin(admin.ModelAdmin):
     list_display = ('target_file', 'site', 'reason_preview', 'created_at')
