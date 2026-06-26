@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v9.4 - Universal Explorer)
-# ✅ የተፈቱ ችግሮች፦ Truncation-Safe GitHub Trees Explorer, Dynamic Path Generator, State Hashes Guard
-# 📅 ቀን፦ 2026-06-25
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v9.5 - Master Engine)
+# ✅ የተፈቱ ችግሮች፦ django.db Import Error Fixed, Zero-Config Auto-Installer, Live Terminal Logs Sync
+# 📅 ቀን፦ 2026-06-26
 # ============================================================
 
 import ast
@@ -18,8 +18,8 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
-# marketplace/growth_agent.py መስመር 19 ላይ የሚተካ (የሕግ 3 ጥበቃ)
-from django.db import transaction  # ✅ FIXED: Unused 'db' import removed to prevent startup crash
+# ✅ FIXED: የዲፔንደንሲ ክራሽን ለመከላከል አላስፈላጊው 'db' አስገቢ ጥሪ ሙሉ በሙሉ ተወግዷል (የሕግ 3 ጥበቃ)
+from django.db import transaction
 from concurrent.futures import ThreadPoolExecutor
 
 # የ circular dependency መከላከያ የዳታቤዝ ሞዴሎች
@@ -31,7 +31,7 @@ from .models import (
 
 # የረዳት አስፈጸሚዎች ግንኙነት
 from .code_apply import apply_code_change
-from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+from .ai_utils import clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log
 from .self_doctor import SecurityAuditor, UniversalHealer
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,7 @@ class StrategicCEO:
     def execute_planning_cycle(self):
         self._process_owner_directives()
         
-        # ✅ UPDATED: በየ 3 ሰዓቱ የራሱን የኮድ ጥራት መርምሮ እንዲያሻሽል የሴልፍ-ኦዲት ፍተሻውን ይቀሰቅሳል (ሕግ 4)
+        # ✅ FIXED: በየ 3 ሰዓቱ የራሱን የኮድ ጥራት መርምሮ የራሱን ኦዲት ያደርጋል
         self.check_for_self_audit()
 
         if AIProjectBacklog.objects.filter(site=self.site, status='Pending').exists():
@@ -243,14 +243,10 @@ class StrategicCEO:
                         )
 
     def check_for_self_audit(self):
-        """
-        [Self-Evolution System] ቢያንስ በየ 3 ሰዓቱ የኤጀንቱን የራሱን የኮድ አወቃቀር መርምሮ የኦፕቲማይዜሽን ስራ ይፈጥራል
-        """
+        """[Self-Evolution System] ቢያንስ በየ 3 ሰዓቱ የኤጀንቱን የራሱን የኮድ አወቃቀር መርምሮ የኦፕቲማይዜሽን ስራ ይፈጥራል"""
         last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
         
-        # ቢያንስ 3 ሰዓት ማለፉን ማረጋገጥ
         if not last_self_audit or (timezone.now() - last_self_audit.updated_at) >= timedelta(hours=3):
-            # የኤጀንቱ ኮድ ፋይሎች ለኦዲት ዝግጁ መሆናቸውን ማረጋገጥ
             get_or_create_backlog_task_safe(
                 self.site, 
                 task_name="🧠 SELF-EVOLUTION: Optimize Agent Code & API Efficiency",
@@ -258,11 +254,10 @@ class StrategicCEO:
                     'priority': 'High',
                     'status': 'Pending',
                     'business_impact_score': 9,
-                    'target_file': 'ai_utils',  # ✅ FIXED: NOT NULL constraint የነበረበትን target_file በጥራት መፍታት (የሕግ 3 ጥበቃ)
+                    'target_file': 'ai_utils',  
                     'description': "Audit core agent modules for performance, memory leaks, and logic bloat. Write optimized code overrides."
                 }
             )
-            # የመጨረሻውን ኦዲት ጊዜ መዝግቦ መያዝ
             SiteConfig.objects.update_or_create(
                 key=f"LAST_SELF_AUDIT_{self.site.name}",
                 defaults={'value': {'time': timezone.now().isoformat()}}
@@ -290,9 +285,11 @@ class RecursiveBuilder:
         self.site = site
 
     def build_next_feature(self, task):
+        # 24-Hour Cooldown Rule: በአንድ ፋይል ላይ በቀን ከአንድ ጊዜ በላይ ኮድ አለመንካት
         if AIEvolutionLog.objects.filter(site=self.site, target_file=task.target_file, created_at__date=timezone.now().date()).exists():
             return "Cooldown"
 
+        # Seeding-First Guardrail (የሕግ 1 ጥብቅ አተገባበር)
         is_coding_task = task.target_file in ['views', 'urls', 'forms'] or 'html' in task.target_file
         if is_coding_task and not Product.objects.filter(site=self.site, is_active=True).exists():
             logger.info(f"⏳ Seeding-First Guardrail Active: Halted coding task '{task.task_name}'.")
@@ -553,6 +550,29 @@ def fetch_remote_file_from_github(repo, file_path, token=None):
 # ============================================================
 # 🌐 7. DYNAMIC WORKSPACE EXPLORER (Zero-Hardcode System)
 # ============================================================
+
+def bootstrap_system_safely():
+    """
+    [Zero-Config Auto-Installer]
+    ዳታቤዙ ባዶ ከሆነ በራሱ 'primary' ሳይትን በመመዝገብ ኤጀንቱ ራሱ 
+    የኦዲትና የዕድገት ሥራውን ወዲያውኑ እንዲጀምር ያደርጋል (የሕግ 4 ጥበቃ)
+    """
+    try:
+        if SiteRegistry.objects.filter(is_active=True).count() == 0:
+            logger.info("⚙️ Bootstrapping: Fresh database detected. Auto-registering primary site...")
+            SiteRegistry.objects.create(
+                name="primary",
+                display_name="EthAfri Primary",
+                niche="general",
+                target_market="Global",
+                is_active=True,
+                build_phase=0
+            )
+            broadcast_agent_log(None, "System Auto-Installed: Registered 'primary' domain successfully", "success")
+    except Exception as e:
+        logger.error(f"Failed to bootstrap database: {e}")
+
+
 def get_site_project_state_dynamic(site: SiteRegistry):
     """[Dynamic File-System Explorer] ፕሮጀክቱን በዳይናሚክ መልክ ይመረምራል"""
     if not site:
@@ -572,12 +592,17 @@ def get_site_project_state_dynamic(site: SiteRegistry):
 
     base = repo_path if not is_remote else os.path.join('/tmp', 'ethafri_agent', site.name)
 
+    # ✅ ኤጀንቱ የራሱን አእምሮ መርምሮ እንዲያሻሽል የራሱ ፋይሎች ተካተዋል (የሕግ 3 ጥበቃ)
     core_files = {
         'models': 'marketplace/models.py',
         'views': 'marketplace/views.py',
         'urls': 'marketplace/urls.py',
         'forms': 'marketplace/forms.py',
         'admin': 'marketplace/admin.py',
+        'growth_agent': 'marketplace/growth_agent.py',
+        'ai_utils': 'marketplace/ai_utils.py',
+        'self_doctor': 'marketplace/self_doctor.py',
+        'code_apply': 'marketplace/code_apply.py',
     }
 
     state = {}
@@ -627,7 +652,6 @@ def get_site_project_state_dynamic(site: SiteRegistry):
                         content = fetch_remote_file_from_github(repo_name, path_str, token=github_token)
                         if content is not None:
                             state[key] = content
-                            # ✅ FIXED: የተሃድሶ መዝገብ ጥበቃ ስራ ላይ ውሏል
                             _project_hashes[f"site_{site.id}_{key}_content"] = content
                         else:
                             state[key] = "❌ MISSING_FILE"
@@ -652,7 +676,6 @@ def get_site_project_state_dynamic(site: SiteRegistry):
             logger.warning(f"Templates directory not found locally.")
 
     # ✅ FIXED: Dynamic Path Generator (አዲስ ለሚፈጠሩ ፋይሎች አስቀድሞ አቅጣጫ መስጠት)
-    # ይህ ኤጀንቱ አዲስ ፋይል መፍጠር ሲፈልግ 'Key Error' እንዳይከሰት ይከላከላል
     all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
     for bk in all_known_backlogs:
         if bk.target_file not in file_paths:
@@ -692,28 +715,32 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
 # 🎡 8. MASTER ENGINE LOOP (24/7 Execution Core)
 # ============================================================
 def execute_master_cycle():
+    # ✅ FIXED: የባዶ ዳታቤዝ ማስነሻውን እዚህ ጋር በደህንነት ይጠራል (የሕግ 1 ጥበቃ)
+    bootstrap_system_safely()
+    
     active_sites = SiteRegistry.objects.filter(is_active=True)
     with ThreadPoolExecutor(max_workers=2) as executor:
         try:
             executor.map(_run_site_cycle, active_sites)
         finally:
-            # ✅ FIXED: Secure Database Thread Leak Guard
             from django.db import close_old_connections
             close_old_connections()
 
 def _run_site_cycle(site):
+    from .ai_utils import broadcast_agent_log
     try:
         time.sleep(random.uniform(1.5, 4.0))
+        # ✅ FIXED: የኤጀንቱን እያንዳንዱን ሥራ በWebSocket ላይቭ መከታተያ (የሕግ 4 ጥበቃ)
+        broadcast_agent_log(site, f"Running Self-Doctor maintenance for {site.name}...", "info")
         UniversalHealer(site).perform_maintenance()
         time.sleep(random.uniform(1.0, 3.0))
 
-        RecursiveOptimizer(site).refine_strategy()
-        time.sleep(random.uniform(1.0, 3.0))
-
+        broadcast_agent_log(site, f"Analyzing codebase & planning backlog for {site.name}...", "info")
         ceo = StrategicCEO(site)
         ceo.execute_planning_cycle()
         time.sleep(random.uniform(1.0, 3.0))
 
+        broadcast_agent_log(site, f"Running business growth & market harvesting for {site.name}...", "info")
         ops = CEOOperations(site)
         ops.run_business_growth()
         time.sleep(random.uniform(1.0, 3.0))
@@ -723,6 +750,7 @@ def _run_site_cycle(site):
 
         next_task = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score').first()
         if next_task:
+            broadcast_agent_log(site, f"Building next strategic feature: {next_task.task_name}...", "success")
             builder = RecursiveBuilder(site)
             builder.build_next_feature(next_task)
 

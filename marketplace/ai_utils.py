@@ -347,3 +347,47 @@ def clean_and_parse_json(raw_text):
     except Exception as e:
         logger.error(f"Failed to parse cleaned JSON: {e}. Raw text was: {raw_text[:200]}")
         return {}
+      
+      
+# ai_utils.py መጨረሻ ላይ የሚጨመር (የሕግ 3 ጥበቃ)
+def broadcast_agent_log(site, message, status_type="info"):
+    """
+    [Real-Time Terminal Broadcaster]
+    የኤጀንቱን እያንዳንዱን ሥራ በዳታቤዝ ውስጥ ይመዘግባል፣ ወዲያውኑም በ WebSocket 
+    በኩል በቀጥታ (Live) ወደ አድሚን ተርሚናሉ ይረጫል (የሕግ 4 ኦፕቲማይዜሽን)
+    """
+    from django.utils import timezone
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+    from .models import SiteConfig
+    
+    timestamp = timezone.now().strftime("%H:%M:%S")
+    log_entry = {
+        "time": timestamp,
+        "type": status_type,  # "info", "success", "error"
+        "message": message
+    }
+
+    # በዳታቤዝ ውስጥ መዝግቦ መያዝ (ከፍተኛ 50 ሎጎች ብቻ - RAM ለመቆጠብ)
+    try:
+        config, _ = SiteConfig.objects.get_or_create(key="AGENT_CYCLE_LOGS", defaults={"value": []})
+        logs = config.value if isinstance(config.value, list) else []
+        logs.append(log_entry)
+        config.value = logs[-50:]  # የኋለኛውን 50 ሎግ ብቻ መያዝ
+        config.save()
+    except Exception as db_err:
+        logger.error(f"Failed to save cycle log in DB: {db_err}")
+
+    # በእውነተኛ ሰዓት (Real-time) ወደ WebSocket መርጨት
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                "agent_status",
+                {
+                    "type": "broadcast_log_message",
+                    "log": log_entry
+                }
+            )
+    except Exception as ws_err:
+        logger.debug(f"WebSocket broadcast skipped: {ws_err}")
