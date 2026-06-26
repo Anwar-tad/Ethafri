@@ -1,16 +1,18 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Safe & Highly Secure Gating (v9.5)
-# ✅ የተፈቱ ችግሮች፦ SiteRegistry site filtering, AI Task Loop Prevention, Django timezone.timedelta AttributeError Fix
-# 📅 ቀን፦ 2026-06-25
+# 📝 ዓላማ፦ Ultimate System Doctor — Autonomous DB Schema Healer (v9.6)
+# ✅ የተፈቱ ችግሮች፦ Autonomous PostgreSQL Migration Healer (No more manual SQL execution!)
+# 📅 ቀን፦ 2026-06-26
 # ============================================================
 
+import os
 import ast
 import re
 import logging
-from datetime import timedelta  # ✅ FIXED: የሩጫ ጊዜ ስህተትን ለመከላከል የፓይተን timedelta በትክክል ገብቷል
+from datetime import timedelta  # ✅ FIXED: የሩጫ ጊዜ ስህተትን ለመከላከል timedelta ተጨምሯል
 from django.utils import timezone
 from django.db import connection, connections
+from django.core.management import call_command
 from .models import AgentErrorLog, SelfHealingLog, AIProjectBacklog, SiteRegistry, SecurityLog
 
 logger = logging.getLogger(__name__)
@@ -30,8 +32,6 @@ class SecurityAuditor:
 
         try:
             tree = ast.parse(code)
-            
-            # አደገኛ የሼል ማስፈጸሚያ ቃላት ዝርዝር
             dangerous_functions = {
                 'eval', 'exec', 'system', 'popen', 'run', 
                 'call', 'check_output', 'check_call', 'spawn'
@@ -48,7 +48,6 @@ class SecurityAuditor:
                     if func_name in dangerous_functions:
                         issues.append(f"Critical: Dangerous function/attribute call '{func_name}' detected.")
 
-            # ሒሳባዊ ፍተሻ (Secrets and Keys)
             secret_patterns = [
                 (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
                 (r'(?<![\w"])password\s*=\s*[\'"][^\'"]+[\'"]', 'Possible password exposure'),
@@ -63,11 +62,9 @@ class SecurityAuditor:
         except Exception as e:
             logger.warning(f"AST safety scanning warning: {e}")
 
-        # የሉፕ መከላከያ እና የሳይት መለያ መስተጋብር
         if issues:
             for issue in issues:
                 try:
-                    # አላስፈላጊ ድግግሞሽን ለመከላከል የተስተካከለ ማጣሪያ (Idempotent Logging)
                     log_exists = SecurityLog.objects.filter(
                         site=site,
                         description=issue,
@@ -91,7 +88,7 @@ class SecurityAuditor:
 
 
 # ============================================================
-# 🚑 2. UNIVERSAL HEALER (ሁለንተናዊ የሲስተም ፈዋሽ)
+# 🚑 2. UNIVERSAL HEALER (ሁለንተናዊ የሲስተም ፈዋሽ - SCHEMA AWARE)
 # ============================================================
 class UniversalHealer:
     """ኤጀንቱን፣ ዳታቤዙን እና የዌብሳይቱን ስህተት የሚጠግን ማዕከል"""
@@ -103,10 +100,13 @@ class UniversalHealer:
         """በየ 10 ደቂቃው የሚደረግ የሲስተም ጥገና"""
         logger.info(f"🚑 Running maintenance for {self.site.name}...")
         
-        # 1. የዳታቤዝ ግንኙነትን ማጽዳት (Memory Leak ለመከላከል)
+        # 1. ✅ FIXED: የዳታቤዝ ማይግሬሽን ችግሮችን በራስ-ሰር መፍታት (SaaS Auto-Migration Healer) (የሕግ 4 ጥበቃ)
+        self.heal_database_migrations_autonomously()
+        
+        # 2. የዳታቤዝ ግንኙነትን ማጽዳት (Memory Leak ለመከላከል)
         connections.close_all()
         
-        # 2. የተሰኩ ስራዎችን መፍታት (Stuck Loop Fix)
+        # 3. የተሰኩ ስራዎችን መፍታት (Stuck Loop Fix)
         try:
             # ✅ FIXED: timezone.timedelta የተባለው የጃንጎ ስህተት በ timedelta ተተክቷል
             stuck_tasks = AIProjectBacklog.objects.filter(
@@ -119,11 +119,68 @@ class UniversalHealer:
         except Exception as e:
             logger.error(f"Failed to reset stuck tasks: {e}")
 
-        # 3. የዌብሳይት ስህተቶችን (500 Errors) ፈልጎ መፍትሄ መስጠት
+        # 4. የዌብሳይት ስህተቶችን (500 Errors) ፈልጎ መፍትሄ መስጠት
         self._heal_production_errors()
         
-        # 4. የደህንነት ስጋቶችን (Security Logs) ፈልጎ ማረም
+        # 5. የደህንነት ስጋቶችን (Security Logs) ፈልጎ ማረም
         self._heal_security_issues()
+
+    def heal_database_migrations_autonomously(self):
+        """
+        [Zero-Config Auto-Healer]
+        በ PostgreSQL ላይ የሚፈጠሩትን የኢንዴክስ መጣረስ ስህተቶች በራስ-ሰር ፈልጎ 
+        ኢንዴክሶቹን በ SQL በመፍጠር ማይግሬሽኑን ያለምንም የባለቤቱ ጣልቃ ገብነት ያጠናቅቃል (የሕግ 4 ጥበቃ)
+        """
+        try:
+            call_command('migrate', interactive=False)
+            logger.info("🚑 Schema Healer: All database migrations are completely up to date.")
+        except Exception as e:
+            err_msg = str(e)
+            logger.error(f"🚑 Schema Healer: Migration blocked by error: {err_msg}")
+            
+            # ሀ. የ 'does not exist' የኢንዴክስ መጥፋት ስህተትን በራስ-ሰር መፍታት
+            match_missing = re.search(r'relation "([^"]+)" does not exist', err_msg)
+            if match_missing:
+                idx_name = match_missing.group(1)
+                logger.warning(f"🚑 Schema Healer: Missing index '{idx_name}' detected. Auto-creating in DB...")
+                
+                # የታወቁ የኢንዴክስ ስሞችና ሰንጠረዦቻቸው ማትሪክስ
+                table_maps = {
+                    "marketplace_agentty_847321_idx": ("marketplace_agenttask", "agent_type, status"),
+                    "marketplace_site_id_6bde06_idx": ("marketplace_agenttask", "site_id, status"),
+                    "marketplace_predicti_9ce3e9_idx": ("marketplace_predictionlog", "prediction_type, site_id")
+                }
+                
+                idx_name_clean = str(idx_name).lower()
+                # ፈልጎ ማግኘት እና መፍጠር
+                for old_name, sql_map in table_maps.items():
+                    if old_name in idx_name_clean:
+                        table, cols = sql_map
+                        with connection.cursor() as cursor:
+                            cursor.execute(f"CREATE TABLE IF NOT EXISTS {table} (id SERIAL PRIMARY KEY);")
+                            cursor.execute(f"CREATE INDEX IF NOT EXISTS {old_name} ON {table} ({cols});")
+                        logger.info(f"✨ Schema Healer: Successfully created missing index {old_name}")
+                        # ማይግሬሽኑን በድጋሚ ማስኬድ
+                        try:
+                            call_command('migrate', interactive=False)
+                            return
+                        except Exception as retry_err:
+                            logger.error(f"🚑 Schema Healer: Retry failed: {retry_err}")
+                            return
+
+            # ለ. የ 'already exists' የኢንዴክስ መደራረብ ስህተትን በራስ-ሰር መፍታት
+            match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
+            if match_exists:
+                idx_name = match_exists.group(1)
+                logger.warning(f"🚑 Schema Healer: Conflicting index '{idx_name}' already exists. Auto-dropping...")
+                with connection.cursor() as cursor:
+                    cursor.execute(f"DROP INDEX IF EXISTS {idx_name};")
+                logger.info(f"✨ Schema Healer: Successfully dropped conflicting index {idx_name}")
+                # ማይግሬሽኑን በድጋሚ ማስኬድ
+                try:
+                    call_command('migrate', interactive=False)
+                except Exception as retry_err:
+                    logger.error(f"🚑 Schema Healer: Retry failed: {retry_err}")
 
     def _heal_production_errors(self):
         """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
@@ -131,7 +188,6 @@ class UniversalHealer:
         for err in errors:
             task_name = f"🚑 EMERGENCY FIX: {err.task_name}"
             if not AIProjectBacklog.objects.filter(site=self.site, task_name=task_name, status__in=['Pending', 'Running']).exists():
-                # task_type ወደ ተኳሃኝ ምርጫዎች (e.g., 'Bug') ተቀይሯል
                 AIProjectBacklog.objects.create(
                     site=self.site,
                     task_name=task_name,
@@ -157,7 +213,6 @@ class UniversalHealer:
                 ).exists()
                 
                 if not active_fix_exists:
-                    # target_file እና task_type ከ Django Choice Constraints ጋር ተጣጥመዋል
                     target = vuln.file_path if vuln.file_path and not vuln.file_path.startswith("multiple") else "views"
                     AIProjectBacklog.objects.create(
                         site=self.site,
@@ -173,7 +228,7 @@ class UniversalHealer:
 
 
 # ============================================================
-# 🩺 3. LOG PROTECTOR
+# 保护 3. LOG PROTECTOR
 # ============================================================
 def refresh_db_connection_on_error(error_message):
     """የዳታቤዝ ግንኙነት ሲመረዝ ወዲያውኑ አዲስ ግንኙነት የሚከፍት"""
