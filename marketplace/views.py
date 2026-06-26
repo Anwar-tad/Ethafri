@@ -1,14 +1,15 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ 100% Complete Master CEO Views — Threading & URL Fixed
-# ✅ የተፈቱ ችግሮች፦ NoReverseMatch (dashboard -> growth_dashboard), 504 Gateway Timeout, Safe JSON
-# 📅 ቀን፦ Thursday, June 25, 2026
+# 📝 ለውጥ፦ Master CEO Views — Database Agnostic & Highly Optimized (v1.3)
+# ✅ የተፈቱ ችግሮች፦ near FILTER SQLite syntax error Fixed, __date timezone serialization error Fixed
+# 📅 ቀን፦ Friday, June 25, 2026
 # ============================================================
 
 import logging
 import uuid
 import json
 import threading
+from datetime import datetime, timedelta  # ✅ FIXED: ለቀን ፍለጋ ገደብ timedelta ተጨምሯል
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
@@ -20,7 +21,8 @@ from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.utils.translation import get_language, gettext_lazy as _
 from django.contrib import messages
 from django.utils import timezone
-from django.db.models import Count, Sum, Q, Avg
+# ✅ FIXED: ለ Case-When የዳታቤዝ ጥበቃ አስፈላጊዎቹ ሞዴሎች ገብተዋል
+from django.db.models import Count, Sum, Q, Avg, Case, When, IntegerField, Value
 from django.db import connection, connections
 from django.core.serializers.json import DjangoJSONEncoder
 
@@ -73,9 +75,14 @@ def home(request):
     if site_id:
         products = products.filter(site_id=site_id)
 
+    # N+1 query ለመከላከል ካቴጎሪዎች ላይ አኖቴሽን ተጨምሯል
+    categories = Category.objects.annotate(
+        active_count=Count('product', filter=Q(product__is_active=True))
+    ).all()
+
     context = {
         'products': products.order_by('-created_at'),
-        'categories': Category.objects.all(),
+        'categories': categories,
         'sites': SiteRegistry.objects.filter(is_active=True),
         'active_category': int(category_id) if category_id and category_id.isdigit() else None,
         'current_site': int(site_id) if site_id and site_id.isdigit() else None,
@@ -108,7 +115,7 @@ def post_success(request):
     return render(request, 'marketplace/post_success.html')
 
 # ============================================================
-# 🧠 3. CEO COMMAND & GROWTH (የኤጀንቱ ዕዝ ማዕከል)
+# 👑 3. CEO COMMAND & GROWTH (የኤጀንቱ ዕዝ ማዕከል)
 # ============================================================
 @staff_member_required
 def admin_growth_dashboard(request):
@@ -147,14 +154,12 @@ def owner_directive_view(request):
         'sites': SiteRegistry.objects.filter(is_active=True)
     })
 
-# views.py ውስጥ የነበረውን trigger_evolution እንዲህ አድርገው፦
 @staff_member_required
 def trigger_evolution(request):
     """ኤጀንቱን በእጅ ለመቀስቀስ"""
     def run_bg_evolution():
         try:
-            # ✅ ማሻሻያ፦ Lazy Import
-            from marketplace.growth_agent import execute_master_cycle
+            from .growth_agent import execute_master_cycle
             execute_master_cycle()
         except Exception as e:
             logger.error(f"Error during manual evolution trigger: {e}")
@@ -167,16 +172,16 @@ def trigger_evolution(request):
 
 # ============================================================
 # 🌐 4. MULTI-SITE & MARKETING (ባለብዙ-ጣቢያ አስተዳደር)
-# ==========================================# views.py ውስጥ sites_dashboard() ቪው ሙሉ በሙሉ በዚህ ይተካል (የሕግ 4 ኦፕቲማይዜሽን)
+# ============================================================
 @staff_member_required
 def sites_dashboard(request):
     """ሁሉንም ንዑስ ጣቢያዎች (Niches) በአንድ ላይ ማሳያ"""
-    # ✅ FIXED: 10ሩንም ቴምፕሌቶችና የሥራዎችን ስታቲስቲክስ በ single query በጥንቃቄ ያመጣል (N+1 query መከላከያ)
+    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregation (SQLite & PostgreSQL Compatible)
     sites = SiteRegistry.objects.annotate(
-        pending_tasks=Count('backlog_tasks', filter=Q(backlog_tasks__status='Pending')),
-        running_tasks=Count('backlog_tasks', filter=Q(backlog_tasks__status='Running')),
-        completed_tasks=Count('backlog_tasks', filter=Q(backlog_tasks__status='Completed')),
-        recent_errors=Count('error_logs', filter=Q(error_logs__resolved=False))
+        pending_tasks=Sum(Case(When(backlog_tasks__status='Pending', then=1), default=0, output_field=IntegerField())),
+        running_tasks=Sum(Case(When(backlog_tasks__status='Running', then=1), default=0, output_field=IntegerField())),
+        completed_tasks=Sum(Case(When(backlog_tasks__status='Completed', then=1), default=0, output_field=IntegerField())),
+        recent_errors=Sum(Case(When(error_logs__resolved=False, then=1), default=0, output_field=IntegerField()))
     ).all()
     
     total_vis = sites.aggregate(Sum('monthly_visitors'))['monthly_visitors__sum']
@@ -198,38 +203,27 @@ def site_detail(request, site_id):
     site = get_object_or_404(SiteRegistry, id=site_id)
     context = {
         'site': site,
-        'backlog': AIProjectBacklog.objects.filter(site=site).order_by('-priority', '-created_at')[:15],
+        'backlog': AIProjectBacklog.objects.filter(site=site).order_by('-business_impact_score', '-created_at')[:15],
         'evolutions': AIEvolutionLog.objects.filter(site=site).order_by('-created_at')[:10],
         'error_logs': AgentErrorLog.objects.filter(site=site, resolved=False),
         'marketing_campaigns': MarketingCampaign.objects.filter(site=site)[:5]
     }
     return render(request, 'marketplace/site_detail.html', context)
 
-# views.py ውስጥ የሚገኘው marketing_dashboard ቪው ሙሉ በሙሉ በዚህ ይተካል
 @staff_member_required
 def marketing_dashboard(request):
     """የግብይት እና የደንበኛ ማግኛ ውጤቶች መከታተያ"""
-    
-    # የውሂብ ጥምር ስሌት (Aggregations)
-    stats = MarketingCampaign.objects.aggregate(
-        total_conv=Sum('total_converted'),
-        total_sent=Sum('total_sent')
-    )
-    
-    total_c = stats['total_conv'] or 0
-    total_s = stats['total_sent'] or 0
-
+    total_s = MarketingCampaign.objects.aggregate(Sum('total_sent'))['total_sent__sum']
+    total_c = MarketingCampaign.objects.aggregate(Sum('total_converted'))['total_converted__sum']
     context = {
         'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
         'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
-        # ✅ FIXED: ቴምፕሌቱ ላይ በቀጥታ {{ total_sent }} በሚል ስም እንዲነበብ በ root-level ተጨምሯል (የሕግ 3 ጥበቃ)
-        'total_sent': total_s,
+        'total_sent': total_s or 0,
         'campaign_stats': {
             'total': MarketingCampaign.objects.count(),
             'running': MarketingCampaign.objects.filter(status='running').count(),
             'scheduled': MarketingCampaign.objects.filter(status='scheduled').count(),
-            'total_sent': total_s,
-            'total_converted': total_c
+            'total_converted': total_c or 0
         }
     }
     return render(request, 'marketplace/marketing_dashboard.html', context)
@@ -245,21 +239,33 @@ def create_marketing_campaign(request):
     })
 
 # ============================================================
-# 📊 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
+# ⚖️ 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
 # ============================================================
-# views.py ውስጥ የሚገኘው agent_status_dashboard ቪው ሙሉ በሙሉ በዚህ ይተካል
 @staff_member_required
 def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
     build_avg = SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg']
-    healing = SelfHealingLog.objects.aggregate(total=Count('id'), resolved=Count('id', filter=Q(resolved=True)))
-    pred = PredictionLog.objects.aggregate(total=Count('id'), traffic=Count('id', filter=Q(prediction_type='traffic')), seo=Count('id', filter=Q(prediction_type='seo')))
     
-    # ✅ FIXED: የRAG ቬክተር ትውስታዎችን አማካኝ የስኬት መቶኛ ማስላት (የሕግ 4 ኦፕቲማይዜሽን)
+    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregations for diagnostic metrics
+    healing = SelfHealingLog.objects.aggregate(
+        total=Count('id'),
+        resolved=Sum(Case(When(resolved=True, then=1), default=0, output_field=IntegerField()))
+    )
+    pred = PredictionLog.objects.aggregate(
+        total=Count('id'),
+        traffic=Sum(Case(When(prediction_type='traffic', then=1), default=0, output_field=IntegerField())),
+        seo=Sum(Case(When(prediction_type='seo', then=1), default=0, output_field=IntegerField()))
+    )
+    
     success_avg = VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg']
     
     heartbeat_config = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
     agent_status = _safe_json_decode(heartbeat_config.value, {"status": "idle"}) if heartbeat_config else {"status": "idle"}
+
+    # ✅ FIXED: __date የጊዜ ሰሌዳ ስህተትን ለመከላከል እጅግ አስተማማኝ የ range ሎጂክ (የሕግ 4 ጥበቃ)
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+    today_evolution_count = AIEvolutionLog.objects.filter(created_at__range=(today_start, today_end)).count()
 
     context = {
         'agent_status': agent_status,
@@ -273,10 +279,9 @@ def agent_status_dashboard(request):
             'completed': AIProjectBacklog.objects.filter(status='Completed').count()
         },
         'site_stats': {'active': SiteRegistry.objects.filter(is_active=True).count(), 'build_phase': build_avg or 0},
-        'evolution_stats': {'today': AIEvolutionLog.objects.filter(created_at__date=timezone.now().date()).count()},
+        'evolution_stats': {'today': today_evolution_count},
         'healing_stats': healing,
         'prediction_stats': pred,
-        # ✅ FIXED: የስኬት መቶኛው በዳሽቦርዱ ላይ በእውነተኛ ሰዓት እንዲታይ በኮንቴክስት ተጨምሯል (የሕግ 3 ጥበቃ)
         'success_rate': success_avg or 0,
         'marketing_stats': {'notifications': NotificationQueue.objects.filter(is_sent=False).count()},
         'agent_stats': {'total': AgentTask.objects.count()}
@@ -320,8 +325,8 @@ def logout_view(request):
 @csrf_exempt
 def trigger_autonomous_evolution(request):
     """ከውጭ ክሮን (External Webhook) ኤጀንቱን ለመቀስቀስ"""
-    connections.close_all()
-    # ✅ ማሻሻያ፦ የነበረውን የ NameError ለመከላከል Lazy Import መጠቀም
-    from marketplace.growth_agent import execute_master_cycle
-    threading.Thread(target=execute_master_cycle, daemon=True).start()
-    return JsonResponse({"status": "triggered"}, status=200)
+    config, created = SiteConfig.objects.get_or_create(key="LAST_SUCCESSFUL_CRON_PING")
+    config.value = json.dumps({"time": timezone.now().isoformat(), "source": "webhook"})
+    config.save()
+    
+    return JsonResponse({"status": "flagged_for_execution", "message": "apps.py will pick this up"}, status=200)
