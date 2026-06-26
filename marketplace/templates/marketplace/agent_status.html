@@ -1,185 +1,54 @@
-<!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/agent_status.html
-📝 ለውጥ፦ v1.5 Master CEO Agent Status — Live Terminal & CSS Migrated (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Dynamic WebSocket Log Integration, Live Database Healed & Cycle Logs Included
-📅 ቀን፦ 2026-06-25
-============================================================ -->
-
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 {% load static %}
 
-{% block extra_css %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
-{% if theme.custom_css %}
-<style>
-    {{ theme.custom_css|safe }}
-</style>
-{% endif %}
-{% endblock %}
-
 {% block content %}
-<div class="container-fluid py-4" data-agent-monitor> <!-- WebSocket መጋጠሚያ ከ global.js v1.3 ጋር ይገናኛል -->
+<div class="container-fluid py-4" id="agent-monitor">
     
-    <!-- 🏥 Dashboard Header (ራስጌ) -->
     <div class="row mb-4 align-items-center">
         <div class="col-md-7">
             <h2 class="fw-bold"><i class="fas fa-heartbeat text-danger me-2"></i> Agent Health & Memory</h2>
-            <p class="text-muted small">Deep diagnostics of the EthAfri CEO brain and long-term vector memory (RAG).</p>
+            <p class="text-muted small">Real-time CEO brain telemetry and RAG memory diagnostic.</p>
         </div>
-        <div class="col-md-5 text-md-end d-flex gap-2 justify-content-md-end align-items-center">
-            <!-- ኤጀንቱን በእጅ በኃይል ማስነሻ ቁልፍ (Manual Trigger) -->
-            <form method="POST" action="{% url 'trigger_evolution' %}" class="d-inline">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">
-                    <i class="fas fa-sync-alt me-1"></i> {% trans "Trigger Evolution" %}
-                </button>
-            </form>
-            <span class="badge bg-dark rounded-pill px-3 py-2 border border-secondary">
-                <i class="fas fa-microchip me-2 text-info"></i> Uptime: <span id="uptime-counter">00:00:00</span>
-            </span>
+        <div class="col-md-5 text-md-end">
+            <button onclick="window.location.reload()" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-sync-alt"></i> Refresh Diagnostics
+            </button>
         </div>
     </div>
 
-    <!-- 📊 Phase Tracking (የዕድገት ደረጃ) -->
-    <div class="status-card p-4 mb-4">
-        <h6 class="text-uppercase fw-bold text-muted mb-3 small">Current Growth Phase</h6>
-        <div class="d-flex flex-wrap gap-2 justify-content-between">
-            <div class="phase-pill {% if site_stats.build_phase >= 1 %}active{% endif %}">1. Scaffolding</div>
-            <div class="phase-pill {% if site_stats.build_phase >= 2 %}active{% endif %}">2. Real Data</div>
-            <div class="phase-pill {% if site_stats.build_phase >= 3 %}active{% endif %}">3. Core Features</div>
-            <div class="phase-pill {% if site_stats.build_phase >= 4 %}active{% endif %}">4. Engagement</div>
-            <div class="phase-pill {% if site_stats.build_phase >= 5 %}active{% endif %}">5. Mature</div>
-        </div>
-    </div>
-
-    <!-- 📈 የቀጥታ ስታቶች (Live Metrics Row) -->
     <div class="row g-3 mb-4 text-center">
+        {% for stat in metrics_list %}
         <div class="col-6 col-md-3">
             <div class="stat-box">
-                <div class="stat-label">{% trans "Active Sites" %}</div>
-                <div class="stat-val text-primary">{{ site_stats.active|default:1 }}</div>
+                <div class="stat-label text-uppercase small">{{ stat.label }}</div>
+                <div class="stat-val {{ stat.text_class }}">{{ stat.value }}</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="stat-box">
-                <div class="stat-label">{% trans "Pending Tasks" %}</div>
-                <div class="stat-val text-warning" id="pending-tasks-count">{{ backlog_stats.pending|default:0 }}</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="stat-box">
-                <div class="stat-label">{% trans "Self Healed" %}</div>
-                <div class="stat-val text-success">{{ healing_stats.resolved|default:0 }} / {{ healing_stats.total|default:0 }}</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="stat-box">
-                <div class="stat-label">{% trans "Campaign Queue" %}</div>
-                <div class="stat-val text-info">{{ marketing_stats.notifications|default:0 }}</div>
-            </div>
-        </div>
+        {% endfor %}
     </div>
 
     <div class="row g-4">
-        <!-- 🧠 Memory, Security & Model Matrix (ግራ) -->
         <div class="col-lg-4">
-            <!-- RAG Memory -->
-            <div class="status-card p-4 mb-4">
-                <h5 class="fw-bold mb-4"><i class="fas fa-brain text-primary me-2"></i> Memory Stats</h5>
-                {% for stat in memory_stats %}
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-capitalize">{{ stat.memory_type }}</span>
-                    <span class="badge bg-primary rounded-pill">{{ stat.count }}</span>
+            <div class="status-card p-4 mb-4 bg-dark text-white">
+                <h5 class="fw-bold mb-3 text-info"><i class="fas fa-network-wired me-2"></i> API Routing Matrix</h5>
+                {% for provider in api_matrix %}
+                <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                    <span>{{ provider.task }}</span>
+                    <span class="badge bg-{{ provider.color }}">{{ provider.name }}</span>
                 </div>
                 {% endfor %}
-                <hr>
-                <div class="text-center">
-                    <div class="display-6 fw-bold text-primary">{{ success_rate|default:0|floatformat:1 }}%</div>
-                    <small class="text-muted">Avg Success Rate</small>
-                </div>
-            </div>
-
-            <!-- API Routing Matrix -->
-            <div class="status-card p-4 mb-4" style="background: #1e293b; color: white;">
-                <h5 class="fw-bold mb-3 text-info"><i class="fas fa-network-wired me-2"></i> API Routing Matrix</h5>
-                <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
-                    <span class="opacity-75">Code Logic Development</span>
-                    <span class="badge bg-danger">MISTRAL</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
-                    <span class="opacity-75">Syntax Compiler Check</span>
-                    <span class="badge bg-warning text-dark">GROQ</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
-                    <span class="opacity-75">Form Translations</span>
-                    <span class="badge bg-success">GEMINI 2.5</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center small">
-                    <span class="opacity-75">Market Crawling / Spy</span>
-                    <span class="badge bg-info text-dark">OPENROUTER</span>
-                </div>
-            </div>
-
-            <!-- Security Auditor -->
-            <div class="status-card p-4">
-                <h5 class="fw-bold mb-4"><i class="fas fa-shield-halved text-warning me-2"></i> Security Audit</h5>
-                {% if security_issues %}
-                    {% for issue in security_issues %}
-                    <div class="alert alert-danger border-0 rounded-3 small p-2 mb-2">
-                        <i class="fas fa-bug me-1"></i> {{ issue.description|truncatechars:50 }}
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="text-center py-3">
-                        <i class="fas fa-shield-check text-success fa-3x mb-2"></i>
-                        <p class="small text-muted">No security vulnerabilities detected.</p>
-                    </div>
-                {% endif %}
             </div>
         </div>
 
-        <!-- 📟 Live Agent CL Terminal (ቀኝ) -->
         <div class="col-lg-8">
-            <div class="terminal-window h-100 d-flex flex-column" style="min-height: 550px;">
+            <div class="terminal-window h-100 d-flex flex-column">
                 <div class="terminal-header">
-                    <div class="terminal-dot dot-red"></div>
-                    <div class="terminal-dot dot-yellow"></div>
-                    <div class="terminal-dot dot-green"></div>
-                    <small class="ms-2 text-white-50">ethafri-ceo-agent@system:~/logs</small>
+                    <small class="text-white-50">ethafri-ceo-agent@system:~/logs</small>
                 </div>
-                <div class="terminal-body flex-grow-1" id="cl-terminal" style="max-height: 550px;">
-                    <!-- የሰዓት መለያ በ views.py live_time ተተክቷል -->
-                    <div class="terminal-line">
-                        <span class="terminal-timestamp">[{{ live_time|date:"H:i:s" }}]</span>
-                        <span class="terminal-info">➜ Initializing Diagnostic Console...</span>
-                    </div>
-                    <div class="terminal-line">
-                        <span class="terminal-timestamp">[{{ live_time|date:"H:i:s" }}]</span>
-                        <span class="terminal-success">➜ WebSocket Connected. Waiting for next CEO Cycle...</span>
-                    </div>
-                    
-                    <!-- ✅ FIXED: የኤጀንቱን ያለፉ የሥራ ዑደቶች ታሪክ በቀጥታ ከዳታቤዝ አውጥቶ ተርሚናል ላይ መደርደር (የሕግ 4 ጥበቃ) -->
+                <div class="terminal-body flex-grow-1" id="cl-terminal" style="overflow-y: auto; max-height: 500px;">
                     {% for log in cycle_logs %}
-                    <div class="terminal-line">
-                        <span class="terminal-timestamp">[{{ log.time }}]</span>
-                        <span class="{% if log.type == 'success' %}terminal-success{% elif log.type == 'error' %}terminal-error{% else %}terminal-info{% endif %}">➜ {{ log.message }}</span>
-                    </div>
-                    {% endfor %}
-
-                    <!-- ✅ FIXED: ኤጀንቱ ራሱ የፈወሳቸውን የዳታቤዝ ጥገና ታሪኮች (Self-Healed) በቀጥታ ተርሚናሉ ውስጥ ማሳየት (የሕግ 3 ጥበቃ) -->
-                    {% for log in healed_logs %}
-                    <div class="terminal-line">
-                        <span class="terminal-timestamp">[{{ log.created_at|date:"H:i:s" }}]</span>
-                        <span class="terminal-success">✔ AUTO-HEALED: {{ log.error_message }} -> Fixed via SQL: "{{ log.solution_sql|truncatechars:50 }}"</span>
-                    </div>
-                    {% endfor %}
-                    
-                    {% for log in unresolved_errors %}
-                    <div class="terminal-line">
-                        <span class="terminal-timestamp">[{{ log.created_at|date:"H:i:s" }}]</span>
-                        <span class="terminal-error">✖ ERROR in {{ log.task_name }}: {{ log.error_message|truncatechars:100 }}</span>
-                    </div>
+                    <div class="terminal-line"><span class="terminal-timestamp">[{{ log.time }}]</span> ➜ {{ log.message }}</div>
                     {% endfor %}
                 </div>
             </div>
@@ -190,57 +59,26 @@
 
 {% block extra_js %}
 <script>
-    // ⏰ Uptime Counter
-    let startTime = Date.now();
-    setInterval(() => {
-        let diff = Math.floor((Date.now() - startTime) / 1000);
-        let h = Math.floor(diff / 3600).toString().padStart(2, '0');
-        let m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
-        let s = (diff % 60).toString().padStart(2, '0');
-        document.getElementById('uptime-counter').innerText = `${h}:${m}:${s}`;
-    }, 1000);
+    // ⏰ Uptime Calculator
+    const startTime = Date.now();
+    const updateUptime = () => {
+        const diff = Math.floor((Date.now() - startTime) / 1000);
+        document.getElementById('uptime-counter').innerText = new Date(diff * 1000).toISOString().substr(11, 8);
+    };
+    setInterval(updateUptime, 1000);
 
-    // 📟 Terminal Auto-Scroll
-    function scrollTerminal() {
+    // 📟 WebSocket Connection
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
         const term = document.getElementById('cl-terminal');
-        term.scrollTop = term.scrollHeight;
-    }
-    
-    // 🤖 WebSocket Integration for Real-time CL Logs (v1.4)
-    document.addEventListener('agent_update', function(e) {
-        const data = e.detail;
-        const term = document.getElementById('cl-terminal');
-        if (!term) return;
-
-        let newLine = document.createElement('div');
-        newLine.className = 'terminal-line';
-        
-        // ሀ. አውቶማቲክ የሥራ መዝገቦች (Logs) በቀጥታ ሲመጡ
-        if (data.type === 'terminal_log') {
-            let logClass = 'terminal-info';
-            if (data.log.type === 'success') logClass = 'terminal-success';
-            if (data.log.type === 'error') logClass = 'terminal-error';
-            
-            newLine.innerHTML = `
-                <span class="terminal-timestamp">[${data.log.time}]</span>
-                <span class="${logClass}">➜ ${data.log.message}</span>
-            `;
-            term.appendChild(newLine);
-            scrollTerminal();
-        }
-        // ለ. በየ 10 ደቂቃው የሚደረገው የሥራ ዑደት ማጠቃለያ
-        else if (data.type === 'status_update') {
-            const time = new Date().toLocaleTimeString();
-            let statusClass = data.task_stats.pending > 0 ? 'terminal-info' : 'terminal-success';
-            newLine.innerHTML = `
-                <span class="terminal-timestamp">[${time}]</span>
-                <span class="${statusClass}">➜ Cycle Update: ${data.task_stats.pending} tasks pending. CEO is active.</span>
-            `;
-            term.appendChild(newLine);
-            scrollTerminal();
-        }
-    });
-
-    scrollTerminal();
+        const line = document.createElement('div');
+        line.className = 'terminal-line';
+        line.innerHTML = `<span class="terminal-timestamp">[${new Date().toLocaleTimeString()}]</span> ➜ ${data.message}`;
+        term.appendChild(line);
+        term.scrollTop = term.scrollHeight; // Auto-scroll
+    };
 </script>
 {% endblock %}
