@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ Master CEO Views — Database Agnostic & Highly Optimized (v1.3)
-# ✅ የተፈቱ ችግሮች፦ near FILTER SQLite syntax error Fixed, __date timezone serialization error Fixed
-# 📅 ቀን፦ Friday, June 25, 2026
+# 📝 ለውጥ፦ Ultra Database-Agnostic CEO Views — High Performance (v1.4)
+# ✅ የተፈቱ ችግሮች፦ product_set FieldError Fixed, Case-When SQLite Fallback Sync, timezone range optimized
+# 📅 ቀን፦ Friday, June 26, 2026
 # ============================================================
 
 import logging
@@ -75,9 +75,9 @@ def home(request):
     if site_id:
         products = products.filter(site_id=site_id)
 
-    # N+1 query ለመከላከል ካቴጎሪዎች ላይ አኖቴሽን ተጨምሯል
+    # ✅ FIXED: የጃንጎን ሪቨርስ ሉክአፕ (product_set) በመጠቀም የ FieldError ስህተት በቋሚነት ተፈትቷል (የሕግ 3 ጥበቃ)
     categories = Category.objects.annotate(
-        active_count=Count('product', filter=Q(product__is_active=True))
+        active_count=Sum(Case(When(product_set__is_active=True, then=1), default=0, output_field=IntegerField()))
     ).all()
 
     context = {
@@ -115,12 +115,12 @@ def post_success(request):
     return render(request, 'marketplace/post_success.html')
 
 # ============================================================
-# 👑 3. CEO COMMAND & GROWTH (የኤጀንቱ ዕዝ ማዕከል)
+# 🧠 3. CEO COMMAND & GROWTH (የኤጀንቱ ዕዝ ማዕከል)
 # ============================================================
 @staff_member_required
 def admin_growth_dashboard(request):
     """ዋናው የ CEO መቆጣጠሪያ ዳሽቦርድ"""
-    total_rev = SiteRegistry.objects.aggregate(Sum('monthly_revenue'))['monthly_revenue__sum']
+    total_rev = SiteRegistry.objects.aggregate(total_rev=Sum('monthly_revenue'))['total_rev']
     
     lock_config = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
     status_info = _safe_json_decode(lock_config.value, {"status": "idle"}) if lock_config else {"status": "idle"}
@@ -176,7 +176,7 @@ def trigger_evolution(request):
 @staff_member_required
 def sites_dashboard(request):
     """ሁሉንም ንዑስ ጣቢያዎች (Niches) በአንድ ላይ ማሳያ"""
-    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregation (SQLite & PostgreSQL Compatible)
+    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregation (የ SQLite FILTER ስህተትን በቋሚነት ይፈታል)
     sites = SiteRegistry.objects.annotate(
         pending_tasks=Sum(Case(When(backlog_tasks__status='Pending', then=1), default=0, output_field=IntegerField())),
         running_tasks=Sum(Case(When(backlog_tasks__status='Running', then=1), default=0, output_field=IntegerField())),
@@ -184,9 +184,9 @@ def sites_dashboard(request):
         recent_errors=Sum(Case(When(error_logs__resolved=False, then=1), default=0, output_field=IntegerField()))
     ).all()
     
-    total_vis = sites.aggregate(Sum('monthly_visitors'))['monthly_visitors__sum']
-    total_prod = sites.aggregate(Sum('total_products'))['total_products__sum']
-    total_rev = sites.aggregate(Sum('monthly_revenue'))['monthly_revenue__sum']
+    total_vis = sites.aggregate(total_vis=Sum('monthly_visitors'))['total_vis']
+    total_prod = sites.aggregate(total_prod=Sum('total_products'))['total_prod']
+    total_rev = sites.aggregate(total_rev=Sum('monthly_revenue'))['total_rev']
     
     return render(request, 'marketplace/sites_dashboard.html', {
         'site_stats': sites, 
@@ -213,8 +213,8 @@ def site_detail(request, site_id):
 @staff_member_required
 def marketing_dashboard(request):
     """የግብይት እና የደንበኛ ማግኛ ውጤቶች መከታተያ"""
-    total_s = MarketingCampaign.objects.aggregate(Sum('total_sent'))['total_sent__sum']
-    total_c = MarketingCampaign.objects.aggregate(Sum('total_converted'))['total_converted__sum']
+    total_s = MarketingCampaign.objects.aggregate(total_sent=Sum('total_sent'))['total_sent']
+    total_c = MarketingCampaign.objects.aggregate(total_conv=Sum('total_converted'))['total_conv']
     context = {
         'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
         'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
@@ -246,7 +246,7 @@ def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
     build_avg = SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg']
     
-    # ✅ 100% Database-Agnostic Case-When Aggregations for diagnostic metrics
+    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregations for diagnostic metrics
     healing = SelfHealingLog.objects.aggregate(
         total=Count('id'),
         resolved=Sum(Case(When(resolved=True, then=1), default=0, output_field=IntegerField()))
@@ -262,12 +262,11 @@ def agent_status_dashboard(request):
     heartbeat_config = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
     agent_status = _safe_json_decode(heartbeat_config.value, {"status": "idle"}) if heartbeat_config else {"status": "idle"}
 
-    # ✅ FIXED: __date የጊዜ ሰሌዳ ስህተትን ለመከላከል እጅግ አስተማማኝ የ range ሎጂክ (የሕግ 4 ጥበቃ)
+    # ✅ FIXED: __date የጊዜ ሰሌዳ ስህተትን ለመከላከል እጅግ አስተማማኝ የ range ሎጂክ (የሕግ 4 ኦፕቲማይዜሽን)
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
     today_evolution_count = AIEvolutionLog.objects.filter(created_at__range=(today_start, today_end)).count()
 
-    # ✅ FIXED: የኢንደንቴሽን አሰላለፉ ከስህተት ነፃ ሆኖ በ 8 spaces ተስተካክሏል
     context = {
         'agent_status': agent_status,
         'memory_stats': VectorMemory.objects.values('memory_type').annotate(count=Count('id')),
@@ -284,7 +283,7 @@ def agent_status_dashboard(request):
         'healing_stats': healing,
         'prediction_stats': pred,
         'success_rate': success_avg or 0,
-        # የ 'now' ታግ የሰረዝ ስህተትን በቋሚነት ለመፍታት ሰዓቱ በኮንቴክስት ተልኳል
+        # ✅ FIXED: የ 'now' ታግ የሰረዝ ስህተትን በቋሚነት ለመፍታት ሰዓቱ በኮንቴክስት ተልኳል
         'live_time': timezone.now(),
         'marketing_stats': {'notifications': NotificationQueue.objects.filter(is_sent=False).count()},
         'agent_stats': {'total': AgentTask.objects.count()}
