@@ -1,7 +1,7 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/agent_status.html
-📝 ለውጥ፦ v1.2 Master CEO Agent Status — Live Terminal & CSS Migrated (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Dynamic WebSocket Log Integration, Safe Date Formatting, Choice Metrics Sync
+📝 ለውጥ፦ v1.3 Master CEO Agent Status — Live Terminal & Quote-Free (DRY Sync)
+✅ የተፈቱ ችግሮች፦ django.template.exceptions.TemplateSyntaxError 'now' Fixed (Bypassed via live_time)
 📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
@@ -59,7 +59,6 @@
                 {% endfor %}
                 <hr>
                 <div class="text-center">
-                    <!-- ✅ FIXED: የኮንቴክስት መጥፋትን ለመከላከል views.py ላይ እንዲሰላ ታዟል -->
                     <div class="display-6 fw-bold text-primary">{{ success_rate|default:0|floatformat:1 }}%</div>
                     <small class="text-muted">Avg Success Rate</small>
                 </div>
@@ -92,13 +91,13 @@
                     <small class="ms-2 text-white-50">ethafri-ceo-agent@system:~/logs</small>
                 </div>
                 <div class="terminal-body" id="cl-terminal">
-                    <!-- ✅ FIXED: የ timezone.now ጥገኝነትን ለማስቀረት በጃንጎ {% now %} መለያ ተተክቷል -->
+                    <!-- ✅ FIXED: የ "now" የሰዋስው ስህተትን በቋሚነት ለመከላከል በ views.py live_time ተቀይሯል (የሕግ 3 ጥበቃ) -->
                     <div class="terminal-line">
-                        <span class="terminal-timestamp">[{% now "H:i:s" %}]</span>
+                        <span class="terminal-timestamp">[{{ live_time|date:"H:i:s" }}]</span>
                         <span class="terminal-info">➜ Initializing Diagnostic Console...</span>
                     </div>
                     <div class="terminal-line">
-                        <span class="terminal-timestamp">[{% now "H:i:s" %}]</span>
+                        <span class="terminal-timestamp">[{{ live_time|date:"H:i:s" }}]</span>
                         <span class="terminal-success">➜ WebSocket Connected. Waiting for next CEO Cycle...</span>
                     </div>
                     
@@ -134,7 +133,6 @@
     }
 
     // 🤖 WebSocket Integration for Real-time CL Logs
-    // ✅ FIXED: ከ global.js v1.3 አዲሱ የ CustomEvent ስርጭት ጋር ፍጹም ተዋህዷል
     document.addEventListener('agent_update', function(e) {
         const data = e.detail;
         const term = document.getElementById('cl-terminal');

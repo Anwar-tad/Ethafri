@@ -246,7 +246,7 @@ def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
     build_avg = SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg']
     
-    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregations for diagnostic metrics
+    # ✅ 100% Database-Agnostic Case-When Aggregations for diagnostic metrics
     healing = SelfHealingLog.objects.aggregate(
         total=Count('id'),
         resolved=Sum(Case(When(resolved=True, then=1), default=0, output_field=IntegerField()))
@@ -267,6 +267,7 @@ def agent_status_dashboard(request):
     today_end = today_start + timedelta(days=1)
     today_evolution_count = AIEvolutionLog.objects.filter(created_at__range=(today_start, today_end)).count()
 
+    # ✅ FIXED: የኢንደንቴሽን አሰላለፉ ከስህተት ነፃ ሆኖ በ 8 spaces ተስተካክሏል
     context = {
         'agent_status': agent_status,
         'memory_stats': VectorMemory.objects.values('memory_type').annotate(count=Count('id')),
@@ -283,6 +284,8 @@ def agent_status_dashboard(request):
         'healing_stats': healing,
         'prediction_stats': pred,
         'success_rate': success_avg or 0,
+        # የ 'now' ታግ የሰረዝ ስህተትን በቋሚነት ለመፍታት ሰዓቱ በኮንቴክስት ተልኳል
+        'live_time': timezone.now(),
         'marketing_stats': {'notifications': NotificationQueue.objects.filter(is_sent=False).count()},
         'agent_stats': {'total': AgentTask.objects.count()}
     }
