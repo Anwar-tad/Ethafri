@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/run_agent.py
-# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with memory management
+# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with memory management (v1.1)
 # ✅ የተፈቱ ችግሮች፦ Memory leak prevention, stable loop, and error isolation
 # 📅 ቀን፦ 2026-06-27
 # ============================================================
@@ -34,31 +34,31 @@ class Command(BaseCommand):
         # 🔄 Master Loop
         while True:
             try:
-                # 1. Database Connection Management
+                # 1. Database Connection Management (Memory Leak ለመከላከል)
                 close_old_connections()
                 
-                # 2. Execute Business Logic
+                # 2. Execute Business Logic (ዋናውን የኤጀንት የሥራ ዑደት መጥራት)
                 self.stdout.write("⚙️ Running Master Cycle...")
                 execute_master_cycle()
                 
-                # 3. Memory Cleanup (Crucial for Free Tier)
+                # 3. Memory Cleanup (Crucial for Free Tier - ራም ለመቆጠብ)
                 gc.collect()
                 
                 self.stdout.write(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
                 time.sleep(interval)
                 
             except KeyboardInterrupt:
-                # 🛑 Shutdown sequence
+                # 🛑 Shutdown sequence (በ Ctrl+C በሰላም መዘጋቱን ማረጋገጥ)
                 self.stdout.write(self.style.WARNING("\n👋 Agent shutdown initiated by user."))
                 self.cleanup()
                 sys.exit(0)
                 
             except Exception as e:
-                # ❌ Error handling to prevent total loop failure
+                # ❌ Error handling to prevent total loop failure (ዑደቱ እንዳይቋረጥ መከላከል)
                 logger.error(f"❌ Fatal Agent Loop Exception: {e}", exc_info=True)
                 self.stdout.write(self.style.ERROR(f"Fatal Loop Error: {e}"))
                 
-                # Wait before retrying after an error
+                # ከስህተት በኋላ ዳግም ከመነሳቱ በፊት ጥቂት እረፍት መስጠት
                 time.sleep(30) 
             
             finally:
@@ -75,4 +75,3 @@ class Command(BaseCommand):
             gc.collect()
         except:
             pass
-

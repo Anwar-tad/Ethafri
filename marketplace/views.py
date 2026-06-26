@@ -247,6 +247,7 @@ def create_marketing_campaign(request):
 # ============================================================
 # ⚖️ 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
 # ============================================================
+# views.py ውስጥ agent_status_dashboard() ቪው ሙሉ በሙሉ በዚህ ይተካል (የሕግ 3 ጥበቃ)
 @staff_member_required
 def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
@@ -268,16 +269,24 @@ def agent_status_dashboard(request):
     heartbeat_config = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
     agent_status = _safe_json_decode(heartbeat_config.value, {"status": "idle"}) if heartbeat_config else {"status": "idle"}
 
-    # __date የጊዜ ሰሌዳ ስህተትን ለመከላከል እጅግ አስተማማኝ የ range ሎጂክ
+    # __date የጊዜ ሰሌዳ ስህተትን ለመከላከል እጅግ አስተማማኝ የ range ሎጂክ (የሕግ 4 ጥበቃ)
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
     today_evolution_count = AIEvolutionLog.objects.filter(created_at__range=(today_start, today_end)).count()
 
-    # ✅ FIXED: የኤጀንቱን የሥራ ዑደቶች ታሪክና የራስ-ጥገናዎችን ዝርዝር በቀጥታ ከዳታቤዝ ማንበብ (የሕግ 3 ጥበቃ)
+    # የዳራ የሥራ መዝገቦችና የጥገና ሎጎች በቀጥታ ከዳታቤዝ ማንበብ
     logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
     cycle_logs = logs_config.value if logs_config and isinstance(logs_config.value, list) else []
     
     healed_logs = SelfHealingLog.objects.all().order_by('-created_at')[:10]
+
+    # ✅ FIXED: የነፃ ኤፒአይ የሥራ ክፍፍል ማሳያ ማትሪክስ (የሕግ 3 ጥበቃ)
+    api_matrix = [
+        {'task': 'Code Logic Development', 'name': 'MISTRAL', 'color': 'danger'},
+        {'task': 'Syntax Compiler Check', 'name': 'GROQ', 'color': 'warning text-dark'},
+        {'task': 'Form Translations', 'name': 'GEMINI 2.5', 'color': 'success'},
+        {'task': 'Market Crawling / Spy', 'name': 'OPENROUTER', 'color': 'info'},
+    ]
 
     context = {
         'agent_status': agent_status,
@@ -295,11 +304,12 @@ def agent_status_dashboard(request):
         'healing_stats': healing,
         'prediction_stats': pred,
         'success_rate': success_avg or 0,
-        # የ 'now' ታግ የሰረዝ ስህተትን ለመፍታት ሰዓቱ በኮንቴክስት ተልኳል
+        # የ 'now' ታግ የሰረዝ ስህተትን በቋሚነት ለመፍታት ሰዓቱ በኮንቴክስት ተልኳል
         'live_time': timezone.now(),
-        # ✅ FIXED: የዳራ የሥራ መዝገቦችና የጥገና ሎጎች ወደ ኮንቴክስት ተጨምረዋል
         'cycle_logs': cycle_logs,
         'healed_logs': healed_logs,
+        # ✅ FIXED: api_matrix ወደ ኮንቴክስት ተጨምሯል
+        'api_matrix': api_matrix,
         'marketing_stats': {'notifications': NotificationQueue.objects.filter(is_sent=False).count()},
         'agent_stats': {'total': AgentTask.objects.count()}
     }

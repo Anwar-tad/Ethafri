@@ -1,10 +1,27 @@
+<!-- ============================================================
+📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/agent_status.html
+📝 ለውጥ፦ v1.5 Master CEO Agent Status — Live Terminal & CSS Migrated (DRY Sync)
+✅ የተፈቱ ችግሮች፦ WebSocket terminal_log schema mismatch fixed, api_matrix registered
+📅 ቀን፦ 2026-06-26
+============================================================ -->
+
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 {% load static %}
 
+{% block extra_css %}
+<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
+<style>
+    {{ theme.custom_css|safe }}
+</style>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4" id="agent-monitor">
     
+    <!-- 🏥 Dashboard Header -->
     <div class="row mb-4 align-items-center">
         <div class="col-md-7">
             <h2 class="fw-bold"><i class="fas fa-heartbeat text-danger me-2"></i> Autonomous Agent Monitor</h2>
@@ -18,24 +35,29 @@
     </div>
 
     <div class="row g-4">
+        <!-- 🧠 Memory, Security & Model Matrix (ግራ) -->
         <div class="col-lg-4">
             <div class="row g-2 mb-4">
                 <div class="col-6">
                     <div class="stat-box p-3 border rounded shadow-sm text-center">
                         <div class="text-uppercase small text-muted">Pending</div>
-                        <div class="h4 text-warning">{{ backlog_stats.pending|default:0 }}</div>
+                        <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
+                        <div class="h4 text-warning" id="pending-count-badge">{{ backlog_stats.pending|default:0 }}</div>
                     </div>
                 </div>
                 <div class="col-6">
                     <div class="stat-box p-3 border rounded shadow-sm text-center">
                         <div class="text-uppercase small text-muted">Resolved</div>
-                        <div class="h4 text-success">{{ healing_stats.resolved|default:0 }}</div>
+                        <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
+                        <div class="h4 text-success" id="resolved-count-badge">{{ healing_stats.resolved|default:0 }}</div>
                     </div>
                 </div>
             </div>
             
+            <!-- API Routing Matrix -->
             <div class="status-card p-4 mb-4 bg-dark text-white rounded">
                 <h5 class="fw-bold mb-3 text-info"><i class="fas fa-network-wired me-2"></i> API Routing Matrix</h5>
+                <!-- ✅ FIXED: የኮንቴክስት ስህተትን ለመከላከል በ views.py ላይ እንዲሰላ ታዟል (የሕግ 3 ጥበቃ) -->
                 {% for provider in api_matrix %}
                 <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
                     <span>{{ provider.task }}</span>
@@ -45,14 +67,23 @@
             </div>
         </div>
 
+        <!-- 📟 Live Agent CL Terminal (ቀኝ) -->
         <div class="col-lg-8">
             <div class="terminal-window h-100 d-flex flex-column bg-dark rounded shadow-lg" style="min-height: 500px;">
                 <div class="terminal-header p-2 border-bottom border-secondary bg-secondary bg-opacity-25">
                     <small class="text-white-50">ethafri-ceo-agent@system:~/logs</small>
                 </div>
                 <div class="terminal-body flex-grow-1 p-3 text-light font-monospace" id="cl-terminal" style="overflow-y: auto; max-height: 450px;">
+                    <!-- ✅ FIXED: የ "now" የሰዋስው ስህተትን በቋሚነት ለመከላከል በ views.py live_time ተቀይሯል -->
+                    <div class="terminal-line">
+                        <span class="text-muted">[{{ live_time|date:"H:i:s" }}]</span> 
+                        <span class="text-info">➜ WebSocket Connected. Waiting for next CEO Cycle...</span>
+                    </div>
                     {% for log in cycle_logs %}
-                    <div class="terminal-line"><span class="text-muted">[{{ log.time }}]</span> ➜ {{ log.message }}</div>
+                    <div class="terminal-line">
+                        <span class="text-muted">[{{ log.time }}]</span> 
+                        <span class="{% if log.type == 'success' %}text-success{% elif log.type == 'error' %}text-danger{% else %}text-info{% endif %}">➜ {{ log.message }}</span>
+                    </div>
                     {% endfor %}
                 </div>
             </div>
@@ -70,24 +101,46 @@
         document.getElementById('uptime-counter').innerText = new Date(diff * 1000).toISOString().substr(11, 8);
     }, 1000);
 
-    // 📟 WebSocket Auto-Updater (Null-Safe Implementation)
+    // 📟 Terminal Auto-Scroll
+    function scrollTerminal() {
+        const term = document.getElementById('cl-terminal');
+        if (term) term.scrollTop = term.scrollHeight;
+    }
+
+    // 📟 WebSocket Auto-Updater
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
 
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
         const term = document.getElementById('cl-terminal');
+        if (!term) return;
         
-        // ✅ FIXED: Null/Undefined handling (የላኩልኝ ኮድ)
-        const message = data.message ? data.message : "System Idle - Waiting for Task...";
         const timestamp = new Date().toLocaleTimeString();
-        
         const line = document.createElement('div');
         line.className = 'terminal-line mb-1';
-        line.innerHTML = `<span class="text-muted">[${timestamp}]</span> ➜ ${message}`;
         
-        term.appendChild(line);
-        term.scrollTop = term.scrollHeight; // Auto-scroll
+        // ✅ FIXED: ከ consumers.py የሚመጣውን የ 'terminal_log' ሎጂክ በትክክል መፍታት (የሕግ 3 ጥበቃ)
+        if (data.type === 'terminal_log') {
+            const log = data.log || {};
+            let logClass = 'text-info';
+            if (log.type === 'success') logClass = 'text-success';
+            else if (log.type === 'error') logClass = 'text-danger';
+            
+            line.innerHTML = `<span class="text-muted">[${log.time || timestamp}]</span> ➜ <span class="${logClass}">${log.message || ''}</span>`;
+            term.appendChild(line);
+            scrollTerminal();
+        }
+        // ✅ FIXED: በየ 10 ደቂቃው የሚደረገው የሥራ ዑደት ማጠቃለያ ቁጥሮቹን በእውነተኛ ሰዓት እንዲያድስ ማድረግ
+        else if (data.type === 'status_update') {
+            const pendingCountEl = document.getElementById('pending-count-badge');
+            const resolvedCountEl = document.getElementById('resolved-count-badge');
+            
+            if (pendingCountEl && data.task_stats) pendingCountEl.innerText = data.task_stats.pending;
+            if (resolvedCountEl && data.healing) resolvedCountEl.innerText = data.healing.resolved;
+        }
     };
+
+    scrollTerminal();
 </script>
 {% endblock %}
