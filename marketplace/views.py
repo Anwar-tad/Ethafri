@@ -251,7 +251,6 @@ def create_marketing_campaign(request):
 # ============================================================
 # ⚖️ 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
 # ============================================================
-@# views.py ውስጥ agent_status_dashboard() ቪው ሙሉ በሙሉ በዚህ ይተካል (የሕግ 3 ጥበቃ)
 @staff_member_required
 def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
