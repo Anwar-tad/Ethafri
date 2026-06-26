@@ -1,7 +1,7 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/home.html
-📝 ለውጥ፦ v1.3 Zero-Script Edition — All JS Moved to global.js (DRY Complete)
-✅ የተፈቱ ችግሮች፦ Dynamic i18n & Category Scroll with zero inline JS/CSS bloat
+📝 ለውጥ፦ v1.4 Ultra-Optimized Landing Page — DRY & N+1 Query Resolved
+✅ የተፈቱ ችግሮች፦ cat.active_count database integration, total_products_all context mismatch resolved
 📅 ቀን፦ 2026-06-26
 ============================================================ -->
 
@@ -48,6 +48,7 @@
                class="site-option {% if not current_site %}active{% endif %}">
                 <span class="site-indicator" style="background: var(--text-muted);"></span>
                 {% trans "All Sites" %}
+                <!-- ✅ FIXED: የኮንቴክስት ስህተትን ለመከላከል በ views.py total_products_all ተነቧል (የሕግ 3 ጥበቃ) -->
                 <span class="badge-count">{{ total_products_all|default:0 }}</span>
             </a>
             {% for site in sites %}
@@ -101,7 +102,7 @@
                 {% trans "All" %}
             </a>
         </div>
-        <!-- ✅ FIXED: በአግድም እንዲጎተት scroll-draggable ክላስ ተጨምሮለታል (ከስክሪፕቱ ጋር ይገናኛል) -->
+        <!-- በአግድም እንዲጎተት scroll-draggable ክላስ ተጨምሮለታል (ከስክሪፕቱ ጋር ይገናኛል) -->
         <div class="categories-scroll scroll-draggable">
             {% for cat in categories %}
             <a href="?category={{ cat.id }}{% if request.GET.site %}&site={{ request.GET.site }}{% endif %}" 
@@ -110,7 +111,8 @@
                     {% if cat.icon %}<i class="fas fa-{{ cat.icon }}"></i>{% else %}🏷️{% endif %}
                 </span>
                 {{ cat.name }}
-                <span class="chip-count">{{ cat.product_set.count|default:0 }}</span>
+                <!-- ✅ FIXED: የ N+1 query ስህተትን ለማስቀረት በ views.py የተሰላው active_count ጥቅም ላይ ውሏል (የሕግ 4 ጥበቃ) -->
+                <span class="chip-count">{{ cat.active_count|default:0 }}</span>
             </a>
             {% empty %}
             <span class="text-muted small">{% trans "No categories available" %}</span>

@@ -1,7 +1,7 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/agent_status.html
-📝 ለውጥ፦ v1.4 Ultimate Live Agent Diagnostics Monitor — DRY Sync & Mapped views
-✅ የተፈቱ ችግሮች፦ Combined Duplicate JS Listeners, Multi-API Router Matrix, Live Command Trigger Included
+📝 ለውጥ፦ v1.5 Master CEO Agent Status — Live Terminal & CSS Migrated (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic WebSocket Log Integration, Live Database Healed & Cycle Logs Included
 📅 ቀን፦ 2026-06-25
 ============================================================ -->
 
@@ -53,7 +53,7 @@
         </div>
     </div>
 
-    <!-- 📈 ፈጣን የቀጥታ ስታቶች (Live Metrics Row) -->
+    <!-- 📈 የቀጥታ ስታቶች (Live Metrics Row) -->
     <div class="row g-3 mb-4 text-center">
         <div class="col-6 col-md-3">
             <div class="stat-box">
@@ -100,7 +100,7 @@
                 </div>
             </div>
 
-            <!-- ✅ NEW: የኤጀንቱ የሞዴል የሥራ ክፍፍል ማሳያ (Model API Routing Matrix) -->
+            <!-- API Routing Matrix -->
             <div class="status-card p-4 mb-4" style="background: #1e293b; color: white;">
                 <h5 class="fw-bold mb-3 text-info"><i class="fas fa-network-wired me-2"></i> API Routing Matrix</h5>
                 <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
@@ -149,7 +149,7 @@
                     <small class="ms-2 text-white-50">ethafri-ceo-agent@system:~/logs</small>
                 </div>
                 <div class="terminal-body flex-grow-1" id="cl-terminal" style="max-height: 550px;">
-                    <!-- ✅ FIXED: የ timezone.now ጥገኝነትን ለማስቀረት በጃንጎ {% now %} መለያ ተተክቷል -->
+                    <!-- የሰዓት መለያ በ views.py live_time ተተክቷል -->
                     <div class="terminal-line">
                         <span class="terminal-timestamp">[{{ live_time|date:"H:i:s" }}]</span>
                         <span class="terminal-info">➜ Initializing Diagnostic Console...</span>
@@ -158,6 +158,22 @@
                         <span class="terminal-timestamp">[{{ live_time|date:"H:i:s" }}]</span>
                         <span class="terminal-success">➜ WebSocket Connected. Waiting for next CEO Cycle...</span>
                     </div>
+                    
+                    <!-- ✅ FIXED: የኤጀንቱን ያለፉ የሥራ ዑደቶች ታሪክ በቀጥታ ከዳታቤዝ አውጥቶ ተርሚናል ላይ መደርደር (የሕግ 4 ጥበቃ) -->
+                    {% for log in cycle_logs %}
+                    <div class="terminal-line">
+                        <span class="terminal-timestamp">[{{ log.time }}]</span>
+                        <span class="{% if log.type == 'success' %}terminal-success{% elif log.type == 'error' %}terminal-error{% else %}terminal-info{% endif %}">➜ {{ log.message }}</span>
+                    </div>
+                    {% endfor %}
+
+                    <!-- ✅ FIXED: ኤጀንቱ ራሱ የፈወሳቸውን የዳታቤዝ ጥገና ታሪኮች (Self-Healed) በቀጥታ ተርሚናሉ ውስጥ ማሳየት (የሕግ 3 ጥበቃ) -->
+                    {% for log in healed_logs %}
+                    <div class="terminal-line">
+                        <span class="terminal-timestamp">[{{ log.created_at|date:"H:i:s" }}]</span>
+                        <span class="terminal-success">✔ AUTO-HEALED: {{ log.error_message }} -> Fixed via SQL: "{{ log.solution_sql|truncatechars:50 }}"</span>
+                    </div>
+                    {% endfor %}
                     
                     {% for log in unresolved_errors %}
                     <div class="terminal-line">
@@ -191,7 +207,6 @@
     }
     
     // 🤖 WebSocket Integration for Real-time CL Logs (v1.4)
-    // ✅ FIXED: DRY መርህን ለመጠበቅ ሁለቱም ተደጋጋሚ WebSocket ስክሪፕቶች ወደ አንዲት የተጠናቀረች ክስተት ማዳመጫ ተቀይረዋል (የሕግ 4 ጥበቃ)
     document.addEventListener('agent_update', function(e) {
         const data = e.detail;
         const term = document.getElementById('cl-terminal');

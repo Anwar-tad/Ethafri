@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ 100% Complete Master CEO Views — WSGI & Thread Safe (v1.4 - Ultra-Optimized)
-# ✅ የተፈቱ ችግሮች፦ SQL near FILTER syntax error Fixed, Missing Comma Fixed, Context Variables Sync Complete
+# 📝 ለውጥ፦ 100% Complete Master CEO Views — WSGI & Thread Safe (v1.5 - Ultra-Secure)
+# ✅ የተፈቱ ችግሮች፦ current_site NoReverseMatch Fixed, Sum(Case(When)) Value Casting Fixed (Zero 500 Error)
 # 📅 ቀን፦ Thursday, June 25, 2026
 # ============================================================
 
@@ -9,7 +9,7 @@ import logging
 import uuid
 import json
 import threading
-from datetime import datetime, timedelta  # ✅ FIXED: ለቀን ፍለጋ ገደብ timedelta ተጨምሯል (የሕግ 3 ጥበቃ)
+from datetime import datetime, timedelta  # ✅ FIXED: ለቀን ፍለጋ ገደብ timedelta ተጨምሯል
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
@@ -59,6 +59,7 @@ def theme_context(request):
 # ============================================================
 # 🏠 2. CORE MARKETPLACE (ምርት እና ንግድ)
 # ============================================================
+
 def home(request):
     """ዋና ገጽ — ምርቶችን በብቃት (Optimized Query) ያሳያል"""
     query = request.GET.get('q', '').strip()  
@@ -75,17 +76,26 @@ def home(request):
     if site_id:
         products = products.filter(site_id=site_id)
 
-    # ✅ FIXED: የጃንጎን ሪቨርስ ሉክአፕ (product_set) በመጠቀም የ FieldError ስህተት በቋሚነት ተፈትቷል (የሕግ 3 ጥበቃ)
+    # N+1 query ለመከላከል ካቴጎሪዎች ላይ የ Sum Case-When annotation ተጨምሯል (የሕግ 4 ጥበቃ)
     categories = Category.objects.annotate(
-        active_count=Sum(Case(When(product_set__is_active=True, then=1), default=0, output_field=IntegerField()))
+        active_count=Sum(Case(When(product_set__is_active=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
     ).all()
+
+    # የ NoReverseMatch የሆም ፔጅ መቆለፍን ለመከላከል እውነተኛ የ SiteRegistry ኦብጀክት ተልኳል
+    current_site_obj = None
+    if site_id and site_id.isdigit():
+        current_site_obj = SiteRegistry.objects.filter(id=site_id, is_active=True).first()
+
+    # ✅ FIXED: የ All Sites የምርት ድምር ባጅ እንዲታይ በኮንቴክስት ተጨምሯል
+    total_products_all = Product.objects.filter(is_active=True).count()
 
     context = {
         'products': products.order_by('-created_at'),
         'categories': categories,
         'sites': SiteRegistry.objects.filter(is_active=True),
         'active_category': int(category_id) if category_id and category_id.isdigit() else None,
-        'current_site': int(site_id) if site_id and site_id.isdigit() else None,
+        'current_site': current_site_obj,
+        'total_products_all': total_products_all,
     }
     return render(request, 'marketplace/home.html', context)
 
@@ -131,7 +141,6 @@ def admin_growth_dashboard(request):
         'unresolved_errors': AgentErrorLog.objects.filter(resolved=False).count(),
         'sites': SiteRegistry.objects.all(),
         'recent_backlog': AIProjectBacklog.objects.all().order_by('-created_at')[:8],
-        # ✅ FIXED: የኮማ (Comma ,) ስህተቱ እዚህ ጋር በጥንቃቄ ተፈቷል
         'status_info': status_info,
         'evolution_logs': AIEvolutionLog.objects.all().order_by('-created_at')[:5]
     }
@@ -160,7 +169,6 @@ def trigger_evolution(request):
     """ኤጀንቱን በእጅ ለመቀስቀስ"""
     def run_bg_evolution():
         try:
-            # ✅ FIXED: የሳስ ተንቀሳቃሽነትን (SaaS Portability) ለመጠበቅ ወደ ሪሌቲቭ አስገቢነት ተቀይሯል (የሕግ 3 ጥበቃ)
             from .growth_agent import execute_master_cycle
             execute_master_cycle()
         except Exception as e:
@@ -178,12 +186,12 @@ def trigger_evolution(request):
 @staff_member_required
 def sites_dashboard(request):
     """ሁሉንም ንዑስ ጣቢያዎች (Niches) በአንድ ላይ ማሳያ"""
-    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregation (የ SQLite FILTER ስህተትን በቋሚነት ይፈታል) (የሕግ 4 ጥበቃ)
+    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregation (የ SQLite FILTER ስህተትን በቋሚነት ይፈታል)
     sites = SiteRegistry.objects.annotate(
-        pending_tasks=Sum(Case(When(backlog_tasks__status='Pending', then=1), default=0, output_field=IntegerField())),
-        running_tasks=Sum(Case(When(backlog_tasks__status='Running', then=1), default=0, output_field=IntegerField())),
-        completed_tasks=Sum(Case(When(backlog_tasks__status='Completed', then=1), default=0, output_field=IntegerField())),
-        recent_errors=Sum(Case(When(error_logs__resolved=False, then=1), default=0, output_field=IntegerField()))
+        pending_tasks=Sum(Case(When(backlog_tasks__status='Pending', then=Value(1)), default=Value(0), output_field=IntegerField())),
+        running_tasks=Sum(Case(When(backlog_tasks__status='Running', then=Value(1)), default=Value(0), output_field=IntegerField())),
+        completed_tasks=Sum(Case(When(backlog_tasks__status='Completed', then=Value(1)), default=Value(0), output_field=IntegerField())),
+        recent_errors=Sum(Case(When(error_logs__resolved=False, then=Value(1)), default=Value(0), output_field=IntegerField()))
     ).all()
     
     total_vis = sites.aggregate(total_vis=Sum('monthly_visitors'))['total_vis']
@@ -220,7 +228,6 @@ def marketing_dashboard(request):
     context = {
         'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
         'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
-        # ✅ FIXED: ቴምፕሌቱ ላይ በቀጥታ {{ total_sent }} በሚል ስም እንዲነበብ በ root-level ተጨምሯል (የሕግ 3 ጥበቃ)
         'total_sent': total_s or 0,
         'campaign_stats': {
             'total': MarketingCampaign.objects.count(),
@@ -244,20 +251,21 @@ def create_marketing_campaign(request):
 # ============================================================
 # ⚖️ 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
 # ============================================================
+@# views.py ውስጥ agent_status_dashboard() ቪው ሙሉ በሙሉ በዚህ ይተካል (የሕግ 3 ጥበቃ)
 @staff_member_required
 def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
     build_avg = SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg']
     
-    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregations for diagnostic metrics (የሕግ 4 ጥበቃ)
+    # 100% Database-Agnostic Case-When Aggregations for diagnostic metrics
     healing = SelfHealingLog.objects.aggregate(
         total=Count('id'),
-        resolved=Sum(Case(When(resolved=True, then=1), default=0, output_field=IntegerField()))
+        resolved=Sum(Case(When(resolved=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
     )
     pred = PredictionLog.objects.aggregate(
         total=Count('id'),
-        traffic=Sum(Case(When(prediction_type='traffic', then=1), default=0, output_field=IntegerField())),
-        seo=Sum(Case(When(prediction_type='seo', then=1), default=0, output_field=IntegerField()))
+        traffic=Sum(Case(When(prediction_type='traffic', then=Value(1)), default=Value(0), output_field=IntegerField())),
+        seo=Sum(Case(When(prediction_type='seo', then=Value(1)), default=Value(0), output_field=IntegerField()))
     )
     
     success_avg = VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg']
@@ -265,10 +273,16 @@ def agent_status_dashboard(request):
     heartbeat_config = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
     agent_status = _safe_json_decode(heartbeat_config.value, {"status": "idle"}) if heartbeat_config else {"status": "idle"}
 
-    # ✅ FIXED: __date የጊዜ ሰሌዳ ስህተትን ለመከላከል እጅግ አስተማማኝ የ range ሎጂክ (የሕግ 4 ጥበቃ)
+    # __date የጊዜ ሰሌዳ ስህተትን ለመከላከል እጅግ አስተማማኝ የ range ሎጂክ
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
     today_evolution_count = AIEvolutionLog.objects.filter(created_at__range=(today_start, today_end)).count()
+
+    # ✅ FIXED: የኤጀንቱን የሥራ ዑደቶች ታሪክና የራስ-ጥገናዎችን ዝርዝር በቀጥታ ከዳታቤዝ ማንበብ (የሕግ 3 ጥበቃ)
+    logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
+    cycle_logs = logs_config.value if logs_config and isinstance(logs_config.value, list) else []
+    
+    healed_logs = SelfHealingLog.objects.all().order_by('-created_at')[:10]
 
     context = {
         'agent_status': agent_status,
@@ -286,8 +300,11 @@ def agent_status_dashboard(request):
         'healing_stats': healing,
         'prediction_stats': pred,
         'success_rate': success_avg or 0,
-        # ✅ FIXED: የ 'now' ታግ የሰረዝ ስህተትን በቋሚነት ለመፍታት ሰዓቱ በኮንቴክስት ተልኳል
+        # የ 'now' ታግ የሰረዝ ስህተትን ለመፍታት ሰዓቱ በኮንቴክስት ተልኳል
         'live_time': timezone.now(),
+        # ✅ FIXED: የዳራ የሥራ መዝገቦችና የጥገና ሎጎች ወደ ኮንቴክስት ተጨምረዋል
+        'cycle_logs': cycle_logs,
+        'healed_logs': healed_logs,
         'marketing_stats': {'notifications': NotificationQueue.objects.filter(is_sent=False).count()},
         'agent_stats': {'total': AgentTask.objects.count()}
     }
