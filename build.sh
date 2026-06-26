@@ -1,9 +1,9 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ v1.6 Optimized Build Script — PostgreSQL Ultra Index Safeguard (v1.6)
-# ✅ የተፈቱ ችግሮች፦ relation marketplace_site_id_6bde06_idx does not exist (Postgres dual-index migration fixed!)
-# 📅 ቀን፦ 2026-06-25
+# 📝 ለውጥ፦ v1.7 Optimized Build Script — PostgreSQL Ultra Index Safeguard (v1.7)
+# ✅ የተፈቱ ችግሮች፦ relation marketplace_site_id_b474e3_idx already exists (Postgres dual-way migration fixed!)
+# 📅 ቀን፦ 2026-06-26
 # ============================================================
 
 # ስህተት ሲያጋጥም ወዲያውኑ እንዲቆም ማድረግ
@@ -35,11 +35,11 @@ with connection.cursor() as cursor:
     cursor.execute('CREATE TABLE IF NOT EXISTS marketplace_aisystemtask (id SERIAL PRIMARY KEY);')
     cursor.execute('CREATE TABLE IF NOT EXISTS marketplace_agenttask (id SERIAL PRIMARY KEY, agent_type VARCHAR(20), status VARCHAR(20), site_id INTEGER);')
     
-    # ለ. ግጭት የሚፈጥሩትን አዲሶቹን ኢንዴክሶች በ SQL አስቀድሞ ማጥፋት (already exists ስህተትን ይፈታል!)
+    # ለ. ✅ FIXED: ግጭት የሚፈጥሩትን አዲሶቹን ኢንዴክሶች በ SQL አስቀድሞ ማጥፋት (already exists ስህተትን በቋሚነት ይፈታል!) (የሕግ 4 ጥበቃ)
     cursor.execute('DROP INDEX IF EXISTS marketplace_agent_t_ab7613_idx;')
-    cursor.execute('DROP INDEX IF EXISTS marketplace_agent_t_9dfb8c_idx;')
+    cursor.execute('DROP INDEX IF EXISTS marketplace_site_id_b474e3_idx;')
     
-    # ሐ. ✅ FIXED: ጃንጎ የሚቀይረውን የቆዩትን ኢንዴክሶች በ SQL አስቀድሞ መፍጠር (does not exist ስህተቶችን በቋሚነት ይፈታል!) (የሕግ 3 ጥበቃ)
+    # ሐ. ✅ FIXED: ጃንጎ የሚቀይረቸውን የቆዩትን ኢንዴክሶች በ SQL አስቀድሞ መፍጠር (does not exist ስህተቶችን በቋሚነት ይፈታል!) (የሕግ 3 ጥበቃ)
     cursor.execute('CREATE INDEX IF NOT EXISTS marketplace_agentty_847321_idx ON marketplace_agenttask (agent_type, status);')
     cursor.execute('CREATE INDEX IF NOT EXISTS marketplace_site_id_6bde06_idx ON marketplace_agenttask (site_id, status);')
 print('✅ Legacy table and index check complete')
