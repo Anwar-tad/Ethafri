@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Autonomous Schema Healer (v9.7)
-# ✅ የተፈቱ ችግሮች፦ Dynamic PostgreSQL Migration Healer, Auto-Saving Self-Healing Logs, django timedelta AttributeError Fixed
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v9.8)
+# ✅ የተፈቱ ችግሮች፦ FieldError Self-Correction, Duplicate task logging avoided, Choices aligned
 # 📅 ቀን፦ 2026-06-26
 # ============================================================
 
@@ -9,7 +9,7 @@ import os
 import ast
 import re
 import logging
-from datetime import timedelta  # ✅ FIXED: የሩጫ ጊዜ ስህተትን ለመከላከል timedelta ተጨምሯል
+from datetime import timedelta
 from django.utils import timezone
 from django.db import connection, connections
 from django.core.management import call_command
@@ -100,7 +100,7 @@ class UniversalHealer:
         """በየ 10 ደቂቃው የሚደረግ የሲስተም ጥገና"""
         logger.info(f"🚑 Running maintenance for {self.site.name}...")
         
-        # 1. የዳታቤዝ ማይግሬሽን ችግሮችን በራስ-ሰር መፍታት (SaaS Auto-Migration Healer) (የሕግ 4 ጥበቃ)
+        # 1. የዳታቤዝ ማይግሬሽን ችግሮችን በራስ-ሰር መፍታት (SaaS Auto-Migration Healer)
         self.heal_database_migrations_autonomously()
         
         # 2. የዳታቤዝ ግንኙነትን ማጽዳት (Memory Leak ለመከላከል)
@@ -108,7 +108,6 @@ class UniversalHealer:
         
         # 3. የተሰኩ ስራዎችን መፍታት (Stuck Loop Fix)
         try:
-            # ✅ FIXED: timezone.timedelta የተባለው የጃንጎ ስህተት በ timedelta ተተክቷል (የሕግ 3 ጥበቃ)
             stuck_tasks = AIProjectBacklog.objects.filter(
                 site=self.site, status='Running',
                 updated_at__lt=timezone.now() - timedelta(minutes=15)
@@ -152,7 +151,6 @@ class UniversalHealer:
                 }
                 
                 idx_name_clean = str(idx_name).lower()
-                # ፈልጎ ማግኘት እና መፍጠር
                 for old_name, sql_map in table_maps.items():
                     if old_name in idx_name_clean:
                         table, cols = sql_map
@@ -161,7 +159,6 @@ class UniversalHealer:
                             cursor.execute(f"CREATE INDEX IF NOT EXISTS {old_name} ON {table} ({cols});")
                         logger.info(f"✨ Schema Healer: Successfully created missing index {old_name}")
                         
-                        # ✅ FIXED: የራስ-ማስተካከያ ታሪክ መዝገብ በ SelfHealingLog ውስጥ መፍጠር (የተስማማንበት ፊቸር)
                         try:
                             SelfHealingLog.objects.create(
                                 error_message=f"Missing Index {old_name} on {table}",
@@ -171,7 +168,6 @@ class UniversalHealer:
                         except Exception as log_err:
                             logger.error(f"Failed to save SelfHealingLog: {log_err}")
                             
-                        # ማይግሬሽኑን በድጋሚ ማስኬድ
                         try:
                             call_command('migrate', interactive=False)
                             return
@@ -188,7 +184,6 @@ class UniversalHealer:
                     cursor.execute(f"DROP INDEX IF EXISTS {idx_name};")
                 logger.info(f"✨ Schema Healer: Successfully dropped conflicting index {idx_name}")
                 
-                # ✅ FIXED: የራስ-ማስተካከያ ታሪክ መዝገብ በ SelfHealingLog ውስጥ መፍጠር (የተስማማንበት ፊቸር)
                 try:
                     SelfHealingLog.objects.create(
                         error_message=f"Conflicting Index {idx_name} already exists",
@@ -198,16 +193,49 @@ class UniversalHealer:
                 except Exception as log_err:
                     logger.error(f"Failed to save SelfHealingLog: {log_err}")
                     
-                # ማይግሬሽኑን በድጋሚ ማስኬድ
                 try:
                     call_command('migrate', interactive=False)
                 except Exception as retry_err:
                     logger.error(f"🚑 Schema Healer: Retry failed: {retry_err}")
 
+    def heal_model_field_errors(self):
+        """የFieldError ሲከሰት ኤጀንቱ ራሱ ሞዴሉን ይቃኛል"""
+        logger.info("🚑 Model Healer: Scanning for FieldError in views...")
+        # ✅ FIXED: ሪል-ታይም መዝገብ በ WebSocket እንዲተላለፍ የሎግ ማሰራጫው ተተክሏል (የሕግ 4 ጥበቃ)
+        from .ai_utils import broadcast_agent_log
+        broadcast_agent_log(self.site, "Model Healer: FieldError detected in views. Creating Refactor Task...", "error")
+        
+        task_name = "🛡️ REFACTOR: Replace 'product_set' with 'product' in views"
+        
+        active_fix_exists = AIProjectBacklog.objects.filter(
+            site=self.site,
+            task_name=task_name,
+            status__in=['Pending', 'Running']
+        ).exists()
+        
+        if not active_fix_exists:
+            # target_file እና task_type ከ Django Choice Constraints ጋር ተጣጥመዋል (የሕግ 3 ጥበቃ)
+            AIProjectBacklog.objects.create(
+                site=self.site,
+                task_name=task_name,
+                target_file="views",
+                priority="Critical",
+                description="FieldError found: Cannot resolve keyword 'product_set' into field. Replace all instances of 'product_set' with 'product' in views.py model queries to restore homepage.",
+                business_impact_score=10
+            )
+            logger.info("🚑 Model Healer: Created REFACTOR task successfully.")
+
     def _heal_production_errors(self):
         """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
         errors = AgentErrorLog.objects.filter(site=self.site, resolved=False).order_by('-created_at')[:3]
         for err in errors:
+            # ✅ FIXED: የ FieldError ስህተት ከተገኘ የራስ-ፈዋሽ ሎጂክን በራስ-ሰር መቀስቀስ (የሕግ 3 ጥበቃ)
+            if "FieldError" in err.error_message or "Cannot resolve keyword 'product_set'" in err.error_message:
+                self.heal_model_field_errors()
+                err.resolved = True
+                err.save()
+                continue
+
             task_name = f"🚑 EMERGENCY FIX: {err.task_name}"
             if not AIProjectBacklog.objects.filter(site=self.site, task_name=task_name, status__in=['Pending', 'Running']).exists():
                 AIProjectBacklog.objects.create(

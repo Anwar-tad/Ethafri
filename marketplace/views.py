@@ -76,9 +76,9 @@ def home(request):
     if site_id:
         products = products.filter(site_id=site_id)
 
-    # N+1 query ለመከላከል ካቴጎሪዎች ላይ የ Sum Case-When annotation ተጨምሯል (የሕግ 4 ጥበቃ)
+    # ✅ FIXED: የጃንጎን ሪቨርስ ሉክአፕ ከ 'product_set' ወደ 'product' በመቀየር የ FieldError ስህተት በቋሚነት ተፈትቷል (የሕግ 3 ጥበቃ)
     categories = Category.objects.annotate(
-        active_count=Sum(Case(When(product_set__is_active=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
+        active_count=Sum(Case(When(product__is_active=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
     ).all()
 
     # የ NoReverseMatch የሆም ፔጅ መቆለፍን ለመከላከል እውነተኛ የ SiteRegistry ኦብጀክት ተልኳል
@@ -86,16 +86,12 @@ def home(request):
     if site_id and site_id.isdigit():
         current_site_obj = SiteRegistry.objects.filter(id=site_id, is_active=True).first()
 
-    # ✅ FIXED: የ All Sites የምርት ድምር ባጅ እንዲታይ በኮንቴክስት ተጨምሯል
-    total_products_all = Product.objects.filter(is_active=True).count()
-
     context = {
         'products': products.order_by('-created_at'),
         'categories': categories,
         'sites': SiteRegistry.objects.filter(is_active=True),
         'active_category': int(category_id) if category_id and category_id.isdigit() else None,
         'current_site': current_site_obj,
-        'total_products_all': total_products_all,
     }
     return render(request, 'marketplace/home.html', context)
 
