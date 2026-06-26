@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v9.3 (Gemini 2.5 Flash Dynamic Allocator Edition)
-# ✅ ተግባራት፦ Thread-Safe Call Pacing, Fallback Cooldown, Gemini 2.5 Model Lock & Warning
-# 📅 ቀን፦ 2026-06-25
+# 📝 ስሪት፦ v9.6 (Phoenix Infinite Free-Tier Edition)
+# ✅ ተግባራት፦ GitHub Models API Integration, HuggingFace Alternating, Zero-Cost 24/7 Loop Pacing
+# 📅 ቀን፦ 2026-06-27
 # ============================================================
 
 import os
@@ -34,17 +34,21 @@ def get_api_keys():
         'GROQ': os.getenv('GROQ_API_KEY', ''),
         'MISTRAL': os.getenv('MISTRAL_API_KEY', ''),
         'OPENROUTER': os.getenv('OPENROUTER_API_KEY', ''),
-        'HUGGINGFACE': os.getenv('HUGGINGFACE_API_KEY', '')
+        'HUGGINGFACE': os.getenv('HUGGINGFACE_API_KEY', ''),
+        # ✅ FIXED: የ GitHub Models API ቁልፍ ከ GITHUB_TOKEN ላይ በጥራት ተገጥሟል (የሕግ 3 ጥበቃ)
+        'GITHUB': os.getenv('GITHUB_TOKEN', '')
     }
 
 def _pace_provider(provider):
     """የነፃ ኤፒአይዎችን RPM (Requests Per Minute) ገደብ ለመጠበቅ ጥሪዎችን ያፈራርቃል"""
     pacing_limits = {
-        'GROQ': 2.5,       # Groq ነፃ ገደብ እጅግ ጠባብ በመሆኑ የ2.5 ሰከንድ ጥበቃ ይደረጋል
-        'GEMINI': 2.0,     # Gemini ነፃ ገደብ 15 RPM
+        'GROQ': 2.5,       
+        'GEMINI': 2.0,     
         'MISTRAL': 1.5,
         'OPENROUTER': 1.0,
-        'HUGGINGFACE': 1.0
+        'HUGGINGFACE': 1.0,
+        # ✅ FIXED: ለ GitHub Models የሚሆን የ 1.5 ሰከንድ የፈረቃ ጊዜ ጥበቃ
+        'GITHUB': 1.5
     }
     wait_time = pacing_limits.get(provider, 1.0)
     
@@ -135,8 +139,6 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
             
         # 2. GEMINI ENGINES (ለትርጉም፣ ለይዘት ፈጠራ እና ለገበያ ጥናት)
         elif provider == 'GEMINI':
-            # ⚠️ CRITICAL WARNING / ማስጠንቀቂያ:
-            # DO NOT CHANGE THE MODEL VERSION BELOW. THE FREE TIER ONLY WORKS WITH 'gemini-2.5-flash'.
             # የጀሚናይ ነፃ ፓኬጅ የሚሠራው በ 'gemini-2.5-flash' ብቻ ስለሆነ ይህ ሞዴል በፍጹም እንዳይቀየር!
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
             headers = {"Content-Type": "application/json"}
@@ -191,6 +193,25 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                         return text.split("<|assistant|>\n")[-1].strip()
                     return text
 
+        # 6. ✅ NEW: GITHUB MODELS API (የመጀመሪያ ደረጃ የነፃ ምትኬ ሞዴል - Llama 3) (የሕግ 4 ጥበቃ)
+        elif provider == 'GITHUB':
+            url = "https://models.inference.ai.azure.com/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "meta-llama-3-8b-instruct",  # በ GitHub በነፃ የሚቀርብ እጅግ ኃይለኛ ሞዴል
+                "messages": [
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.2
+            }
+            response = requests.post(url, json=payload, timeout=25)
+            if response.status_code == 200:
+                return response.json()['choices'][0]['message']['content']
+
     except Exception as e:
         logger.error(f"❌ Error during calling AI Provider {provider}: {e}")
         mark_provider_failed(provider)
@@ -206,10 +227,12 @@ def smart_ai_router(task_type, prompt, system_instruction=""):
         key="ai_routing_matrix",
         defaults={
             "value": {
+                "coding": "MISTRAL",          
                 "code_logic": "MISTRAL",
-                "syntax_check": "GROQ",
-                "translation": "GEMINI",
-                "market_research": "OPENROUTER"
+                "syntax_check": "GROQ",        
+                "translation": "GEMINI",       
+                "market_research": "HUGGINGFACE", 
+                "analysis": "OPENROUTER"       
             }
         }
     )
@@ -219,9 +242,9 @@ def smart_ai_router(task_type, prompt, system_instruction=""):
     # 1. መጀመሪያ የተመረጠውን ዋና ፕሮቫይደር መጥራት
     result = call_ai_provider(preferred_provider, prompt, system_instruction)
     
-    # 2. ፎልባክ (Failover Logic)፦ ዋናው ፕሮቫይደር ከቀዘቀዘ ወይም ከከሸፈ ወደ ሌላው ማዞር
+    # 2. ፎልባክ (Failover Logic)፦ የነፃ ገደብን ለመቆጠብ GITHUB እና HUGGINGFACE በአንደኝነት ተካተዋል
     if not result:
-        fallback_providers = ["GEMINI", "GROQ", "OPENROUTER", "MISTRAL", "HUGGINGFACE"]
+        fallback_providers = ["GEMINI", "GROQ", "GITHUB", "HUGGINGFACE", "OPENROUTER", "MISTRAL"]
         for provider in fallback_providers:
             if provider != preferred_provider:
                 logger.info(f"🔄 Routing Fallback: Switching from {preferred_provider} to {provider} for {task_type}")

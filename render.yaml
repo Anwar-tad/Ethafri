@@ -1,7 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/render.yaml
-# 📝 ለውጥ፦ Clean version — No hardcoded secrets
-# 📅 ቀን፦ 2026-06-22
+# 📝 ለውጥ፦ v1.2 Master Secure Infrastructure — sync: false API Gating (v1.2)
+# ✅ የተፈቱ ችግሮች፦ Prevent Render from wiping out GITHUB_TOKEN & API Keys on auto-deploy
+# 📅 ቀን፦ 2026-06-27
 # ============================================================
 
 services:
@@ -32,10 +33,22 @@ services:
       - key: AUTONOMOUS_AGENT_ENABLED
         value: "true"
       - key: AGENT_INTERVAL
-        value: "60"
+        value: "600"
       - key: SKIP_SHELL
         value: "true"
-      # ✅ ሁሉም API ቁልፎች ተወግደዋል — በRender Dashboard ላይ ያስቀምጧቸው!
+      # ✅ FIXED: ሬንደር በአውቶ-ዲፕሎይ ጊዜ የ AI ቁልፎችን እንዳያጠፋ በ sync: false ተጠብቀዋል (የሕግ 3 ጥበቃ)
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: HUGGINGFACE_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
     autoDeploy: true
     healthCheckPath: /
 
@@ -49,7 +62,7 @@ services:
     buildCommand: ./build.sh
     startCommand: |
       python manage.py migrate --no-input || python manage.py makemigrations --merge && python manage.py migrate --no-input
-      python manage.py run_agent
+      python manage.py run_agent --interval $AGENT_INTERVAL
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -64,9 +77,22 @@ services:
       - key: AUTONOMOUS_AGENT_ENABLED
         value: "true"
       - key: AGENT_INTERVAL
-        value: "60"
+        value: "600"
       - key: SKIP_SHELL
         value: "true"
+      # ✅ FIXED: ሬንደር በሠራተኛው (Worker) ላይም የ AI ቁልፎችን እንዳያጠፋ በ sync: false ተጠብቀዋል
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: HUGGINGFACE_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
 
   # ============================================================
   # 3. ⏰ የድሮ ክሮን ሠራተኛ (Backup Worker)
@@ -78,7 +104,7 @@ services:
     buildCommand: ./build.sh
     startCommand: |
       while true; do
-        python manage.py evolve_market
+        python manage.py run_agent --once
         sleep 300
       done
     envVars:
@@ -96,7 +122,6 @@ services:
 # ============================================================
 # 4. 🗄️ የውሂብ ጎታ (Database)
 # ============================================================
-
 databases:
   - name: ethafri_db
     plan: free
