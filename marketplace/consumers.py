@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/consumers.py
-# 📝 ለውጥ፦ Fixed Async Database Access + Fixed django.db Import Error (v9.6)
-# ✅ የተፈቱ ችግሮች፦ close_old_connections ImportError Fixed, Thread-safe database connections
-# 📅 ቀን፦ 2026-06-25
+# 📝 ለውጥ፦ Fixed Async Database Access + broadcast_log_message handler (v9.7)
+# ✅ የተፈቱ ችግሮች፦ ValueError: No handler for message type broadcast_log_message
+# 📅 ቀን፦ 2026-06-26
 # ============================================================
 
 import json
@@ -11,7 +11,7 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
-# ✅ FIXED: የዲፔንደንሲ ክራሽን ለመከላከል close_old_connections በቀጥታ ገብቷል (የሕግ 3 ጥበቃ)
+# የዲፔንደንሲ ክራሽን ለመከላከል close_old_connections በቀጥታ ገብቷል (የሕግ 3 ጥበቃ)
 from django.db import models, close_old_connections
 from django.db.models import Count, Case, When, Value, IntegerField
 
@@ -105,8 +105,29 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Live stats send error: {e}")
     
     async def send_status(self):
-        # ...
-        pass
+        try:
+            lock = await self.get_lock_status()
+            tasks = await self.get_task_stats()
+            pending = await self.get_pending_tasks()
+            sites = await self.get_site_summary()
+            errors = await self.get_error_summary()
+            healing = await self.get_healing_summary()
+            cycle_logs = await self.get_cycle_logs()
+            
+            status_data = {
+                'type': 'status_update',
+                'timestamp': timezone.now().isoformat(),
+                'lock_status': lock,
+                'task_stats': tasks,
+                'pending_tasks': pending,
+                'sites': sites,
+                'errors': errors,
+                'healing': healing,
+                'cycle_logs': cycle_logs
+            }
+            await self.send(text_data=json.dumps(status_data))
+        except Exception as e:
+            await self.send(text_data=json.dumps({"error": str(e)}))
             
     async def send_site_status(self, site_id):
         """የአንድ ጣቢያ ሁኔታ ለይቶ መላክ"""
@@ -129,13 +150,9 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'errors': errors,
                 'timestamp': timezone.now().isoformat()
             }
-            
             await self.send(text_data=json.dumps(status_data))
         except Exception as e:
-            await self.send(text_data=json.dumps({
-                'type': 'error',
-                'message': str(e)
-            }))
+            await self.send(text_data=json.dumps({"error": str(e)}))
             
     async def send_error_summary(self):
         """የስህተት ማጠቃለያ ላክ"""
@@ -147,10 +164,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'timestamp': timezone.now().isoformat()
             }))
         except Exception as e:
-            await self.send(text_data=json.dumps({
-                'type': 'error',
-                'message': str(e)
-            }))
+            await self.send(text_data=json.dumps({"error": str(e)}))
             
     async def send_recent_activity(self):
         """የቅርብ ጊዜ እንቅስቃሴ ላክ"""
@@ -162,15 +176,19 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'timestamp': timezone.now().isoformat()
             }))
         except Exception as e:
-            await self.send(text_data=json.dumps({
-                'type': 'error',
-                'message': str(e)
-            }))
+            await self.send(text_data=json.dumps({"error": str(e)}))
+
+    # ✅ FIXED: የኤጀንቱን እያንዳንዱን ሥራ በWebSocket ላይቭ ለመከታተል የተገጠመ የክስተት መጋጠሚያ (የሕግ 3 ጥበቃ)
+    async def broadcast_log_message(self, event):
+        """የቀጥታ ስርጭት መዝገብ (Log) በ WebSocket ወደ ተርሚናል መላክ"""
+        await self.send(text_data=json.dumps({
+            'type': 'terminal_log',
+            'log': event['log']
+        }))
             
     # ============================================================
     # 🗄️ Database Helper Functions (Async)
     # ============================================================
-    
     @database_sync_to_async
     def get_lock_status(self):
         """የEVOLUTION_LOCK ሁኔታ አግኝ"""
@@ -178,7 +196,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             lock = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
             return lock.value if lock else {'status': 'idle', 'last_run': 'Never'}
         finally:
-            # ✅ FIXED: close_old_connections በቀጥታ በጥንቃቄ ተጠርቷል
             close_old_connections()
             
     @database_sync_to_async
