@@ -43,7 +43,7 @@ _project_hashes = {}
 # ⚙️ 1. AI Cache System (መሸጎጫ)
 # ============================================================
 class AICache:
-    """ተደጋጋሚ የAI ጥያቄዎችን ለማስታወስ (TTL-based Token Saver)"""
+    """ተደጋጋሚ የAI ጥያ계를ዎችን ለማስታወስ (TTL-based Token Saver)"""
     def __init__(self, ttl=1800, max_size=500):
         self.cache = {}
         self.ttl = ttl
@@ -632,7 +632,7 @@ def get_site_project_state_dynamic(site: SiteRegistry):
             else:
                 state[key] = "❌ MISSING_FILE"
 
-    # 2. ዳይናሚክ የኤችቲኤምኤል ቴምፕሌቶች አሰሳ
+    # 2. 杠ይናሚክ የኤችቲኤምኤል ቴምፕሌቶች አሰሳ
     if is_remote:
         # ✅ FIXED: Truncation-Safe Tree Scan (GitHub API ገደብ መከላከያ)
         url = f"https://api.github.com/repos/{repo_name}/git/trees/main?recursive=1"
