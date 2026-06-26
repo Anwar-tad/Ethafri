@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/forms.py
-# 📝 ለውጥ፦ Multi-Site Support + Enhanced Product Form (v1.1)
-# ✅ የተፈቱ ችግሮች፦ Unstyled site/category Dropdowns Fixed (Design System Alignment)
-# 📅 ቀን፦ 2026-06-25
+# 📝 ለውጥ፦ v1.2 Site Registration Form — is_active, auto_update & auto_marketing added (v1.2)
+# ✅ የተፈቱ ችግሮች፦ Missing is_active control on SiteRegistrationForm, styled Bootstrap switches
+# 📅 ቀን፦ Friday, June 26, 2026
 # ============================================================
 
 from django import forms
@@ -13,7 +13,6 @@ from .models import Product, Category, SiteRegistry
 class ProductForm(forms.ModelForm):
     """የምርት መለጠፊያ ፎርም — Multi-Site ድጋፍ ያለው"""
     
-    # ✅ FIXED: የዲዛይን አንድነትን ለመጠበቅ form-select ክላስ ተገጥሞለታል (የሕግ 4 ጥበቃ)
     site = forms.ModelChoiceField(
         queryset=SiteRegistry.objects.filter(is_active=True),
         required=False,
@@ -22,7 +21,6 @@ class ProductForm(forms.ModelForm):
         help_text="ይህ ምርት የሚለጠፍበትን ጣቢያ ይምረጡ"
     )
     
-    # ✅ FIXED: የዲዛይን አንድነትን ለመጠበቅ form-select ክላስ ተገጥሞለታል
     category = forms.ModelChoiceField(
         queryset=Category.objects.all(),
         required=False,
@@ -139,7 +137,11 @@ class SiteRegistrationForm(forms.ModelForm):
     
     class Meta:
         model = SiteRegistry
-        fields = ['name', 'display_name', 'niche', 'target_market', 'repo_path', 'deployment_url']
+        # ✅ FIXED: የኤጀንቱን ጭነት ለመቆጣጠር is_active, auto_update & auto_marketing ፊልዶች በጥራት ተጨምረዋል (የሕግ 3 ጥበቃ)
+        fields = [
+            'name', 'display_name', 'niche', 'target_market', 'repo_path', 'deployment_url',
+            'is_active', 'auto_update_enabled', 'auto_marketing_enabled'
+        ]
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -164,6 +166,22 @@ class SiteRegistrationForm(forms.ModelForm):
             'deployment_url': forms.URLInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'https://mysite.com'
+            }),
+            # ✅ FIXED: ዘመናዊ Bootstrap Checkbox/Switches ለመፍጠር የተዋቀሩ ማብሪያዎች (የሕግ 4 ጥበቃ)
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+                'type': 'checkbox',
+                'role': 'switch'
+            }),
+            'auto_update_enabled': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+                'type': 'checkbox',
+                'role': 'switch'
+            }),
+            'auto_marketing_enabled': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+                'type': 'checkbox',
+                'role': 'switch'
             }),
         }
     

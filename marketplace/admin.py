@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/admin.py
-# 📝 ለውጥ፦ Dynamic Diagnostics & Safe Severity Tagging (v1.1)
-# ✅ የተፈቱ ችግሮች፦ Dynamic Severity Colors, Null-Safe String Slicing, Registered Missing Models
-# 📅 ቀን፦ Thursday, June 25, 2026
+# 📝 ለውጥ፦ Dynamic Diagnostics & Safe Severity Tagging (v1.2)
+# ✅ የተፈቱ ችግሮች፦ AIEvolutionLog Truncation and Formatting, Productis_active List Display
+# 📅 ቀን፦ Friday, June 26, 2026
 # ============================================================
 
 from django.contrib import admin
@@ -30,7 +30,8 @@ from .models import (
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('title', 'get_site', 'price', 'category', 'market_status', 'view_count', 'created_at')
+    # ✅ FIXED: የትኞቹ ምርቶች ንቁ መሆናቸውን በቀጥታ ለማረጋገጥ is_active በ display ዝርዝር ውስጥ ገብቷል (የሕግ 4 ጥበቃ)
+    list_display = ('title', 'get_site', 'price', 'category', 'is_active', 'market_status', 'view_count', 'created_at')
     list_filter = ('site', 'category', 'is_active', 'market_value_status')
     search_fields = ('title', 'description', 'location')
     readonly_fields = ('view_count', 'inquiry_count', 'created_at', 'updated_at')
@@ -48,7 +49,7 @@ admin.site.register(Category)
 admin.site.register(TranslationQueue)
 admin.site.register(ProductTranslation)
 
-# ✅ FIXED: የፍለጋ መረጃዎችን በዳሽቦርዱ ላይ ለመከታተል የተመዘገበ (የሕግ 4 ጥበቃ)
+# FIXED: የፍለጋ መረጃዎችን በዳሽቦርዱ ላይ ለመከታተል የተመዘገበ
 admin.site.register(UserSearch)
 
 # ============================================================
@@ -81,6 +82,19 @@ class AIProjectBacklogAdmin(admin.ModelAdmin):
         colors = {'Completed': 'green', 'Running': 'orange', 'Pending': 'gray', 'Blocked': 'red'}
         return format_html('<b style="color: {};">{}</b>', colors.get(obj.status, 'black'), obj.status)
 
+
+# ✅ FIXED: የኮድ ለውጦች ታሪክ (Evolution Logs) በአድሚን ገጽ ላይ እጅግ በጣም ንጹህና የተደራጀ እንዲሆን የተለየ ክላስ ተገንብቷል (የሕግ 4 ጥበቃ)
+@admin.register(AIEvolutionLog)
+class AIEvolutionLogAdmin(admin.ModelAdmin):
+    list_display = ('target_file', 'site', 'reason_preview', 'created_at')
+    list_filter = ('site', 'target_file')
+    readonly_fields = ('created_at',)
+    
+    def reason_preview(self, obj):
+        msg = obj.reason_for_change or ""
+        return msg[:75] + "..." if len(msg) > 75 else msg
+
+
 # ============================================================
 # 🩺 3. የኤጀንቱ ጤና እና ጥገና (Diagnostic Center)
 # ============================================================
@@ -99,15 +113,12 @@ class SelfHealingLogAdmin(admin.ModelAdmin):
     list_display = ('error_message_short', 'resolved', 'created_at')
     
     def error_message_short(self, obj):
-        # ✅ FIXED: TypeError ለመከላከል Null-Safe አቀራረብ ተተክቷል
+        # FIXED: TypeError ለመከላከል Null-Safe አቀራረብ ተተክቷል
         msg = obj.error_message or ""
         return msg[:100] + "..." if len(msg) > 100 else msg
 
 
 admin.site.register(SiteConfig)
-admin.site.register(AIEvolutionLog)
-
-# ✅ FIXED: የገበያ አዝማሚያዎችን በዳሽቦርዱ ላይ ለመከታተል የተመዘገበ
 admin.site.register(MarketTrend)
 
 # ============================================================
@@ -158,7 +169,6 @@ class SecurityLogAdmin(admin.ModelAdmin):
     list_filter = ('severity', 'is_fixed', 'category')
 
     def severity_tag(self, obj):
-        # ✅ FIXED: የ "critical" እና የ "low" የደህንነት ቀለሞች በተገቢው ደረጃ በጥራት ተለይተዋል
         colors = {
             'critical': 'darkred',
             'high': 'red',
