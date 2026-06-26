@@ -7,30 +7,34 @@
     
     <div class="row mb-4 align-items-center">
         <div class="col-md-7">
-            <h2 class="fw-bold"><i class="fas fa-heartbeat text-danger me-2"></i> Agent Health & Memory</h2>
-            <p class="text-muted small">Real-time CEO brain telemetry and RAG memory diagnostic.</p>
+            <h2 class="fw-bold"><i class="fas fa-heartbeat text-danger me-2"></i> Autonomous Agent Monitor</h2>
+            <p class="text-muted small">Live diagnostics of the EthAfri brain, memory, and parallel execution.</p>
         </div>
         <div class="col-md-5 text-md-end">
-            <button onclick="window.location.reload()" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-sync-alt"></i> Refresh Diagnostics
-            </button>
+            <span class="badge bg-dark border border-success rounded-pill px-3 py-2">
+                <i class="fas fa-clock text-success me-2"></i> Uptime: <span id="uptime-counter">00:00:00</span>
+            </span>
         </div>
-    </div>
-
-    <div class="row g-3 mb-4 text-center">
-        {% for stat in metrics_list %}
-        <div class="col-6 col-md-3">
-            <div class="stat-box">
-                <div class="stat-label text-uppercase small">{{ stat.label }}</div>
-                <div class="stat-val {{ stat.text_class }}">{{ stat.value }}</div>
-            </div>
-        </div>
-        {% endfor %}
     </div>
 
     <div class="row g-4">
         <div class="col-lg-4">
-            <div class="status-card p-4 mb-4 bg-dark text-white">
+            <div class="row g-2 mb-4">
+                <div class="col-6">
+                    <div class="stat-box p-3 border rounded shadow-sm text-center">
+                        <div class="text-uppercase small text-muted">Pending</div>
+                        <div class="h4 text-warning">{{ backlog_stats.pending|default:0 }}</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="stat-box p-3 border rounded shadow-sm text-center">
+                        <div class="text-uppercase small text-muted">Resolved</div>
+                        <div class="h4 text-success">{{ healing_stats.resolved|default:0 }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="status-card p-4 mb-4 bg-dark text-white rounded">
                 <h5 class="fw-bold mb-3 text-info"><i class="fas fa-network-wired me-2"></i> API Routing Matrix</h5>
                 {% for provider in api_matrix %}
                 <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
@@ -42,13 +46,13 @@
         </div>
 
         <div class="col-lg-8">
-            <div class="terminal-window h-100 d-flex flex-column">
-                <div class="terminal-header">
+            <div class="terminal-window h-100 d-flex flex-column bg-dark rounded shadow-lg" style="min-height: 500px;">
+                <div class="terminal-header p-2 border-bottom border-secondary bg-secondary bg-opacity-25">
                     <small class="text-white-50">ethafri-ceo-agent@system:~/logs</small>
                 </div>
-                <div class="terminal-body flex-grow-1" id="cl-terminal" style="overflow-y: auto; max-height: 500px;">
+                <div class="terminal-body flex-grow-1 p-3 text-light font-monospace" id="cl-terminal" style="overflow-y: auto; max-height: 450px;">
                     {% for log in cycle_logs %}
-                    <div class="terminal-line"><span class="terminal-timestamp">[{{ log.time }}]</span> ➜ {{ log.message }}</div>
+                    <div class="terminal-line"><span class="text-muted">[{{ log.time }}]</span> ➜ {{ log.message }}</div>
                     {% endfor %}
                 </div>
             </div>
@@ -61,22 +65,27 @@
 <script>
     // ⏰ Uptime Calculator
     const startTime = Date.now();
-    const updateUptime = () => {
+    setInterval(() => {
         const diff = Math.floor((Date.now() - startTime) / 1000);
         document.getElementById('uptime-counter').innerText = new Date(diff * 1000).toISOString().substr(11, 8);
-    };
-    setInterval(updateUptime, 1000);
+    }, 1000);
 
-    // 📟 WebSocket Connection
+    // 📟 WebSocket Auto-Updater (Null-Safe Implementation)
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
 
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
         const term = document.getElementById('cl-terminal');
+        
+        // ✅ FIXED: Null/Undefined handling (የላኩልኝ ኮድ)
+        const message = data.message ? data.message : "System Idle - Waiting for Task...";
+        const timestamp = new Date().toLocaleTimeString();
+        
         const line = document.createElement('div');
-        line.className = 'terminal-line';
-        line.innerHTML = `<span class="terminal-timestamp">[${new Date().toLocaleTimeString()}]</span> ➜ ${data.message}`;
+        line.className = 'terminal-line mb-1';
+        line.innerHTML = `<span class="text-muted">[${timestamp}]</span> ➜ ${message}`;
+        
         term.appendChild(line);
         term.scrollTop = term.scrollHeight; // Auto-scroll
     };
