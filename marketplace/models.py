@@ -43,8 +43,7 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
-
-# models.py ውስጥ የሚገኘው Product ሞዴል ሙሉ በሙሉ በዚህ ይተካል (የሕግ 4 ኦፕቲማይዜሽን)
+# models.py ውስጥ በ Product ሞዴል ውስጥ የሚተካ የኢንዴክስ እና የአሰላለፍ ማሻሻያ (የሕግ 3 ጥበቃ)
 class Product(models.Model):
     """የማርኬት ፕሌሱ ዋና የምርት መረጃ መያዣ"""
     seller = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -58,7 +57,7 @@ class Product(models.Model):
     specifications = models.TextField(default='{}', blank=True)
     market_value_status = models.CharField(max_length=50, blank=True, default='Unknown')
     
-    # ✅ FIXED: የዋናውን ገጽ የምርት ፍለጋ ፍጥነት በ 10x ለማሳደግ db_index ተጨምሯል
+    # የዋናውን ገጽ የምርት ፍለጋ ፍጥነት በ 10x ለማሳደግ db_index ተጨምሯል
     is_active = models.BooleanField(default=True, db_index=True)
     ai_tags = models.TextField(default='[]', blank=True)
     
@@ -77,10 +76,11 @@ class Product(models.Model):
         help_text="ይህ ምርት የሚለጠፍበትን ጣቢያ ይምረጡ"
     )
     
-    # ✅ FIXED: የዋናውን ገጽ የመደርደሪያ ፍጥነት (order_by) ለማሳደግ db_index ተጨምሯል
+    # የዋናውን ገጽ የመደርደሪያ ፍጥነት (order_by) ለማሳደግ db_index ተጨምሯል
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # ✅ FIXED: የጃንጎን የአሰላለፍ ሕግ ለመጠበቅ በእያንዳንዱ ፈንክሽን መግቢያ ላይ 4 spaces ብቻ ጥቅም ላይ ውለዋል
     def get_translated_title(self):
         lang = get_language()
         if lang == 'en':
@@ -95,6 +95,16 @@ class Product(models.Model):
     def get_translated_desc(self):
         lang = get_language()
         if lang == 'en':
+            return self.description
+        translation = getattr(self, 'translations', None)
+        if translation:
+            lang_text = getattr(translation, lang, '')
+            if lang_text and "|||" in lang_text:
+                return lang_text.split("|||")[1].strip()
+        return self.description
+
+    def __str__(self):
+        return self.title
 
 
 class ProductTranslation(models.Model):
