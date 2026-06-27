@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v9.9)
-# ✅ የተፈቱ ችግሮች፦ HTML-Safe AST Scoping, Dynamic Subprocess Guards, Resolution Loop Prevention
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.0)
+# ✅ የተፈቱ ችግሮች፦ Predictive & Security index maps integrated, Resolution loop prevention, Complete function closures
 # 📅 ቀን፦ 2026-06-27
 # ============================================================
 
@@ -30,7 +30,7 @@ class SecurityAuditor:
         if not code or not isinstance(code, str):
             return True, []
 
-        # ✅ FIXED: የ HTML ቴምፕሌቶች ሲፈተሹ የ Python AST parse እንዳይካሄድ መከላከል (የሕግ 4 ጥበቃ)
+        # የ HTML ቴምፕሌቶች ሲፈተሹ የ Python AST parse እንዳይካሄድ መከላከል (የሕግ 4 ጥበቃ)
         is_python = file_path.endswith('.py') if file_path else True
         if 'html' in file_path.lower() or not is_python:
             # HTML ከሆነ AST ፍተሻ አያስፈልገውም
@@ -57,16 +57,16 @@ class SecurityAuditor:
                         if func_name in dangerous_attributes:
                             issues.append(f"Critical: Dangerous system attribute '{func_name}' detected.")
                         
-                        # ✅ FIXED: 'run' እና 'call' የሚከለከሉት በ subprocess ስር ሲጠሩ ብቻ ነው (False-Positive መከላከያ)
+                        # 'run' እና 'call' የሚከለከሉት በ subprocess ስር ሲጠሩ ብቻ ነው (False-Positive መከላከያ)
                         if hasattr(node.func.value, 'id'):
                             module_name = node.func.value.id.lower()
                             if module_name == 'subprocess' and func_name in ['run', 'call', 'popen', 'check_output', 'check_call']:
                                 issues.append(f"Critical: Dangerous subprocess call 'subprocess.{func_name}' detected.")
 
             secret_patterns = [
-                (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
-                (r'(?<![\w"])password\s*=\s*[\'"][^\'"]+[\'"]', 'Possible password exposure'),
-                (r'(?<![\w"])API_KEY\s*=\s*[\'"][^\'"]+[\'"]', 'API key exposure')
+                (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
+                (r'(?<![\w"])password\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'Possible password exposure'),
+                (r'(?<![\w"])API_KEY\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'API key exposure')
             ]
             for pattern, desc in secret_patterns:
                 if re.search(pattern, code, re.IGNORECASE):
@@ -146,10 +146,13 @@ class UniversalHealer:
                 idx_name = match_missing.group(1)
                 logger.warning(f"🚑 Schema Healer: Missing index '{idx_name}' detected. Auto-creating in DB...")
                 
+                # ✅ FIXED: 0017 ማይግሬሽን እንዳይቆለፍ የተጨመሩ የደህንነት እና የትንበያ መዝገብ ኢንዴክሶች
                 table_maps = {
                     "marketplace_agentty_847321_idx": ("marketplace_agenttask", "agent_type, status"),
                     "marketplace_site_id_6bde06_idx": ("marketplace_agenttask", "site_id, status"),
-                    "marketplace_predicti_9ce3e9_idx": ("marketplace_predictionlog", "prediction_type, site_id")
+                    "marketplace_predicti_9ce3e9_idx": ("marketplace_predictionlog", "prediction_type, site_id"),
+                    "marketplace_predicti_1a7d5d_idx": ("marketplace_predictionlog", "prediction_type"),  # ✅ የተጨመረ
+                    "marketplace_security_128a46_idx": ("marketplace_securitylog", "severity")         # ✅ የተጨመረ
                 }
                 
                 idx_name_clean = str(idx_name).lower()
@@ -157,7 +160,6 @@ class UniversalHealer:
                     if old_name in idx_name_clean:
                         table, cols = sql_map
                         with connection.cursor() as cursor:
-                            # ✅ FIXED: ባዶ ሰንጠረዥ ከመፍጠር ይልቅ የሰንጠረዡን መኖር አረጋግጦ ኢንዴክስ ብቻ መስራት (ማይግሬሽን እንዳይበላሽ)
                             cursor.execute(f"SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='{table}');")
                             table_exists = cursor.fetchone()[0]
                             if table_exists:
@@ -249,7 +251,6 @@ class UniversalHealer:
                 )
                 logger.info(f"🚑 Created healing task for: {err.task_name}")
             
-            # ✅ FIXED: የአደጋ ስህተቱን ወዲያውኑ 'resolved' ማድረጉ ወሰን የሌለው backlogs መፈጠርን ይከላከላል!
             err.resolved = True
             err.save()
 
@@ -279,7 +280,6 @@ class UniversalHealer:
                     )
                     logger.info(f"🛡️ Created security healing task for: {vuln.description}")
                 
-                # ✅ FIXED: የደህንነት ስጋቱ አንዴ በባክሎግ ከተመዘገበ ወደ 'is_fixed=True' ይቀየራል (የ loop መከላከያ)
                 vuln.is_fixed = True
                 vuln.save()
         except Exception as e:
@@ -295,4 +295,4 @@ def refresh_db_connection_on_error(error_message):
         connection.close()
         logger.info("🛡️ Database connection refreshed due to error.")
         return True
-    return False
+    return False # ✅ የተሟላ ማጠናቀቂያ (Complete function closure)

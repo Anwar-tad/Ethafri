@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.10 Phoenix Auto-Installer — Pre-Flight Index Scaffolder (Unblock Migration 0017)
-# ✅ የተፈቱ ችግሮች፦ relation "marketplace_predicti_1a7d5d_idx" does not exist resolved, complete DB auto-migration unblocked
+# 📝 ለውጥ፦ v9.11 Phoenix Auto-Installer — Dual Pre-Flight Index Scaffolder (Complete Migration Unblocked)
+# ✅ የተፈቱ ችግሮች፦ relation "marketplace_security_128a46_idx" does not exist resolved, unblocked migration 0017
 # 📅 ቀን፦ 2026-06-27
 # ============================================================
 
@@ -103,7 +103,7 @@ class MarketplaceConfig(AppConfig):
     def ready(self):
         """ሲስተሙ ሲነሳ ኤጀንቱን፣ ማይግሬሽኑን እና የዳታቤዝ ጥገናውን በራስ-ሰር ይቀሰቅሳል"""
         
-        # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል
+        # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል (Anti-Collision Guard)
         if 'manage.py' in sys.argv:
             command = sys.argv[1] if len(sys.argv) > 1 else ''
             if command in ['migrate', 'makemigrations', 'collectstatic', 'shell', 'check']:
@@ -124,12 +124,18 @@ class MarketplaceConfig(AppConfig):
             from django.db import connection
             
             # 🛠️ 1. Database Schema Pre-Flight Fix (የጠፉ ኢንዴክሶችን አስቀድሞ መፍጠር)
-            # "marketplace_predicti_1a7d5d_idx" does not exist የተባለውን የማይግሬሽን 0017 መቆለፊያ ለመፍታት
             with connection.cursor() as cursor:
+                # ሀ. PredictionLog Index መፍቻ (ያልተገኘ ከሆነ በራስ-ሰር ይሠራል)
                 cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_predictionlog');")
                 if cursor.fetchone()[0]:
                     cursor.execute("CREATE INDEX IF NOT EXISTS marketplace_predicti_1a7d5d_idx ON marketplace_predictionlog (prediction_type);")
                     logger.info("✨ Auto-Healer: Created pre-flight index 'marketplace_predicti_1a7d5d_idx' to unblock migration 0017.")
+                
+                # ለ. SecurityLog Index መፍቻ (ያልተገኘ ከሆነ በራስ-ሰር ይሠራል)
+                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_securitylog');")
+                if cursor.fetchone()[0]:
+                    cursor.execute("CREATE INDEX IF NOT EXISTS marketplace_security_128a46_idx ON marketplace_securitylog (severity);")
+                    logger.info("✨ Auto-Healer: Created pre-flight index 'marketplace_security_128a46_idx' to unblock migration 0017.")
             
             # 🛠️ 2. ማይግሬሽን በራስ-ሰር ማስኬድ
             logger.info("🛠️ Auto-Migrator: Running makemigrations...")
