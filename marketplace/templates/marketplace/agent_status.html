@@ -1,7 +1,7 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/agent_status.html
-📝 ለውጥ፦ v1.6 Master CEO Agent Status — Real-Time Badges Synced (DRY)
-✅ የተፈቱ ችግሮች፦ WebSocket live_stats rendering, Undefined healing stats safeguard
+📝 ለውጥ፦ v1.7 Master CEO Agent Status — Interactive Details Dropdowns Added (v1.7)
+✅ የተፈቱ ችግሮች፦ Clickable stat cards, Live pending list rendering, Bootstrap styled switches
 📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
@@ -16,6 +16,23 @@
     {{ theme.custom_css|safe }}
 </style>
 {% endif %}
+<style>
+    /* ካርዶቹ በይነተገናኝ እንዲሆኑ የተገጠመ ስታይል */
+    .stat-box {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .stat-box:hover {
+        transform: translateY(-3px);
+    }
+    .active-pending {
+        border-color: #ffc107 !important;
+        box-shadow: 0 4px 15px rgba(255, 193, 7, 0.25) !important;
+    }
+    .active-resolved {
+        border-color: #198754 !important;
+        box-shadow: 0 4px 15px rgba(25, 135, 84, 0.25) !important;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -37,19 +54,49 @@
     <div class="row g-4">
         <!-- 🧠 Memory, Security & Model Matrix (ግራ) -->
         <div class="col-lg-4">
+            
+            <!-- ካርዶቹ በይነተገናኝ ሆነው ተዋቅረዋል -->
             <div class="row g-2 mb-4">
                 <div class="col-6">
-                    <div class="stat-box p-3 border rounded shadow-sm text-center">
+                    <div class="stat-box p-3 border rounded shadow-sm text-center" id="pending-card" onclick="toggleDetails('pending')" style="cursor: pointer;">
                         <div class="text-uppercase small text-muted">Pending</div>
                         <div class="h4 text-warning" id="pending-count-badge">{{ backlog_stats.pending|default:0 }}</div>
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="stat-box p-3 border rounded shadow-sm text-center">
+                    <div class="stat-box p-3 border rounded shadow-sm text-center" id="resolved-card" onclick="toggleDetails('resolved')" style="cursor: pointer;">
                         <div class="text-uppercase small text-muted">Resolved</div>
                         <div class="h4 text-success" id="resolved-count-badge">{{ healing_stats.resolved|default:0 }}</div>
                     </div>
                 </div>
+            </div>
+
+            <!-- 📋 በይነተገናኝ የዝርዝር ሰሌዳ (✅ v1.7 የተጨመረ መረጃዎችን ከካርዱ በታች ማሳያ) -->
+            <div class="status-card p-3 mb-4 bg-dark text-white rounded border border-secondary" id="details-panel" style="display: none;">
+                
+                <!-- የ Pending ስራዎች ዝርዝር ሰሌዳ -->
+                <div id="pending-details" style="display: none;">
+                    <h6 class="fw-bold mb-3 text-warning"><i class="fas fa-clock me-2"></i>{% trans "Pending Backlog" %}</h6>
+                    <div id="pending-tasks-list" style="max-height: 250px; overflow-y: auto;">
+                        <!-- በጃቫስክሪፕት በላይቭ ሰዓት ይሞላል -->
+                    </div>
+                </div>
+
+                <!-- የተጠገኑ ስህተቶች ዝርዝር ሰሌዳ -->
+                <div id="resolved-details" style="display: none;">
+                    <h6 class="fw-bold mb-3 text-success"><i class="fas fa-check-double me-2"></i>{% trans "Resolved Issues" %}</h6>
+                    <div id="resolved-tasks-list" style="max-height: 250px; overflow-y: auto;">
+                        {% for log in healed_logs %}
+                        <div class="p-2 mb-2 border-bottom border-secondary border-opacity-25 small d-flex justify-content-between">
+                            <span><i class="fas fa-check-circle text-success me-2"></i>{{ log.error_message|truncatechars:35 }}</span>
+                            <small class="text-muted">{{ log.created_at|date:"H:i" }}</small>
+                        </div>
+                        {% empty %}
+                        <div class="text-muted small py-2">{% trans "No resolved logs found." %}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
             </div>
             
             <!-- API Routing Matrix -->
@@ -103,9 +150,74 @@
         if (term) term.scrollTop = term.scrollHeight;
     }
 
+    // የ Pending ስራዎች የላይቭ ዝርዝር መያዣ
+    let livePendingTasks = [];
+
+    // ✅ FIXED: የ Pending ስራዎችን በእውነተኛ ሰዓት ወደ HTML መለወጫ
+    function renderPendingTasksList() {
+        const listContainer = document.getElementById('pending-tasks-list');
+        if (!listContainer) return;
+        
+        if (livePendingTasks.length === 0) {
+            listContainer.innerHTML = '<div class="text-muted small py-2">No pending tasks. Backlog is clear!</div>';
+            return;
+        }
+
+        let html = '';
+        livePendingTasks.forEach(task => {
+            let badgeColor = 'bg-info';
+            if (task.priority === 'Critical') badgeColor = 'bg-danger';
+            else if (task.priority === 'High') badgeColor = 'bg-warning text-dark';
+            
+            html += `
+                <div class="p-2 mb-2 border-bottom border-secondary border-opacity-25 small d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge ${badgeColor} me-2" style="font-size: 0.6rem;">${task.priority}</span>
+                        <span class="fw-bold">${task.name}</span>
+                    </div>
+                    <small class="text-muted">📁 ${task.site || 'Global'}</small>
+                </div>
+            `;
+        });
+        listContainer.innerHTML = html;
+    }
+
+    // ✅ FIXED: ካርዶቹ ሲነኩ ዝርዝሩን ከታች መክፈቻ/መዝጊያ (Toggle) ሎጂክ
+    function toggleDetails(type) {
+        const panel = document.getElementById('details-panel');
+        const pendingSection = document.getElementById('pending-details');
+        const resolvedSection = document.getElementById('resolved-details');
+        const pendingCard = document.getElementById('pending-card');
+        const resolvedCard = document.getElementById('resolved-card');
+
+        // ገጹ ቀድሞውኑ ክፍት ከሆነና ያንኑ ካርድ ድጋሚ ከነካው መዝጋት
+        if (panel.style.display === 'block' && 
+            ((type === 'pending' && pendingSection.style.display === 'block') || 
+             (type === 'resolved' && resolvedSection.style.display === 'block'))) {
+            panel.style.display = 'none';
+            pendingCard.classList.remove('active-pending');
+            resolvedCard.classList.remove('active-resolved');
+            return;
+        }
+
+        panel.style.display = 'block';
+
+        if (type === 'pending') {
+            pendingSection.style.display = 'block';
+            resolvedSection.style.display = 'none';
+            pendingCard.classList.add('active-pending');
+            resolvedCard.classList.remove('active-resolved');
+            renderPendingTasksList();
+        } else {
+            pendingSection.style.display = 'none';
+            resolvedSection.style.display = 'block';
+            resolvedCard.classList.add('active-resolved');
+            pendingCard.classList.remove('active-pending');
+        }
+    }
+
     // 📟 WebSocket Auto-Updater
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    // ✅ GITHUB/Routing ስም ስምምነትን ለመጠበቅ underscore ዌብሶኬት ዩአርኤል ምርጥ ተመራጭ ነው
     const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
 
     socket.onmessage = function(event) {
@@ -128,19 +240,25 @@
             term.appendChild(line);
             scrollTerminal();
         }
-        // 2. ✅ FIXED: በየ 5 ሰከንዱ የሚመጣውን የ 'live_stats' መረጃ በእውነተኛ ሰዓት እንዲያዘምን ተደርጓል!
+        // 2. የቁጥር መለኪያዎችን እና የባክሎግ መዝገቦችን በየ 5 ሰከንዱ ማዘመን
         else if (data.type === 'status_update' || data.type === 'live_stats') {
             const pendingCountEl = document.getElementById('pending-count-badge');
             const resolvedCountEl = document.getElementById('resolved-count-badge');
             
-            // Pending ስራዎች ስታቲስቲክስ ማዘመን
             if (pendingCountEl && data.task_stats) {
                 pendingCountEl.innerText = data.task_stats.pending;
             }
-            
-            // ✅ FIXED: በ 'live_stats' ላይ የ 'healing' መረጃ ካልመጣ undefined ስህተት እንዳይከሰት መከላከያ
             if (resolvedCountEl && data.healing) {
                 resolvedCountEl.innerText = data.healing.resolved;
+            }
+
+            // የላይቭ የባክሎግ ዝርዝር መዝገብን ማዘመን
+            if (data.pending_tasks) {
+                livePendingTasks = data.pending_tasks;
+                // የፔንዲንግ ዝርዝሩ ክፍት ከሆነ ወዲያውኑ መልሰን በይነገጹን መሳል
+                if (document.getElementById('pending-details').style.display === 'block') {
+                    renderPendingTasksList();
+                }
             }
         }
     };
