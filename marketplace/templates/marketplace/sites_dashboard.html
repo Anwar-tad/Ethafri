@@ -152,7 +152,7 @@
 <script>
     // 📟 WebSocket Connection — የጣቢያዎቹን የዕድገት ደረጃ በእውነተኛ ሰዓት ለማሳየት የተገጠመ ሎጂክ
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent_status/`);
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
 
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);

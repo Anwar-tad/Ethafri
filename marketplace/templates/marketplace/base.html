@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/base.html
-📝 ለውጥ፦ v1.2 Optimized Skeleton — Static CSS Migrated to global.css (DRY Sync)
-✅ የተፈቱ㉖ ችግሮች፦ Dynamic CSS Variables, Zero Inline Bloat, Standard i18n Sync
-📅 ቀን፦ 2026-06-25
+📝 ለውጥ፦ v1.3 Optimized Skeleton — Floating Sell FAB & Load Speed Optimized
+✅ የተፈቱ ችግሮች፦ Dynamic floating red Sell button added, DNS preconnecting integrated
+📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
 {% load i18n %}
@@ -28,14 +28,20 @@
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     
+    <!-- ============================================================
+    ⚡ የፍጥነት ማሻሻያ ማከማቻ (DNS Preconnect for Faster Latency)
+    ============================================================ -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
     <!-- Bootstrap 5.3 CDN -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome Icons CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Google Fonts with Swap display -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <!-- የጋራ ስታይል ፋይል (Global CSS) -->
@@ -44,7 +50,7 @@
     <!-- ለአንድ ፔጅ ብቻ የሚያገልግል CSS -->
     {% block extra_css %}{% endblock %}
     
-    <!-- ✅ OPTIMIZED: Dynamic Theme Variables (ኤጀንቱ የሚቀይራቸው ተለዋዋጮች ብቻ በ inline ይቀራሉ) -->
+    <!-- Dynamic Theme Variables & Floating Sell CSS -->
     <style>
         :root {
             --primary-color: {{ theme.primary_color|default:"#1a2a6c" }};
@@ -55,6 +61,40 @@
         {% if theme.custom_css %}
             {{ theme.custom_css|safe }}
         {% endif %}
+
+        /* 🔴 Floating Red Sell Button Style (በትልቁ በቀይ) */
+        .btn-sell-floating {
+            background-color: #dc3545 !important; /* ቀይ ቀለም */
+            color: white !important;
+            border-radius: 50% !important; /* ክብ ቅርፅ */
+            width: 58px;
+            height: 58px;
+            display: flex !important;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(220, 53, 69, 0.4);
+            transform: translateY(-14px); /* ወደ ላይ ከፍ እንዲል (Floating FAB) */
+            transition: all 0.2s ease-in-out;
+            z-index: 1050;
+            text-decoration: none !important;
+        }
+        .btn-sell-floating:hover {
+            transform: translateY(-17px) scale(1.05);
+            box-shadow: 0 6px 15px rgba(220, 53, 69, 0.5);
+            background-color: #bd2130 !important;
+        }
+        .btn-sell-floating i {
+            font-size: 1.45rem !important;
+            margin-bottom: 1px !important;
+            color: white !important;
+        }
+        .btn-sell-floating span {
+            font-size: 0.65rem !important;
+            font-weight: bold !important;
+            color: white !important;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
@@ -128,7 +168,6 @@
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <!-- i18n የቋንቋ መቀየሪያ ፎርም -->
                         <form action="{% url 'set_language' %}" method="post" class="d-inline">
                             {% csrf_token %}
                             <select name="language" class="lang-select" onchange="this.form.submit()">
@@ -189,17 +228,19 @@
             {% trans "Home" %}
         </a>
         
-        <a href="{% url 'post_product' %}" class="{% if 'post_product' in request.path %}active{% endif %}">
-            <i class="fas fa-plus-circle"></i>
-            {% trans "Sell" %}
-        </a>
-        
+        <!-- 🏥 Status ቁልፍ -->
         <a href="{% url 'agent_status' %}" class="{% if 'agent_status' in request.path %}active{% endif %}">
             <i class="fas fa-heartbeat text-primary"></i>
             {% trans "Status" %}
             {% if pending_errors > 0 %}
             <span class="nav-badge">{{ pending_errors }}</span>
             {% endif %}
+        </a>
+        
+        <!-- 🔴 Floating Red Action Button (በትልቁ በቀይ - ✅ v1.3 Status እና AI መካከል እንዲሆን ተደርጓል) -->
+        <a href="{% url 'post_product' %}" class="btn-sell-floating {% if 'post_product' in request.path %}active{% endif %}">
+            <i class="fas fa-plus-circle"></i>
+            <span>{% trans "Sell" %}</span>
         </a>
         
         {% if user.is_staff %}
@@ -263,14 +304,12 @@
     </nav>
 
     <!-- ============================================================
-    Scripts
+    ⚡ የፍጥነት ማሻሻያ ስክሪፕቶች (defer attribute for non-blocking rendering)
     ============================================================ -->
     <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
-    </script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
     <!-- የጋራ ጃቫስክሪፕት -->
-    <script src="{% static 'js/global.js' %}"></script>
+    <script src="{% static 'js/global.js' %}" defer></script>
     
     <!-- ለአንድ ፔጅ ብቻ የሚያገልግል ጃቫስክሪፕት -->
     {% block extra_js %}{% endblock %}

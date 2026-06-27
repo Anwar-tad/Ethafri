@@ -172,7 +172,7 @@
 <script>
     // 📟 WebSocket Connection — ዳሽቦርዱን በእውነተኛ ሰዓት (Real-time) ለማዘመን የተጨመረ ሎጂክ
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent_status/`);
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
 
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);

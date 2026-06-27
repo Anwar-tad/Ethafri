@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/product_detail.html
-📝 ለውጥ፦ v1.1 Master CEO Optimized Detail Page — Dynamic Layout (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Manual Contacting sync, RAG multilingual translations, Zero CSS Bloat
-📅 ቀን፦ 2026-06-25
+📝 ለውጥ፦ v1.3 Master CEO Optimized Detail Page — Telegram, WhatsApp & Call (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic WhatsApp & Direct Call hooks, Multilingual button labels, Clipboard fallback preserved
+📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,7 +10,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -87,15 +87,33 @@
                     </div>
                 </div>
 
-                <div class="action-group">
-                    <!-- ኤጀንቱ ያመጣው የቴሌግራም አድራሻ ካለ በቀጥታ ይገናኛል -->
+                <!-- 📞 የሶሻል ሚዲያ መገናኛዎች (Dynamic Action Group) -->
+                <div class="action-group d-flex flex-wrap gap-2">
+                    
+                    <!-- 📨 ቴሌግራም መገናኛ (Telegram) -->
                     {% if product.seller.username %}
                     <a href="https://t.me/{{ product.seller.username }}" target="_blank" class="btn-contact">
-                        <i class="fab fa-telegram-plane me-2"></i> {% trans "Message Seller" %}
+                        <i class="fab fa-telegram-plane me-2"></i> {% trans "Telegram" %}
                     </a>
                     {% endif %}
+
+                    <!-- 🟢 ዋትሳፕ መገናኛ (WhatsApp - ✅ v1.3 የተጨመረ) -->
+                    {% if product.seller.seller_profile.whatsapp %}
+                    <a href="https://wa.me/{{ product.seller.seller_profile.whatsapp }}" target="_blank" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="background-color: #25D366; border-color: #25D366; color: white;">
+                        <i class="fab fa-whatsapp me-2 fs-5"></i> {% trans "WhatsApp" %}
+                    </a>
+                    {% endif %}
+
+                    <!-- 📞 የቀጥታ ስልክ መገናኛ (Direct Phone Call - ✅ v1.3 የተጨመረ) -->
+                    {% if product.seller.seller_profile.phone %}
+                    <a href="tel:{{ product.seller.seller_profile.phone }}" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="color: white;">
+                        <i class="fas fa-phone me-2"></i> {% trans "Call" %}
+                    </a>
+                    {% endif %}
+
+                    <!-- 🔗 ማጋሪያ ቁልፍ -->
                     <button class="btn btn-outline-dark rounded-pill px-4" onclick="copyToClipboard('{{ request.build_absolute_uri }}', this)">
-                        <i class="fas fa-share-alt"></i>
+                        <i class="fas fa-share-alt" id="shareIcon"></i>
                     </button>
                 </div>
             </div>
@@ -107,7 +125,7 @@
     <div class="mt-5">
         <div class="d-flex align-items-center justify-content-between mb-4">
             <h4 class="fw-bold mb-0"><i class="fas fa-language text-warning me-2"></i> {% trans "AI Translations" %}</h4>
-            <span class="badge bg-light text-muted border rounded-pill">7 Languages Available</span>
+            <span class="badge bg-light text-muted border rounded-pill">{% trans "7 Languages Available" %}</span>
         </div>
         
         <ul class="nav nav-pills lang-nav gap-2 mb-3" id="langTabs" role="tablist">
@@ -121,13 +139,13 @@
         </ul>
         
         <div class="tab-content">
-            <div class="tab-pane fade show active translation-pane shadow-inner" id="en">{{ product.translations.en|default:"Translation in progress..." }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="am">{{ product.translations.am|default:"ትርጉም በመከናወን ላይ ነው..." }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="om">{{ product.translations.om|default:"Hiikkaan jira..." }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="ti">{{ product.translations.ti|default:"ትርጉም ይካሄድ አሎ..." }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="so">{{ product.translations.so|default:"Tarjumaadda socota..." }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="ar" dir="rtl">{{ product.translations.ar|default:"الترجمة قيد التنفيذ..." }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="fr">{{ product.translations.fr|default:"Traduction en cours..." }}</div>
+            <div class="tab-pane fade show active translation-pane shadow-inner" id="en">{{ product.translations.en|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade translation-pane shadow-inner" id="am">{{ product.translations.am|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade translation-pane shadow-inner" id="om">{{ product.translations.om|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade translation-pane shadow-inner" id="ti">{{ product.translations.ti|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade translation-pane shadow-inner" id="so">{{ product.translations.so|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade translation-pane shadow-inner" id="ar" dir="rtl">{{ product.translations.ar|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade translation-pane shadow-inner" id="fr">{{ product.translations.fr|default:_("Translation in progress...") }}</div>
         </div>
     </div>
     {% endif %}
@@ -163,5 +181,40 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ጃቫስክሪፕቶች በሙሉ ወደ static/js/global.js ተዛውረዋል (የሕግ 4 ጥበቃ) -->
+<script>
+    // global.js ባይጫን እንኳ ሁልጊዜ የ share ቁልፍ እንዲሰራ የተገጠመ UI ስክሪፕት
+    function copyToClipboard(text, btn) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(() => {
+                showSuccessFeedback(btn);
+            }).catch(() => {
+                fallbackCopyText(text, btn);
+            });
+        } else {
+            fallbackCopyText(text, btn);
+        }
+    }
+
+    function fallbackCopyText(text, btn) {
+        const tempInput = document.createElement("input");
+        tempInput.value = text;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempInput);
+        showSuccessFeedback(btn);
+    }
+
+    function showSuccessFeedback(btn) {
+        if (btn) {
+            const originalHTML = btn.innerHTML;
+            btn.className = "btn btn-success rounded-pill px-4";
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                btn.className = "btn btn-outline-dark rounded-pill px-4";
+                btn.innerHTML = originalHTML;
+            }, 1500);
+        }
+    }
+</script>
 {% endblock %}

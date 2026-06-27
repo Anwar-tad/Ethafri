@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/home.html
-📝 ለውጥ፦ v1.4 Ultra-Optimized Landing Page — DRY & N+1 Query Resolved (v1.4)
-✅ የተፈቱ ችግሮች፦ FieldError: cannot resolve keyword 'product' fixed, active_count mapped
-📅 ቀን፦ 2026-06-26
+📝 ለውጥ፦ v1.5 Ultra-Optimized Landing Page — DRY & POST Method Resolved (v1.5)
+✅ የተፈቱ ችግሮች፦ Dynamic POST Trigger for AI update, CSRF Security Guard, Double-submit protection
+📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -81,9 +81,13 @@
                     <span class="text-secondary" style="font-weight: 300;">— {% trans "Click to trigger autonomous AI growth" %}</span>
                 </span>
             </div>
-            <a href="{% url 'trigger_evolution' %}" class="alert-btn">
-                <i class="fas fa-sync-alt me-1"></i> {% trans "Update AI Now" %}
-            </a>
+            <!-- ✅ FIXED: የ 405 ስህተትን ለመከላከል እና ደህንነትን ለማረጋገጥ ወደ POST Form ተቀይሯል (የሕግ 3 ጥበቃ) -->
+            <form method="POST" action="{% url 'trigger_evolution' %}" id="triggerEvolutionHomeForm" style="margin: 0;">
+                {% csrf_token %}
+                <button type="submit" class="alert-btn" id="triggerHomeBtn" style="border: none; background: none; padding: 0;">
+                    <i class="fas fa-sync-alt me-1" id="triggerHomeIcon"></i> {% trans "Update AI Now" %}
+                </button>
+            </form>
         </div>
         {% endif %}
 
@@ -110,7 +114,6 @@
                     {% if cat.icon %}<i class="fas fa-{{ cat.icon }}"></i>{% else %}🏷️{% endif %}
                 </span>
                 {{ cat.name }}
-                <!-- ✅ FIXED: የ N+1 query ስህተትን ለማስቀረት በ views.py የተሰላው active_count ጥቅም ላይ ውሏል (የሕግ 4 ጥበቃ) -->
                 <span class="chip-count">{{ cat.active_count|default:0 }}</span>
             </a>
             {% empty %}
@@ -191,7 +194,6 @@
             {% endfor %}
         </div>
 
-        <!-- ተጨማሪ ማሳወቂያ (አማራጭ) -->
         {% if products|length > 0 and products|length < 20 %}
         <div class="text-center mt-4">
             <a href="{% url 'post_product' %}" class="btn btn-outline-ai rounded-pill px-5">
@@ -217,5 +219,23 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ጃቫስክሪፕቶች በሙሉ ወደ static/js/global.js ተዛውረዋል (የሕግ 4 ጥበቃ) -->
+<script>
+    // ✅ FIXED: ድርብ ጠቅታዎችን በመከላከል የሰርቨር lockout የሚከላከል ስክሪፕት
+    const triggerHomeForm = document.getElementById('triggerEvolutionHomeForm');
+    if (triggerHomeForm) {
+        triggerHomeForm.addEventListener('submit', function(e) {
+            const btn = document.getElementById('triggerHomeBtn');
+            const icon = document.getElementById('triggerHomeIcon');
+            if (btn) {
+                btn.disabled = true;
+                btn.style.opacity = '0.6';
+                btn.style.pointerEvents = 'none';
+            }
+            if (icon) {
+                // አይኮኑን ወደ መሽከርከሪያ አኒሜሽን መለወጥ (loading state)
+                icon.className = 'fas fa-spinner fa-spin me-1';
+            }
+        });
+    }
+</script>
 {% endblock %}

@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/site_detail.html
-📝 ለውጥ፦ v1.2 Site Specific Intelligence — Static CSS Migrated (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Clean metrics layout, accurate error timesince, zero inline style sheets
-📅 ቀን፦ 2026-06-25
+📝 ለውጥ፦ v1.3 Site Specific Intelligence — Real-Time WebSocket Synced (DRY)
+✅ የተፈቱ ችግሮች፦ Site-specific WebSocket streaming, Dynamic backlog redraw, Fully translated labels (i18n)
+📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -10,7 +10,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -27,7 +27,7 @@
             <div class="col-lg-7">
                 <div class="d-flex align-items-center gap-3 mb-3">
                     <span class="badge bg-warning text-dark fw-bold rounded-pill px-3">
-                        PHASE {{ site.build_phase }}
+                        {% trans "PHASE" %} {{ site.build_phase }}
                     </span>
                     <span class="badge bg-light text-primary fw-bold rounded-pill px-3">
                         {{ site.niche|upper }}
@@ -41,15 +41,18 @@
                 
                 <div class="metric-grid">
                     <div class="metric-item">
-                        <span class="metric-val">{{ site.total_products }}</span>
+                        <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
+                        <span class="metric-val" id="site-products-val">{{ site.total_products }}</span>
                         <span class="metric-lbl">{% trans "Products" %}</span>
                     </div>
                     <div class="metric-item">
-                        <span class="metric-val">{{ site.monthly_visitors }}</span>
+                        <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
+                        <span class="metric-val" id="site-visitors-val">{{ site.monthly_visitors }}</span>
                         <span class="metric-lbl">{% trans "Visitors" %}</span>
                     </div>
                     <div class="metric-item">
-                        <span class="metric-val">ETB {{ site.monthly_revenue|floatformat:0 }}</span>
+                        <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
+                        <span class="metric-val" id="site-revenue-val">ETB {{ site.monthly_revenue|floatformat:0 }}</span>
                         <span class="metric-lbl">{% trans "Revenue" %}</span>
                     </div>
                 </div>
@@ -93,8 +96,9 @@
     <div class="tab-content">
         <!-- 📋 Backlog Tab -->
         <div class="tab-pane fade show active" id="tab-backlog">
-            <div class="tab-pane-content">
-                <h5 class="fw-bold mb-4">Pending Strategic Tasks</h5>
+            <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
+            <div class="tab-pane-content" id="backlog-container">
+                <h5 class="fw-bold mb-4">{% trans "Pending Strategic Tasks" %}</h5>
                 {% for task in backlog %}
                 <div class="d-flex justify-content-between align-items-center p-3 border-bottom border-light">
                     <div>
@@ -109,7 +113,7 @@
                 {% empty %}
                 <div class="text-center py-5 text-muted">
                     <i class="fas fa-check-circle fa-3x mb-3 opacity-25"></i>
-                    <p>No pending work for this niche. Everything is up to date.</p>
+                    <p>{% trans "No pending work for this niche. Everything is up to date." %}</p>
                 </div>
                 {% endfor %}
             </div>
@@ -118,7 +122,7 @@
         <!-- 🧬 Evolution History -->
         <div class="tab-pane fade" id="tab-evolution">
             <div class="tab-pane-content">
-                <h5 class="fw-bold mb-4">System Evolution History</h5>
+                <h5 class="fw-bold mb-4">{% trans "System Evolution History" %}</h5>
                 {% for log in evolutions %}
                 <div class="p-3 border-bottom border-light">
                     <div class="d-flex justify-content-between mb-1">
@@ -128,7 +132,7 @@
                     <div class="small">{{ log.reason_for_change }}</div>
                 </div>
                 {% empty %}
-                <p class="text-center py-5 text-muted">No evolution records yet.</p>
+                <p class="text-center py-5 text-muted">{% trans "No evolution records yet." %}</p>
                 {% endfor %}
             </div>
         </div>
@@ -136,24 +140,96 @@
         <!-- 🚑 Errors & Health -->
         <div class="tab-pane fade" id="tab-errors">
             <div class="tab-pane-content">
-                <h5 class="fw-bold mb-4">Unresolved Issues</h5>
+                <h5 class="fw-bold mb-4">{% trans "Unresolved Issues" %}</h5>
                 {% for err in error_logs %}
                 <div class="alert alert-danger rounded-4 border-0 mb-3">
                     <div class="d-flex justify-content-between">
                         <strong class="text-capitalize">{{ err.error_type }}</strong>
-                        <small>{{ err.created_at|timesince }} ago</small>
+                        <small>{{ err.created_at|timesince }} {% trans "ago" %}</small>
                     </div>
                     <div class="small mt-1">{{ err.error_message }}</div>
                 </div>
                 {% empty %}
                 <div class="text-center py-5">
                     <i class="fas fa-shield-check text-success fa-4x mb-3"></i>
-                    <h5 class="text-success">Niche Health: 100%</h5>
-                    <p class="text-muted">No unresolved system or code errors found.</p>
+                    <h5 class="text-success">{% trans "Niche Health" %}: 100%</h5>
+                    <p class="text-muted">{% trans "No unresolved system or code errors found." %}</p>
                 </div>
                 {% endfor %}
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 📟 WebSocket Connection — የነጠላ ሳይት መረጃዎችን በእውነተኛ ሰዓት ለመቆጣጠር የተገጠመ ሎጂክ
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    // ✅ GITHUB የሰረዝ ስምምነትን መጠበቅ (No more ValueError 404!)
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
+
+    socket.onopen = function() {
+        // ገጹ ሲከፈት የዚህን ሳይት ሁኔታ ለይቶ በእውነተኛ ሰዓት እንዲያመጣልን ጥሪ ማድረግ
+        socket.send(JSON.stringify({
+            action: 'get_site_status',
+            site_id: "{{ site.id }}"
+        }));
+    };
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'site_status') {
+            const site = data.site || {};
+            const tasks = data.tasks || [];
+            
+            // የቁጥር መለኪያዎችን ማዘመን
+            const prodEl = document.getElementById('site-products-val');
+            const visEl = document.getElementById('site-visitors-val');
+            const revEl = document.getElementById('site-revenue-val');
+            
+            if (prodEl) prodEl.innerText = site.total_products;
+            if (visEl) visEl.innerText = site.monthly_visitors;
+            if (revEl) revEl.innerText = 'ETB ' + parseFloat(site.monthly_revenue).toFixed(0);
+            
+            // ሪል-ታይም የባክሎግ ዝርዝር ማዘመን
+            const backlogContainer = document.getElementById('backlog-container');
+            if (backlogContainer) {
+                if (tasks.length === 0) {
+                    backlogContainer.innerHTML = `
+                        <h5 class="fw-bold mb-4">{% trans "Pending Strategic Tasks" %}</h5>
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-check-circle fa-3x mb-3 opacity-25"></i>
+                            <p>{% trans "No pending work for this niche. Everything is up to date." %}</p>
+                        </div>`;
+                } else {
+                    let html = '<h5 class="fw-bold mb-4">{% trans "Pending Strategic Tasks" %}</h5>';
+                    tasks.forEach(task => {
+                        let badgeColor = 'info';
+                        if (task.priority === 'Critical') badgeColor = 'danger';
+                        else if (task.priority === 'High') badgeColor = 'warning';
+                        
+                        html += `
+                            <div class="d-flex justify-content-between align-items-center p-3 border-bottom border-light">
+                                <div>
+                                    <span class="badge bg-${badgeColor} rounded-pill me-2">${task.priority}</span>
+                                    <span class="fw-bold">${task.name}</span>
+                                </div>
+                                <span class="text-muted small fw-bold">⚡ Impact: ${task.business_impact}/10</span>
+                            </div>`;
+                    });
+                    backlogContainer.innerHTML = html;
+                }
+            }
+        }
+        // ተርሚናል ሎግ ሲመጣ መረጃዎችን በየሰከንዱ ዳግም አፕዴት እንዲያደርግ ዳግም መጠየቅ
+        else if (data.type === 'terminal_log') {
+            socket.send(JSON.stringify({
+                action: 'get_site_status',
+                site_id: "{{ site.id }}"
+            }));
+        }
+    };
+</script>
 {% endblock %}

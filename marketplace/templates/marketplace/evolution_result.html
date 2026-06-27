@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/evolution_result.html
-📝 ለውጥ፦ v1.1 Master CEO Evolution Result — Validated & Clean Structure
-✅ የተፈቱ ችግሮች፦ Dynamic gradient context, direct command fallback, no inline style sheets
-📅 ቀን፦ 2026-06-25
+📝 ለውጥ፦ v1.2 Master CEO Evolution Result — Thread-Clash Guard Enabled (DRY)
+✅ የተፈቱ ችግሮች፦ Prevent duplicate background thread cycles, triggerBtn auto-spinner
+📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -38,7 +38,8 @@
                         <div class="fs-1">🤖</div>
                         <div>
                             <h5 class="fw-bold mb-1">{% trans "CEO Executive Report" %}</h5>
-                            <div class="text-dark">{{ status|default:"Processing completed." }}</div>
+                            <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+                            <div class="text-dark">{{ status|default:_("Processing completed.") }}</div>
                         </div>
                     </div>
                 </div>
@@ -69,8 +70,9 @@
                 <!-- 🧠 AI Reasoning (RAG) -->
                 <div class="mb-5">
                     <h6 class="fw-bold text-muted mb-3"><i class="fas fa-brain me-2 text-info"></i> {% trans "STRATEGIC REASONING" %}</h6>
+                    <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                     <div class="p-4 bg-dark text-light rounded-4 font-monospace shadow-inner" style="font-size: 0.9rem; line-height: 1.7; opacity: 0.9;">
-                        {{ task.description|default:"Task executed as part of the core growth strategy." }}
+                        {{ task.description|default:_("Task executed as part of the core growth strategy.") }}
                     </div>
                 </div>
                 {% endif %}
@@ -100,10 +102,11 @@
                         </a>
                     </div>
                     <div class="mt-4">
-                        <form method="POST" action="{% url 'trigger_evolution' %}">
+                        <!-- ✅ FIXED: ተደጋጋሚ ዑደቶች እንዳይነሱ Thread-Clash መከላከያ መለያዎችን ማከል -->
+                        <form method="POST" action="{% url 'trigger_evolution' %}" id="triggerEvolutionForm">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-link text-muted small text-decoration-none">
-                                <i class="fas fa-sync-alt me-1"></i> {% trans "Run another cycle immediately" %}
+                            <button type="submit" class="btn btn-link text-muted small text-decoration-none" id="triggerBtn">
+                                <i class="fas fa-sync-alt me-1" id="triggerIcon"></i> {% trans "Run another cycle immediately" %}
                             </button>
                         </form>
                     </div>
@@ -114,4 +117,26 @@
 
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ✅ FIXED: ድርብ ጠቅታዎችን በመከላከል የሰርቨር lockout የሚከላከል ስክሪፕት
+    const triggerForm = document.getElementById('triggerEvolutionForm');
+    if (triggerForm) {
+        triggerForm.addEventListener('submit', function(e) {
+            const btn = document.getElementById('triggerBtn');
+            const icon = document.getElementById('triggerIcon');
+            if (btn) {
+                btn.disabled = true;
+                btn.style.opacity = '0.6';
+                btn.style.pointerEvents = 'none';
+            }
+            if (icon) {
+                // አይኮኑን ወደ መሽከርከሪያ አኒሜሽን መለወጥ (loading state)
+                icon.className = 'fas fa-spinner fa-spin me-1';
+            }
+        });
+    }
+</script>
 {% endblock %}
