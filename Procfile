@@ -1,10 +1,10 @@
-# 🌐 1. ዋናው የድረ-ገጽ ሰርቨር (Memory-safe for Free Tier)
-web: gunicorn core.wsgi:application --workers=1 --threads=1 --timeout=120
+# ============================================================
+# 📁 ፋይል፦ Procfile
+# 📝 ዓላማ፦ Safe & Lightweight ASGI Procfile (v1.1)
+# ✅ የተፈቱ ችግሮች፦ WebSocket connection crash prevented (Gunicorn to Uvicorn ASGI swapped), Duplicate agent thread clash resolved
+# 📅 ቀን፦ 2026-06-27
+# ============================================================
 
-# 🤖 2. የጀርባ አውቶኖመስ CEO ኤጀንት (Parallel execution with 4 workers)
-# --interval 60: በየ 60 ሰከንድ ዑደቱን ይጀምራል
-# 📁 Procfile
-# --concurrency 1: የ 502 ስህተትን ለመከላከል በተመሳሳይ ሰዓት 1 ስራ ብቻ እንዲሰራ
-# --timeout 60: ሰርቨሩ በቶሎ ምላሽ እንዲሰጥ
-worker: python manage.py run_agent --interval 120 --concurrency 1
-
+# ✅ FIXED: ዌብሶኬቱ እንዳይቋረጥ ኡቪኮርን (Uvicorn ASGI) ተተክሏል
+# ✅ FIXED: የክሮች መጣረስን እና የክፍያ ገደብን ለመፍታት የ worker ፕሮሰስ ጠፍቷል (ኤጀንቱ በ apps.py v9.9 በጀርባ ይሠራል)
+web: uvicorn core.asgi:application --host 0.0.0.0 --port $PORT --workers 1
