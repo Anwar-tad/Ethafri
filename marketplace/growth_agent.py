@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v9.5 - Master Engine)
-# ✅ የተፈቱ ችግሮች፦ django.db Import Error Fixed, Zero-Config Auto-Installer, Live Terminal Logs Sync
-# 📅 ቀን፦ 2026-06-26
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v9.7 - Thread-Safe Engine)
+# ✅ የተፈቱ ችግሮች፦ Lock-based workspace protection, Dynamic HTML rollback paths, SaaS Metrics Auto-Sync
+# 📅 ቀን፦ 2026-06-27
 # ============================================================
 
 import ast
@@ -14,11 +14,11 @@ import time
 import hashlib
 import requests
 import random
+import threading
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
-# ✅ FIXED: የዲፔንደንሲ ክራሽን ለመከላከል አላስፈላጊው 'db' አስገቢ ጥሪ ሙሉ በሙሉ ተወግዷል (የሕግ 3 ጥበቃ)
 from django.db import transaction
 from concurrent.futures import ThreadPoolExecutor
 
@@ -39,11 +39,26 @@ logger = logging.getLogger(__name__)
 # የሩቅ እና የቅርብ ፋይሎችን መከታተያ መዝገብ
 _project_hashes = {}
 
+# በትይዩ በሚሰሩ threads መካከል የፋይል መጻፍ እና መፈተሽ ግጭት እንዳይፈጥር መቆለፊያ
+_apply_lock = threading.Lock()
+
+
+# ============================================================
+# ⚙️ የፋይል አቅጣጫ ፈቺ ረዳት ፈንክሽን
+# ============================================================
+def resolve_local_file_path(site, target_file):
+    """የፋይሉን ትክክለኛ local path በዓይነቱ (Python/HTML) መሠረት ይፈታል"""
+    if target_file.endswith('_html') or 'html' in target_file:
+        clean_name = target_file.replace('_html', '') + '.html'
+        return os.path.join(settings.BASE_DIR, 'marketplace', 'templates', 'marketplace', clean_name)
+    return os.path.join(settings.BASE_DIR, 'marketplace', f"{target_file}.py")
+
+
 # ============================================================
 # ⚙️ 1. AI Cache System (መሸጎጫ)
 # ============================================================
 class AICache:
-    """ተደጋጋሚ የAI ጥያ계를ዎችን ለማስታወስ (TTL-based Token Saver)"""
+    """ተደጋጋሚ የAI ጥያቄዎችን ለማስታወስ (TTL-based Token Saver)"""
     def __init__(self, ttl=1800, max_size=500):
         self.cache = {}
         self.ttl = ttl
@@ -167,7 +182,7 @@ class StrategicCEO:
     def execute_planning_cycle(self):
         self._process_owner_directives()
         
-        # ✅ FIXED: በየ 3 ሰዓቱ የራሱን የኮድ ጥራት መርምሮ የራሱን ኦዲት ያደርጋል
+        # የራሱን የኮድ ጥራት መርምሮ የራሱን ኦዲት ያደርጋል (በየ3 ሰዓቱ)
         self.check_for_self_audit()
 
         if AIProjectBacklog.objects.filter(site=self.site, status='Pending').exists():
@@ -247,9 +262,10 @@ class StrategicCEO:
         last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
         
         if not last_self_audit or (timezone.now() - last_self_audit.updated_at) >= timedelta(hours=3):
+            unique_task_name = f"🧠 SELF-EVOLUTION: Optimize Agent Code ({timezone.now().strftime('%Y-%m-%d %H')})"
             get_or_create_backlog_task_safe(
                 self.site, 
-                task_name="🧠 SELF-EVOLUTION: Optimize Agent Code & API Efficiency",
+                task_name=unique_task_name,
                 defaults={
                     'priority': 'High',
                     'status': 'Pending',
@@ -285,11 +301,18 @@ class RecursiveBuilder:
         self.site = site
 
     def build_next_feature(self, task):
-        # 24-Hour Cooldown Rule: በአንድ ፋይል ላይ በቀን ከአንድ ጊዜ በላይ ኮድ አለመንካት
-        if AIEvolutionLog.objects.filter(site=self.site, target_file=task.target_file, created_at__date=timezone.now().date()).exists():
+        # 24-Hour Cooldown Rule: በአንድ ፋይል ላይ በቀን ከአንድ ጊዜ በላይ ኮድ አለመንካት (ለጀርባ ፋይሎች)
+        cooldown_time = timedelta(hours=1) if 'html' in task.target_file else timedelta(days=1)
+        
+        has_cooldown = AIEvolutionLog.objects.filter(
+            site=self.site, target_file=task.target_file, 
+            created_at__gte=timezone.now() - cooldown_time
+        ).exists()
+        
+        if has_cooldown:
             return "Cooldown"
 
-        # Seeding-First Guardrail (የሕግ 1 ጥብቅ አተገባበር)
+        # Seeding-First Guardrail (የሕግ 1 ጥበቃ)
         is_coding_task = task.target_file in ['views', 'urls', 'forms'] or 'html' in task.target_file
         if is_coding_task and not Product.objects.filter(site=self.site, is_active=True).exists():
             logger.info(f"⏳ Seeding-First Guardrail Active: Halted coding task '{task.task_name}'.")
@@ -309,24 +332,55 @@ class RecursiveBuilder:
             f"DESIGN SYSTEM RULE: If writing HTML templates, do NOT write inline CSS or custom style tags. "
             f"You MUST use ONLY the global CSS classes and CSS variables defined in global.css."
         )
+        
+        # የ AI ኮድ ማመንጨት (ThreadPoolExecutor ውስጥ በ parallel ይካሄዳል)
         res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding", task=task))
 
         if res and isinstance(res, dict) and 'code' in res:
-            try:
-                if not task.target_file.endswith('html'):
-                    compile(res['code'], '<string>', 'exec')
-                is_safe, msg = SecurityAuditor.scan_code_safety(res['code'])
-                if is_safe:
+            # የጋራ መፃፍ እና የጃንጎ verification ሂደቶችን በ lock ማስጠበቅ
+            with _apply_lock:
+                try:
+                    old_code = ""
+                    local_path = resolve_local_file_path(self.site, task.target_file)
+                    
+                    if os.path.exists(local_path):
+                        with open(local_path, 'r', encoding='utf-8') as f:
+                            old_code = f.read()
+
+                    # ኮዱን ለጊዜው መጻፍ
                     apply_code_change(self.site, task.target_file, res['code'], task.task_name, backlog_task=task)
-                    VectorMemory.objects.create(site=self.site, memory_type='solution', content=f"Success: {task.task_name}")
-                    return "Success"
-                else:
-                    logger.error(f"🛡️ Security Gate Blocked Code: {msg}")
-                    task.status = 'Blocked'
-                    task.save()
-                    return "Security Block"
-            except Exception as e:
-                logger.error(f"❌ Sandbox Compile Error: {e}")
+
+                    # ጃንጎ ቼክ ማስኬድ
+                    from django.core.management import call_command
+                    try:
+                        call_command('check')
+                        # የደህንነት ፍተሻ
+                        is_safe, msg = SecurityAuditor.scan_code_safety(res['code'], file_path=task.target_file, site=self.site)
+                        if is_safe:
+                            VectorMemory.objects.create(site=self.site, memory_type='solution', content=f"Success: {task.task_name}")
+                            task.status = 'Success'
+                            task.save()
+                            return "Success"
+                        else:
+                            logger.error(f"🛡️ Security Gate Blocked Code: {msg}")
+                            # ሮልባክ (ወደ ድሮው መመለስ)
+                            if old_code:
+                                with open(local_path, 'w', encoding='utf-8') as f:
+                                    f.write(old_code)
+                            task.status = 'Blocked'
+                            task.save()
+                            return "Security Block"
+                    except Exception as check_err:
+                        logger.error(f"❌ Post-Apply Verification Failed: {check_err}. Rolling back...")
+                        if old_code:
+                            with open(local_path, 'w', encoding='utf-8') as f:
+                                f.write(old_code)
+                        task.status = 'Blocked'
+                        task.save()
+                        return "Verification Failed"
+
+                except Exception as e:
+                    logger.error(f"❌ Sandbox Compile Error: {e}")
 
         task.status = 'Pending'
         task.save()
@@ -342,7 +396,7 @@ class MultiChannelHarvester:
         try:
             requests.get("https://google.com", timeout=3)
             return True
-        except requests.ConnectionError:
+        except requests.RequestException:
             return False
 
     def harvest_from_telegram(self, channel, limit=2):
@@ -496,6 +550,15 @@ class CEOOperations:
                     price=clean_price, description=p.get('desc', ''), is_active=True
                 )
                 
+                # የእድገት መለኪያዎች Stale ሆነው መቅረትን ለመፍታት ስታቲስቲክስ በራስ-ሰር ማሳደግ
+                try:
+                    self.site.real_product_count = Product.objects.filter(site=self.site, is_active=True).count()
+                    self.site.total_products = Product.objects.filter(site=self.site).count()
+                    self.site.total_sellers = User.objects.filter(product__site=self.site).distinct().count()
+                    self.site.save()
+                except Exception as stats_err:
+                    logger.warning(f"Failed to update SiteRegistry stats: {stats_err}")
+
                 NotificationQueue.objects.create(
                     site=self.site, recipient=p['seller_telegram'],
                     message=f"ሰላም {p['seller_telegram']}! የ '{p['title']}' ምርትዎ በነፃ ፖስት ተደርጓል።"
@@ -552,11 +615,7 @@ def fetch_remote_file_from_github(repo, file_path, token=None):
 # ============================================================
 
 def bootstrap_system_safely():
-    """
-    [Zero-Config Auto-Installer]
-    ዳታቤዙ ባዶ ከሆነ በራሱ 'primary' ሳይትን በመመዝገብ ኤጀንቱ ራሱ 
-    የኦዲትና የዕድገት ሥራውን ወዲያውኑ እንዲጀምር ያደርጋል (የሕግ 4 ጥበቃ)
-    """
+    """ዳታቤዙ ባዶ ከሆነ በራሱ 'primary' ሳይትን በመመዝገብ ኤጀንቱ ሥራ እንዲጀምር ያደርጋል"""
     try:
         if SiteRegistry.objects.filter(is_active=True).count() == 0:
             logger.info("⚙️ Bootstrapping: Fresh database detected. Auto-registering primary site...")
@@ -592,7 +651,6 @@ def get_site_project_state_dynamic(site: SiteRegistry):
 
     base = repo_path if not is_remote else os.path.join('/tmp', 'ethafri_agent', site.name)
 
-    # ✅ ኤጀንቱ የራሱን አእምሮ መርምሮ እንዲያሻሽል የራሱ ፋይሎች ተካተዋል (የሕግ 3 ጥበቃ)
     core_files = {
         'models': 'marketplace/models.py',
         'views': 'marketplace/views.py',
@@ -632,9 +690,8 @@ def get_site_project_state_dynamic(site: SiteRegistry):
             else:
                 state[key] = "❌ MISSING_FILE"
 
-    # 2. 杠ይናሚክ የኤችቲኤምኤል ቴምፕሌቶች አሰሳ
+    # 2. ዳይናሚክ የኤችቲኤምኤል ቴምፕሌቶች አሰሳ
     if is_remote:
-        # ✅ FIXED: Truncation-Safe Tree Scan (GitHub API ገደብ መከላከያ)
         url = f"https://api.github.com/repos/{repo_name}/git/trees/main?recursive=1"
         headers = {"Accept": "application/vnd.github.v3+json"}
         if github_token:
@@ -675,21 +732,11 @@ def get_site_project_state_dynamic(site: SiteRegistry):
         else:
             logger.warning(f"Templates directory not found locally.")
 
-    # ✅ FIXED: Dynamic Path Generator (አዲስ ለሚፈጠሩ ፋይሎች አስቀድሞ አቅጣጫ መስጠት)
+    # Dynamic Path Generator (አዲስ ለሚፈጠሩ ፋይሎች አስቀድሞ አቅጣጫ መስጠት)
     all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
     for bk in all_known_backlogs:
         if bk.target_file not in file_paths:
-            if bk.target_file.endswith('_html') or 'html' in bk.target_file:
-                clean_name = bk.target_file.replace('_html', '') + '.html'
-                if site.name == 'primary':
-                    file_paths[bk.target_file] = os.path.join(settings.BASE_DIR, 'marketplace', 'templates', 'marketplace', clean_name)
-                else:
-                    file_paths[bk.target_file] = os.path.join(base, 'marketplace', 'templates', 'marketplace', clean_name)
-            else:
-                if site.name == 'primary':
-                    file_paths[bk.target_file] = os.path.join(settings.BASE_DIR, 'marketplace', f"{bk.target_file}.py")
-                else:
-                    file_paths[bk.target_file] = os.path.join(base, 'marketplace', f"{bk.target_file}.py")
+            file_paths[bk.target_file] = resolve_local_file_path(site, bk.target_file)
             if bk.target_file not in state:
                 state[bk.target_file] = "❌ MISSING_FILE"
 
@@ -715,14 +762,29 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
 # 🎡 8. MASTER ENGINE LOOP (24/7 Execution Core)
 # ============================================================
 def execute_master_cycle():
-    # ✅ FIXED: የባዶ ዳታቤዝ ማስነሻውን እዚህ ጋር በደህንነት ይጠራል (የሕግ 1 ጥበቃ)
     bootstrap_system_safely()
+    
+    try:
+        SiteConfig.objects.update_or_create(
+            key="EVOLUTION_LOCK",
+            defaults={'value': {'status': 'running', 'last_run': timezone.now().isoformat()}}
+        )
+    except Exception as lock_err:
+        pass
     
     active_sites = SiteRegistry.objects.filter(is_active=True)
     with ThreadPoolExecutor(max_workers=2) as executor:
         try:
             executor.map(_run_site_cycle, active_sites)
         finally:
+            try:
+                SiteConfig.objects.update_or_create(
+                    key="EVOLUTION_LOCK",
+                    defaults={'value': {'status': 'idle', 'last_run': timezone.now().isoformat()}}
+                )
+            except Exception as lock_err:
+                pass
+            
             from django.db import close_old_connections
             close_old_connections()
 
@@ -730,7 +792,6 @@ def _run_site_cycle(site):
     from .ai_utils import broadcast_agent_log
     try:
         time.sleep(random.uniform(1.5, 4.0))
-        # ✅ FIXED: የኤጀንቱን እያንዳንዱን ሥራ በWebSocket ላይቭ መከታተያ (የሕግ 4 ጥበቃ)
         broadcast_agent_log(site, f"Running Self-Doctor maintenance for {site.name}...", "info")
         UniversalHealer(site).perform_maintenance()
         time.sleep(random.uniform(1.0, 3.0))
@@ -748,11 +809,28 @@ def _run_site_cycle(site):
         FraudHunter(site).scan_for_scams()
         time.sleep(random.uniform(1.0, 3.0))
 
-        next_task = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score').first()
-        if next_task:
-            broadcast_agent_log(site, f"Building next strategic feature: {next_task.task_name}...", "success")
+        # የፋይሎችን የቅዝቃዜ ገደብ (cooldown) ግምት ውስጥ በማስገባት ብዙ ስራዎችን በትይዩ መስራት
+        pending_tasks = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score')
+        tasks_to_build = []
+        seen_files = set()
+        
+        for task in pending_tasks:
+            if task.target_file not in seen_files:
+                cooldown_time = timedelta(hours=1) if 'html' in task.target_file else timedelta(days=1)
+                has_cooldown = AIEvolutionLog.objects.filter(
+                    site=site, target_file=task.target_file, 
+                    created_at__gte=timezone.now() - cooldown_time
+                ).exists()
+                
+                if not has_cooldown:
+                    tasks_to_build.append(task)
+                    seen_files.add(task.target_file)
+                    
+        if tasks_to_build:
+            broadcast_agent_log(site, f"Building {len(tasks_to_build)} strategic tasks concurrently in parallel threadpool...", "success")
             builder = RecursiveBuilder(site)
-            builder.build_next_feature(next_task)
+            with ThreadPoolExecutor(max_workers=3) as builder_executor:
+                builder_executor.map(builder.build_next_feature, tasks_to_build)
 
     except Exception as e:
         logger.error(f"❌ Error in master cycle for {site.name}: {e}", exc_info=True)
@@ -765,8 +843,12 @@ def start_autonomous_ceo():
     while True:
         try:
             execute_master_cycle()
-            logger.info("💤 Master Cycle Complete. Sleeping 10 minutes...")
-            time.sleep(600)
+            
+            # የነፃ ኤፒአይ ቶከኖችን ለመቆጠብና የሥራዎችን ፍጥነት ለማሳደግ Adaptive Pacing ሎጂክ
+            has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
+            interval = 30 if has_pending else 600
+            logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
+            time.sleep(interval)
         except Exception as e:
             logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
             time.sleep(60)

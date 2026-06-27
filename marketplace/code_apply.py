@@ -1,12 +1,13 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v9.4)
-# ✅ የተፈቱ ችግሮች፦ Dynamic HTML Resolver, Multi-site SaaS Layout, GitHub Owner Command Guard
-# 📅 ቀን፦ 2026-06-25
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v9.5)
+# ✅ የተፈቱ ችግሮች፦ Multi-site SaaS Sandboxing, Path Commonpath Defense, Site-Specific Repo Routing
+# 📅 ቀን፦ 2026-06-27
 # ============================================================
 
 import os
 import ast
+import re
 import logging
 import requests
 import base64
@@ -26,32 +27,43 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,
     እና በአስተዳዳሪው ትዕዛዝ መሠረት ብቻ ወደ GitHub ያመሳስላል (Sync)
     """
     
-    # 1. 🛡️ የፋይል ስም እና ማውጫ በዳይናሚክ መፍታት (Universal Extension Resolver)
+    # 1. የፋይል ስም እና ማውጫ በዳይናሚክ መፍታት (SaaS Sandboxed Workspaces)
     base_dir = str(settings.BASE_DIR)
-    app_name = 'marketplace'  # ዋናው የጃንጎ አፕሊኬሽን ስም
+    app_name = 'marketplace'
     
+    # የሳይቱን ቤዝ ማህደር መወሰን (የሳይቶች ዳታ እንዳይደባለቅ መከላከያ)
+    if site and site.name != 'primary':
+        if site.repo_path:
+            if site.repo_path.startswith('http') or 'github.com' in site.repo_path:
+                # ሪሞት ሪፖዚተሪ ከሆነ በጊዚያዊ የሥራ ማህደር ውስጥ ማስቀመጥ
+                base = os.path.join('/tmp', 'ethafri_agent', site.name)
+            else:
+                # ሎካል ማህደር ከሆነ የራሱን ማውጫ መጠቀም
+                base = site.repo_path
+        else:
+            base = os.path.join('/tmp', 'ethafri_agent', site.name)
+    else:
+        base = base_dir
+
     if not path:
-        # ማንኛውንም በ '_html' የሚጨርስ ቁልፍ (e.g., 'home_html', 'contact_html') በዳይናሚክ መፍታት
         if file_key.endswith('_html') or 'html' in file_key:
             clean_name = file_key.replace('_html', '').replace('.html', '') + '.html'
-            # ለኢትዮጵያ SaaS አወቃቀር እንዲስማማ፡ templates/marketplace/ ውስጥ በትክክል ማስቀመጥ
             file_path_relative = os.path.join('templates', app_name, clean_name)
         else:
             clean_name = file_key.replace('.py', '') + '.py'
             file_path_relative = clean_name
             
-        # ከሳይቱ መለያ (primary ወይም ሌላ ዌብሳይት) አንጻር ቤዝ ማውጫን መወሰን
-        if site and site.name != 'primary' and site.repo_path and not site.repo_path.startswith('http'):
-            path = os.path.join(site.repo_path, app_name, file_path_relative)
-        else:
-            path = os.path.join(base_dir, app_name, file_path_relative)
+        path = os.path.join(base, app_name, file_path_relative)
     
-    # 2. 🛡️ የደህንነት ጥበቃ አጥር (Path Traversal Gating - 100% Secure)
+    # 2. 🛡️ የደህንነት ጥበቃ አጥር (Path Traversal Gating - Commonpath Check)
     real_path = os.path.abspath(path)
-    real_base = os.path.abspath(base_dir)
+    real_base = os.path.abspath(base)
     
-    # ለሪሞት ወይም ለሌላ ማውጫ የተለየ ፍቃድ ካለ ፍተሻውን ማላላት፣ ካልሆነ ግን ጥብቅ ቁጥጥር ማድረግ
-    if site and site.name == 'primary' and not real_path.startswith(real_base):
+    # ከየራሱ ደንበኛ workspace ውጪ ለመፃፍ ሲሞከር ወዲያውኑ ማገድ (ለሁሉም ሳይቶች ይሰራል)
+    try:
+        if os.path.commonpath([real_path, real_base]) != real_base:
+            raise ValueError("Path Traversal Blocked")
+    except (ValueError, Exception):
         error_msg = f"❌ Security Block: Path Traversal Attempted for path {path}"
         logger.error(error_msg)
         return {
@@ -59,7 +71,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,
             'path': path, 'file_key': file_key
         }
 
-    # 3. 🛡️ የሲንታክስ (Syntax) ፍተሻ - ለፓይተን ፋይሎች ብቻ!
+    # 3. የሲንታክስ (Syntax) ፍተሻ - ለፓይተን ፋይሎች ብቻ!
     if path.endswith('.py'):
         try:
             ast.parse(new_content)
@@ -94,12 +106,12 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,
         }
 
     # 6. ወደ GitHub ግፋ (GitHub Push - Decoupled Guardrail)
-    # የባለቤቱን ህግ ለማክበር በዲፎልት False ተደርጓል፤ የአስተዳዳሪ ትዕዛዝ ሲኖር ብቻ True ይሆናል
     push_status = "Skipped (Local Only)"
     if push_to_github:
         try:
-            rel_path = os.path.relpath(path, settings.BASE_DIR).replace('\\', '/')
-            push_status = push_to_github_raw(rel_path, new_content, reason)
+            # ሪፖዚተሪ-አንጻራዊ አቅጣጫን በሳይቱ ማህደር መሰረት በትክክል ማስላት
+            rel_path = os.path.relpath(path, base).replace('\\', '/')
+            push_status = push_to_github_raw(rel_path, new_content, reason, site=site)
         except Exception as e:
             push_status = f"GitHub Error: {e}"
             logger.error(push_status)
@@ -138,10 +150,17 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,
 # 🚀 ጊትሃብ መግፊያ ሎጂክ (Raw API)
 # ============================================================
 
-def push_to_github_raw(file_path, content, message):
-    """GitHub API በመጠቀም ኮድን በቀጥታ ወደ ሪፖዚተሪ መግፋት"""
+def push_to_github_raw(file_path, content, message, site=None):
+    """GitHub API በመጠቀም ኮድን በቀጥታ ወደየሳይቱ ሪፖዚተሪ መግፋት"""
     token = getattr(settings, 'GITHUB_TOKEN', None)
+    
+    # ጊትሃብ ሪፖን በሳይት ደረጃ በዳይናሚክ መወሰን (የማከማቻ አድራሻ መዛባትን ይከላከላል)
     repo = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
+    if site and site.repo_path and ('github.com' in site.repo_path or site.repo_path.startswith('http')):
+        match = re.search(r"github\.com/([^/]+/[^/]+)", site.repo_path)
+        if match:
+            repo = match.group(1).replace('.git', '')
+
     if not token: 
         return "Local only (No Token)"
 
@@ -166,7 +185,7 @@ def push_to_github_raw(file_path, content, message):
     try:
         put_res = requests.put(url, headers=headers, json=payload, timeout=8)
         if put_res.status_code in [200, 201]:
-            return "Sync OK"
+            return f"Sync OK ({repo})"
         return f"Error {put_res.status_code}"
     except Exception as e:
         return f"Connection Error: {e}"

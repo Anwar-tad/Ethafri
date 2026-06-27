@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/consumers.py
-# 📝 ለውጥ፦ Fixed Async Database Access + broadcast_log_message handler (v9.7)
-# ✅ የተፈቱ ችግሮች፦ ValueError: No handler for message type broadcast_log_message
-# 📅 ቀን፦ 2026-06-26
+# 📝 ስሪት፦ v9.8 (Phoenix Concurrency & Fast-Load Edition)
+# ✅ የተፈቱ ችግሮች፦ Concurrent DB Gathering (asyncio.gather), Nullable message slicing, Safe exception logs
+# 📅 ቀን፦ 2026-06-27
 # ============================================================
 
 import json
@@ -11,14 +11,11 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
-# የዲፔንደንሲ ክራሽን ለመከላከል close_old_connections በቀጥታ ገብቷል (የሕግ 3 ጥበቃ)
-from django.db import models, close_old_connections
+from django.db import close_old_connections
 from django.db.models import Count, Case, When, Value, IntegerField
 
-# ሁሉንም አስፈላጊ ሞዴሎች (AIEvolutionLog ን ጨምሮ) ማስገባት
 from .models import (
-    AIProjectBacklog, AgentTask, SiteConfig, 
-    SiteRegistry, AgentErrorLog, SelfHealingLog, AIEvolutionLog
+    AIProjectBacklog, SiteConfig, SiteRegistry, AgentErrorLog, SelfHealingLog, AIEvolutionLog
 )
 
 logger = logging.getLogger(__name__)
@@ -33,28 +30,21 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.room_group_name = 'agent_status'
         
-        # ወደ ቡድን ተቀላቀል
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
-        
         await self.accept()
-        
-        # ወቅታዊ ሁኔታ ላክ
         await self.send_status()
         
         # ሁኔታ በየ5 ሰከንድ ላክ (auto-update)
         self.update_task = asyncio.create_task(self.auto_update())
     
     async def disconnect(self, close_code):
-        # ከቡድን ውጣ
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
-        
-        # አውቶ-አፕዴት ተግባር በደህንነት አቁም (CancelledError ሳይፈጥር)
         if hasattr(self, 'update_task'):
             self.update_task.cancel()
     
@@ -105,14 +95,20 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Live stats send error: {e}")
     
     async def send_status(self):
+        """ሁሉንም የዳታቤዝ ጥያቄዎች በ asyncio.gather በትይዩ በፍጥነት ማውጣት"""
         try:
-            lock = await self.get_lock_status()
-            tasks = await self.get_task_stats()
-            pending = await self.get_pending_tasks()
-            sites = await self.get_site_summary()
-            errors = await self.get_error_summary()
-            healing = await self.get_healing_summary()
-            cycle_logs = await self.get_cycle_logs()
+            # ✅ FIXED: የዳሽቦርድ መጫኛ ጊዜን በከፍተኛ ደረጃ ለመቀነስ ጥሪዎቹ በትይዩ ይካሄዳሉ!
+            lock_fut = self.get_lock_status()
+            tasks_fut = self.get_task_stats()
+            pending_fut = self.get_pending_tasks()
+            sites_fut = self.get_site_summary()
+            errors_fut = self.get_error_summary()
+            healing_fut = self.get_healing_summary()
+            cycle_logs_fut = self.get_cycle_logs()
+            
+            lock, tasks, pending, sites, errors, healing, cycle_logs = await asyncio.gather(
+                lock_fut, tasks_fut, pending_fut, sites_fut, errors_fut, healing_fut, cycle_logs_fut
+            )
             
             status_data = {
                 'type': 'status_update',
@@ -178,7 +174,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             await self.send(text_data=json.dumps({"error": str(e)}))
 
-    # ✅ FIXED: የኤጀንቱን እያንዳንዱን ሥራ በWebSocket ላይቭ ለመከታተል የተገጠመ የክስተት መጋጠሚያ (የሕግ 3 ጥበቃ)
     async def broadcast_log_message(self, event):
         """የቀጥታ ስርጭት መዝገብ (Log) በ WebSocket ወደ ተርሚናል መላክ"""
         await self.send(text_data=json.dumps({
@@ -195,6 +190,9 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         try:
             lock = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
             return lock.value if lock else {'status': 'idle', 'last_run': 'Never'}
+        except Exception as e:
+            logger.error(f"Error reading lock status: {e}")
+            return {'status': 'idle', 'last_run': 'Never'}
         finally:
             close_old_connections()
             
@@ -204,6 +202,9 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         try:
             logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
             return logs_config.value if logs_config and isinstance(logs_config.value, list) else []
+        except Exception as e:
+            logger.error(f"Error reading cycle logs: {e}")
+            return []
         finally:
             close_old_connections()
     
@@ -229,7 +230,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'critical_pending': critical,
                 'high_pending': high
             }
-        except:
+        except Exception as e:
+            logger.error(f"Error calculating task stats: {e}")
             return {'total': 0, 'pending': 0, 'running': 0, 'completed': 0, 'blocked': 0}
         finally:
             close_old_connections()
@@ -290,7 +292,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 }
                 for site in sites
             ]
-        except:
+        except Exception as e:
+            logger.error(f"Error reading site summary: {e}")
             return []
         finally:
             close_old_connections()
@@ -308,7 +311,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'unresolved': unresolved,
                 'by_type': list(by_type)
             }
-        except:
+        except Exception as e:
+            logger.error(f"Error reading error summary: {e}")
             return {'total': 0, 'unresolved': 0, 'by_type': []}
         finally:
             close_old_connections()
@@ -327,7 +331,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'pending': pending,
                 'success_rate': (resolved / total * 100) if total > 0 else 0
             }
-        except:
+        except Exception as e:
+            logger.error(f"Error reading healing summary: {e}")
             return {'total': 0, 'resolved': 0, 'pending': 0, 'success_rate': 0}
         finally:
             close_old_connections()
@@ -353,7 +358,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'monthly_revenue': float(site.monthly_revenue) if site.monthly_revenue else 0,
                 'is_active': site.is_active
             }
-        except:
+        except Exception as e:
+            logger.error(f"Error reading site details: {e}")
             return None
         finally:
             close_old_connections()
@@ -385,7 +391,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 }
                 for task in tasks
             ]
-        except:
+        except Exception as e:
+            logger.error(f"Error reading site tasks: {e}")
             return []
         finally:
             close_old_connections()
@@ -400,12 +407,14 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                     'id': err.id,
                     'task_name': err.task_name,
                     'error_type': err.error_type,
-                    'error_message': err.error_message[:100],
+                    # ✅ FIXED: err.error_message ባዶ (None) ቢሆን የሚከሰተውን TypeError መከላከያ (የሕግ 4 ጥበቃ)
+                    'error_message': (err.error_message[:100] if err.error_message else ""),
                     'created_at': err.created_at.isoformat()
                 }
                 for err in errors
             ]
-        except:
+        except Exception as e:
+            logger.error(f"Error reading site errors: {e}")
             return []
         finally:
             close_old_connections()
@@ -431,7 +440,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 activity.append({
                     'type': 'evolution',
                     'file': evo.target_file,
-                    'reason': evo.reason_for_change[:50],
+                    'reason': (evo.reason_for_change[:50] if evo.reason_for_change else ""),
                     'timestamp': evo.created_at.isoformat()
                 })
             

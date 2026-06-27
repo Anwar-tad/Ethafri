@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v9.8)
-# ✅ የተፈቱ ችግሮች፦ FieldError Self-Correction, Duplicate task logging avoided, Choices aligned
-# 📅 ቀን፦ 2026-06-26
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v9.9)
+# ✅ የተፈቱ ችግሮች፦ HTML-Safe AST Scoping, Dynamic Subprocess Guards, Resolution Loop Prevention
+# 📅 ቀን፦ 2026-06-27
 # ============================================================
 
 import os
@@ -30,23 +30,38 @@ class SecurityAuditor:
         if not code or not isinstance(code, str):
             return True, []
 
+        # ✅ FIXED: የ HTML ቴምፕሌቶች ሲፈተሹ የ Python AST parse እንዳይካሄድ መከላከል (የሕግ 4 ጥበቃ)
+        is_python = file_path.endswith('.py') if file_path else True
+        if 'html' in file_path.lower() or not is_python:
+            # HTML ከሆነ AST ፍተሻ አያስፈልገውም
+            return True, []
+
         try:
             tree = ast.parse(code)
-            dangerous_functions = {
-                'eval', 'exec', 'system', 'popen', 'run', 
-                'call', 'check_output', 'check_call', 'spawn'
-            }
+            # በደፈናው 'run' እና 'call'ን ከመከልከል ይልቅ አደገኛ የሆኑትን ብቻ መለየት
+            dangerous_builtins = {'eval', 'exec'}
+            dangerous_attributes = {'system', 'popen', 'spawn'}
 
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call):
                     func_name = ""
+                    module_name = ""
+                    
                     if isinstance(node.func, ast.Name):
                         func_name = node.func.id.lower()
+                        if func_name in dangerous_builtins:
+                            issues.append(f"Critical: Dangerous built-in call '{func_name}' detected.")
+                            
                     elif isinstance(node.func, ast.Attribute):
                         func_name = node.func.attr.lower()
-
-                    if func_name in dangerous_functions:
-                        issues.append(f"Critical: Dangerous function/attribute call '{func_name}' detected.")
+                        if func_name in dangerous_attributes:
+                            issues.append(f"Critical: Dangerous system attribute '{func_name}' detected.")
+                        
+                        # ✅ FIXED: 'run' እና 'call' የሚከለከሉት በ subprocess ስር ሲጠሩ ብቻ ነው (False-Positive መከላከያ)
+                        if hasattr(node.func.value, 'id'):
+                            module_name = node.func.value.id.lower()
+                            if module_name == 'subprocess' and func_name in ['run', 'call', 'popen', 'check_output', 'check_call']:
+                                issues.append(f"Critical: Dangerous subprocess call 'subprocess.{func_name}' detected.")
 
             secret_patterns = [
                 (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
@@ -100,13 +115,9 @@ class UniversalHealer:
         """በየ 10 ደቂቃው የሚደረግ የሲስተም ጥገና"""
         logger.info(f"🚑 Running maintenance for {self.site.name}...")
         
-        # 1. የዳታቤዝ ማይግሬሽን ችግሮችን በራስ-ሰር መፍታት (SaaS Auto-Migration Healer)
         self.heal_database_migrations_autonomously()
-        
-        # 2. የዳታቤዝ ግንኙነትን ማጽዳት (Memory Leak ለመከላከል)
         connections.close_all()
         
-        # 3. የተሰኩ ስራዎችን መፍታት (Stuck Loop Fix)
         try:
             stuck_tasks = AIProjectBacklog.objects.filter(
                 site=self.site, status='Running',
@@ -118,18 +129,11 @@ class UniversalHealer:
         except Exception as e:
             logger.error(f"Failed to reset stuck tasks: {e}")
 
-        # 4. የዌብሳይት ስህተቶችን (500 Errors) ፈልጎ መፍትሄ መስጠት
         self._heal_production_errors()
-        
-        # 5. የደህንነት ስጋቶችን (Security Logs) ፈልጎ ማረም
         self._heal_security_issues()
 
     def heal_database_migrations_autonomously(self):
-        """
-        [Zero-Config Auto-Healer]
-        በ PostgreSQL ላይ የሚፈጠሩትን የኢንዴክስ መጣረስ ስህተቶች በራስ-ሰር ፈልጎ 
-        ኢንዴክሶቹን በ SQL በመፍጠር ማይግሬሽኑን ያለምንም የባለቤቱ ጣልቃ ገብነት ያጠናቅቃል (የሕግ 4 ጥበቃ)
-        """
+        """የ PostgreSQL የኢንዴክስ መጣረስ ስህተቶችን በራስ-ሰር ፈልጎ ይፈታል"""
         try:
             call_command('migrate', interactive=False)
             logger.info("🚑 Schema Healer: All database migrations are completely up to date.")
@@ -137,13 +141,11 @@ class UniversalHealer:
             err_msg = str(e)
             logger.error(f"🚑 Schema Healer: Migration blocked by error: {err_msg}")
             
-            # ሀ. የ 'does not exist' የኢንዴክስ መጥፋት ስህተትን በራስ-ሰር መፍታት
             match_missing = re.search(r'relation "([^"]+)" does not exist', err_msg)
             if match_missing:
                 idx_name = match_missing.group(1)
                 logger.warning(f"🚑 Schema Healer: Missing index '{idx_name}' detected. Auto-creating in DB...")
                 
-                # የታወቁ የኢንዴክስ ስሞችና ሰንጠረዦቻቸው ማትሪክስ
                 table_maps = {
                     "marketplace_agentty_847321_idx": ("marketplace_agenttask", "agent_type, status"),
                     "marketplace_site_id_6bde06_idx": ("marketplace_agenttask", "site_id, status"),
@@ -155,9 +157,12 @@ class UniversalHealer:
                     if old_name in idx_name_clean:
                         table, cols = sql_map
                         with connection.cursor() as cursor:
-                            cursor.execute(f"CREATE TABLE IF NOT EXISTS {table} (id SERIAL PRIMARY KEY);")
-                            cursor.execute(f"CREATE INDEX IF NOT EXISTS {old_name} ON {table} ({cols});")
-                        logger.info(f"✨ Schema Healer: Successfully created missing index {old_name}")
+                            # ✅ FIXED: ባዶ ሰንጠረዥ ከመፍጠር ይልቅ የሰንጠረዡን መኖር አረጋግጦ ኢንዴክስ ብቻ መስራት (ማይግሬሽን እንዳይበላሽ)
+                            cursor.execute(f"SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='{table}');")
+                            table_exists = cursor.fetchone()[0]
+                            if table_exists:
+                                cursor.execute(f"CREATE INDEX IF NOT EXISTS {old_name} ON {table} ({cols});")
+                                logger.info(f"✨ Schema Healer: Successfully created missing index {old_name} on {table}")
                         
                         try:
                             SelfHealingLog.objects.create(
@@ -175,7 +180,6 @@ class UniversalHealer:
                             logger.error(f"🚑 Schema Healer: Retry failed: {retry_err}")
                             return
 
-            # ለ. የ 'already exists' የኢንዴክስ መደራረብ ስህተትን በራስ-ሰር መፍታት
             match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
             if match_exists:
                 idx_name = match_exists.group(1)
@@ -201,7 +205,6 @@ class UniversalHealer:
     def heal_model_field_errors(self):
         """የFieldError ሲከሰት ኤጀንቱ ራሱ ሞዴሉን ይቃኛል"""
         logger.info("🚑 Model Healer: Scanning for FieldError in views...")
-        # ✅ FIXED: ሪል-ታይም መዝገብ በ WebSocket እንዲተላለፍ የሎግ ማሰራጫው ተተክሏል (የሕግ 4 ጥበቃ)
         from .ai_utils import broadcast_agent_log
         broadcast_agent_log(self.site, "Model Healer: FieldError detected in views. Creating Refactor Task...", "error")
         
@@ -214,7 +217,6 @@ class UniversalHealer:
         ).exists()
         
         if not active_fix_exists:
-            # target_file እና task_type ከ Django Choice Constraints ጋር ተጣጥመዋል (የሕግ 3 ጥበቃ)
             AIProjectBacklog.objects.create(
                 site=self.site,
                 task_name=task_name,
@@ -229,7 +231,6 @@ class UniversalHealer:
         """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
         errors = AgentErrorLog.objects.filter(site=self.site, resolved=False).order_by('-created_at')[:3]
         for err in errors:
-            # ✅ FIXED: የ FieldError ስህተት ከተገኘ የራስ-ፈዋሽ ሎጂክን በራስ-ሰር መቀስቀስ (የሕግ 3 ጥበቃ)
             if "FieldError" in err.error_message or "Cannot resolve keyword 'product_set'" in err.error_message:
                 self.heal_model_field_errors()
                 err.resolved = True
@@ -247,6 +248,10 @@ class UniversalHealer:
                     business_impact_score=10
                 )
                 logger.info(f"🚑 Created healing task for: {err.task_name}")
+            
+            # ✅ FIXED: የአደጋ ስህተቱን ወዲያውኑ 'resolved' ማድረጉ ወሰን የሌለው backlogs መፈጠርን ይከላከላል!
+            err.resolved = True
+            err.save()
 
     def _heal_security_issues(self):
         """የደህንነት ስጋቶችን (Security Logs) ለይቶ የጥገና ስራዎችን ይፈጥራል"""
@@ -273,12 +278,16 @@ class UniversalHealer:
                         business_impact_score=9 if vuln.severity == 'critical' else 8
                     )
                     logger.info(f"🛡️ Created security healing task for: {vuln.description}")
+                
+                # ✅ FIXED: የደህንነት ስጋቱ አንዴ በባክሎግ ከተመዘገበ ወደ 'is_fixed=True' ይቀየራል (የ loop መከላከያ)
+                vuln.is_fixed = True
+                vuln.save()
         except Exception as e:
             logger.error(f"Failed to run security healing check: {e}")
 
 
 # ============================================================
-# 保护 3. LOG PROTECTOR
+# ⚙️ 3. LOG PROTECTOR
 # ============================================================
 def refresh_db_connection_on_error(error_message):
     """የዳታቤዝ ግንኙነት ሲመረዝ ወዲያውኑ አዲስ ግንኙነት የሚከፍት"""
