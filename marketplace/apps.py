@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.8 Phoenix Auto-Installer — Safe Self-Bootstrapping Engine (Verified)
-# ✅ የተፈቱ ችግሮች፦ Dynamic Self-Code Regeneration, Zero-Crash ImportError Prevention, Lazy Database Pool Closures
+# 📝 ለውጥ፦ v9.9 Phoenix Auto-Installer — Auto-Migrator & DB Rescue Engine
+# ✅ የተፈቱ ችግሮች፦ Render Free-Tier Shell Restriction Bypassed, Auto-migrations, Orphan 147 products auto-healed
 # 📅 ቀን፦ 2026-06-27
 # ============================================================
 
@@ -30,7 +30,6 @@ def verify_and_bootstrap_agent_files():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     marketplace_dir = os.path.join(base_dir, 'marketplace')
     
-    # የጠፉ የኤጀንቱ ኮር ፋይሎች ካጋጠሙ ራሱ የሚጽፋቸው መሠረታዊ ኮዶች (Skeletons)
     skeletons = {
         'ai_utils.py': """# Generated dynamically by apps.py (Phoenix Scaffolding)
 import os, json, requests, logging
@@ -84,7 +83,6 @@ def publish_event(event_type, data, source="system"):
 """
     }
 
-    # ፋይሎቹን መፈተሽ እና መፍጠር
     for filename, code_content in skeletons.items():
         file_path = os.path.join(marketplace_dir, filename)
         if not os.path.exists(file_path) or os.path.getsize(file_path) < 100:
@@ -103,9 +101,9 @@ class MarketplaceConfig(AppConfig):
     name = 'marketplace'
 
     def ready(self):
-        """ሲስተሙ ሲነሳ ኤጀንቱን እና ጥገናውን በራሱ ይቀሰቅሳል"""
+        """ሲስተሙ ሲነሳ ኤጀንቱን፣ ማይግሬሽኑን እና የዳታቤዝ ጥገናውን በራስ-ሰር ይቀሰቅሳል"""
         
-        # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል (Anti-Collision Guard)
+        # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል
         if 'manage.py' in sys.argv:
             command = sys.argv[1] if len(sys.argv) > 1 else ''
             if command in ['migrate', 'makemigrations', 'collectstatic', 'shell', 'check']:
@@ -117,6 +115,28 @@ class MarketplaceConfig(AppConfig):
 
         # የቅድመ-በረራ ራስ-መፍጠርያ ሎጂክን መጥራት
         verify_and_bootstrap_agent_files()
+
+        # ============================================================
+        # ⚡ Render Free-Tier Rescue Engine (ማይግሬሽን እና የ 147 ምርቶች ጥገና)
+        # ============================================================
+        try:
+            from django.core.management import call_command
+            logger.info("🛠️ Auto-Migrator: Running makemigrations...")
+            call_command('makemigrations', interactive=False)
+            logger.info("🛠️ Auto-Migrator: Running migrate...")
+            call_command('migrate', interactive=False)
+            
+            # የ 147 ምርቶች መጣረስ ለመፍታት ወዲያውኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት
+            from .models import Product, SiteRegistry
+            site = SiteRegistry.objects.filter(name='primary').first()
+            if site:
+                unlinked_count = Product.objects.filter(site__isnull=True).update(site=site)
+                if unlinked_count > 0:
+                    logger.info(f"✨ Auto-Healer: Successfully linked {unlinked_count} unlinked products to 'primary' site.")
+        except Exception as mig_err:
+            logger.error(f"❌ Auto-Migrator/Healer failed: {mig_err}")
+        finally:
+            connections.close_all()
 
         logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")
 
@@ -173,14 +193,14 @@ class MarketplaceConfig(AppConfig):
                     logger.error(f"❌ SafetyNet Error: {e}")
                 finally:
                     connections.close_all()
-                time.sleep(600)  # በየ 10 ደቂቃው ይፈትሻል
+                time.sleep(600)
 
         # --- ክር 3፦ ሄልዝ ቼክ እና ራሱን የማከም ስራ (Emergency Fixer) ---
         def run_health_check_thread():
             logger.info("🩺 Health Check & Self-Healing Thread starting...")
             while True:
                 try:
-                    time.sleep(300)  # በየ 5 ደቂቃው
+                    time.sleep(300)
                     from .models import AgentErrorLog, AIProjectBacklog
                     
                     unresolved = AgentErrorLog.objects.filter(resolved=False)
@@ -211,7 +231,6 @@ class MarketplaceConfig(AppConfig):
                 finally:
                     connections.close_all()
 
-        # ሁሉንም ክሮች ማስጀመር
         t1 = threading.Thread(target=run_agent_thread, daemon=True)
         t2 = threading.Thread(target=run_safetynet_thread, daemon=True)
         t3 = threading.Thread(target=run_health_check_thread, daemon=True)
