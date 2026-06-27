@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.7 Phoenix Auto-Installer — Safe Self-Bootstrapping Engine
-# ✅ የተፈቱ ችግሮች፦ Dynamic Self-Code Regeneration, Zero-Crash ImportError Prevention
-# 📅 ቀን፦ 2026-06-26
+# 📝 ለውጥ፦ v9.8 Phoenix Auto-Installer — Safe Self-Bootstrapping Engine (Verified)
+# ✅ የተፈቱ ችግሮች፦ Dynamic Self-Code Regeneration, Zero-Crash ImportError Prevention, Lazy Database Pool Closures
+# 📅 ቀን፦ 2026-06-27
 # ============================================================
 
 import os
@@ -105,7 +105,7 @@ class MarketplaceConfig(AppConfig):
     def ready(self):
         """ሲስተሙ ሲነሳ ኤጀንቱን እና ጥገናውን በራሱ ይቀሰቅሳል"""
         
-        # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል
+        # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል (Anti-Collision Guard)
         if 'manage.py' in sys.argv:
             command = sys.argv[1] if len(sys.argv) > 1 else ''
             if command in ['migrate', 'makemigrations', 'collectstatic', 'shell', 'check']:
@@ -115,7 +115,7 @@ class MarketplaceConfig(AppConfig):
         if os.environ.get('RUN_MAIN') != 'true' and 'manage.py' in sys.argv[0]:
             return
 
-        # ✅ FIXED: የቅድመ-በረራ ራስ-መፍጠርያ ሎጂክን እዚህ ጋር መጀመሪያ ይጠራል (የጠፉ/ያልተሟሉ ፋይሎችን በሙሉ ራሱ ይፈጥራል)
+        # የቅድመ-በረራ ራስ-መፍጠርያ ሎጂክን መጥራት
         verify_and_bootstrap_agent_files()
 
         logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")

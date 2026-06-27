@@ -1,12 +1,13 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/forms.py
-# 📝 ለውጥ፦ v1.2 Site Registration Form — is_active, auto_update & auto_marketing added (v1.2)
-# ✅ የተፈቱ ችግሮች፦ Missing is_active control on SiteRegistrationForm, styled Bootstrap switches
-# 📅 ቀን፦ Friday, June 26, 2026
+# 📝 ለውጥ፦ v1.3 Site Registration Form — Dynamic Form Active Sync & i18n
+# ✅ የተፈቱ ችግሮች፦ Form-level is_active default alignment, complete translation tags (i18n) for errors/help text
+# 📅 ቀን፦ 2026-06-27
 # ============================================================
 
 from django import forms
 from django.contrib.auth.models import User
+from django.utils.translation import gettext_lazy as _  # ✅ i18n ድጋፍ ተጨምሯል
 from .models import Product, Category, SiteRegistry
 
 
@@ -16,16 +17,16 @@ class ProductForm(forms.ModelForm):
     site = forms.ModelChoiceField(
         queryset=SiteRegistry.objects.filter(is_active=True),
         required=False,
-        empty_label="Select Site (optional)",
+        empty_label=_("Select Site (optional)"),  # ✅ የትርጉም መለያ ተዋቅሯል
         widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text="ይህ ምርት የሚለጠፍበትን ጣቢያ ይምረጡ"
+        help_text=_("ይህ ምርት የሚለጠፍበትን ጣቢያ ይምረጡ")  # ✅ የትርጉም መለያ ተዋቅሯል
     )
     
     category = forms.ModelChoiceField(
         queryset=Category.objects.all(),
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'}),
-        empty_label="Select Category"
+        empty_label=_("Select Category")
     )
     
     class Meta:
@@ -34,13 +35,13 @@ class ProductForm(forms.ModelForm):
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Enter product title...',
+                'placeholder': _('Enter product title...'),
                 'required': True
             }),
             'description': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 5,
-                'placeholder': 'Describe your product in detail...',
+                'placeholder': _('Describe your product in detail...'),
                 'required': True
             }),
             'price': forms.NumberInput(attrs={
@@ -51,7 +52,7 @@ class ProductForm(forms.ModelForm):
             }),
             'location': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'City, Country'
+                'placeholder': _('City, Country')
             }),
             'image': forms.FileInput(attrs={
                 'class': 'form-control',
@@ -63,14 +64,14 @@ class ProductForm(forms.ModelForm):
         """የዋጋ ማረጋገጫ"""
         price = self.cleaned_data.get('price')
         if price is not None and price < 0:
-            raise forms.ValidationError("Price cannot be negative.")
+            raise forms.ValidationError(_("Price cannot be negative."))
         return price
     
     def clean_title(self):
         """የርዕስ ማረጋገጫ"""
         title = self.cleaned_data.get('title')
         if title and len(title.strip()) < 3:
-            raise forms.ValidationError("Title must be at least 3 characters long.")
+            raise forms.ValidationError(_("Title must be at least 3 characters long."))
         return title.strip()
     
     def save(self, commit=True):
@@ -81,6 +82,9 @@ class ProductForm(forms.ModelForm):
         if site:
             if not product.location:
                 product.location = site.target_market
+        
+        # ✅ v1.3 UX alignment: ምርቱ በፎርም ደረጃም ሲመዘገብ ወዲያውኑ መነሻ ገጹ ላይ እንዲነቃ ማድረግ
+        product.is_active = True
         
         if commit:
             product.save()
@@ -94,14 +98,14 @@ class ProductSearchForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Search products...',
+            'placeholder': _('Search products...'),
             'aria-label': 'Search'
         })
     )
     category = forms.ModelChoiceField(
         queryset=Category.objects.all(),
         required=False,
-        empty_label="All Categories",
+        empty_label=_("All Categories"),
         widget=forms.Select(attrs={
             'class': 'form-select'
         })
@@ -109,7 +113,7 @@ class ProductSearchForm(forms.Form):
     site = forms.ModelChoiceField(
         queryset=SiteRegistry.objects.filter(is_active=True),
         required=False,
-        empty_label="All Sites",
+        empty_label=_("All Sites"),
         widget=forms.Select(attrs={
             'class': 'form-select'
         })
@@ -119,7 +123,7 @@ class ProductSearchForm(forms.Form):
         min_value=0,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Min'
+            'placeholder': _('Min')
         })
     )
     max_price = forms.DecimalField(
@@ -127,7 +131,7 @@ class ProductSearchForm(forms.Form):
         min_value=0,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Max'
+            'placeholder': _('Max')
         })
     )
 
@@ -137,7 +141,6 @@ class SiteRegistrationForm(forms.ModelForm):
     
     class Meta:
         model = SiteRegistry
-        # ✅ FIXED: የኤጀንቱን ጭነት ለመቆጣጠር is_active, auto_update & auto_marketing ፊልዶች በጥራት ተጨምረዋል (የሕግ 3 ጥበቃ)
         fields = [
             'name', 'display_name', 'niche', 'target_market', 'repo_path', 'deployment_url',
             'is_active', 'auto_update_enabled', 'auto_marketing_enabled'
@@ -145,29 +148,28 @@ class SiteRegistrationForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'site-name (no spaces)'
+                'placeholder': _('site-name (no spaces)')
             }),
             'display_name': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'My Awesome Site'
+                'placeholder': _('My Awesome Site')
             }),
             'niche': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'e.g. coffee, fashion, tech'
+                'placeholder': _('e.g. coffee, fashion, tech')
             }),
             'target_market': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'e.g. USA, Europe, Global'
+                'placeholder': _('e.g. USA, Europe, Global')
             }),
             'repo_path': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': '/path/to/repo'
+                'placeholder': _('/path/to/repo')
             }),
             'deployment_url': forms.URLInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'https://mysite.com'
+                'placeholder': _('https://mysite.com')
             }),
-            # ✅ FIXED: ዘመናዊ Bootstrap Checkbox/Switches ለመፍጠር የተዋቀሩ ማብሪያዎች (የሕግ 4 ጥበቃ)
             'is_active': forms.CheckboxInput(attrs={
                 'class': 'form-check-input',
                 'type': 'checkbox',
@@ -189,7 +191,7 @@ class SiteRegistrationForm(forms.ModelForm):
         """የጣቢያ ስም ማረጋገጫ"""
         name = self.cleaned_data.get('name')
         if name and not name.replace('-', '').replace('_', '').isalnum():
-            raise forms.ValidationError("Site name can only contain letters, numbers, hyphens, and underscores.")
+            raise forms.ValidationError(_("Site name can only contain letters, numbers, hyphens, and underscores."))
         return name.lower()
 
     def clean_repo_path(self):
@@ -197,10 +199,10 @@ class SiteRegistrationForm(forms.ModelForm):
         if repo_path:
             clean_path = repo_path.strip().lower()
             if clean_path.startswith('http') or 'github.com' in clean_path:
-                raise forms.ValidationError(
+                raise forms.ValidationError(_(
                     "Repo path must be a local server directory path (e.g. /opt/render/project/src), not a GitHub URL. "
                     "The system automatically handles GitHub syncing remotely using the site name and tokens."
-                )
+                ))
         return repo_path
 
 
@@ -208,11 +210,11 @@ class MarketingCampaignForm(forms.Form):
     """የግብይት ካምፔን መፍጠሪያ ፎርም"""
     
     CAMPAIGN_TYPES = [
-        ('email_blast', 'Email Blast'),
-        ('sms_blast', 'SMS Blast'),
-        ('social_post', 'Social Media Post'),
-        ('seo_campaign', 'SEO Campaign'),
-        ('referral', 'Referral Program'),
+        ('email_blast', _('Email Blast')),
+        ('sms_blast', _('SMS Blast')),
+        ('social_post', _('Social Media Post')),
+        ('seo_campaign', _('SEO Campaign')),
+        ('referral', _('Referral Program')),
     ]
     
     site = forms.ModelChoiceField(
@@ -230,7 +232,7 @@ class MarketingCampaignForm(forms.Form):
         required=True,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Campaign Name'
+            'placeholder': _('Campaign Name')
         })
     )
     subject = forms.CharField(
@@ -238,7 +240,7 @@ class MarketingCampaignForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Email Subject (optional)'
+            'placeholder': _('Email Subject (optional)')
         })
     )
     message = forms.CharField(
@@ -246,14 +248,14 @@ class MarketingCampaignForm(forms.Form):
         widget=forms.Textarea(attrs={
             'class': 'form-control',
             'rows': 8,
-            'placeholder': 'Enter your campaign message...'
+            'placeholder': _('Enter your campaign message...')
         })
     )
     target_audience = forms.CharField(
         required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'e.g. All sellers, Premium users, etc.'
+            'placeholder': _('e.g. All sellers, Premium users, etc.')
         })
     )
     scheduled_at = forms.DateTimeField(

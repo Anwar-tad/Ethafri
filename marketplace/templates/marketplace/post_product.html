@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/post_product.html
-📝 ለውጥ፦ v1.1 Multi-Site Product Form — Category & Missing Field Gaps Fixed
-✅ የተፈቱ ችግሮች፦ Dynamic Category Count Sync, Zero CSS Bloat, Complete i18n
-📅 ቀን፦ 2026-06-25
+📝 ለውጥ፦ v1.2 Multi-Site Product Form — Translation Tags Completed (DRY)
+✅ የተፈቱ ችግሮች፦ Dynamic Category Gaps Resolved, Fully translated labels (i18n)
+📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,7 +10,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -26,7 +26,8 @@
         <div id="ai-overlay">
             <div class="spinner-grow text-primary mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
             <h5 class="fw-bold text-primary">{% trans "CEO Agent is Optimizing..." %}</h5>
-            <p class="text-muted small">Analyzing niche, generating translations, and securing listing.</p>
+            <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+            <p class="text-muted small">{% trans "Analyzing niche, generating translations, and securing listing." %}</p>
         </div>
 
         <!-- ርዕስ -->
@@ -50,7 +51,8 @@
 
                 <!-- 🌐 Target Site / Niche (ጣቢያ መራጭ) -->
                 <div class="site-tag-selector mb-4">
-                    <label class="form-label fw-bold text-muted small text-uppercase">Target Market / Niche</label>
+                    <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+                    <label class="form-label fw-bold text-muted small text-uppercase">{% trans "Target Market / Niche" %}</label>
                     <select name="site" class="form-select ceo-input border-0 shadow-sm">
                         <option value="">-- {% trans "Select a specific niche (Optional)" %} --</option>
                         {% for site in sites %}
@@ -59,8 +61,9 @@
                     </select>
                 </div>
 
-                <!-- ✅ FIXED: የጠፋው የምርት ምድብ መምረጫ በጥራት ተገጥሟል (የሕግ 3 ጥበቃ) -->
+                <!-- የምርት ምድብ መምረጫ -->
                 <div class="mb-4">
+                    <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                     <label class="form-label fw-bold text-muted small text-uppercase">{% trans "Product Category" %}</label>
                     <select name="category" class="form-select ceo-input border-0 shadow-sm" required>
                         <option value="">-- {% trans "Select Category" %} --</option>
@@ -100,7 +103,8 @@
                         <label for="imageInput" class="cursor-pointer">
                             <i class="fas fa-camera fa-2x text-muted mb-2"></i>
                             <p class="mb-0 text-primary fw-bold" id="fileNameDisplay">{% trans "Click to upload photo" %}</p>
-                            <small class="text-muted">JPG, PNG or WebP</small>
+                            <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+                            <small class="text-muted">{% trans "JPG, PNG or WebP" %}</small>
                         </label>
                     </div>
                 </div>
