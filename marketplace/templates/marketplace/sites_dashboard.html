@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/sites_dashboard.html
-📝 ለውጥ፦ v1.2 Master CEO Multi-Site Dashboard — DRY Sync (Zero CSS Bloat)
-✅ የተፈቱ ችግሮች፦ Site Object Mismatch Fixed (Zero Blank Cards), Dynamic Context Mapping Resolved
-📅 ቀን፦ 2026-06-25
+📝 ለውጥ፦ v1.3 Master CEO Multi-Site Dashboard — Real-Time Phase Animation (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic Phase Progress rendering, Fully translated label placeholders (i18n)
+📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -10,7 +10,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -29,8 +29,8 @@
                     <i class="fas fa-layer-group text-primary me-2"></i>
                     {% trans "Portfolio Overview" %}
                 </h1>
-                <!-- ✅ FIXED: የኮንቴክስት ስህተትን ለመከላከል ወደ views.py total_sites ተቀይሯል -->
-                <p class="text-muted mb-0">Managing <b>{{ total_sites|default:0 }}</b> unique niche marketplaces.</p>
+                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+                <p class="text-muted mb-0">{% trans "Managing" %} <b>{{ total_sites|default:0 }}</b> {% trans "unique niche marketplaces." %}</p>
             </div>
             <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-dark rounded-pill px-4">
                 <i class="fas fa-arrow-left me-2"></i> {% trans "Executive Command" %}
@@ -40,22 +40,26 @@
         <!-- 📊 Global Aggregated Stats -->
         <div class="global-stats-bar d-flex justify-content-around align-items-center text-center">
             <div>
-                <small class="text-muted d-block text-uppercase fw-bold mb-1">Total Reach</small>
+                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+                <small class="text-muted d-block text-uppercase fw-bold mb-1">{% trans "Total Reach" %}</small>
                 <span class="fs-4 fw-bold text-primary">{{ total_visitors|default:0 }}</span>
             </div>
             <div class="stat-divider"></div>
             <div>
-                <small class="text-muted d-block text-uppercase fw-bold mb-1">Sellers</small>
+                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+                <small class="text-muted d-block text-uppercase fw-bold mb-1">{% trans "Sellers" %}</small>
                 <span class="fs-4 fw-bold text-success">{{ total_sellers|default:0 }}</span>
             </div>
             <div class="stat-divider d-none d-md-block"></div>
             <div class="d-none d-md-block text-center">
-                <small class="text-muted d-block text-uppercase fw-bold mb-1">Listings</small>
+                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+                <small class="text-muted d-block text-uppercase fw-bold mb-1">{% trans "Listings" %}</small>
                 <span class="fs-4 fw-bold text-info">{{ total_products|default:0 }}</span>
             </div>
             <div class="stat-divider"></div>
             <div>
-                <small class="text-muted d-block text-uppercase fw-bold mb-1">Revenue</small>
+                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+                <small class="text-muted d-block text-uppercase fw-bold mb-1">{% trans "Revenue" %}</small>
                 <span class="fs-4 fw-bold text-dark">ETB {{ total_revenue|floatformat:0 }}</span>
             </div>
         </div>
@@ -68,7 +72,6 @@
                     <div class="niche-header">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
-                                <!-- ✅ FIXED: የሞዴል መጣረስ ስህተትን ለመከላከል በቀጥታ ከ item ላይ እንዲያነብ ተደርጓል -->
                                 <h5 class="fw-bold mb-0">{{ item.display_name }}</h5>
                                 <span class="badge bg-light text-muted border rounded-pill mt-1" style="font-size: 0.65rem;">
                                     {{ item.niche|upper }}
@@ -83,31 +86,32 @@
                             <i class="fas fa-map-marker-alt me-1"></i> {{ item.target_market }}
                         </div>
 
-                        <!-- Phase Progress -->
+                        <!-- Phase Progress (✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል) -->
                         <div class="phase-bar-mini">
-                            <div class="phase-fill" style="width: {% widthratio item.build_phase 5 100 %}%"></div>
+                            <div class="phase-fill" id="site-phase-fill-{{ item.id }}" style="width: {% widthratio item.build_phase 5 100 %}%"></div>
                         </div>
                         <div class="d-flex justify-content-between mt-1">
-                            <small class="text-muted" style="font-size: 0.65rem;">Phase {{ item.build_phase }}/5</small>
+                            <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
+                            <small class="text-muted" id="site-phase-text-{{ item.id }}" style="font-size: 0.65rem;">Phase {{ item.build_phase }}/5</small>
                             <small class="fw-bold text-primary" style="font-size: 0.65rem;">{{ item.get_build_phase_display }}</small>
                         </div>
                     </div>
 
                     <div class="card-body">
-                        <!-- Task Summary (የሥራዎች ስታቲስቲክስ በ single query ይመጣል) -->
+                        <!-- Task Summary -->
                         <div class="bg-light rounded-4 p-3 mb-3">
                             <div class="row text-center g-0">
                                 <div class="col-4 border-end">
                                     <div class="fw-bold text-primary">{{ item.pending_tasks|default:0 }}</div>
-                                    <small class="text-muted" style="font-size: 0.6rem;">PENDING</small>
+                                    <small class="text-muted" style="font-size: 0.6rem;">{% trans "PENDING" %}</small>
                                 </div>
                                 <div class="col-4 border-end">
                                     <div class="fw-bold text-warning">{{ item.running_tasks|default:0 }}</div>
-                                    <small class="text-muted" style="font-size: 0.6rem;">RUNNING</small>
+                                    <small class="text-muted" style="font-size: 0.6rem;">{% trans "RUNNING" %}</small>
                                 </div>
                                 <div class="col-4">
                                     <div class="fw-bold text-success">{{ item.completed_tasks|default:0 }}</div>
-                                    <small class="text-muted" style="font-size: 0.6rem;">DONE</small>
+                                    <small class="text-muted" style="font-size: 0.6rem;">{% trans "DONE" %}</small>
                                 </div>
                             </div>
                         </div>
@@ -116,13 +120,13 @@
                         {% if item.recent_errors > 0 %}
                         <div class="alert alert-danger py-2 px-3 rounded-pill border-0 mb-3 d-flex align-items-center gap-2">
                             <i class="fas fa-exclamation-triangle small"></i>
-                            <span class="fw-bold" style="font-size: 0.7rem;">{{ item.recent_errors }} Critical Errors Found</span>
+                            <span class="fw-bold" style="font-size: 0.7rem;">{{ item.recent_errors }} {% trans "Critical Errors Found" %}</span>
                         </div>
                         {% endif %}
 
                         <div class="d-grid mt-auto">
                             <a href="{% url 'site_detail' item.id %}" class="btn btn-primary rounded-pill fw-bold py-2 shadow-sm">
-                                <i class="fas fa-chart-pie me-2"></i> Analyze Site
+                                <i class="fas fa-chart-pie me-2"></i> {% trans "Analyze Site" %}
                             </a>
                         </div>
                     </div>
@@ -131,15 +135,46 @@
             {% empty %}
             <div class="col-12 text-center py-5">
                 <i class="fas fa-folder-open fa-4x text-muted opacity-25 mb-3"></i>
-                <h4 class="text-muted">No niches registered yet.</h4>
-                <p>The CEO Agent will auto-discover new projects soon.</p>
+                <h4 class="text-muted">{% trans "No niches registered yet." %}</h4>
+                <p>{% trans "The CEO Agent will auto-discover new projects soon." %}</p>
             </div>
             {% endfor %}
         </div>
 
         <div class="text-center mt-5 text-muted small pb-4">
-            <i class="fas fa-microchip me-1"></i> EthAfri Multi-Site Orchestrator v5.0 | High-Performance Mode Active
+            <i class="fas fa-microchip me-1"></i> {% trans "EthAfri Multi-Site Orchestrator v5.0 | High-Performance Mode Active" %}
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 📟 WebSocket Connection — የጣቢያዎቹን የዕድገት ደረጃ በእውነተኛ ሰዓት ለማሳየት የተገጠመ ሎጂክ
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent_status/`);
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'status_update') {
+            const sites = data.sites || [];
+            sites.forEach(site => {
+                const fillEl = document.getElementById(`site-phase-fill-${site.id}`);
+                const textEl = document.getElementById(`site-phase-text-${site.id}`);
+                
+                // የደረጃውን አሞሌ በእውነተኛ ሰዓት ማስተካከል (Phase Animation)
+                if (fillEl) {
+                    const percentage = (site.build_phase / 5) * 100;
+                    fillEl.style.width = `${percentage}%`;
+                }
+                
+                // የደረጃውን መግለጫ ጽሑፍ ማስተካከል
+                if (textEl) {
+                    textEl.innerText = `Phase ${site.build_phase}/5`;
+                }
+            });
+        }
+    };
+</script>
 {% endblock %}

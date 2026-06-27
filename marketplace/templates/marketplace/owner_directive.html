@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/owner_directive.html
-📝 ለውጥ፦ v1.2 Executive Command Center — Static CSS Migrated (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Dynamic presets animation, standard CSRF form mapping
-📅 ቀን፦ 2026-06-25
+📝 ለውጥ፦ v1.3 Executive Command Center — Double-Submit Guard Enabled (DRY)
+✅ የተፈቱ ችግሮች፦ Prevent duplicate override submissions, loading spinner added
+📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,7 +10,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -31,7 +31,7 @@
             </div>
 
             <div class="card-body p-4 p-md-5">
-                <!-- ማሳወቂያ -->
+                <!-- ማሳወቂያዎች -->
                 {% if messages %}
                     {% for message in messages %}
                     <div class="alert alert-success rounded-pill px-4 shadow-sm mb-4 border-0">
@@ -41,7 +41,7 @@
                 {% endif %}
 
                 <!-- መመሪያ መስጫ ፎርም -->
-                <form method="POST">
+                <form method="POST" id="directiveForm">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="create_override">
                     
@@ -73,7 +73,8 @@
                         </select>
                     </div>
 
-                    <button type="submit" class="btn-directive">
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn-directive" id="submitBtn">
                         <i class="fas fa-bolt me-2 text-warning"></i> Issue Royal Decree
                     </button>
                 </form>
@@ -95,7 +96,7 @@
 
 {% block extra_js %}
 <script>
-    // ✅ FIXED: የ preset መመሪያዎችን በወርቅማ ቀለም አኒሜሽን የሚያስተሳስር የ UI ስክሪፕት
+    // የ preset መመሪያዎችን በወርቅማ ቀለም አኒሜሽን የሚያስተሳስር የ UI ስክሪፕት
     function setCmd(text) {
         const input = document.getElementById('instructionInput');
         input.value = text;
@@ -103,5 +104,15 @@
         input.style.borderColor = '#d97706';
         setTimeout(() => input.style.borderColor = '#e2e8f0', 1000);
     }
+
+    // ✅ FIXED: ተደጋጋሚ ትዕዛዞች በዳታቤዝ ውስጥ እንዳይመዘገቡ የ Double-Submit መከላከያ ስክሪፕት
+    document.getElementById('directiveForm').addEventListener('submit', function(e) {
+        const submitBtn = document.getElementById('submitBtn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            // የቆንጆ ጭነት አኒሜሽን (spinner) በቁልፉ ላይ መተካት
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2 text-warning"></i> Issuing Decree...';
+        }
+    });
 </script>
 {% endblock %}

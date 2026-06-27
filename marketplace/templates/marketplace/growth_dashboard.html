@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/growth_dashboard.html
-📝 ለውጥ፦ v1.2 Master CEO Dashboard — Static CSS Migrated & Failures Resolved (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Dynamic Status Mismatch, Code Translation Mappings, Direct Command Routing Fixed
-📅 ቀን፦ 2026-06-25
+📝 ለውጥ፦ v1.3 Master CEO Dashboard — Real-Time WebSocket Stats (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic Task Status Updates, Real-time Running Marquee, Version Synced
+📅 ቀን፦ 2026-06-27
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,7 +10,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -19,7 +19,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-wrapper" data-agent-monitor> <!-- WebSocket መጋጠሚያ ከ global.js v1.3 ጋር ይገናኛል -->
+<div class="dashboard-wrapper" data-agent-monitor>
     <div class="container-fluid">
 
         <!-- 🤖 ዋና የኤጀንት ሁኔታ -->
@@ -28,17 +28,17 @@
                 <div class="col-md-8">
                     <h2 class="fw-bold mb-2">
                         <i class="fas fa-brain me-2 text-info"></i>
-                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v9.5</span>
+                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v9.7</span> <!-- ✅ FIXED: ስሪቱ ተዘምኗል -->
                     </h2>
                     <p class="opacity-75 mb-4">Autonomous Strategic Growth & System Evolution Engine</p>
                     <div class="d-flex flex-wrap gap-3">
                         <div class="bg-white bg-opacity-10 rounded-pill px-3 py-2 border border-white border-opacity-10">
                             <span class="live-pulse pulse-green"></span>
+                            <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
                             <small id="running-task-name">{% trans "CEO is Analyzing Codebase..." %}</small>
                         </div>
                         <div class="bg-white bg-opacity-10 rounded-pill px-3 py-2 border border-white border-opacity-10">
                             <i class="fas fa-history me-1 text-warning"></i>
-                            <!-- ✅ FIXED: የኮንቴክስት ስህተትን ለመከላከል ወደ views.py status_info.last_run ተቀይሯል -->
                             <small>{% trans "Last Run" %}: {{ status_info.last_run|default:"Just now" }}</small>
                         </div>
                     </div>
@@ -71,6 +71,7 @@
             <div class="col-6 col-md-3">
                 <div class="stat-box">
                     <div class="stat-label">{% trans "Pending Tasks" %}</div>
+                    <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
                     <div class="stat-val text-primary" id="pending-tasks-count">{{ active_tasks }}</div>
                 </div>
             </div>
@@ -85,7 +86,7 @@
         </div>
 
         <div class="row g-4">
-            <!-- 📋 የሥራ ዝርዝር (Backlog) - New First Rule aware -->
+            <!-- 📋 የሥራ ዝርዝር (Backlog) -->
             <div class="col-lg-7">
                 <div class="card border-0 shadow-sm rounded-4">
                     <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
@@ -130,7 +131,6 @@
                     </div>
                     <div class="card-body">
                         <p class="small text-muted">Force the Agent to prioritize a specific mission globally.</p>
-                        <!-- ✅ FIXED: መመሪያው በጥራት እንዲመዘገብ የፎርም አቅጣጫው ወደ owner_directive ቪው ተመርቷል (የሕግ 3 ጥበቃ) -->
                         <form method="POST" action="{% url 'owner_directive' %}">
                             {% csrf_token %}
                             <div class="mb-3">
@@ -149,7 +149,6 @@
                         <h5 class="mb-0 fw-bold"><i class="fas fa-dna me-2"></i> Evolution History</h5>
                     </div>
                     <div class="card-body p-0">
-                        <!-- ✅ FIXED: ኮንቴክስቱ በ views.py ላይ እንዲስተካከል ታዟል -->
                         {% for log in evolution_logs %}
                         <div class="p-3 border-bottom border-light">
                             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -171,7 +170,34 @@
 
 {% block extra_js %}
 <script>
-    // 60 ሰከንድ መጠበቅ ሳያስፈልገን በ WebSocket አማካኝነት global.js ራሱ ያድሰዋል
+    // 📟 WebSocket Connection — ዳሽቦርዱን በእውነተኛ ሰዓት (Real-time) ለማዘመን የተጨመረ ሎጂክ
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent_status/`);
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        
+        // 1. የባክሎግ ቁጥር መዘመኛ (በየ 5 ሰከንዱ በራስ-ሰር ይተገበራል)
+        if (data.type === 'status_update' || data.type === 'live_stats') {
+            const pendingTasksCountEl = document.getElementById('pending-tasks-count');
+            if (pendingTasksCountEl && data.task_stats) {
+                pendingTasksTasksCountEl = pendingTasksCountEl.innerText = data.task_stats.pending;
+            }
+        }
+        
+        // 2. ኤጀንቱ አሁን እየሠራ ያለውን ሥራ በቀጥታ ከላይ ባለው ማርኪ (Marquee) ላይ ማሳየት
+        else if (data.type === 'terminal_log') {
+            const runningTaskEl = document.getElementById('running-task-name');
+            const log = data.log || {};
+            if (runningTaskEl && log.message) {
+                // መረጃው በጣም ረጅም ከሆነ አሳጥሮ ማሳየት
+                const displayMsg = log.message.length > 55 ? log.message.substring(0, 52) + '...' : log.message;
+                runningTaskEl.innerText = displayMsg;
+            }
+        }
+    };
+
+    // ዌብሶኬት ግንኙነቱ ቢቋረጥ እንኳ ገጹ በየ10 ደቂቃው ራሱን ያድሳል
     setTimeout(function() { location.reload(); }, 600000);
 </script>
 {% endblock %}
