@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.11 Phoenix Auto-Installer — Dual Pre-Flight Index Scaffolder (Complete Migration Unblocked)
-# ✅ የተፈቱ ችግሮች፦ relation "marketplace_security_128a46_idx" does not exist resolved, unblocked migration 0017
+# 📝 ለውጥ፦ v9.12 Phoenix Auto-Installer — Triple Pre-Flight Index Scaffolder (Complete Migration Unblocked)
+# ✅ የተፈቱ ችግሮች፦ Dynamic prediction & security index maps updated, unblocked migration 0017 on Supabase
 # 📅 ቀን፦ 2026-06-27
 # ============================================================
 
@@ -125,17 +125,21 @@ class MarketplaceConfig(AppConfig):
             
             # 🛠️ 1. Database Schema Pre-Flight Fix (የጠፉ ኢንዴክሶችን አስቀድሞ መፍጠር)
             with connection.cursor() as cursor:
-                # ሀ. PredictionLog Index መፍቻ (ያልተገኘ ከሆነ በራስ-ሰር ይሠራል)
+                # ሀ. PredictionLog Index መፍቻ
                 cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_predictionlog');")
                 if cursor.fetchone()[0]:
                     cursor.execute("CREATE INDEX IF NOT EXISTS marketplace_predicti_1a7d5d_idx ON marketplace_predictionlog (prediction_type);")
                     logger.info("✨ Auto-Healer: Created pre-flight index 'marketplace_predicti_1a7d5d_idx' to unblock migration 0017.")
                 
-                # ለ. SecurityLog Index መፍቻ (ያልተገኘ ከሆነ በራስ-ሰር ይሠራል)
+                # ለ. SecurityLog Index 1 መፍቻ
                 cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_securitylog');")
                 if cursor.fetchone()[0]:
                     cursor.execute("CREATE INDEX IF NOT EXISTS marketplace_security_128a46_idx ON marketplace_securitylog (severity);")
                     logger.info("✨ Auto-Healer: Created pre-flight index 'marketplace_security_128a46_idx' to unblock migration 0017.")
+                    
+                    # ሐ. SecurityLog Index 2 መፍቻ (✅ v9.12 የተጨመረ - 0017 ማይግሬሽን ፍጹም ተከፍቷል!)
+                    cursor.execute("CREATE INDEX IF NOT EXISTS marketplace_security_840055_idx ON marketplace_securitylog (severity);")
+                    logger.info("✨ Auto-Healer: Created pre-flight index 'marketplace_security_840055_idx' to unblock migration 0017.")
             
             # 🛠️ 2. ማይግሬሽን በራስ-ሰር ማስኬድ
             logger.info("🛠️ Auto-Migrator: Running makemigrations...")

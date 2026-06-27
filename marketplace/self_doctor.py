@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.0)
-# ✅ የተፈቱ ችግሮች፦ Predictive & Security index maps integrated, Resolution loop prevention, Complete function closures
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.1)
+# ✅ የተፈቱ ችግሮች፦ Dynamic prediction & security index maps updated, Resolution loop prevention, AST HTML safety unblocked
 # 📅 ቀን፦ 2026-06-27
 # ============================================================
 
@@ -151,8 +151,9 @@ class UniversalHealer:
                     "marketplace_agentty_847321_idx": ("marketplace_agenttask", "agent_type, status"),
                     "marketplace_site_id_6bde06_idx": ("marketplace_agenttask", "site_id, status"),
                     "marketplace_predicti_9ce3e9_idx": ("marketplace_predictionlog", "prediction_type, site_id"),
-                    "marketplace_predicti_1a7d5d_idx": ("marketplace_predictionlog", "prediction_type"),  # ✅ የተጨመረ
-                    "marketplace_security_128a46_idx": ("marketplace_securitylog", "severity")         # ✅ የተጨመረ
+                    "marketplace_predicti_1a7d5d_idx": ("marketplace_predictionlog", "prediction_type"),
+                    "marketplace_security_128a46_idx": ("marketplace_securitylog", "severity"),
+                    "marketplace_security_840055_idx": ("marketplace_securitylog", "severity")  # ✅ የተጨመረ
                 }
                 
                 idx_name_clean = str(idx_name).lower()
