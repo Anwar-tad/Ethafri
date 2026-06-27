@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.9 Phoenix Auto-Installer — Auto-Migrator & DB Rescue Engine
-# ✅ የተፈቱ ችግሮች፦ Render Free-Tier Shell Restriction Bypassed, Auto-migrations, Orphan 147 products auto-healed
+# 📝 ለውጥ፦ v9.10 Phoenix Auto-Installer — Pre-Flight Index Scaffolder (Unblock Migration 0017)
+# ✅ የተፈቱ ችግሮች፦ relation "marketplace_predicti_1a7d5d_idx" does not exist resolved, complete DB auto-migration unblocked
 # 📅 ቀን፦ 2026-06-27
 # ============================================================
 
@@ -121,12 +121,23 @@ class MarketplaceConfig(AppConfig):
         # ============================================================
         try:
             from django.core.management import call_command
+            from django.db import connection
+            
+            # 🛠️ 1. Database Schema Pre-Flight Fix (የጠፉ ኢንዴክሶችን አስቀድሞ መፍጠር)
+            # "marketplace_predicti_1a7d5d_idx" does not exist የተባለውን የማይግሬሽን 0017 መቆለፊያ ለመፍታት
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_predictionlog');")
+                if cursor.fetchone()[0]:
+                    cursor.execute("CREATE INDEX IF NOT EXISTS marketplace_predicti_1a7d5d_idx ON marketplace_predictionlog (prediction_type);")
+                    logger.info("✨ Auto-Healer: Created pre-flight index 'marketplace_predicti_1a7d5d_idx' to unblock migration 0017.")
+            
+            # 🛠️ 2. ማይግሬሽን በራስ-ሰር ማስኬድ
             logger.info("🛠️ Auto-Migrator: Running makemigrations...")
             call_command('makemigrations', interactive=False)
             logger.info("🛠️ Auto-Migrator: Running migrate...")
             call_command('migrate', interactive=False)
             
-            # የ 147 ምርቶች መጣረስ ለመፍታት ወዲያውኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት
+            # 🛠️ 3. የ 147 ምርቶች መጣረስ ለመፍታት ወዲያውኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት
             from .models import Product, SiteRegistry
             site = SiteRegistry.objects.filter(name='primary').first()
             if site:
