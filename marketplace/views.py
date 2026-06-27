@@ -1,15 +1,15 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ 100% Complete Master CEO Views — WSGI & Thread Safe (v1.5 - Ultra-Secure)
-# ✅ የተፈቱ ችግሮች፦ current_site NoReverseMatch Fixed, Sum(Case(When)) Value Casting Fixed (Zero 500 Error)
-# 📅 ቀን፦ Thursday, June 25, 2026
+# 📝 ለውጥ፦ 100% Complete Master CEO Views — WSGI & Thread Safe (v1.6 - Ultra-Secure)
+# ✅ የተፈቱ ችግሮች፦ Instant product listing (is_active=True UX fix), SaaS Metrics Live Sync, Database-agnostic Case-When
+# 📅 ቀን፦ 2026-06-27
 # ============================================================
 
 import logging
 import uuid
 import json
 import threading
-from datetime import datetime, timedelta  # ✅ FIXED: ለቀን ፍለጋ ገደብ timedelta ተጨምሯል
+from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
@@ -21,12 +21,11 @@ from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.utils.translation import get_language, gettext_lazy as _
 from django.contrib import messages
 from django.utils import timezone
-# ✅ FIXED: ለ Case-When የዳታቤዝ ጥበቃ አስፈላጊዎቹ ሞዴሎች ገብተዋል
 from django.db.models import Count, Sum, Q, Avg, Case, When, IntegerField, Value
 from django.db import connection, connections
 from django.core.serializers.json import DjangoJSONEncoder
 
-# ሁሉንም 20+ የኤጀንት ሞዴሎች ማምጣት
+# ሁሉንም የኤጀንት ሞዴሎች ማምጣት
 from .models import (
     Product, Category, UserSearch, SiteConfig, MarketTrend, SelfHealingLog,
     AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction, TranslationQueue,
@@ -76,12 +75,11 @@ def home(request):
     if site_id:
         products = products.filter(site_id=site_id)
 
-    # ✅ FIXED: የጃንጎን ሪቨርስ ሉክአፕ ከ 'product_set' ወደ 'product' በመቀየር የ FieldError ስህተት በቋሚነት ተፈትቷል (የሕግ 3 ጥበቃ)
+    # የጃንጎን ሪቨርስ ሉክአፕ ከ 'product_set' ወደ 'product' በመቀየር የ FieldError ስህተት በቋሚነት ተፈትቷል
     categories = Category.objects.annotate(
         active_count=Sum(Case(When(product__is_active=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
     ).all()
 
-    # የ NoReverseMatch የሆም ፔጅ መቆለፍን ለመከላከል እውነተኛ የ SiteRegistry ኦብጀክት ተልኳል
     current_site_obj = None
     if site_id and site_id.isdigit():
         current_site_obj = SiteRegistry.objects.filter(id=site_id, is_active=True).first()
@@ -106,9 +104,56 @@ def product_detail(request, pk):
 
 @login_required
 def post_product(request):
-    """ምርት መለጠፊያ — ከባለብዙ-ጣቢያ ምርጫ ጋር"""
+    """ምርት መለጠፊያ — ከባለብዙ-ጣቢያ ምርጫ ጋር (v1.6 UX የተስተካከለ)"""
     if request.method == "POST":
-        messages.success(request, _("ምርትዎ ተመዝግቧል። ኤጀንቱ አሁን እያቀነባበረው ነው።"))
+        title = request.POST.get('title', '').strip()
+        price_str = request.POST.get('price', '0').strip()
+        description = request.POST.get('description', '').strip()
+        category_id = request.POST.get('category')
+        site_id = request.POST.get('site_id') or request.POST.get('site')
+        location = request.POST.get('location', 'Global').strip()
+        image = request.FILES.get('image')
+        image_url = request.POST.get('image_url', '').strip()
+
+        if not title or not category_id:
+            messages.error(request, _("እባክዎ የምርቱን ስም እና ካቴጎሪ በትክክል ያስገቡ።"))
+            return redirect('post_product')
+
+        try:
+            price = float(price_str) if price_str else 0.0
+        except ValueError:
+            price = 0.0
+
+        category = get_object_or_404(Category, id=category_id)
+        site = None
+        if site_id and site_id.isdigit():
+            site = SiteRegistry.objects.filter(id=site_id).first()
+
+        # ✅ FIXED: ምርቱ መጀመሪያ ወዲያውኑ መነሻ ገጽ ላይ እንዲታይ is_active=True እናደርገዋለን!
+        product = Product.objects.create(
+            seller=request.user,
+            site=site,
+            category=category,
+            title=title,
+            price=price,
+            description=description,
+            location=location,
+            image=image,
+            image_url=image_url,
+            is_active=True,  # 🟢 ወዲያውኑ መነሻ ገጹ ላይ እንዲታይ!
+            translations=None  # ኤጀንቱ ገና እንዳልተረጎመው ለማወቅ
+        )
+        
+        # የወላጅ ሳይቱን የሥራ ስታቲስቲክስ ወዲያውኑ ማሳደግ (SaaS Metrics Live Sync)
+        if site:
+            try:
+                site.real_product_count = Product.objects.filter(site=site, is_active=True).count()
+                site.total_products = Product.objects.filter(site=site).count()
+                site.save(update_fields=['real_product_count', 'total_products'])
+            except Exception as stats_err:
+                logger.warning(f"SaaS metrics sync warning: {stats_err}")
+
+        messages.success(request, _("ምርትዎ በተሳካ ሁኔታ ተለጥፏል! ኤጀንቱ በጀርባ እያቀነባበረው ነው።"))
         return redirect('post_success')
     
     return render(request, 'marketplace/post_product.html', {
@@ -182,7 +227,6 @@ def trigger_evolution(request):
 @staff_member_required
 def sites_dashboard(request):
     """ሁሉንም ንዑስ ጣቢያዎች (Niches) በአንድ ላይ ማሳያ"""
-    # ✅ FIXED: 100% Database-Agnostic Case-When Aggregation (የ SQLite FILTER ስህተትን በቋሚነት ይፈታል)
     sites = SiteRegistry.objects.annotate(
         pending_tasks=Sum(Case(When(backlog_tasks__status='Pending', then=Value(1)), default=Value(0), output_field=IntegerField())),
         running_tasks=Sum(Case(When(backlog_tasks__status='Running', then=Value(1)), default=Value(0), output_field=IntegerField())),
@@ -247,13 +291,11 @@ def create_marketing_campaign(request):
 # ============================================================
 # ⚖️ 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
 # ============================================================
-# views.py ውስጥ agent_status_dashboard() ቪው ሙሉ በሙሉ በዚህ ይተካል (የሕግ 3 ጥበቃ)
 @staff_member_required
 def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
     build_avg = SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg']
     
-    # 100% Database-Agnostic Case-When Aggregations for diagnostic metrics
     healing = SelfHealingLog.objects.aggregate(
         total=Count('id'),
         resolved=Sum(Case(When(resolved=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
@@ -269,18 +311,15 @@ def agent_status_dashboard(request):
     heartbeat_config = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
     agent_status = _safe_json_decode(heartbeat_config.value, {"status": "idle"}) if heartbeat_config else {"status": "idle"}
 
-    # __date የጊዜ ሰሌዳ ስህተትን ለመከላከል እጅግ አስተማማኝ የ range ሎጂክ (የሕግ 4 ጥበቃ)
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
     today_evolution_count = AIEvolutionLog.objects.filter(created_at__range=(today_start, today_end)).count()
 
-    # የዳራ የሥራ መዝገቦችና የጥገና ሎጎች በቀጥታ ከዳታቤዝ ማንበብ
     logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
     cycle_logs = logs_config.value if logs_config and isinstance(logs_config.value, list) else []
     
     healed_logs = SelfHealingLog.objects.all().order_by('-created_at')[:10]
 
-    # ✅ FIXED: የነፃ ኤፒአይ የሥራ ክፍፍል ማሳያ ማትሪክስ (የሕግ 3 ጥበቃ)
     api_matrix = [
         {'task': 'Code Logic Development', 'name': 'MISTRAL', 'color': 'danger'},
         {'task': 'Syntax Compiler Check', 'name': 'GROQ', 'color': 'warning text-dark'},
@@ -304,11 +343,9 @@ def agent_status_dashboard(request):
         'healing_stats': healing,
         'prediction_stats': pred,
         'success_rate': success_avg or 0,
-        # የ 'now' ታግ የሰረዝ ስህተትን በቋሚነት ለመፍታት ሰዓቱ በኮንቴክስት ተልኳል
         'live_time': timezone.now(),
         'cycle_logs': cycle_logs,
         'healed_logs': healed_logs,
-        # ✅ FIXED: api_matrix ወደ ኮንቴክስት ተጨምሯል
         'api_matrix': api_matrix,
         'marketing_stats': {'notifications': NotificationQueue.objects.filter(is_sent=False).count()},
         'agent_stats': {'total': AgentTask.objects.count()}

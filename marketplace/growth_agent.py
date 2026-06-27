@@ -852,3 +852,46 @@ def start_autonomous_ceo():
         except Exception as e:
             logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
             time.sleep(60)
+            
+# In marketplace/growth_agent.py (በጀርባ የሚሠራ የኤጀንቱ ምርት ተንታኝ)
+def curate_user_listings(self):
+    """
+    [Real-Time Post-Validation Guardrail]
+    ወዲያውኑ የተለጠፉ ምርቶችን መርምሮ የትርጉም ሥራዎችን ያካሂዳል፤ 
+    አጭበርባሪ ወይም ሕገ-ወጥ ይዘት ካለው ግን ወዲያውኑ ደብቆ ለሻጩ መልእክት ይልካል
+    """
+    # ገና ያልተተረጎሙ ወይም ያልተተነተኑ ምርቶችን ማግኘት
+    unprocessed_products = Product.objects.filter(
+        site=self.site, 
+        is_active=True,
+        translations__isnull=True  # ገና ትርጉም አልተሠራላቸውም
+    )
+
+    for product in unprocessed_products:
+        # 1. የደህንነት እና የአጭበርባሪዎች ፍተሻ (Scam & Spam Detection)
+        prompt = (
+            f"Verify this product listing for scams, illegal items, or spam. "
+            f"Title: {product.title}. Price: {product.price}. Description: {product.description}. "
+            f"Return JSON with key 'is_valid' (true/false) and 'reason' (string explaining if invalid)."
+        )
+        result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+        
+        if result and not result.get('is_valid', True):
+            # ሕገ-ወጥ ወይም አጭበርባሪ ምርት ከሆነ ወዲያውኑ ደብቅ
+            product.is_active = False
+            product.save()
+            
+            # ለሻጩ የስህተት ማስተካከያ መልእክት መላክ
+            NotificationQueue.objects.create(
+                site=self.site,
+                recipient=product.seller.username,
+                message=(
+                    f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት "
+                    f"በ AI ማጣሪያችን አልፏል። ምክንያት፦ {result.get('reason', 'ያልተሟላ መረጃ')}። "
+                    f"እባክዎ መረጃውን አስተካክለው ድጋሚ ይጫኑ።"
+                )
+            )
+            logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
+        else:
+            # 2. ምርቱ ትክክለኛ ከሆነ የትርጉም ሥራዎችን በ RAG ማከማቸት
+            self._generate_translations_for_product(product)
