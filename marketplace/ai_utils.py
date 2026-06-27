@@ -118,34 +118,22 @@ def is_provider_cooled_down(provider):
     with _cooldown_lock:
         cooldown_until = _provider_cooldowns.get(provider, 0)
         return time.time() < cooldown_until
-
 def clean_json_response(raw_text):
-    """ከ AI የሚመጣን ምላሽ ፈልቅቆ ንጹህ የ JSON ጽሑፍ ብቻ ያወጣል"""
-    if not raw_text:
-        return "{}"
-    raw_text = raw_text.strip()
+    """የተሻሻለ የ JSON ማጽጃ ሎጂክ"""
+    if not raw_text: return "{}"
     
-    if raw_text.startswith("```json"):
-        raw_text = raw_text.split("```json")[1].split("```")[0].strip()
-    elif raw_text.startswith("```"):
-        raw_text = raw_text.split("```")[1].split("```")[0].strip()
+    # የ JSON መለያዎችን ማስወገድ
+    text = re.sub(r'```json|```', '', raw_text).strip()
+    
+    # መጀመሪያና መጨረሻ '{' ወይም '[' መኖራቸውን ማረጋገጥ
+    start = max(text.find('{'), text.find('['))
+    end = max(text.rfind('}'), text.rfind(']'))
+    
+    if start != -1 and end != -1:
+        text = text[start:end+1]
         
-    try:
-        first_curly = raw_text.find('{')
-        last_curly = raw_text.rfind('}')
-        first_square = raw_text.find('[')
-        last_square = raw_text.rfind(']')
-        
-        if first_curly != -1 and last_curly != -1:
-            if first_square == -1 or first_curly < first_square:
-                raw_text = raw_text[first_curly:last_curly+1]
-            elif first_square != -1 and last_square != -1:
-                raw_text = raw_text[first_square:last_square+1]
-    except Exception:
-        pass
-        
-    raw_text = re.sub(r',\s*([\]}])', r'\1', raw_text)
-    return raw_text
+    return text
+
 
 def call_ai_provider(provider, prompt, system_instruction="You are a helpful assistant."):
     """የተመረጠውን የኤአይ ፕሮቫይደር በጥሪ ኢንተርቫል እና በደህንነት ጥበቃ ይጠራል"""
@@ -224,28 +212,29 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
+                
 
-        # 5. HUGGINGFACE
+        # 5. HUGGINGFACE (Updated for Inference API Compatibility)
         elif provider == 'HUGGINGFACE':
             url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {
                 "inputs": f"<|system|>\n{system_instruction}\n<|user|>\n{prompt}\n<|assistant|>\n",
-                "parameters": {"max_new_tokens": 1024, "temperature": 0.2}
+                "parameters": {"max_new_tokens": 1024, "return_full_text": False} # ✅ ADDED: return_full_text false
             }
             response = requests.post(url, json=payload, timeout=25)
             if response.status_code == 200:
                 res_json = response.json()
-                if isinstance(res_json, list) and len(res_json) > 0:
-                    text = res_json[0].get('generated_text', '')
-                    if "<|assistant|>\n" in text:
-                        return text.split("<|assistant|>\n")[-1].strip()
-                    return text
-            elif response.status_code in [429, 500, 502, 503]:
-                mark_provider_failed(provider)
+                # ✅ FIXED: የ list መኖሩን ማረጋገጥ እና ንጹህ ጽሁፍ ማውጣት
+                if isinstance(res_json, list) and 'generated_text' in res_json[0]:
+                    return res_json[0]['generated_text'].strip()
+                elif isinstance(res_json, dict) and 'generated_text' in res_json:
+                    return res_json['generated_text'].strip()
+
 
         # 6. GITHUB MODELS API
         elif provider == 'GITHUB':
+            # ✅ ማሻሻያ 2፦ የተስተካከለ ንጹህ URL (የማርክዳውን ብራኬቶች ተወግደዋል)
             url = "https://models.inference.ai.azure.com/chat/completions"
             headers = {
                 "Authorization": f"Bearer {api_key}",
@@ -395,7 +384,6 @@ def ask_master_ai_smart(prompt, task_type="analysis", system_instruction="", tas
             "You are the Autonomous CEO of EthAfri. Respond with clean JSON or raw code "
             "depending on the task. Never add conversational filler or intro/outro text."
         )
-    # ✅ FIXED: የ utils ደረጃውን _ai_cache በመጥራት NameError ሙሉ በሙሉ ተቀርፏል!
     if task_type in ['analysis', 'market_research']:
         return _ai_cache.get_or_compute(
             f"{system_instruction}\n\n{prompt}",
