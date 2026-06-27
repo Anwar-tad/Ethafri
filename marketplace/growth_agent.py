@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v9.8 - Ultimate Secure)
-# ✅ የተፈቱ ችግሮች፦ Indented curate_user_listings, checked apply_code_change return value, Disk-level AST validation, Dynamic SaaS Metrics
-# 📅 ቀን፦ 2026-06-27
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v9.9 - Thread-Safe Fixed)
+# ✅ የተፈቱ ችግሮች፦ import threading added to resolve NameError on start, Dynamic user listing curation
+# 📅 ቀን፦ 2026-06-28
 # ============================================================
 
 import ast
@@ -14,6 +14,7 @@ import time
 import hashlib
 import requests
 import random
+import threading  # ✅ FIXED: የ NameError ስህተትን ለመፍታት ቴሬዲንግ ገብቷል!
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -300,7 +301,7 @@ class RecursiveBuilder:
                         with open(local_path, 'r', encoding='utf-8') as f:
                             old_code = f.read()
 
-                    # ኮዱን ዲስክ ላይ መጻፍ (✅ FIXED: Return value ፍተሻ ተገጥሟል)
+                    # ኮዱን ዲስክ ላይ መጻፍ
                     result = apply_code_change(self.site, task.target_file, res['code'], task.task_name, backlog_task=task)
                     
                     if result and isinstance(result, dict) and not result.get('success', False):
@@ -310,7 +311,6 @@ class RecursiveBuilder:
                         return "Apply Blocked"
 
                     # 🧪 ራስ-ሰር የሙከራ ላብራቶሪ (Post-Apply Verification Loop)
-                    # ✅ FIXED: የ In-Memory መሸጎጫን ለመቅረፍ አዲሱን ኮድ በቀጥታ ከዲስክ ላይ መልሶ ማንበብ
                     if os.path.exists(local_path):
                         with open(local_path, 'r', encoding='utf-8') as f:
                             written_code = f.read()
@@ -461,10 +461,8 @@ class CEOOperations:
 
     def run_business_growth(self):
         self._harvest_verified_products()
-        # ✅ FIXED: ራቁት ሆኖ የነበረው curate_user_listings እዚህ ጋር በይፋ ይጠራል
         self.curate_user_listings()
         self._boost_revenue()
-        # ✅ FIXED: Stale Metrics ለመፍታት የጣቢያውን መረጃዎች በየጊዜው በዳይናሚክ መንገድ ማመሳሰል
         self.sync_site_growth_metrics()
 
     def _harvest_verified_products(self):
@@ -539,7 +537,6 @@ class CEOOperations:
         except Exception as e:
             logger.error(f"Failed to seed listing: {e}")
 
-    # ✅ FIXED: ራቁት የነበረው curate_user_listings ወደ class method አድጓል
     def curate_user_listings(self):
         """
         [Real-Time Post-Validation Guardrail]
@@ -577,7 +574,6 @@ class CEOOperations:
             else:
                 self._generate_translations_for_product(product)
 
-    # ✅ FIXED: የትርጉም ሎጂክ በ RAG የቃላት መዝገብ (translate_text_incremental) በጥራት ተዋቅሯል
     def _generate_translations_for_product(self, product):
         """ምርቱን በዳይናሚክ መንገድ ወደ 7 የሀገር ውስጥ እና ዓለምአቀፍ ቋንቋዎች በ RAG መጋዘን ይተረጉማል"""
         from .ai_utils import translate_text_incremental
@@ -597,7 +593,6 @@ class CEOOperations:
         product.translations = translations_dict
         product.save(update_fields=['translations'])
 
-    # ✅ FIXED: የ Sates መረጃዎችን (Growth level, Visitors, Revenue, Customers) በእውነተኛ ሰዓት ማስያ
     def sync_site_growth_metrics(self):
         """የጣቢያውን የእድገት መለኪያዎች (growth level, monthly visitors, etc.) በዳይናሚክ መንገድ ያሰላል"""
         try:
