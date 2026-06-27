@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v9.8 (Phoenix Infinite Free-Tier Concurrency Edition - Fixed)
-# ✅ ተግባራት፦ Self-Contained AICache, Per-Provider Lock, HTTP 429/500 Fallback Cooldown, GITHUB Models Integration
+# 📝 ስሪት፦ v9.9 (Phoenix Concurrency Edition — Fully Aligned)
+# ✅ የተፈቱ ችግሮች፦ Nested Array JSON Parsing, Trailing Comma Regex, HuggingFace Cooldown Integration
 # 📅 ቀን፦ 2026-06-27
 # ============================================================
 
@@ -12,7 +12,7 @@ import logging
 import requests
 import re
 import threading
-import hashlib  # ✅ AICache md5 ለማመንጨት የተጨመረ
+import hashlib
 from django.conf import settings
 from django.utils import timezone
 from .models import SiteConfig
@@ -26,7 +26,7 @@ _provider_cooldowns = {}
 _cooldown_lock = threading.Lock()
 
 # ============================================================
-# ⚙️ AI Cache System (ወደ utils የተዛወረ - NameError መከላከያ)
+# ⚙️ AI Cache System (መሸጎጫ)
 # ============================================================
 class AICache:
     """ተደጋጋሚ የAI ጥያቄዎችን ለማስታወስ (TTL-based Token Saver)"""
@@ -58,6 +58,17 @@ class AICache:
 
 # በ utils ደረጃ የሚጋራ የ cache መጋዘን
 _ai_cache = AICache(ttl=1800)
+
+
+# ============================================================
+# ⚙️ የፋይል አቅጣጫ ፈቺ ረዳት ፈንክሽን
+# ============================================================
+def resolve_local_file_path(site, target_file):
+    """የፋይሉን ትክክለኛ local path በዓይነቱ (Python/HTML) መሠረት ይፈታል"""
+    if target_file.endswith('_html') or 'html' in target_file:
+        clean_name = target_file.replace('_html', '') + '.html'
+        return os.path.join(settings.BASE_DIR, 'marketplace', 'templates', 'marketplace', clean_name)
+    return os.path.join(settings.BASE_DIR, 'marketplace', f"{target_file}.py")
 
 
 # ============================================================
@@ -118,22 +129,31 @@ def is_provider_cooled_down(provider):
     with _cooldown_lock:
         cooldown_until = _provider_cooldowns.get(provider, 0)
         return time.time() < cooldown_until
+
 def clean_json_response(raw_text):
-    """የተሻሻለ የ JSON ማጽጃ ሎጂክ"""
-    if not raw_text: return "{}"
+    """ከ AI የሚመጣን ምላሽ ፈልቅቆ ንጹህ የ JSON ጽሑፍ ብቻ ያወጣል (Regex-Enhanced Outer-Root Solver)"""
+    if not raw_text:
+        return "{}"
     
-    # የ JSON መለያዎችን ማስወገድ
+    # የ Markdown ኮድ ማገጃዎችን ማስወገድ
     text = re.sub(r'```json|```', '', raw_text).strip()
     
-    # መጀመሪያና መጨረሻ '{' ወይም '[' መኖራቸውን ማረጋገጥ
-    start = max(text.find('{'), text.find('['))
-    end = max(text.rfind('}'), text.rfind(']'))
+    # ✅ FIXED: የተንጠለጠሉ ነጠላ ኮማዎችን (trailing commas) በ Regex ማረም (v9.9 የተመለሰ)
+    text = re.sub(r',\s*([\]}])', r'\1', text)
     
-    if start != -1 and end != -1:
-        text = text[start:end+1]
+    first_curly = text.find('{')
+    last_curly = text.rfind('}')
+    first_square = text.find('[')
+    last_square = text.rfind(']')
+    
+    # ✅ FIXED: Nested arrays በሚኖርበት ጊዜ የ max() ስህተትን የሚከላከል የ v9.6 Outer-Root ሎጂክ
+    if first_curly != -1 and (first_square == -1 or first_curly < first_square):
+        if last_curly != -1:
+            text = text[first_curly:last_curly + 1]
+    elif first_square != -1 and last_square != -1:
+        text = text[first_square:last_square + 1]
         
     return text
-
 
 def call_ai_provider(provider, prompt, system_instruction="You are a helpful assistant."):
     """የተመረጠውን የኤአይ ፕሮቫይደር በጥሪ ኢንተርቫል እና በደህንነት ጥበቃ ይጠራል"""
@@ -212,29 +232,29 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
-                
 
-        # 5. HUGGINGFACE (Updated for Inference API Compatibility)
+        # 5. HUGGINGFACE
         elif provider == 'HUGGINGFACE':
             url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {
                 "inputs": f"<|system|>\n{system_instruction}\n<|user|>\n{prompt}\n<|assistant|>\n",
-                "parameters": {"max_new_tokens": 1024, "return_full_text": False} # ✅ ADDED: return_full_text false
+                "parameters": {"max_new_tokens": 1024, "temperature": 0.2}
             }
             response = requests.post(url, json=payload, timeout=25)
             if response.status_code == 200:
                 res_json = response.json()
-                # ✅ FIXED: የ list መኖሩን ማረጋገጥ እና ንጹህ ጽሁፍ ማውጣት
-                if isinstance(res_json, list) and 'generated_text' in res_json[0]:
-                    return res_json[0]['generated_text'].strip()
-                elif isinstance(res_json, dict) and 'generated_text' in res_json:
-                    return res_json['generated_text'].strip()
-
+                if isinstance(res_json, list) and len(res_json) > 0:
+                    text = res_json[0].get('generated_text', '')
+                    if "<|assistant|>\n" in text:
+                        return text.split("<|assistant|>\n")[-1].strip()
+                    return text
+            # ✅ FIXED: HUGGINGFACE 429/500/502/503 Cooldown መጋጠሚያ ተገጥሟል
+            elif response.status_code in [429, 500, 502, 503]:
+                mark_provider_failed(provider)
 
         # 6. GITHUB MODELS API
         elif provider == 'GITHUB':
-            # ✅ ማሻሻያ 2፦ የተስተካከለ ንጹህ URL (የማርክዳውን ብራኬቶች ተወግደዋል)
             url = "https://models.inference.ai.azure.com/chat/completions"
             headers = {
                 "Authorization": f"Bearer {api_key}",
