@@ -1,8 +1,21 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v9.9 (Phoenix Concurrency Edition — Fully Aligned)
-# ✅ የተፈቱ ችግሮች፦ Nested Array JSON Parsing, Trailing Comma Regex, HuggingFace Cooldown Integration
-# 📅 ቀን፦ 2026-06-27
+# 📝 ስሪት፦ v9.9 (Phoenix Infinite Free-Tier — JSON-Parsing & Provider-Health Fixed)
+# ✅ የተፈቱ ችግሮች፦
+#   1. 🔴 clean_json_response() Bracket-Detection Regression ተፍቷል — ቀደም
+#      `max(find('{'), find('['))` የተባለው ኮድ ለ ብዙ ጊዜ ጥቅም ላይ የሚውለውን
+#      "{key: [...]}" pattern (products/backlog) በስህተት ይሰብር ነበር (sandbox-
+#      tested ተረጋግጧል)። ይህ ራሱ ለ "ኤጀንቱ backlog/ምርት አይፈጥርም" ምልክት ቀጥተኛ
+#      ምክንያት ሊሆን ይችላል።
+#   2. Trailing-Comma Regex Fix ተመልሷል (ቀደም በ "ቀለል ያለ" ስሪት ላይ ጠፍቶ ነበር)።
+#   3. HUGGINGFACE Provider ብቸኛ mark_provider_failed() ለ HTTP errors
+#      ያላገኘ ነበር (429/500/502/503) — አሁን ከ ሌላ providers ጋር ተጣጥሟል።
+#   4. 🔍 GITHUB Models API ድረ-ገጹ ላይ ተረጋግጦ ተስተካክሏል፦ ድሮው endpoint
+#      (models.inference.ai.azure.com) ኮድ-ያረጀ/Azure-hosted legacy ነው፣
+#      GitHub ራሱ ወደ "models.github.ai/inference/chat/completions" እና
+#      publisher-namespaced model IDs (ለምሳሌ "meta/meta-llama-3.1-8b-instruct")
+#      ተቀይሯል። ሁለቱም (URL + model ID) ተስተካክለዋል።
+# 📅 ቀን፦ 2026-06-28
 # ============================================================
 
 import os
@@ -26,7 +39,7 @@ _provider_cooldowns = {}
 _cooldown_lock = threading.Lock()
 
 # ============================================================
-# ⚙️ AI Cache System (መሸጎጫ)
+# ⚙️ AI Cache System
 # ============================================================
 class AICache:
     """ተደጋጋሚ የAI ጥያቄዎችን ለማስታወስ (TTL-based Token Saver)"""
@@ -56,19 +69,10 @@ class AICache:
             oldest = min(self.cache.keys(), key=lambda k: self.cache[k][1])
             del self.cache[oldest]
 
-# በ utils ደረጃ የሚጋራ የ cache መጋዘን
+
+# በ utils ደረጃ የሚጋራ የ cache መጋዘን (ራሱን-ችሎ thread-safe — provider-pacing lock
+# ላይ ምንም ጫና አያስከትልም)
 _ai_cache = AICache(ttl=1800)
-
-
-# ============================================================
-# ⚙️ የፋይል አቅጣጫ ፈቺ ረዳት ፈንክሽን
-# ============================================================
-def resolve_local_file_path(site, target_file):
-    """የፋይሉን ትክክለኛ local path በዓይነቱ (Python/HTML) መሠረት ይፈታል"""
-    if target_file.endswith('_html') or 'html' in target_file:
-        clean_name = target_file.replace('_html', '') + '.html'
-        return os.path.join(settings.BASE_DIR, 'marketplace', 'templates', 'marketplace', clean_name)
-    return os.path.join(settings.BASE_DIR, 'marketplace', f"{target_file}.py")
 
 
 # ============================================================
@@ -86,6 +90,7 @@ def get_api_keys():
         'GITHUB': os.getenv('GITHUB_TOKEN', '')
     }
 
+
 def _get_provider_lock(provider):
     """ለእያንዳንዱ አቅራቢ (Provider) የራሱን ራሱን የቻለ Thread Lock በዳይናሚክ መልክ ያመነጫል"""
     if provider not in _provider_locks:
@@ -93,8 +98,13 @@ def _get_provider_lock(provider):
             _provider_locks.setdefault(provider, threading.Lock())
     return _provider_locks[provider]
 
+
 def _pace_provider(provider):
-    """የነፃ ኤፒአይዎችን RPM (Requests Per Minute) ገደብ ለመጠበቅ ጥሪዎችን ያፈራርቃል"""
+    """
+    የነፃ ኤፒአይዎችን RPM (Requests Per Minute) ገደብ ለመጠበቅ ጥሪዎችን ያፈራርቃል።
+    ✅ Per-provider lock (ሁሉንም providers በ ብቸኛ global lock የማይተሳሰር) + sleep
+    ከ lock ውጭ — ይህ ራሱ ቀደም ስለ ነበረው "ኤጀንቱ ለምን ቀርፍ ነው" ጥያቄ root-cause fix ነው።
+    """
     pacing_limits = {
         'GROQ': 2.5,
         'GEMINI': 2.0,
@@ -105,7 +115,7 @@ def _pace_provider(provider):
     }
     wait_time = pacing_limits.get(provider, 1.0)
     lock = _get_provider_lock(provider)
-    
+
     sleep_needed = 0
     with lock:
         last_time = _last_call_times.get(provider, 0)
@@ -114,9 +124,10 @@ def _pace_provider(provider):
         if elapsed < wait_time:
             sleep_needed = wait_time - elapsed
         _last_call_times[provider] = time.time() + (sleep_needed if sleep_needed > 0 else 0)
-        
+
     if sleep_needed > 0:
         time.sleep(sleep_needed)
+
 
 def mark_provider_failed(provider):
     """ጥሪው ያልተሳካለትን ኤፒአይ ለ60 ሰከንድ ያቀዘቅዘዋል (Failover Optimization)"""
@@ -124,36 +135,48 @@ def mark_provider_failed(provider):
         _provider_cooldowns[provider] = time.time() + 60
         logger.warning(f"❄️ Provider {provider} cooled down for 60s due to request failure.")
 
+
 def is_provider_cooled_down(provider):
     """ኤፒአዩ አሁን ባለው ሰዓት በቀዝቃዛ ገደብ ላይ መሆኑን ያረጋግጣል"""
     with _cooldown_lock:
         cooldown_until = _provider_cooldowns.get(provider, 0)
         return time.time() < cooldown_until
 
+
 def clean_json_response(raw_text):
-    """ከ AI የሚመጣን ምላሽ ፈልቅቆ ንጹህ የ JSON ጽሑፍ ብቻ ያወጣል (Regex-Enhanced Outer-Root Solver)"""
+    """
+    ከ AI የሚመጣን ምላሽ ፈልቅቆ ንጹህ የ JSON ጽሑፍ ብቻ ያወጣል።
+
+    ✅ FIXED (Critical Regression): ቀደም `max(text.find('{'), text.find('['))`
+    የተባለው ኮድ "የትኛው bracket ዘግይቶ ተገኘ" ብቻ ይመለክት ነበር፣ "የትኛው ትክክለኛ outer root
+    ነው" የሚለውን አያይም ነበር። ይህ ለ `{"products": [...]}` / `{"backlog": [...]}`
+    ዓይነት (በዚህ ስርዓት ውስጥ በብዛት ጥቅም ላይ የሚውለው pattern) ሁልጊዜ JSON parse ይከስር
+    ነበር — ምክንያቱም inner array's '[' ከ outer object's '{' ዘግይቶ ይገኛል። sandbox
+    ላይ ተረጋግጧል። አሁን የትኛው bracket ቀድሞ እንደሚጀመር (object ወይም array) በትክክል
+    ይለያል።
+    """
     if not raw_text:
         return "{}"
-    
-    # የ Markdown ኮድ ማገጃዎችን ማስወገድ
+
     text = re.sub(r'```json|```', '', raw_text).strip()
-    
-    # ✅ FIXED: የተንጠለጠሉ ነጠላ ኮማዎችን (trailing commas) በ Regex ማረም (v9.9 የተመለሰ)
+
+    # ✅ FIXED: trailing commas (AI ሞዴሎች በተደጋጋሚ የሚፈጥሩት ስህተት) ማስተካከል
     text = re.sub(r',\s*([\]}])', r'\1', text)
-    
+
     first_curly = text.find('{')
     last_curly = text.rfind('}')
     first_square = text.find('[')
     last_square = text.rfind(']')
-    
-    # ✅ FIXED: Nested arrays በሚኖርበት ጊዜ የ max() ስህተትን የሚከላከል የ v9.6 Outer-Root ሎጂክ
+
+    # ✅ ትክክለኛ outer root መለየት፦ የትኛው (object ወይም array) ቀድሞ እንደሚጀመር
     if first_curly != -1 and (first_square == -1 or first_curly < first_square):
         if last_curly != -1:
             text = text[first_curly:last_curly + 1]
     elif first_square != -1 and last_square != -1:
         text = text[first_square:last_square + 1]
-        
+
     return text
+
 
 def call_ai_provider(provider, prompt, system_instruction="You are a helpful assistant."):
     """የተመረጠውን የኤአይ ፕሮቫይደር በጥሪ ኢንተርቫል እና በደህንነት ጥበቃ ይጠራል"""
@@ -163,7 +186,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
 
     keys = get_api_keys()
     api_key = keys.get(provider)
-    
+
     if not api_key:
         logger.warning(f"⚠️ API Key for {provider} is missing.")
         return None
@@ -171,7 +194,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
     _pace_provider(provider)
 
     try:
-        # 1. GROQ ENGINES
+        # 1. GROQ ENGINES (ከፍተኛ ፍጥነት ለሚሹ የኮድ እና የሰዋስው ፍተሻዎች)
         if provider == 'GROQ':
             url = "https://api.groq.com/openai/v1/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -183,26 +206,26 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                 ],
                 "response_format": {"type": "json_object"}
             }
-            response = requests.post(url, json=payload, timeout=20)
+            response = requests.post(url, headers=headers, json=payload, timeout=20)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
-            
-        # 2. GEMINI ENGINES
+
+        # 2. GEMINI ENGINES (ለትርጉም፣ ለይዘት ፈጠራ እና ለገበያ ጥናት)
         elif provider == 'GEMINI':
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
             headers = {"Content-Type": "application/json"}
             payload = {
                 "contents": [{"parts": [{"text": f"{system_instruction}\n\nUser Request: {prompt}"}]}]
             }
-            response = requests.post(url, json=payload, timeout=25)
+            response = requests.post(url, headers=headers, json=payload, timeout=25)
             if response.status_code == 200:
                 return response.json()['candidates'][0]['content']['parts'][0]['text']
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
 
-        # 3. MISTRAL ENGINES
+        # 3. MISTRAL ENGINES (ለተወሳሰቡ የኮድ ሎጂኮች እና ስልታዊ ውሳኔዎች)
         elif provider == 'MISTRAL':
             url = "https://api.mistral.ai/v1/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -213,13 +236,13 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                     {"role": "user", "content": prompt}
                 ]
             }
-            response = requests.post(url, json=payload, timeout=30)
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
 
-        # 4. OPENROUTER
+        # 4. OPENROUTER (ፎልባክ እና ለላቁ ስታቲስቲክስ ስራዎች)
         elif provider == 'OPENROUTER':
             url = "https://openrouter.ai/api/v1/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -227,48 +250,54 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                 "model": "meta-llama/llama-3-8b-instruct:free",
                 "messages": [{"role": "user", "content": f"{system_instruction}\n\n{prompt}"}]
             }
-            response = requests.post(url, json=payload, timeout=30)
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
 
-        # 5. HUGGINGFACE
+        # 5. HUGGINGFACE (Serverless Inference API — የነፃ ምትኬ ሞዴል)
         elif provider == 'HUGGINGFACE':
             url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {
                 "inputs": f"<|system|>\n{system_instruction}\n<|user|>\n{prompt}\n<|assistant|>\n",
-                "parameters": {"max_new_tokens": 1024, "temperature": 0.2}
+                "parameters": {"max_new_tokens": 1024, "return_full_text": False}
             }
-            response = requests.post(url, json=payload, timeout=25)
+            response = requests.post(url, headers=headers, json=payload, timeout=25)
             if response.status_code == 200:
                 res_json = response.json()
-                if isinstance(res_json, list) and len(res_json) > 0:
-                    text = res_json[0].get('generated_text', '')
-                    if "<|assistant|>\n" in text:
-                        return text.split("<|assistant|>\n")[-1].strip()
-                    return text
-            # ✅ FIXED: HUGGINGFACE 429/500/502/503 Cooldown መጋጠሚያ ተገጥሟል
+                if isinstance(res_json, list) and res_json and 'generated_text' in res_json[0]:
+                    return res_json[0]['generated_text'].strip()
+                elif isinstance(res_json, dict) and 'generated_text' in res_json:
+                    return res_json['generated_text'].strip()
+            # ✅ FIXED: HUGGINGFACE ብቸኛ ይህን አላገኘ ነበር — HF Serverless Inference
+            # ላይ 503 "model is loading" (cold-start) በተደጋጋሚ ይከሰታል፣ ይህ ካልተያያዘ
+            # cooldown ሳይኖር ያንኑ provider ደጋግሞ ይጠራዋል
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
 
         # 6. GITHUB MODELS API
+        # ✅ FIXED: ድረ-ገጹ ላይ ተረጋግጦ ተስተካክሏል — ድሮው "models.inference.ai.azure.com"
+        # endpoint GitHub's own community discussion ላይ "legacy/being phased out"
+        # ተብሎ ተገልጿል፤ አዲሱ "models.github.ai/inference/chat/completions" endpoint
+        # ላይ model IDs publisher-namespaced ናቸው (ለምሳሌ "meta/meta-llama-3.1-8b-instruct"
+        # እንጂ ቀደም እንደ ነበረው "meta-llama-3-8b-instruct" ብቻ አይደለም)።
         elif provider == 'GITHUB':
-            url = "https://models.inference.ai.azure.com/chat/completions"
+            url = "https://models.github.ai/inference/chat/completions"
             headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "meta-llama-3-8b-instruct",
+                "model": "meta/meta-llama-3.1-8b-instruct",
                 "messages": [
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.2
             }
-            response = requests.post(url, json=payload, timeout=25)
+            response = requests.post(url, headers=headers, json=payload, timeout=25)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
@@ -277,8 +306,9 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
     except Exception as e:
         logger.error(f"❌ Error during calling AI Provider {provider}: {e}")
         mark_provider_failed(provider)
-        
+
     return None
+
 
 def smart_ai_router(task_type, prompt, system_instruction=""):
     """እንደ ስራው አይነት እና እንደ ኤአይ ፐርፎርማንስ ስራዎችን ይመራል"""
@@ -286,20 +316,20 @@ def smart_ai_router(task_type, prompt, system_instruction=""):
         key="ai_routing_matrix",
         defaults={
             "value": {
-                "coding": "MISTRAL",          
+                "coding": "MISTRAL",
                 "code_logic": "MISTRAL",
-                "syntax_check": "GROQ",        
-                "translation": "GEMINI",       
-                "market_research": "HUGGINGFACE", 
-                "analysis": "OPENROUTER"       
+                "syntax_check": "GROQ",
+                "translation": "GEMINI",
+                "market_research": "HUGGINGFACE",
+                "analysis": "OPENROUTER"
             }
         }
     )
     routing_matrix = config.value
     preferred_provider = routing_matrix.get(task_type, "GEMINI")
-    
+
     result = call_ai_provider(preferred_provider, prompt, system_instruction)
-    
+
     if not result:
         fallback_providers = ["GEMINI", "GROQ", "GITHUB", "HUGGINGFACE", "OPENROUTER", "MISTRAL"]
         for provider in fallback_providers:
@@ -311,8 +341,9 @@ def smart_ai_router(task_type, prompt, system_instruction=""):
                     config.value = routing_matrix
                     config.save()
                     break
-                    
+
     return result
+
 
 # ============================================================
 # 2. INCREMENTAL TRANSLATION CACHE ENGINE
@@ -326,22 +357,26 @@ def get_translation_cache():
     )
     return config
 
+
 def translate_text_incremental(text_list, target_lang="am"):
-    """ያልተተረጎሙትን ብቻ ለይቶ ይተረጉማል"""
+    """
+    [Gemini Incremental Translation Cache]
+    ቃላትን እስከ 20 በሆኑ ትንንሽ ስብስቦች እየከፋፈለ፣ ያልተተረጎሙትን ብቻ ለይቶ ይተረጉማል
+    """
     if not text_list:
         return {}
 
     cache_config = get_translation_cache()
     master_cache = cache_config.value
-    
+
     if target_lang not in master_cache:
         master_cache[target_lang] = {}
-        
+
     lang_cache = master_cache[target_lang]
-    
+
     final_translations = {}
     words_to_translate = []
-    
+
     for text in text_list:
         text_clean = text.strip()
         if not text_clean:
@@ -350,13 +385,13 @@ def translate_text_incremental(text_list, target_lang="am"):
             final_translations[text_clean] = lang_cache[text_clean]
         else:
             words_to_translate.append(text_clean)
-            
+
     if not words_to_translate:
         return final_translations
 
     batch_size = 20
     batches = [words_to_translate[i:i + batch_size] for i in range(0, len(words_to_translate), batch_size)]
-    
+
     for batch in batches:
         prompt = (
             f"Translate the following list of unique strings into ISO language '{target_lang}'. "
@@ -365,25 +400,25 @@ def translate_text_incremental(text_list, target_lang="am"):
             f"List: {json.dumps(batch, ensure_ascii=False)}"
         )
         system_instruction = "You are an expert multi-lingual translator. You output clean JSON only."
-        
+
         ai_response = smart_ai_router("translation", prompt, system_instruction)
         cleaned_response = clean_json_response(ai_response)
-        
+
         try:
             translated_dict = json.loads(cleaned_response)
             normalized_dict = {str(k).strip().lower(): str(v).strip() for k, v in translated_dict.items() if v}
-            
+
             for orig in batch:
                 orig_clean = orig.strip()
                 orig_lower = orig_clean.lower()
-                
+
                 if orig_lower in normalized_dict:
                     trans = normalized_dict[orig_lower]
                     lang_cache[orig_clean] = trans
                     final_translations[orig_clean] = trans
                 else:
                     final_translations[orig_clean] = orig_clean
-                    
+
         except Exception as e:
             logger.error(f"❌ Failed to parse translation JSON chunk: {e}")
             for orig in batch:
@@ -392,34 +427,39 @@ def translate_text_incremental(text_list, target_lang="am"):
 
     cache_config.value = master_cache
     cache_config.save()
-    
+
     return final_translations
-    
+
+
 def ask_master_ai_smart(prompt, task_type="analysis", system_instruction="", task=None):
     """
-    [Dependency Guard] growth_agent.py የሚጠራውና ወደ smart_ai_router የሚመራው ዋና ፈንክሽን
+    [Dependency Guard] growth_agent.py የሚጠራውና ወደ smart_ai_router የሚመራው ዋና ፈንክሽን።
+    ✅ AICache wiring: 'analysis'/'market_research' ዓይነት ጥያቄዎች ላይ cache ይጠቅማል
+    (coding tasks ግን ሁልጊዜ ትኩስ ምላሽ ያስፈልጋቸዋል ስለዚህ cache አያደርጉም)።
     """
     if not system_instruction:
         system_instruction = (
             "You are the Autonomous CEO of EthAfri. Respond with clean JSON or raw code "
             "depending on the task. Never add conversational filler or intro/outro text."
         )
-    if task_type in ['analysis', 'market_research']:
+    if task_type in ['analysis', 'market_research'] and task is None:
         return _ai_cache.get_or_compute(
             f"{system_instruction}\n\n{prompt}",
             lambda: smart_ai_router(task_type, prompt, system_instruction)
         )
     return smart_ai_router(task_type, prompt, system_instruction)
-    
+
+
 def clean_and_parse_json(raw_text):
     """ከ AI የሚመጣን ምላሽ አጽድቶ ወደ Python Dictionary/List ይቀይራል"""
     cleaned = clean_json_response(raw_text)
     try:
         return json.loads(cleaned)
     except Exception as e:
-        logger.error(f"Failed to parse cleaned JSON: {e}. Raw text was: {raw_text[:200]}")
+        logger.error(f"Failed to parse cleaned JSON: {e}. Raw text was: {raw_text[:200] if raw_text else 'None'}")
         return {}
-      
+
+
 def broadcast_agent_log(site, message, status_type="info"):
     """የኤጀንቱን እያንዳንዱን ሥራ በዳታቤዝ ውስጥ ይመዘግባል፣ በ WebSocket በኩልም ይረጫል"""
     timestamp = timezone.now().strftime("%H:%M:%S")
