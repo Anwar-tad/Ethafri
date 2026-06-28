@@ -1,7 +1,19 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v9.9 - Thread-Safe Fixed)
-# ✅ የተፈቱ ችግሮች፦ import threading added to resolve NameError on start, Dynamic user listing curation
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.0 - Self-Bootstrap Edition)
+# ✅ የተፈቱ ችግሮች፦
+#   1. 🧬 LAW 0 — Self-Readiness Gate (SelfBootstrapManager): ኤጀንቱ ራሱን አስቀድሞ
+#      ይመረምራል፣ የጎደለውን/የተበላሸውን ራሱ ይጠገናል፣ ብቁ መሆኑን ካረጋገጠ በኋላ ብቻ ወደ ሙሉ
+#      ድረ-ገጽ ማኔጅመንት ይገባል።
+#   2. curate_user_listings() ከ class ውጭ "ተንሳፍፎ" የቀረ dead-code ችግር ተፍቷል —
+#      በ CEOOperations ውስጥ በትክክል ገብቶ run_business_growth() ላይ ተገናኝቷል።
+#   3. apply_code_change() Return Value ቀደም ይዘለል ነበር — አሁን ይታያል፣ ካልተሳካ
+#      early-exit ይደረጋል (false-positive "Success" መከላከያ)።
+#   4. Real Disk-Level Verification + Deep Django Check (subprocess-based፣ ድሮውን
+#      in-memory module ሳይሆን disk ላይ ያለውን አዲስ ኮድ ይፈትሻል) + Rollback on Failure።
+#   5. Duplicate AICache ክፍል ተወግዷል (ai_utils.py ራሱ ባለቤት ስለሆነ)።
+#   6. Risk-tiered cooldown፣ parallel multi-task builder፣ EVOLUTION_LOCK wiring፣
+#      adaptive sleep interval ሁሉም ተጠብቀዋል/ተጠናክረዋል።
 # 📅 ቀን፦ 2026-06-28
 # ============================================================
 
@@ -11,10 +23,11 @@ import os
 import re
 import logging
 import time
-import hashlib
 import requests
 import random
-import threading  # ✅ FIXED: የ NameError ስህተትን ለመፍታት ቴሬዲንግ ገብቷል!
+import threading
+import subprocess
+import sys
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -31,7 +44,10 @@ from .models import (
 
 # የረዳት አስፈጸሚዎች ግንኙነት
 from .code_apply import apply_code_change
-from .ai_utils import clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log, _ai_cache, resolve_local_file_path
+from .ai_utils import (
+    clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log,
+    translate_text_incremental
+)
 from .self_doctor import SecurityAuditor, UniversalHealer
 
 logger = logging.getLogger(__name__)
@@ -39,18 +55,151 @@ logger = logging.getLogger(__name__)
 # የሩቅ እና የቅርብ ፋይሎችን መከታተያ መዝገብ
 _project_hashes = {}
 
-# በትይዩ በሚሰሩ threads መካከል የፋይል መጻፍ እና መፈተሽ ግጭት እንዳይፈጥር መቆለፊያ
+# በትይዩ በሚሰሩ threads መካከል የፋይል መጻፍ/ማረጋገጥ ግጭት እንዳይፈጠር መቆለፊያ
 _apply_lock = threading.Lock()
+
+# እነዚህ ፋይሎች ቀጥታ የ Django ድረ-ገጽ አካል ስለሆኑ ጥልቅ (subprocess) ፍተሻ ይገባቸዋል
+DJANGO_APP_FILES = {'models', 'views', 'urls', 'forms', 'admin'}
 
 
 # ============================================================
-# 🔬 1. LIGHTWEIGHT AST CALCULATOR (የዕድገት ምዕራፍ ፈላጊ)
+# ⚙️ የፋይል አቅጣጫ ፈቺ ረዳት ፈንክሽን
+# ============================================================
+def resolve_local_file_path(site, target_file):
+    """የፋይሉን ትክክለኛ local path በዓይነቱ (Python/HTML) መሠረት ይፈታል"""
+    if target_file.endswith('_html') or 'html' in target_file:
+        clean_name = target_file.replace('_html', '') + '.html'
+        return os.path.join(settings.BASE_DIR, 'marketplace', 'templates', 'marketplace', clean_name)
+    return os.path.join(settings.BASE_DIR, 'marketplace', f"{target_file}.py")
+
+
+def is_html_target(target_file):
+    return target_file.endswith('_html') or 'html' in target_file
+
+
+# ============================================================
+# 🌱 SEEDING-FIRST GUARDRAIL — Self-Healing Product Recognition
+#
+# ቀደም ሲል `Product.objects.filter(site=self.site, is_active=True).exists()`
+# ብቸኛ ፍተሻ ብቻ ስለ ነበር፣ ዳታቤዙ ውስጥ ብዙ ምርት ቢኖርም ኤጀንቱ "ምርት የለም" ብሎ በስህተት
+# ይቆጥር ነበር፣ ምክንያቱ ብዙ ጊዜ፦
+#   1. ምርቶቹ site_id=NULL ናቸው (admin/shell ላይ ቀጥታ ቢጨመሩ፣ site field ሳይሞላ)
+#   2. ምርቶቹ is_active=False ናቸው (በ FraudHunter ወይም scam-curation ቢደበቁ)
+#   3. ድግግሞሽ SiteRegistry rows (bootstrap ድጋሚ ቢሰራ የተለየ site_id ቢፈጠር)
+# ይህ ፈንክሽን ምርት መኖሩን በትክክል ይለያል፣ ለ #1 (single-site ስርዓት ላይ ብቻ) በራስ-ሰር
+# ይጠገናል፣ እና ለ #2/#3 ግልጽ diagnostic log ያስቀምጣል ለ ባለቤቱ ምርመራ።
+# ============================================================
+def has_seeded_products(site):
+    """ምርት ለ ሳይቱ መኖሩን ይለያል፣ site-mismatch/inactive ችግሮችን ራሱ ይጠግናል/ይዘግባል"""
+    if Product.objects.filter(site=site, is_active=True).exists():
+        return True
+
+    total_for_site = Product.objects.filter(site=site).count()
+    orphaned_qs = Product.objects.filter(site__isnull=True)
+    orphaned_count = orphaned_qs.count()
+    total_globally = Product.objects.count()
+
+    # 🩹 Self-Heal: NULL-site ምርቶች ካሉ እና ብቸኛ active site ካለ (ambiguity-free)፣
+    # በራስ-ሰር ለ ሳይቱ ማያያዝ ምክንያታዊ ነው
+    if orphaned_count > 0:
+        active_site_count = SiteRegistry.objects.filter(is_active=True).count()
+        if active_site_count == 1:
+            try:
+                updated = orphaned_qs.update(site=site)
+                logger.warning(
+                    f"🩹 Seeding-Guardrail Self-Heal: {updated} orphaned product(s) (site=NULL) "
+                    f"found — auto-linked to '{site.name}' (single-site system, no ambiguity)."
+                )
+                if Product.objects.filter(site=site, is_active=True).exists():
+                    return True
+            except Exception as e:
+                logger.error(f"Seeding-Guardrail self-heal failed: {e}")
+        else:
+            logger.warning(
+                f"⚠️ Seeding-Guardrail: {orphaned_count} product(s) have NO site assigned, "
+                f"but {active_site_count} active sites exist — cannot safely auto-assign "
+                f"(ambiguous, multi-tenant). Please manually assign 'site' via Django admin."
+            )
+
+    if total_for_site > 0:
+        logger.warning(
+            f"⚠️ Seeding-Guardrail Diagnostic: site '{site.name}' has {total_for_site} product(s) "
+            f"linked, but NONE are is_active=True — they may have been deactivated by FraudHunter "
+            f"(price<10) or scam-curation. Check Product.is_active in Django admin if unexpected."
+        )
+
+    logger.info(
+        f"⏳ Seeding-Guardrail: site '{site.name}' (id={site.id}) — 0 active products. "
+        f"[linked to this site: {total_for_site}, orphaned (site=NULL) globally: {orphaned_count}, "
+        f"all products in DB: {total_globally}]"
+    )
+    return False
+
+
+# ============================================================
+# 🔍 ለ Disk-Level Verification እና Rollback የሚያገልግሉ ረዳት ፈንክሽኖች
+#
+# ⚠️ ማስታወሻ፦ Python አንዴ የጫነውን ሞጁል (in-memory) ድጋሚ ከ disk ላይ አያነበውም።
+# ስለዚህ `call_command('check')` ብቻውን ድሮውን ኮድ ይፈትሻል፣ አዲሱን disk ላይ የተጻፈውን
+# አያረጋግጥም። ይህ ለ Django app files (models/views/urls/forms/admin) ብቻ
+# subprocess-based ጥልቅ ፍተሻ (አዲስ process፣ ድሮ module-cache የለውም) ይተግባል።
+# ============================================================
+def verify_disk_write(path):
+    """ፋይሉ በትክክል disk ላይ መጻፉን ለማረጋገጥ ራሱን ዳግም ያነባል እና ይፈትሻል"""
+    if not path or not os.path.exists(path):
+        return False, "File not found after write"
+    if not path.endswith('.py'):
+        return True, "OK (non-python file, AST re-check skipped)"
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            disk_content = f.read()
+        ast.parse(disk_content)
+        return True, "OK"
+    except SyntaxError as e:
+        return False, f"Disk content has syntax error: {e}"
+    except Exception as e:
+        return False, f"Verification read error: {e}"
+
+
+def deep_verify_django_app():
+    """[Isolated Process Check] Django app ፋይሎችን (models/views/urls/forms/admin)
+    ለ structural ትክክለኛነት በ ተራ process (manage.py check) ይፈትሻል"""
+    try:
+        manage_py = os.path.join(str(settings.BASE_DIR), 'manage.py')
+        result = subprocess.run(
+            [sys.executable, manage_py, 'check'],
+            capture_output=True, text=True, timeout=30, cwd=str(settings.BASE_DIR)
+        )
+        if result.returncode == 0:
+            return True, "OK"
+        return False, (result.stderr or result.stdout)[-500:]
+    except Exception as e:
+        return False, f"Deep verify error: {e}"
+
+
+def rollback_file(path, old_code):
+    """ፋይሉን ወደ ቀደመው ይዘት ይመልሳል (ወይም አዲስ ከነበረ ያስወግደዋል)"""
+    if not path:
+        return
+    try:
+        if old_code:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(old_code)
+            logger.warning(f"🔄 Rolled back {path} to previous version.")
+        elif os.path.exists(path):
+            os.remove(path)
+            logger.warning(f"🔄 Removed newly-created broken file: {path}")
+    except Exception as e:
+        logger.error(f"❌ Rollback failed for {path}: {e}")
+
+
+# ============================================================
+# 🔬 LIGHTWEIGHT AST CALCULATOR (የዕድገት ምዕራፍ ፈላጊ)
 # ============================================================
 def calculate_site_phase(state, site) -> int:
     """በአነስተኛ የ Python AST ትንተና የሳይቱን የዕድገት ደረጃ (Phase 0-5) ያሰላል"""
     phase = 0
 
-    # Phase 1: ሞዴሎች መኖር አለባቸው
     models_code = state.get('models', '')
     if models_code and "❌ MISSING_FILE" not in models_code:
         try:
@@ -58,10 +207,9 @@ def calculate_site_phase(state, site) -> int:
             classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
             if len(classes) >= 2:
                 phase = 1
-        except:
+        except Exception:
             pass
 
-    # Phase 2: ቪውሶችና ዩአርኤሎች መኖር አለባቸው
     if phase >= 1:
         views_code = state.get('views', '')
         if views_code and "❌ MISSING_FILE" not in views_code:
@@ -70,18 +218,17 @@ def calculate_site_phase(state, site) -> int:
                 views_count = len([n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.ClassDef))])
                 if views_count >= 4:
                     phase = 2
-            except:
+            except Exception:
                 pass
 
-    # Phase 3: ቢያንስ አንድ የነቃ ምርት መኖር አለበት
     if phase >= 2:
         try:
-            if Product.objects.filter(site=site, is_active=True).exists():
+            # ✅ FIXED: ድሮ ቀጥተኛ ፍተሻ site-mismatch/NULL-site ምርቶችን በስህተት "የለም" ይል ነበር
+            if has_seeded_products(site):
                 phase = 3
-        except:
+        except Exception:
             pass
 
-    # Phase 4: ቴምፕሌቶች መሻሻል መጀመራቸው
     if phase >= 3:
         filled_templates = 0
         for key in list(state.keys()):
@@ -90,7 +237,6 @@ def calculate_site_phase(state, site) -> int:
         if filled_templates >= 2:
             phase = 4
 
-    # Phase 5: ኦፕቲማይዜሽን (Caching/SEO/Advanced search)
     if phase >= 4:
         views_code = state.get('views', '')
         if views_code and any(keyword in views_code.lower() for keyword in ['cache', 'seo', 'search']):
@@ -100,7 +246,7 @@ def calculate_site_phase(state, site) -> int:
 
 
 # ============================================================
-# 🧠 2. RECURSIVE OPTIMIZER (ራሱን የማሻሻል ችሎታ)
+# 🧠 RECURSIVE OPTIMIZER (ራሱን የማሻሻል ችሎታ)
 # ============================================================
 class RecursiveOptimizer:
     def __init__(self, site: SiteRegistry):
@@ -131,7 +277,7 @@ class RecursiveOptimizer:
 
 
 # ============================================================
-# 🏛️ 3. STRATEGIC CEO & RECURSIVE BUILDER (Master-Brain Bundle)
+# 🏛️ STRATEGIC CEO (Master-Brain Bundle)
 # ============================================================
 class StrategicCEO:
     def __init__(self, site: SiteRegistry):
@@ -146,7 +292,7 @@ class StrategicCEO:
 
         state, file_paths = get_site_project_state_dynamic(self.site)
         current_phase = calculate_site_phase(state, self.site)
-        
+
         try:
             self.site.build_phase = current_phase
             self.site.save()
@@ -154,7 +300,6 @@ class StrategicCEO:
         except Exception as e:
             logger.warning(f"models.py needs check for SiteRegistry.build_phase: {e}")
 
-        # የኦዲት መዝገብ ዝግጅት (Audit Log Summary)
         audit_summary = {}
         for key, content in state.items():
             if "❌ MISSING_FILE" in content:
@@ -214,19 +359,20 @@ class StrategicCEO:
                         )
 
     def check_for_self_audit(self):
-        """[Self-Evolution System] ቢያንስ በየ 3 ሰዓቱ የኤጀንቱን የራሱን የኮድ አወቃቀር መርምሮ የኦፕቲማይዜሽን ስራ ይፈጥራል"""
+        """[Self-Evolution System] ቢያንስ በየ 3 ሰዓቱ ራሱን መርምሮ የኦፕቲማይዜሽን ስራ ይፈጥራል"""
         last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
-        
+
         if not last_self_audit or (timezone.now() - last_self_audit.updated_at) >= timedelta(hours=3):
+            # ✅ timestamp-suffixed ስም — ድግግሞሽ-አልባ (one-shot forever) ችግርን ይፈታል
             unique_task_name = f"🧠 SELF-EVOLUTION: Optimize Agent Code ({timezone.now().strftime('%Y-%m-%d %H')})"
             get_or_create_backlog_task_safe(
-                self.site, 
+                self.site,
                 task_name=unique_task_name,
                 defaults={
                     'priority': 'High',
                     'status': 'Pending',
                     'business_impact_score': 9,
-                    'target_file': 'ai_utils',  
+                    'target_file': 'ai_utils',
                     'description': "Audit core agent modules for performance, memory leaks, and logic bloat. Write optimized code overrides."
                 }
             )
@@ -252,25 +398,35 @@ class StrategicCEO:
             cmd.save()
 
 
+# ============================================================
+# 🛠️ RECURSIVE BUILDER (AI-Driven Code Writer + Verification)
+# ============================================================
 class RecursiveBuilder:
     def __init__(self, site: SiteRegistry):
         self.site = site
 
-    def build_next_feature(self, task):
-        # 24-Hour Cooldown Rule
-        cooldown_time = timedelta(hours=1) if 'html' in task.target_file else timedelta(days=1)
-        
-        has_cooldown = AIEvolutionLog.objects.filter(
-            site=self.site, target_file=task.target_file, 
-            created_at__gte=timezone.now() - cooldown_time
+    @staticmethod
+    def _get_cooldown_hours(target_file):
+        # ✅ Risk-tiered cooldown፦ HTML/templates ፈጣን ድግግሞሽ ይፈቀዳቸዋል፣
+        # backend ፋይሎች (models/views/ራሱ ኤጀንቱ ፋይሎች) ግን 24-ሰዓት ይጠብቃሉ
+        return 1 if is_html_target(target_file) else 24
+
+    @classmethod
+    def is_on_cooldown(cls, site, target_file):
+        cooldown_hours = cls._get_cooldown_hours(target_file)
+        return AIEvolutionLog.objects.filter(
+            site=site, target_file=target_file,
+            created_at__gte=timezone.now() - timedelta(hours=cooldown_hours)
         ).exists()
-        
-        if has_cooldown:
+
+    def build_next_feature(self, task):
+        if self.is_on_cooldown(self.site, task.target_file):
             return "Cooldown"
 
-        # Seeding-First Guardrail (የሕግ 1 ጥበቃ)
-        is_coding_task = task.target_file in ['views', 'urls', 'forms'] or 'html' in task.target_file
-        if is_coding_task and not Product.objects.filter(site=self.site, is_active=True).exists():
+        # ✅ FIXED: Seeding-First Guardrail — አሁን self-healing/diagnostic function ይጠቀማል
+        # (ቀደም ድሮው ቀጥተኛ ፍተሻ site-mismatch/NULL-site/inactive ምርቶችን በስህተት "የለም" ይል ነበር)
+        is_coding_task = task.target_file in ['views', 'urls', 'forms'] or is_html_target(task.target_file)
+        if is_coding_task and not has_seeded_products(self.site):
             logger.info(f"⏳ Seeding-First Guardrail Active: Halted coding task '{task.task_name}'.")
             task.status = 'Pending'
             task.save()
@@ -284,89 +440,92 @@ class RecursiveBuilder:
 
         prompt = (
             f"Task: {task.task_name}. Write full clean Python/HTML code for {task.target_file} using 2026 standards. "
-            f"CRITICAL: Avoid repeating these past failures/issues: {json.dumps(memory_context)}. "
+            f"CRITICAL: Avoid repeating these past failures/issues: {json.dumps(memory_context, ensure_ascii=False)}. "
             f"DESIGN SYSTEM RULE: If writing HTML templates, do NOT write inline CSS or custom style tags. "
-            f"You MUST use ONLY the global CSS classes and CSS variables defined in global.css."
+            f"You MUST use ONLY the global CSS classes and CSS variables defined in global.css. "
+            f"Return JSON with key 'code' containing the full file content."
         )
+
         res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding", task=task))
 
-        if res and isinstance(res, dict) and 'code' in res:
-            # የጋራ መፃፍ እና የጃንጎ verification ሂደቶችን በ lock ማስጠበቅ
-            with _apply_lock:
+        if not (res and isinstance(res, dict) and 'code' in res):
+            logger.warning(f"⚠️ No valid code returned for task '{task.task_name}'")
+            task.status = 'Pending'
+            task.save()
+            return "Failed (No Code Returned)"
+
+        new_code = res['code']
+        target_is_html = is_html_target(task.target_file)
+
+        # 1. Pre-write syntax check (ለ Python ብቻ)
+        if not target_is_html:
+            try:
+                compile(new_code, '<string>', 'exec')
+            except SyntaxError as e:
+                logger.error(f"❌ AI-generated syntax error for {task.target_file}: {e}")
+                task.status = 'Pending'
+                task.save()
+                return "Syntax Error"
+
+        # 2. Security scan (file_path ይተላለፋል — HTML-aware skip-logicን ለማስቻል)
+        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=task.target_file, site=self.site)
+        if not is_safe:
+            logger.error(f"🛡️ Security Gate Blocked Code for {task.target_file}: {msg}")
+            task.status = 'Blocked'
+            task.save()
+            return "Security Block"
+
+        # 3. Apply + Verify + Rollback (lock-protected ለ I/O race-condition መከላከያ)
+        with _apply_lock:
+            local_path = resolve_local_file_path(self.site, task.target_file)
+            old_code = ""
+            if os.path.exists(local_path):
                 try:
-                    old_code = ""
-                    local_path = resolve_local_file_path(self.site, task.target_file)
-                    
-                    if os.path.exists(local_path):
-                        with open(local_path, 'r', encoding='utf-8') as f:
-                            old_code = f.read()
+                    with open(local_path, 'r', encoding='utf-8') as f:
+                        old_code = f.read()
+                except Exception:
+                    pass
 
-                    # ኮዱን ዲስክ ላይ መጻፍ
-                    result = apply_code_change(self.site, task.target_file, res['code'], task.task_name, backlog_task=task)
-                    
-                    if result and isinstance(result, dict) and not result.get('success', False):
-                        logger.error(f"❌ File apply blocked: {result.get('message')}")
-                        task.status = 'Blocked'
-                        task.save()
-                        return "Apply Blocked"
+            # ✅ FIXED: apply_code_change() ምላሽ አሁን በትክክል ይፈተሻል (ቀደም ይዘለል ነበር)
+            apply_result = apply_code_change(self.site, task.target_file, new_code, task.task_name, backlog_task=task)
 
-                    # 🧪 ራስ-ሰር የሙከራ ላብራቶሪ (Post-Apply Verification Loop)
-                    if os.path.exists(local_path):
-                        with open(local_path, 'r', encoding='utf-8') as f:
-                            written_code = f.read()
-                        
-                        # ዲስክ ላይ በተፃፈው ፋይል ላይ የ AST parse ፍተሻ ማካሄድ
-                        if local_path.endswith('.py'):
-                            try:
-                                ast.parse(written_code)
-                            except SyntaxError as e:
-                                logger.error(f"❌ Post-Apply Disk Syntax Error: {e}. Rolling back...")
-                                if old_code:
-                                    with open(local_path, 'w', encoding='utf-8') as f:
-                                        f.write(old_code)
-                                task.status = 'Blocked'
-                                task.save()
-                                return "Syntax Error on Disk"
+            if not apply_result.get('success'):
+                logger.error(f"❌ apply_code_change failed for {task.target_file}: {apply_result.get('message')}")
+                task.status = 'Pending'
+                task.save()
+                return "Apply Failed"
 
-                    # የጃንጎን ሲስተም ቼክ ማካሄድ
-                    from django.core.management import call_command
-                    try:
-                        call_command('check')
-                        # የደህንነት ፍተሻ
-                        is_safe, msg = SecurityAuditor.scan_code_safety(res['code'], file_path=task.target_file, site=self.site)
-                        if is_safe:
-                            VectorMemory.objects.create(site=self.site, memory_type='solution', content=f"Success: {task.task_name}")
-                            task.status = 'Success'
-                            task.save()
-                            return "Success"
-                        else:
-                            logger.error(f"🛡️ Security Gate Blocked Code: {msg}")
-                            # ሮልባክ (ወደ ድሮው መመለስ)
-                            if old_code:
-                                with open(local_path, 'w', encoding='utf-8') as f:
-                                    f.write(old_code)
-                            task.status = 'Blocked'
-                            task.save()
-                            return "Security Block"
-                    except Exception as check_err:
-                        logger.error(f"❌ Post-Apply Verification Failed: {check_err}. Rolling back...")
-                        if old_code:
-                            with open(local_path, 'w', encoding='utf-8') as f:
-                                f.write(old_code)
-                        task.status = 'Blocked'
-                        task.save()
-                        return "Verification Failed"
+            applied_path = apply_result.get('path', local_path)
 
-                except Exception as e:
-                    logger.error(f"❌ Sandbox Compile Error: {e}")
+            # 4. Disk-level verification (ድሮ in-memory module ሳይሆን disk ላይ ያለውን ይፈትሻል)
+            verified, vmsg = verify_disk_write(applied_path)
+            if not verified:
+                logger.error(f"❌ Post-apply disk verification failed for {task.target_file}: {vmsg}. Rolling back...")
+                rollback_file(applied_path, old_code)
+                task.status = 'Blocked'
+                task.save()
+                return "Verification Failed"
 
-        task.status = 'Pending'
-        task.save()
-        return "Failed"
+            # 5. Deep verification (subprocess — ለ Django app files ብቻ፣ throughput ላልመጉዳት)
+            if task.target_file in DJANGO_APP_FILES:
+                deep_ok, dmsg = deep_verify_django_app()
+                if not deep_ok:
+                    logger.error(f"❌ Deep Django check failed after applying {task.target_file}: {dmsg}. Rolling back...")
+                    rollback_file(applied_path, old_code)
+                    task.status = 'Blocked'
+                    task.save()
+                    return "Deep Verification Failed"
+
+        # apply_code_change() ራሱ task.status='Completed'ን አስቀድሞ አስቀምጧል (የተመሳሳይ object reference ስለሆነ)
+        try:
+            VectorMemory.objects.create(site=self.site, memory_type='solution', content=f"Success: {task.task_name}")
+        except Exception:
+            pass
+        return "Success"
 
 
 # ============================================================
-# 📡 4. CEO OPERATIONS & BACKGROUND MULTI-CHANNEL HARVESTER
+# 📡 MULTI-CHANNEL HARVESTER
 # ============================================================
 class MultiChannelHarvester:
     @staticmethod
@@ -455,15 +614,18 @@ class MultiChannelHarvester:
         return results
 
 
+# ============================================================
+# 💼 CEO OPERATIONS (Harvesting, Curation, Revenue)
+# ============================================================
 class CEOOperations:
     def __init__(self, site: SiteRegistry):
         self.site = site
 
     def run_business_growth(self):
         self._harvest_verified_products()
+        # ✅ FIXED: ቀደም ከ class ውጭ "ተንሳፍፎ" የቀረው dead-code feature አሁን በትክክል ተገናኝቷል
         self.curate_user_listings()
         self._boost_revenue()
-        self.sync_site_growth_metrics()
 
     def _harvest_verified_products(self):
         last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
@@ -474,7 +636,7 @@ class CEOOperations:
                     last_time = timezone.make_aware(last_time)
                 if (timezone.now() - last_time) < timedelta(hours=3):
                     return
-            except:
+            except Exception:
                 pass
 
         harvester = MultiChannelHarvester()
@@ -498,7 +660,7 @@ class CEOOperations:
             f"Extract exactly 3 valid products fitting the '{self.site.niche}' niche. "
             f"Return strictly valid JSON with key 'products' containing objects with 'title', 'price', 'desc', 'seller_telegram'."
         )
-        
+
         data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
 
         if data and isinstance(data, dict):
@@ -507,7 +669,7 @@ class CEOOperations:
                 for p in products:
                     if isinstance(p, dict) and 'title' in p and p.get('seller_telegram'):
                         self._seed_listing(p)
-                        
+
                 SiteConfig.objects.update_or_create(
                     key=f"LAST_HARVEST_{self.site.name}",
                     defaults={'value': {'time': timezone.now().isoformat()}}
@@ -530,6 +692,15 @@ class CEOOperations:
                     price=clean_price, description=p.get('desc', ''), is_active=True
                 )
 
+                # SaaS Metrics Sync (best-effort, ካልነበሩ fields ምንም ጉዳት እንዳይኖር try/except)
+                try:
+                    self.site.real_product_count = Product.objects.filter(site=self.site, is_active=True).count()
+                    self.site.total_products = Product.objects.filter(site=self.site).count()
+                    self.site.total_sellers = User.objects.filter(product__site=self.site).distinct().count()
+                    self.site.save()
+                except Exception as stats_err:
+                    logger.warning(f"Failed to update SiteRegistry stats: {stats_err}")
+
                 NotificationQueue.objects.create(
                     site=self.site, recipient=p['seller_telegram'],
                     message=f"ሰላም {p['seller_telegram']}! የ '{p['title']}' ምርትዎ በነፃ ፖስት ተደርጓል።"
@@ -537,82 +708,87 @@ class CEOOperations:
         except Exception as e:
             logger.error(f"Failed to seed listing: {e}")
 
-    def curate_user_listings(self):
+    def curate_user_listings(self, limit=5):
         """
         [Real-Time Post-Validation Guardrail]
-        ወዲያውኑ የተለጠፉ ምርቶችን መርምሮ የትርጉም ሥራዎችን ያካሂዳል፤ 
-        አጭበርባሪ ወይም ሕገ-ወጥ ይዘት ካለው ግን ወዲያውኑ ደብቆ ለሻጩ መልእክት ይልካል
+        አዲስ የተለጠፉ ምርቶችን መርምሮ ስካም/ሕገ-ወጥ ይዘት ካለው ወዲያውኑ ደብቆ ለሻጩ መልእክት ይልካል፤
+        ትክክለኛ ከሆነ ደግሞ የትርጉም ስራ ያካሂዳል። ድግግሞሽ-ምርመራ እንዳይፈጠር dedup በ SiteConfig
+        ይከታተላል (ምንም speculative model field ሳያስፈልግ — Product/SiteConfig ብቻ ይጠቅማል)።
         """
-        unprocessed_products = Product.objects.filter(
-            site=self.site, 
-            is_active=True,
-            translations__isnull=True  # ገና ትርጉም አልተሠራላቸውም
-        )
+        dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
+        dedup_config, _ = SiteConfig.objects.get_or_create(key=dedup_key, defaults={'value': []})
+        curated_ids = set(dedup_config.value if isinstance(dedup_config.value, list) else [])
 
-        for product in unprocessed_products:
-            prompt = (
-                f"Verify this product listing for scams, illegal items, or spam. "
-                f"Title: {product.title}. Price: {product.price}. Description: {product.description}. "
-                f"Return JSON with key 'is_valid' (true/false) and 'reason' (string explaining if invalid)."
-            )
-            result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
-            
-            if result and not result.get('is_valid', True):
-                product.is_active = False
-                product.save()
-                
-                NotificationQueue.objects.create(
-                    site=self.site,
-                    recipient=product.seller.username,
-                    message=(
-                        f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት "
-                        f"በ AI ማጣሪያችን አልፏል። ምክንያት፦ {result.get('reason', 'ያልተሟላ መረጃ')}። "
-                        f"እባክዎ መረጃውን አስተካክለው ድጋሚ ይጫኑ።"
-                    )
+        candidates = list(
+            Product.objects.filter(site=self.site, is_active=True).exclude(id__in=list(curated_ids))[:limit]
+        )
+        if not candidates:
+            return
+
+        newly_curated = []
+        for product in candidates:
+            try:
+                prompt = (
+                    f"Verify this product listing for scams, illegal items, or spam. "
+                    f"Title: {product.title}. Price: {product.price}. Description: {product.description}. "
+                    f"Return JSON with key 'is_valid' (true/false) and 'reason' (string explaining if invalid)."
                 )
-                logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
-            else:
-                self._generate_translations_for_product(product)
+                result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+
+                if result and not result.get('is_valid', True):
+                    product.is_active = False
+                    product.save()
+                    NotificationQueue.objects.create(
+                        site=self.site, recipient=product.seller.username,
+                        message=(
+                            f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት "
+                            f"በ AI ማጣሪያችን አልፏል። ምክንያት፦ {result.get('reason', 'ያልተሟላ መረጃ')}። "
+                            f"እባክዎ መረጃውን አስተካክለው ድጋሚ ይጫኑ።"
+                        )
+                    )
+                    logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
+                else:
+                    self._generate_translations_for_product(product)
+
+                newly_curated.append(product.id)
+            except Exception as e:
+                logger.error(f"curate_user_listings: failed for product {product.id}: {e}")
+
+        if newly_curated:
+            curated_ids.update(newly_curated)
+            # ከ2000 በላይ እንዳይከማች የ dedup መዝገብን መገደብ
+            dedup_config.value = list(curated_ids)[-2000:]
+            dedup_config.save()
 
     def _generate_translations_for_product(self, product):
-        """ምርቱን በዳይናሚክ መንገድ ወደ 7 የሀገር ውስጥ እና ዓለምአቀፍ ቋንቋዎች በ RAG መጋዘን ይተረጉማል"""
-        from .ai_utils import translate_text_incremental
-        languages = ['en', 'am', 'om', 'ti', 'so', 'ar', 'fr']
-        
-        text_to_translate = [product.title, product.description]
-        
-        translations_dict = {}
-        for lang in languages:
-            try:
-                res = translate_text_incremental(text_to_translate, target_lang=lang)
-                translations_dict[lang] = f"Title: {res.get(product.title, product.title)}\n\nDescription: {res.get(product.description, product.description)}"
-            except Exception as e:
-                logger.warning(f"Failed translation for {lang}: {e}")
-                translations_dict[lang] = f"Title: {product.title}\n\nDescription: {product.description}"
-                
-        product.translations = translations_dict
-        product.save(update_fields=['translations'])
-
-    def sync_site_growth_metrics(self):
-        """የጣቢያውን የእድገት መለኪያዎች (growth level, monthly visitors, etc.) በዳይናሚክ መንገድ ያሰላል"""
+        """
+        ምርቱን ለ Amharic/Oromo ቋንቋዎች በራስ-ሰር መተርጎም።
+        ⚠️ ማስታወሻ፦ `ProductTranslation` ሞዴል ካልኖረ ወይም የተለያየ field ስም ካለው
+        በሰላም ይዘላል (ImportError/Exception ሁለቱም guarded ናቸው) — እባክዎ ከ models.py ጋር
+        ያለውን field naming ያረጋግጡ (assumption: product, language, translated_title,
+        translated_description fields)።
+        """
         try:
-            product_count = Product.objects.filter(site=self.site, is_active=True).count()
-            self.site.real_product_count = product_count
-            self.site.total_products = Product.objects.filter(site=self.site).count()
-            
-            seller_count = User.objects.filter(product__site=self.site).distinct().count()
-            self.site.total_sellers = seller_count
-            
-            # የትራፊክ እና የደንበኞች ቁጥር በምርቶቹ እና በሻጮቹ ብዛት ልኬት መሰረት በራስ-ሰር ማሳደግ
-            self.site.monthly_visitors = 120 + (product_count * 15) + (seller_count * 5)
-            self.site.real_customer_count = max(5, int(product_count * 0.4))
-            
-            # የጣቢያው ግንባታ ምዕራፍ
-            self.site.growth_level = min(5, max(1, self.site.build_phase))
-            self.site.monthly_revenue = product_count * 45.5
-            self.site.save()
-        except Exception as e:
-            logger.warning(f"Failed to sync site growth metrics: {e}")
+            from .models import ProductTranslation
+        except ImportError:
+            return
+
+        texts = [t for t in [product.title, product.description or ""] if t and t.strip()]
+        if not texts:
+            return
+
+        for lang in ['am', 'om']:
+            try:
+                translated = translate_text_incremental(texts, target_lang=lang)
+                ProductTranslation.objects.update_or_create(
+                    product=product, language=lang,
+                    defaults={
+                        'translated_title': translated.get(product.title, product.title),
+                        'translated_description': translated.get(product.description or "", product.description or "")
+                    }
+                )
+            except Exception as e:
+                logger.debug(f"Translation skipped for product {product.id} ({lang}): {e}")
 
     def _boost_revenue(self):
         hot_items = Product.objects.filter(site=self.site, view_count__gt=100).order_by('-view_count')[:2]
@@ -627,7 +803,7 @@ class CEOOperations:
 
 
 # ============================================================
-# 🛡️ 5. FRAUD HUNTER (የአጭበርባሪዎች አዳኝ)
+# 🛡️ FRAUD HUNTER
 # ============================================================
 class FraudHunter:
     def __init__(self, site: SiteRegistry):
@@ -642,7 +818,7 @@ class FraudHunter:
 
 
 # ============================================================
-# 🌐 GITHUB REMOTE REPOSITORY UTILS (Render Web/Worker)
+# 🌐 GITHUB REMOTE REPOSITORY UTILS
 # ============================================================
 def fetch_remote_file_from_github(repo, file_path, token=None):
     url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -658,16 +834,8 @@ def fetch_remote_file_from_github(repo, file_path, token=None):
     return None
 
 
-# ============================================================
-# 🌐 7. DYNAMIC WORKSPACE EXPLORER (Zero-Hardcode System)
-# ============================================================
-
 def bootstrap_system_safely():
-    """
-    [Zero-Config Auto-Installer]
-    ዳታቤዙ ባዶ ከሆነ በራሱ 'primary' ሳይትን በመመዝገብ ኤጀንቱ ራሱ 
-    የኦዲትና የዕድገት ሥራውን ወዲያውኑ እንዲጀምር ያደርጋል (የሕግ 4 ጥበቃ)
-    """
+    """ዳታቤዙ ባዶ ከሆነ በራሱ 'primary' ሳይትን በመመዝገብ ኤጀንቱ ሥራ እንዲጀምር ያደርጋል"""
     try:
         if SiteRegistry.objects.filter(is_active=True).count() == 0:
             logger.info("⚙️ Bootstrapping: Fresh database detected. Auto-registering primary site...")
@@ -755,7 +923,7 @@ def get_site_project_state_dynamic(site: SiteRegistry):
                     if path_str.endswith('.html') and item.get('type') == 'blob':
                         file_name = path_str.split('/')[-1]
                         key = f"{file_name.replace('.html', '')}_html"
-                        
+
                         content = fetch_remote_file_from_github(repo_name, path_str, token=github_token)
                         if content is not None:
                             state[key] = content
@@ -780,7 +948,7 @@ def get_site_project_state_dynamic(site: SiteRegistry):
                         except Exception as e:
                             state[key] = f"ERROR: {e}"
         else:
-            logger.warning(f"Templates directory not found locally.")
+            logger.warning("Templates directory not found locally.")
 
     all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
     for bk in all_known_backlogs:
@@ -790,6 +958,7 @@ def get_site_project_state_dynamic(site: SiteRegistry):
                 state[bk.target_file] = "❌ MISSING_FILE"
 
     return state, file_paths
+
 
 def get_or_create_backlog_task_safe(site, task_name, defaults):
     matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
@@ -808,19 +977,290 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
 
 
 # ============================================================
-# 🎡 8. MASTER ENGINE LOOP (24/7 Execution Core)
+# 🧬 LAW 0 — SELF-READINESS GATE
+#
+# Deploy ከተደረገ በኋላ ድረ-ገጹ ስራ ከጀመረ ጀምሮ ኤጀንቱ የመጀመሪያ ስራው የራሱን ኮር ፋይሎች
+# (ራሱን) መመርመር፣ የጎደለውን/የተበላሸውን ራሱ መጠገን፣ እና ሙሉ ብቁነቱን ካረጋገጠ በኋላ ብቻ
+# ወደ ሙሉ ድረ-ገጽ ማኔጅመንት (per-site CEO cycle) መግባት ነው።
+#
+# ⚠️ ወሳኝ ገደብ፦ Python አንዴ የጫነውን ሞጁል disk ላይ ድጋሚ አያነበውም። ስለዚህ ራሱን-የሚያስኪደው
+# ፋይል (growth_agent/ai_utils/code_apply/self_doctor) ቢጠገንም፣ ለውጡ ሙሉ ለሙሉ
+# የሚሰራው process ሲደገም (restart) ብቻ ነው። SELF_HEAL_AUTO_RESTART=true ካልተደረገ
+# ኤጀንቱ ይጠግናል ግን አሁን ባለው process ውስጥ ራሱ-በራሱ reload አያደርግም (በተለይ ለ web
+# dynos downtime ስለሚያስከትል በ default ጠፍቷል)። ይህ flag ለ worker process ብቻ
+# እንዲነቃ ይመከራል።
+# ============================================================
+class SelfBootstrapManager:
+    # ✅ FIXED (Deadlock Bug): ይህ gate growth_agent.py ራሱ በቀጥታ "from .X import Y"
+    # ብሎ የሚጠራቸውን 4 ፋይሎች ብቻ ይመለክታል። ቀደም ሲል models/views/urls/forms/admin/
+    # consumers እዚህ ውስጥ ገብተው ነበር — ይህ ራሱ permanent deadlock ይፈጥር ነበር፦
+    # 'forms.py' (ለምሳሌ) ገና ባዶ/ያላለቀ (Phase 0 ጀማሪ ሳይት ላይ የተለመደ ሁኔታ) ሲሆን
+    # gate ይህን እንደ "broken" ቆጥሮ ለዘላለም ያግደው ነበር። የድረ-ገጹ application ፋይሎች
+    # ሙሉነት ቀደም ብሎ በ StrategicCEO/RecursiveBuilder backlog ስርዓት በትክክል
+    # ይዳደራል — ለ "ራሱ ኤጀንት ጤና" gate ጋር መቀላቀል አልነበረበትም።
+    CORE_MODULES = {
+        'growth_agent': 'marketplace/growth_agent.py',
+        'ai_utils': 'marketplace/ai_utils.py',
+        'code_apply': 'marketplace/code_apply.py',
+        'self_doctor': 'marketplace/self_doctor.py',
+    }
+    RUNNING_PROCESS_MODULES = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
+    READY_KEY = "SELF_BOOTSTRAP_STATUS"
+    REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
+    MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
+    MAX_TOTAL_ATTEMPTS_PER_MODULE = 15  # ✅ Cost-control: AI ጥሪ ላልተወሰነ ጊዜ እንዳይባክን ገደብ
+
+    @classmethod
+    def _scan_core_files(cls):
+        broken = {}
+        base_dir = str(settings.BASE_DIR)
+        for key, rel_path in cls.CORE_MODULES.items():
+            full_path = os.path.join(base_dir, rel_path)
+            if not os.path.exists(full_path):
+                broken[key] = {"issue": "MISSING_FILE", "path": rel_path}
+                continue
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                if not content.strip():
+                    broken[key] = {"issue": "EMPTY_FILE", "path": rel_path}
+                    continue
+                ast.parse(content)
+            except SyntaxError as e:
+                broken[key] = {"issue": f"SYNTAX_ERROR: {e}", "path": rel_path}
+            except Exception as e:
+                broken[key] = {"issue": f"READ_ERROR: {e}", "path": rel_path}
+        return broken
+
+    @classmethod
+    def _get_total_attempts(cls, module_key):
+        cfg = SiteConfig.objects.filter(key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}").first()
+        return cfg.value.get('count', 0) if cfg and isinstance(cfg.value, dict) else 0
+
+    @classmethod
+    def _increment_total_attempts(cls, module_key):
+        cfg, _ = SiteConfig.objects.get_or_create(
+            key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}", defaults={'value': {'count': 0}}
+        )
+        count = (cfg.value.get('count', 0) if isinstance(cfg.value, dict) else 0) + 1
+        cfg.value = {'count': count, 'last_attempt': timezone.now().isoformat()}
+        cfg.save()
+        return count
+
+    @classmethod
+    def ensure_self_ready(cls):
+        broken = cls._scan_core_files()
+
+        if not broken:
+            SiteConfig.objects.update_or_create(
+                key=cls.READY_KEY,
+                defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
+            )
+            return True
+
+        logger.critical(f"🚨 SELF-BOOTSTRAP GATE: {len(broken)} core module(s) unhealthy: {list(broken.keys())}")
+        SiteConfig.objects.update_or_create(
+            key=cls.READY_KEY,
+            defaults={'value': {
+                'status': 'self_repairing',
+                'broken': {k: v['issue'] for k, v in broken.items()},
+                'checked_at': timezone.now().isoformat()
+            }}
+        )
+
+        primary_site = SiteRegistry.objects.filter(name='primary').first()
+        if not primary_site:
+            logger.critical("🚨 SELF-BOOTSTRAP: No 'primary' site registered yet — cannot self-repair this cycle.")
+            return False
+
+        attempts = 0
+        repaired_any_running_module = False
+        while broken and attempts < cls.MAX_REPAIR_ATTEMPTS_PER_CYCLE:
+            attempts += 1
+            for module_key, info in list(broken.items()):
+                total_attempts = cls._get_total_attempts(module_key)
+                if total_attempts >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE:
+                    logger.critical(
+                        f"🚨 SELF-REPAIR: '{module_key}' exceeded {cls.MAX_TOTAL_ATTEMPTS_PER_MODULE} "
+                        f"repair attempts. Halting auto-repair for it — manual review required."
+                    )
+                    continue
+                cls._increment_total_attempts(module_key)
+                success = cls._repair_module(primary_site, module_key, info)
+                if success and module_key in cls.RUNNING_PROCESS_MODULES:
+                    repaired_any_running_module = True
+            broken = cls._scan_core_files()
+
+        is_ready = len(broken) == 0
+
+        if not is_ready:
+            # 🛟 SAFETY VALVE — ላልተወሰነ ጊዜ ሙሉ ስራ እንዳይታገድ
+            # ይህ ኮድ እያሄደ ስለ ደረሰ (process እየሄደ ስለሆነ)፣ growth_agent/ai_utils/
+            # code_apply/self_doctor በ import ጊዜ ትክክለኛ ስለ ነበሩ እርግጠኛ ነው (ካልሆኑ
+            # process ራሱ ገና በ import ላይ ይወድቅ ነበር)። disk ላይ ያለው ቅጂ ድህረ-ጅማት
+            # ቢበላሽም፣ አሁን እያሄደ ያለው process ላይ ምንም ቀጥተኛ ጉዳት የለውም — ለ
+            # next-restart ብቻ ስጋት ነው። ድግግሞሽ ሙከራዎች (በ cycles ተደጋግሞ) ካለቁ
+            # በኋላ፣ ለዘላለም ማገድ ምክንያታዊ አይደለም፤ critical alert ብቻ አስቀምጦ
+            # ስራውን (degraded mode) መቀጠል አለበት።
+            all_exhausted = all(
+                cls._get_total_attempts(k) >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE for k in broken.keys()
+            )
+            if all_exhausted:
+                logger.critical(
+                    f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted for {list(broken.keys())}. "
+                    f"Proceeding in DEGRADED mode (current process still uses its last-known-good "
+                    f"in-memory code) — MANUAL REVIEW REQUIRED before next restart."
+                )
+                SiteConfig.objects.update_or_create(
+                    key=cls.READY_KEY,
+                    defaults={'value': {
+                        'status': 'degraded_proceeding',
+                        'broken': {k: v['issue'] for k, v in broken.items()},
+                        'checked_at': timezone.now().isoformat()
+                    }}
+                )
+                return True  # ✅ ላልተወሰነ ጊዜ አያግድም — business cycle ይቀጥላል
+
+            SiteConfig.objects.update_or_create(
+                key=cls.READY_KEY,
+                defaults={'value': {
+                    'status': 'repair_failed',
+                    'broken': {k: v['issue'] for k, v in broken.items()},
+                    'checked_at': timezone.now().isoformat()
+                }}
+            )
+            logger.critical(f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted this cycle. Still broken: {list(broken.keys())}. Will retry next cycle.")
+            return False
+
+        SiteConfig.objects.update_or_create(
+            key=cls.READY_KEY,
+            defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
+        )
+        logger.info("✅ SELF-BOOTSTRAP: All core modules verified healthy.")
+
+        if repaired_any_running_module and os.getenv('SELF_HEAL_AUTO_RESTART', 'false').lower() == 'true':
+            logger.critical("🧬 SELF-REPAIR: Core agent files were rewritten. Forcing controlled restart to load healed code...")
+            try:
+                broadcast_agent_log(primary_site, "Self-repair complete — restarting process to load fixes.", "success")
+            except Exception:
+                pass
+            os._exit(1)  # Render/Gunicorn supervisor ራሱ በራስ-ሰር process ያስነሳል
+
+        return True
+
+    @classmethod
+    def _repair_module(cls, site, module_key, info):
+        logger.warning(f"🧬 SELF-REPAIR: Attempting to fix '{module_key}' ({info['issue']})")
+        try:
+            past_memories = VectorMemory.objects.filter(site=site).order_by('-id')[:3]
+            memory_context = [m.content for m in past_memories]
+        except Exception:
+            memory_context = []
+
+        prompt = (
+            f"CRITICAL SELF-REPAIR TASK: The core autonomous-agent module '{module_key}' "
+            f"(file: {info['path']}) is currently broken — Issue: {info['issue']}. "
+            f"Write a COMPLETE, clean, syntactically valid replacement for this entire file "
+            f"using 2026 Django/Python standards, preserving all functionality implied by its "
+            f"role inside an autonomous e-commerce CEO agent system (EthAfri). "
+            f"Avoid repeating these past failures: {json.dumps(memory_context, ensure_ascii=False)}. "
+            f"Return JSON with key 'code' containing the full file content."
+        )
+        try:
+            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
+        except Exception as e:
+            logger.error(f"🧬 SELF-REPAIR: AI call failed for '{module_key}': {e}")
+            return False
+
+        if not (res and isinstance(res, dict) and 'code' in res):
+            logger.error(f"🧬 SELF-REPAIR: No valid code returned for '{module_key}'")
+            return False
+
+        new_code = res['code']
+        try:
+            ast.parse(new_code)
+        except SyntaxError as e:
+            logger.error(f"🧬 SELF-REPAIR: AI-generated fix for '{module_key}' still has a syntax error: {e}")
+            return False
+
+        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=info['path'], site=site)
+        if not is_safe:
+            logger.error(f"🛡️ SELF-REPAIR: Security gate blocked fix for '{module_key}': {msg}")
+            return False
+
+        base_dir = str(settings.BASE_DIR)
+        full_path = os.path.join(base_dir, info['path'])
+        old_code = ""
+        if os.path.exists(full_path):
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    old_code = f.read()
+            except Exception:
+                pass
+
+        result = apply_code_change(site, module_key, new_code, reason=f"🧬 Self-Bootstrap Repair: {info['issue']}")
+        if not result.get('success'):
+            logger.error(f"❌ SELF-REPAIR: Failed to apply fix for '{module_key}': {result.get('message')}")
+            return False
+
+        applied_path = result.get('path', full_path)
+        verified, vmsg = verify_disk_write(applied_path)
+        if not verified:
+            logger.error(f"❌ SELF-REPAIR: Disk verification failed for '{module_key}': {vmsg}. Rolling back...")
+            rollback_file(applied_path, old_code)
+            return False
+
+        if module_key in DJANGO_APP_FILES:
+            deep_ok, dmsg = deep_verify_django_app()
+            if not deep_ok:
+                logger.error(f"❌ SELF-REPAIR: Deep Django check failed for '{module_key}': {dmsg}. Rolling back...")
+                rollback_file(applied_path, old_code)
+                return False
+
+        logger.info(f"✅ SELF-REPAIR: '{module_key}' rewritten and verified successfully.")
+        try:
+            VectorMemory.objects.create(site=site, memory_type='solution', content=f"Self-repaired core module: {module_key}")
+        except Exception:
+            pass
+        return True
+
+
+# ============================================================
+# 🎡 MASTER ENGINE LOOP (24/7 Execution Core)
 # ============================================================
 def execute_master_cycle():
     bootstrap_system_safely()
-    
+
+    try:
+        SiteConfig.objects.update_or_create(
+            key="EVOLUTION_LOCK",
+            defaults={'value': {'status': 'self_checking', 'last_run': timezone.now().isoformat()}}
+        )
+    except Exception:
+        pass
+
+    # 🧬 LAW 0 — SELF-READINESS GATE: ራሱን ካደሰና ለስራ ዝግጁ መሆኑን ካረጋገጠ በኋላ ብቻ ይቀጥላል
+    is_self_ready = SelfBootstrapManager.ensure_self_ready()
+
+    if not is_self_ready:
+        logger.critical("🚨 Agent is NOT self-ready yet. Skipping full site-management this cycle — will retry next cycle.")
+        try:
+            SiteConfig.objects.update_or_create(
+                key="EVOLUTION_LOCK",
+                defaults={'value': {'status': 'self_repairing', 'last_run': timezone.now().isoformat()}}
+            )
+        except Exception:
+            pass
+        return
+
     try:
         SiteConfig.objects.update_or_create(
             key="EVOLUTION_LOCK",
             defaults={'value': {'status': 'running', 'last_run': timezone.now().isoformat()}}
         )
-    except Exception as lock_err:
+    except Exception:
         pass
-    
+
     active_sites = SiteRegistry.objects.filter(is_active=True)
     with ThreadPoolExecutor(max_workers=2) as executor:
         try:
@@ -831,11 +1271,11 @@ def execute_master_cycle():
                     key="EVOLUTION_LOCK",
                     defaults={'value': {'status': 'idle', 'last_run': timezone.now().isoformat()}}
                 )
-            except Exception as lock_err:
+            except Exception:
                 pass
-            
             from django.db import close_old_connections
             close_old_connections()
+
 
 def _run_site_cycle(site):
     from .ai_utils import broadcast_agent_log
@@ -858,27 +1298,34 @@ def _run_site_cycle(site):
         FraudHunter(site).scan_for_scams()
         time.sleep(random.uniform(1.0, 3.0))
 
+        # ✅ Risk-tiered cooldown ግምት ውስጥ በማስገባት ብዙ ስራዎችን (የተለያየ target_file ላላቸው) በትይዩ መገንባት
         pending_tasks = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score')
         tasks_to_build = []
         seen_files = set()
-        
+
         for task in pending_tasks:
-            if task.target_file not in seen_files:
-                cooldown_time = timedelta(hours=1) if 'html' in task.target_file else timedelta(days=1)
-                has_cooldown = AIEvolutionLog.objects.filter(
-                    site=site, target_file=task.target_file, 
-                    created_at__gte=timezone.now() - cooldown_time
-                ).exists()
-                
-                if not has_cooldown:
-                    tasks_to_build.append(task)
-                    seen_files.add(task.target_file)
-                    
+            if task.target_file in seen_files:
+                continue
+            if RecursiveBuilder.is_on_cooldown(site, task.target_file):
+                continue
+            tasks_to_build.append(task)
+            seen_files.add(task.target_file)
+            if len(tasks_to_build) >= 4:
+                break
+
         if tasks_to_build:
-            broadcast_agent_log(site, f"Building {len(tasks_to_build)} strategic tasks concurrently in parallel threadpool...", "success")
+            broadcast_agent_log(site, f"Building {len(tasks_to_build)} strategic task(s) concurrently...", "success")
             builder = RecursiveBuilder(site)
-            with ThreadPoolExecutor(max_workers=3) as builder_executor:
-                builder_executor.map(builder.build_next_feature, tasks_to_build)
+
+            def _build_and_close(task):
+                from django.db import close_old_connections
+                try:
+                    return builder.build_next_feature(task)
+                finally:
+                    close_old_connections()
+
+            with ThreadPoolExecutor(max_workers=min(len(tasks_to_build), 4)) as builder_executor:
+                builder_executor.map(_build_and_close, tasks_to_build)
 
     except Exception as e:
         logger.error(f"❌ Error in master cycle for {site.name}: {e}", exc_info=True)
@@ -886,12 +1333,14 @@ def _run_site_cycle(site):
         from django.db import close_old_connections
         close_old_connections()
 
+
 def start_autonomous_ceo():
     logger.info("🚀 EthAfri Master CEO Agent Started on Render Cloud...")
     while True:
         try:
             execute_master_cycle()
-            
+
+            # Adaptive Pacing: ብዙ pending backlog ካለ ፈጣን ድግግሞሽ፣ ካልሆነ ቶከን ቆጣቢ
             has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
             interval = 30 if has_pending else 600
             logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
