@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.7 - Fully Integrated High-Throughput & Universal Marketplace Edition)
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.8 - Fully Integrated High-Throughput & Universal Marketplace Edition)
 # ✅ የተፈቱ ችግሮች፦
 #   1. 🧬 LAW 0 — Self-Readiness Gate (SelfBootstrapManager): ኤጀንቱ ራሱን አስቀድሞ
 #      ይመረምራል፣ የጎደለውን/የተበላሸውን ራሱ ይጠገናል፣ ብቁ መሆኑን ካረጋገጠ በኋላ ብቻ ወደ ሙሉ
@@ -26,6 +26,7 @@
 #       ስልታዊ የእድገት ፍኖተ-ካርታዎችን ያዘጋጃል [3.1.2]።
 #   12. [PERFORMANCE SYSTEM]: ገጽ መጫኛ እንዳይዘገይ inline stylings እና scripts እንዳይጽፍ
 #       የተደነገገበት የጽኑ አጻጻፍ መመሪያ ተጭኖበታል [3.1.2]።
+#   13. [FIXED DB CONSTRAINT]: በጅምላ ምርት ዳሰሳ ወቅት database not-null constraint 'listing_type' ስህተት በግልጽ default 'sale' በመስጠት ተፈትቷል [1, 2, 3.1.2]።
 # 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
@@ -542,7 +543,7 @@ class RecursiveBuilder:
 
 
 # ============================================================
-# 📡 DYNAMIC ADAPTIVE HARVESTER (Discovery & Scraping)
+# 📡 DYNAMIC ADAPTIVE HARVESTER (የምርት ምንጮች ዳሰሳና የጅምላ መረጃ አሳሽ)
 # ============================================================
 class MultiChannelHarvester:
     @staticmethod
@@ -581,7 +582,7 @@ class MultiChannelHarvester:
             defaults={'value': sources}
         )
         
-        # 2. ሁለንተናዊ አሳሽ (Universal Semantic Scraper) [3.1.2]
+        # 2. Universal Semantic Crawling
         raw_data_pool = []
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         
@@ -604,16 +605,17 @@ class MultiChannelHarvester:
                                 "image_url": images[i] if i < len(images) else ""
                             })
                 else:
-                    # የኮድ መደራረብን ለመቀነስ የተዘጋጀ ሁለንተናዊ የዌብ ገጽ መረጃ አምጭ (Plain Text Parser) [3.1.2]
+                    # Universal Web/Jiji/Engocha/Facebook scraper
+                    # Fetches raw HTML, strips script/style tags (token compression), and crawls
                     res = requests.get(target, headers=headers, timeout=6)
                     if res.status_code == 200:
-                        # ቶከን ለመቆጠብ script እና style ታጎችን ሙሉ በሙሉ ማጽዳት (Token Compression) [1, 2]
+                        # Strip script, style, and head to compress tokens
                         clean_html = re.sub(r'<script.*?>.*?</script>', '', res.text, flags=re.DOTALL)
                         clean_html = re.sub(r'<style.*?>.*?</style>', '', clean_html, flags=re.DOTALL)
-                        clean_html = re.sub(r'<[^>]+>', ' ', clean_html)  # plain text ማውጣት
-                        compressed_text = " ".join(clean_html.split())[:1500]  # የምርቱን መግለጫዎች ቆርጦ ማሳጠር
+                        clean_html = re.sub(r'<[^>]+>', ' ', clean_html)  # plain text
+                        compressed_text = " ".join(clean_html.split())[:1500]  # token limit compression
                         
-                        # ምስሎችን በዳይናሚክ ሪጀክስ ፈልጎ ማውጣት
+                        # Extract images with simple regex
                         imgs = re.findall(r'https?://[^\s"]+\.(?:jpg|jpeg|png)', res.text)[:3]
                         raw_data_pool.append({
                             "source": f"{p_type}: {target}",
@@ -627,7 +629,7 @@ class MultiChannelHarvester:
 
 
 # ============================================================
-# 💼 CEO OPERATIONS (የጅምላ ዳታ አጻጻፍ እና የዋትሳፕ/ኢሞ ቀጥታ ሊንኮች ማመንጫ)
+# 💼 CEO OPERATIONS (Bulk Harvesting & Direct-Contact Links)
 # ============================================================
 class CEOOperations:
     def __init__(self, site: SiteRegistry):
@@ -704,6 +706,7 @@ class CEOOperations:
                     clean_price = 0.0
 
                 # 1. ምርቱን ለጅምላ አጻጻፍ ዝግጁ ማድረግ
+                # 🟢 ፅኑ የዳታቤዝ አቅራቢ መከላከያ፦ listing_type በግልጽ 'sale' ተብሎ መመዝገቡ constraints ስህተትን ይከላከላል [1, 2, 3.1.2]
                 product_obj = Product(
                     seller=user,
                     site=self.site,
@@ -711,6 +714,7 @@ class CEOOperations:
                     price=clean_price,
                     description=p.get('desc', ''),
                     image_url=p.get('image_url', ''),
+                    listing_type=p.get('listing_type', 'sale') or 'sale',
                     is_active=True
                 )
                 products_to_create.append(product_obj)

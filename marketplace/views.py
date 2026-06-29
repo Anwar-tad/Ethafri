@@ -452,27 +452,31 @@ def trigger_autonomous_evolution(request):
 @staff_member_required
 @csrf_exempt
 def purge_database_view(request):
-    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን በ 1 ጠቅታ ከአድሚን ዳሽቦርድ ላይ የሚያጸዳ [1.1.2, 1.1.5]"""
+    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን በ 1 ጠቅታ ከአድሚን ዳሽቦርድ ላይ የሚያጸዳ (Robust & Safe) [1.1.2, 1.1.5]"""
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=400)
     
     try:
         with transaction.atomic():
-            # የውሸት ምርቶችን እና ሻጮችን በጅምላ ማጽዳት
-            Product.objects.all().delete()
-            SellerProfile.objects.all().delete()
-            NotificationQueue.objects.all().delete()
+            # 🟢 የደህንነት አጥር፦ የተወሰኑ የዳታቤዝ ሰንጠረዦች ባይኖሩ እንኳ ሳይቋረጥ ሌሎቹን እንዲያጸዳ ማድረግ
+            models_to_purge = [
+                Product, SellerProfile, NotificationQueue, AIProjectBacklog,
+                SecurityLog, AgentErrorLog, AIEvolutionLog, VectorMemory,
+                SelfHealingLog, TranslationQueue
+            ]
             
-            # የድሮ የኤጀንት መዝገቦችን በሙሉ ማጽዳት
-            AIProjectBacklog.objects.all().delete()
-            SecurityLog.objects.all().delete()
-            AgentErrorLog.objects.all().delete()
-            AIEvolutionLog.objects.all().delete()
-            VectorMemory.objects.all().delete()
-            SelfHealingLog.objects.all().delete()
+            for model in models_to_purge:
+                try:
+                    model.objects.all().delete()
+                except Exception as model_err:
+                    logger.warning(f"🧹 Purge DB Warning: Skipped {model.__name__} table deletion. Error: {model_err}")
             
-            # የጣቢያዎች መዝገብን ማጽዳትና primary ብቻ እንዲቀር ማድረግ [1.1.5]
-            SiteRegistry.objects.all().delete()
+            # primary ሳይት መዝገብን በንጽህና እንደገና መፍጠር [1.1.5]
+            try:
+                SiteRegistry.objects.all().delete()
+            except Exception as site_err:
+                logger.warning(f"🧹 Purge DB Warning: Skipped SiteRegistry table deletion. Error: {site_err}")
+                
             SiteRegistry.objects.create(
                 name="primary",
                 display_name="EthAfri Primary",

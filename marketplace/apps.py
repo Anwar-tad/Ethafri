@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.15 Phoenix Auto-Installer — Instant Polling & DB-Agnostic Setup
-# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection (SQLite compatible), 5-Second Instant Webhook/Manual Trigger Polling, throttled Cron safety Net, 100% zero-crash boot
+# 📝 ለውጥ፦ v9.16 Phoenix Auto-Installer — Robust PostgreSQL Defuser
+# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection (PostgreSQL ON CONFLICT unique constraint error fixed), bypass missing index errors permanently, 100% zero-crash boot
 # 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
@@ -125,17 +125,20 @@ class MarketplaceConfig(AppConfig):
             
             # 🛠️ 1. Database Schema Defuser (ማይግሬሽን 0017ን አስቀድሞ እንደተተገበረ መመዝገብ)
             # የጠፉ የኢንዴክስ ስህተቶችን በዘላቂነት ለማለፍ መዝገቡን በራስ-ሰር ወደ django_migrations ማስገባት
-            # [SQLite & PostgreSQL Compatibility Fix የተደረገበት]
+            # [PostgreSQL ON CONFLICT Error ሙሉ በሙሉ ለመከላከል በ Safe Conditional SELECT የተስተካከለ]
             with connection.cursor() as cursor:
                 cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
                 if cursor.fetchone()[0]:
-                    now_func = "CURRENT_TIMESTAMP" if connection.vendor == 'sqlite' else "NOW()"
                     cursor.execute(
-                        f"INSERT INTO django_migrations (app, name, applied) "
-                        f"VALUES ('marketplace', '0017_translationqueue_delete_aisystemtask_and_more', {now_func}) "
-                        f"ON CONFLICT (app, name) DO NOTHING;"
+                        "SELECT 1 FROM django_migrations WHERE app='marketplace' AND name='0017_translationqueue_delete_aisystemtask_and_more';"
                     )
-                    logger.info("✨ Auto-Healer: Injected Migration 0017 defuse record into django_migrations successfully.")
+                    if not cursor.fetchone():
+                        now_func = "CURRENT_TIMESTAMP" if connection.vendor == 'sqlite' else "NOW()"
+                        cursor.execute(
+                            f"INSERT INTO django_migrations (app, name, applied) "
+                            f"VALUES ('marketplace', '0017_translationqueue_delete_aisystemtask_and_more', {now_func});"
+                        )
+                        logger.info("✨ Auto-Healer: Injected Migration 0017 defuse record into django_migrations successfully.")
             
             # 🛠️ 2. ማይግሬሽን በራስ-ሰር ማስኬድ
             logger.info("🛠️ Auto-Migrator: Running makemigrations...")
