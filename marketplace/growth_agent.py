@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.9 - Fully Integrated High-Throughput & Universal Marketplace Edition)
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.10 - Fully Integrated High-Throughput & Dynamic Progress Bar Edition)
 # ✅ የተፈቱ ችግሮች፦
 #   1. 🧬 LAW 0 — Self-Readiness Gate (SelfBootstrapManager): ኤጀንቱ ራሱን አስቀድሞ
 #      ይመረምራል፣ የጎደለውን/የተበላሸውን ራሱ ይጠገናል፣ ብቁ መሆኑን ካረጋገጠ በኋላ ብቻ ወደ ሙሉ
@@ -26,7 +26,8 @@
 #       ስልታዊ የእድገት ፍኖተ-ካርታዎችን ያዘጋጃል [3.1.2]።
 #   12. [PERFORMANCE SYSTEM]: ገጽ መጫኛ እንዳይዘገይ inline stylings እና scripts እንዳይጽፍ
 #       የተደነገገበት የጽኑ አጻጻፍ መመሪያ ተጭኖበታል [3.1.2]።
-#   13. [FIXED DB CONSTRAINT]: በጅምላ ምርት ዳሰሳ ወቅት database not-null constraint 'listing_type' ስህተት በግልጽ default 'sale' በመስጠት ተፈትቷል [1, 2, 3.1.2]።
+#   13. [DYNAMIC PROGRESS BAR]: የኤጀንቱን የአፈጻጸም ደረጃ (Progress Bar ፐርሰንት) በዳሽቦርዱ ላይ በየሰከንዱ በላይቭ ሰዓት ያዘምናል [3.1.2]።
+#   14. [FIXED DB CONSTRAINT]: በጅምላ ምርት ዳሰሳ ወቅት database not-null constraint 'listing_type' ስህተት በግልጽ default 'sale' በመስጠት ተፈትቷል [1, 2, 3.1.2]።
 # 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
@@ -192,6 +193,20 @@ def rollback_file(path, old_code):
             logger.warning(f"🔄 Removed newly-created broken file: {path}")
     except Exception as e:
         logger.error(f"❌ Rollback failed for {path}: {e}")
+
+
+# ============================================================
+# ⚙️ DYNAMIC PROGRESS BAR (የቀጥታ ታስክ አፈጻጸም ባር መዝጋቢ)
+# ============================================================
+def update_agent_progress(site, step_msg, percentage):
+    """የኤጀንቱን የአፈጻጸም ደረጃ (Progress Bar ፐርሰንት) በየሰከንዱ በዳታቤዝ ላይ ይመዘግባል [3.1.2]"""
+    try:
+        SiteConfig.objects.update_or_create(
+            key=f"AGENT_PROGRESS_{site.name}",
+            defaults={'value': {'step': step_msg, 'percent': percentage, 'updated_at': timezone.now().isoformat()}}
+        )
+    except Exception:
+        pass
 
 
 # ============================================================
@@ -1053,7 +1068,6 @@ class SelfBootstrapManager:
     }
     RUNNING_PROCESS_MODULES = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
     READY_KEY = "SELF_BOOTSTRAP_STATUS"
-    READY_KEY = "SELF_BOOTSTRAP_STATUS"
     REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
     MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
     MAX_TOTAL_ATTEMPTS_PER_MODULE = 15
@@ -1325,16 +1339,22 @@ def execute_master_cycle():
 def _run_site_cycle(site):
     from .ai_utils import broadcast_agent_log
     try:
+        # 🟢 [Progress Bar]: የሰልፍ ዶክተር ጥገናን መጀመር መመዝገብ (10%) [3.1.2]
+        update_agent_progress(site, "Running Self-Doctor Maintenance...", 10)
         time.sleep(random.uniform(1.5, 4.0))
         broadcast_agent_log(site, f"Running Self-Doctor maintenance for {site.name}...", "info")
         UniversalHealer(site).perform_maintenance()
         time.sleep(random.uniform(1.0, 3.0))
 
+        # 🟢 [Progress Bar]: የባክሎግ እቅድ ጥናትን መጀመር መመዝገብ (35%) [3.1.2]
+        update_agent_progress(site, "Analyzing Codebase & Backlog...", 35)
         broadcast_agent_log(site, f"Analyzing codebase & planning backlog for {site.name}...", "info")
         ceo = StrategicCEO(site)
         ceo.execute_planning_cycle()
         time.sleep(random.uniform(1.0, 3.0))
 
+        # 🟢 [Progress Bar]: የጅምላ ምርት ዳሰሳን መጀመር መመዝገብ (65%) [3.1.2]
+        update_agent_progress(site, "Bulk Scraping & Harvesting Products...", 65)
         broadcast_agent_log(site, f"Running business growth & market harvesting for {site.name}...", "info")
         ops = CEOOperations(site)
         ops.run_business_growth()
@@ -1359,6 +1379,10 @@ def _run_site_cycle(site):
                 break
 
         if tasks_to_build:
+            # 🟢 [Progress Bar]: የኮድ ማመንጨትና ፍተሻዎችን መጀመር መመዝገብ (85%) [3.1.2]
+            tasks_names = ", ".join([t.task_name[:25] for t in tasks_to_build])
+            update_agent_progress(site, f"Building Tasks: {tasks_names}...", 85)
+            
             broadcast_agent_log(site, f"Building {len(tasks_to_build)} strategic task(s) concurrently...", "success")
             builder = RecursiveBuilder(site)
 
@@ -1372,8 +1396,12 @@ def _run_site_cycle(site):
             with ThreadPoolExecutor(max_workers=min(len(tasks_to_build), 4)) as builder_executor:
                 builder_executor.map(_build_and_close, tasks_to_build)
 
+        # 🟢 [Progress Bar]: ዑደቱ በተሳካ ሁኔታ መጠናቀቁን መመዝገብ (100%) [3.1.2]
+        update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
+
     except Exception as e:
         logger.error(f"❌ Error in master cycle for {site.name}: {e}", exc_info=True)
+        update_agent_progress(site, f"Error: {str(e)[:50]}", 100)
     finally:
         from django.db import close_old_connections
         close_old_connections()

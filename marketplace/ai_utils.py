@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.1 (High-Throughput Pacing & Code Compressor Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic pricing, 40% Token Saving prompt compressor, 1.0s Pacing speedups, Safe JSON type guards, Modern GitHub endpoint routing
+# 📝 ስሪት፦ v10.2 (High-Throughput 10s Fail-Fast & 24-Hour Quota Lock-out Edition)
+# ✅ የተፈቱ ችግሮች፦ Mapped 10-Second Fail-Fast timeout, 24-Hour daily quota lock-out engine, 40% Token Saving prompt compressor, 1.0s Pacing speedups, Safe JSON type guards, Modern GitHub endpoint routing
 # 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
@@ -127,11 +127,32 @@ def _pace_provider(provider):
         time.sleep(sleep_needed)
 
 
-def mark_provider_failed(provider):
-    """ጥሪው ያልተሳካለትን ኤፒአይ ለ60 ሰከንድ ያቀዘቅዘዋል (Failover Optimization)"""
+def check_quota_exhausted(response):
+    """የ AI ምላሹን በመቃኘት የቀን ገደብ ማለቅ (Quota Limit Exceeded) መሆኑን ያረጋግጣል"""
+    if not response or not hasattr(response, 'status_code'):
+        return False
+    if response.status_code == 429:
+        try:
+            body = response.text.lower()
+            if any(x in body for x in ["quota", "limit exceeded", "exhausted", "billing", "monthly", "budget", "out of"]):
+                return True
+        except:
+            pass
+        return True # በዲፎልት የነፃ ኤፒአይ 429 ስህተት የቀን ገደብ ማለቅን ያሳያል
+    return False
+
+
+def mark_provider_failed(provider, is_quota_exhausted=False):
+    """ጥሪው ያልተሳካለትን ኤፒአይ ያቀዘቅዘዋል፤ የቀን ገደብ ካለቀ ደግሞ ለ24 ሰዓት ይቆልፈዋል (Quota Lock-out) [1]"""
     with _cooldown_lock:
-        _provider_cooldowns[provider] = time.time() + 60
-        logger.warning(f"❄️ Provider {provider} cooled down for 60s due to request failure.")
+        if is_quota_exhausted:
+            # የቀን ገደብ ካለቀ ለ24 ሰዓታት (86400 ሰከንዶች) መቆለፍ [1]
+            _provider_cooldowns[provider] = time.time() + 86400
+            logger.warning(f"🚨 Provider {provider} EXHAUSTED daily quota. Locked out for 24 hours.")
+        else:
+            # ጊዜያዊ ስህተት ከሆነ ለ60 ሰከንድ ብቻ ማቀዝቀዝ [1]
+            _provider_cooldowns[provider] = time.time() + 60
+            logger.warning(f"❄️ Provider {provider} cooled down for 60s due to request failure.")
 
 
 def is_provider_cooled_down(provider):
@@ -182,7 +203,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
     _pace_provider(provider)
 
     try:
-        # 1. GROQ ENGINES
+        # 1. GROQ ENGINES (10s Fail-Fast Timeout) [1, 2]
         if provider == 'GROQ':
             url = "https://api.groq.com/openai/v1/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -194,26 +215,28 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                 ],
                 "response_format": {"type": "json_object"}
             }
-            response = requests.post(url, headers=headers, json=payload, timeout=20)
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
-                mark_provider_failed(provider)
+                is_quota = check_quota_exhausted(response)
+                mark_provider_failed(provider, is_quota_exhausted=is_quota)
 
-        # 2. GEMINI ENGINES
+        # 2. GEMINI ENGINES (10s Fail-Fast Timeout) [1, 2]
         elif provider == 'GEMINI':
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
             headers = {"Content-Type": "application/json"}
             payload = {
                 "contents": [{"parts": [{"text": f"{system_instruction}\n\nUser Request: {prompt}"}]}]
             }
-            response = requests.post(url, headers=headers, json=payload, timeout=25)
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             if response.status_code == 200:
                 return response.json()['candidates'][0]['content']['parts'][0]['text']
             elif response.status_code in [429, 500, 502, 503]:
-                mark_provider_failed(provider)
+                is_quota = check_quota_exhausted(response)
+                mark_provider_failed(provider, is_quota_exhausted=is_quota)
 
-        # 3. MISTRAL ENGINES
+        # 3. MISTRAL ENGINES (10s Fail-Fast Timeout) [1, 2]
         elif provider == 'MISTRAL':
             url = "https://api.mistral.ai/v1/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -224,13 +247,14 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                     {"role": "user", "content": prompt}
                 ]
             }
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
-                mark_provider_failed(provider)
+                is_quota = check_quota_exhausted(response)
+                mark_provider_failed(provider, is_quota_exhausted=is_quota)
 
-        # 4. OPENROUTER
+        # 4. OPENROUTER (10s Fail-Fast Timeout) [1, 2]
         elif provider == 'OPENROUTER':
             url = "https://openrouter.ai/api/v1/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -238,13 +262,14 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                 "model": "meta-llama/llama-3-8b-instruct:free",
                 "messages": [{"role": "user", "content": f"{system_instruction}\n\n{prompt}"}]
             }
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
-                mark_provider_failed(provider)
+                is_quota = check_quota_exhausted(response)
+                mark_provider_failed(provider, is_quota_exhausted=is_quota)
 
-        # 5. HUGGINGFACE
+        # 5. HUGGINGFACE (10s Fail-Fast Timeout) [1, 2]
         elif provider == 'HUGGINGFACE':
             url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -252,7 +277,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                 "inputs": f"<|system|>\n{system_instruction}\n<|user|>\n{prompt}\n<|assistant|>\n",
                 "parameters": {"max_new_tokens": 1024, "return_full_text": False}
             }
-            response = requests.post(url, headers=headers, json=payload, timeout=25)
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             if response.status_code == 200:
                 res_json = response.json()
                 if isinstance(res_json, list) and res_json and 'generated_text' in res_json[0]:
@@ -260,9 +285,10 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                 elif isinstance(res_json, dict) and 'generated_text' in res_json:
                     return res_json['generated_text'].strip()
             elif response.status_code in [429, 500, 502, 503]:
-                mark_provider_failed(provider)
+                is_quota = check_quota_exhausted(response)
+                mark_provider_failed(provider, is_quota_exhausted=is_quota)
 
-        # 6. GITHUB MODELS API
+        # 6. GITHUB MODELS API (10s Fail-Fast Timeout) [1, 2]
         elif provider == 'GITHUB':
             url = "https://models.github.ai/inference/chat/completions"
             headers = {
@@ -277,15 +303,16 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                 ],
                 "temperature": 0.2
             }
-            response = requests.post(url, headers=headers, json=payload, timeout=25)
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
             elif response.status_code in [429, 500, 502, 503]:
-                mark_provider_failed(provider)
+                is_quota = check_quota_exhausted(response)
+                mark_provider_failed(provider, is_quota_exhausted=is_quota)
 
     except Exception as e:
         logger.error(f"❌ Error during calling AI Provider {provider}: {e}")
-        mark_provider_failed(provider)
+        mark_provider_failed(provider, is_quota_exhausted=True if "429" in str(e) else False)
 
     return None
 

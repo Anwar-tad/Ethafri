@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/growth_dashboard.html
-📝 ለውጥ፦ v1.5 Master CEO Dashboard — Web-Managed Autopilot Toggle & Secure Purge DB Added (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Dynamic Task Status Updates, Real-time Running Marquee, Version Synced to v10.6, Agent Autopilot Switch, secure DB purger button
-📅 ቀን፦ Monday, June 29, 2026
+📝 ለውጥ፦ v1.6 Master CEO Dashboard — Live Progress Bar & Web Autopilot Synced (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Real-time progress bar animation (0%-100%), version synced to v10.6, Agent Autopilot Switch, secure DB purger button, dynamic stats update
+📅 ቀን፦ Tuesday, June 30, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -31,6 +31,18 @@
                         EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v10.6</span>
                     </h2>
                     <p class="opacity-75 mb-4">Autonomous Strategic Growth & System Evolution Engine</p>
+                    
+                    <!-- 🟢 አዲስ የተጨመረ፦ የቀጥታ ታስክ አፈጻጸም ባር (Dynamic Progress Bar) [3.1.2] -->
+                    <div class="mb-4" id="agent-progress-container" style="display: none; max-width: 550px;">
+                        <div class="d-flex justify-content-between mb-1 small text-white-50">
+                            <span id="agent-progress-step" class="fw-bold text-info">Analyzing views.py...</span>
+                            <span id="agent-progress-percent" class="fw-bold text-success">35%</span>
+                        </div>
+                        <div class="progress rounded-pill bg-white bg-opacity-10" style="height: 10px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" id="agent-progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
                     <div class="d-flex flex-wrap gap-3 align-items-center">
                         <div class="bg-white bg-opacity-10 rounded-pill px-3 py-2 border border-white border-opacity-10">
                             <span class="live-pulse pulse-green"></span>
@@ -41,7 +53,7 @@
                             <small>{% trans "Last Run" %}: {{ status_info.last_run|default:"Just now" }}</small>
                         </div>
                         
-                        <!-- 🟢 አዲስ የተጨመረ፦ የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል (Toggle Switch) -->
+                        <!-- የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል (Toggle Switch) -->
                         <div class="form-check form-switch bg-white bg-opacity-10 rounded-pill px-4 py-2 border border-white border-opacity-10 d-flex align-items-center gap-2">
                             <input class="form-check-input" type="checkbox" role="switch" id="autopilotToggle" {% if autopilot_active %}checked{% endif %} style="cursor: pointer; width: 2.2em; height: 1.1em; margin-top: 0;">
                             <label class="form-check-label text-white small fw-bold" for="autopilotToggle" style="cursor: pointer;">🤖 Autopilot</label>
@@ -57,7 +69,7 @@
                             </button>
                         </form>
                         
-                        <!-- 🟢 አዲስ የተጨመረ፦ የዳታቤዝ የጅምላ ማጽጃ ቁልፍ (Secure Purge DB Button) -->
+                        <!-- የዳታቤዝ የጅምላ ማጽጃ ቁልፍ (Secure Purge DB Button) -->
                         <button class="btn btn-outline-danger btn-lg rounded-pill px-4 fw-bold shadow-lg" id="purgeBtn" onclick="confirmPurge()">
                             <i class="fas fa-trash-alt me-2"></i> {% trans "Purge Database" %}
                         </button>
@@ -137,7 +149,7 @@
             <!-- 👑 የአድሚን ትዕዛዝ መስጫ (Executive Override) -->
             <div class="col-lg-5">
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
-                    <!-- 🟢 ቀጥተኛ ወደ መመሪያ ገጽ መሄጃ በተን (Full View) የተጨመረበት -->
+                    <!-- ቀጥተኛ ወደ መመሪያ ገጽ መሄጃ በተን (Full View) የተጨመረበት -->
                     <div class="card-header bg-primary text-white py-3 border-0 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold"><i class="fas fa-crown me-2"></i> CEO Direct Command</h5>
                         <a href="{% url 'owner_directive' %}" class="btn btn-sm btn-outline-light rounded-pill px-3">
@@ -192,11 +204,32 @@
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
         
-        // 1. የባክሎግ ቁጥር መዘመኛ
+        // 1. የባክሎግ ቁጥር መዘመኛ (በየ 5 ሰከንዱ)
         if (data.type === 'status_update' || data.type === 'live_stats') {
             const pendingTasksCountEl = document.getElementById('pending-tasks-count');
             if (pendingTasksCountEl && data.task_stats) {
                 pendingTasksCountEl.innerText = data.task_stats.pending;
+            }
+
+            // 🟢 አዲስ የተጨመረ፦ የፕሮግረስ ባር አኒሜሽን በእውነተኛ ሰዓት ማዘመኛ [3.1.2]
+            const progress = data.agent_progress;
+            if (progress) {
+                const container = document.getElementById('agent-progress-container');
+                const stepEl = document.getElementById('agent-progress-step');
+                const percentEl = document.getElementById('agent-progress-percent');
+                const barEl = document.getElementById('agent-progress-bar');
+                
+                if (container && stepEl && percentEl && barEl) {
+                    // ዑደቱ በስኬት ተኝቶ ከሆነ ባሩን መደበቅ፣ ታስክ በሚሠራበት ጊዜ ግን ማሳየት
+                    if (progress.percent === 100 || progress.step.includes("Sleeping")) {
+                        container.style.display = 'none';
+                    } else {
+                        container.style.display = 'block';
+                        stepEl.innerText = progress.step;
+                        percentEl.innerText = progress.percent + '%';
+                        barEl.style.width = progress.percent + '%';
+                    }
+                }
             }
         }
         
@@ -211,7 +244,7 @@
         }
     };
 
-    // 🟢 አዲስ የተጨመረ፦ የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል (Toggle Switch AJAX Handler)
+    // የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል (Toggle Switch AJAX Handler)
     const toggle = document.getElementById('autopilotToggle');
     if (toggle) {
         toggle.addEventListener('change', function() {
@@ -240,7 +273,7 @@
         });
     }
 
-    // 🟢 አዲስ የተጨመረ፦ የመረጃ ቋት ማጽጃ AJAX ሎጂክ (Purge Database AJAX Handler)
+    // የመረጃ ቋት ማጽጃ AJAX ሎጂክ (Purge Database AJAX Handler)
     function confirmPurge() {
         if (confirm("⚠️ ማስጠንቀቂያ፦ የመረጃ ቋቱን በንጽህና ለማጽዳት እርግጠኛ ነዎት? ሁሉንም ምርቶች፣ ሻጮች እና የኤጀንት ዑደቶች ያጠፋል!")) {
             const purgeBtn = document.getElementById('purgeBtn');
