@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.5 - Schema-Aware AI Healer & Legacy Migration Defuser Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic prediction & security index maps, Throttled migration check, Dynamic Daily Performance Audit, AST HTML safety, Anti-Bloat Code Pruner, Resolved SQL guessing error, Fixed marketplace_name_8491f6_idx missing error by dynamically creating dummy tables for SQLite/PostgreSQL
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.6 - Fixed JSON Import & Migration Flow)
+# ✅ የተፈቱ ችግሮች፦ Fixed NameError 'json' is not defined, table_maps completely removed, optimized sequential migration healing flow (Dummy Table -> AI SQL Healer), complete SQLite/PostgreSQL dynamic support
 # 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
@@ -9,13 +9,14 @@ import os
 import ast
 import re
 import logging
+import json # 🟢 አዲስ የተጨመረ - የ NameError ስህተትን በዘላቂነት ለመከላከል
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db import connection, connections
 from django.core.management import call_command
 from django.db.models import Q
 from django.conf import settings
-from django.apps import apps # 🟢 አዲስ የተጨመረ የሞዴሎች ስካነር
+from django.apps import apps
 
 # SiteConfig ተጨምሯል (ለ Throttling መከታተያ)
 from .models import (
@@ -96,6 +97,7 @@ class SecurityAuditor:
                         SecurityLog.objects.create(
                             site=site,
                             category='code_injection' if 'Dangerous' in issue or 'Error' in issue else 'data_leak',
+                            text_content=issue,
                             severity='critical' if 'Critical' in issue else 'high',
                             description=issue,
                             file_path=file_path,
@@ -135,7 +137,7 @@ class UniversalHealer:
         except Exception as e:
             logger.error(f"Failed to reset stuck tasks: {e}")
 
-        # ዕለታዊ የፍጥነት ኦዲት ማካሄድ
+        # 🟢 ዕለታዊ የፍጥነት ኦዲት ማካሄድ
         try:
             PerformanceAuditor.run_daily_performance_audit(self.site)
         except Exception as e:
@@ -145,9 +147,9 @@ class UniversalHealer:
         self._heal_security_issues()
 
     def heal_database_migrations_autonomously(self, force=False):
-        """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል [1, 2, 3.1.2]"""
+        """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል"""
         
-        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ (ከፍተኛ አፈጻጸም ለማስገኘት)
+        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ
         last_check_key = f"LAST_SCHEMA_MIGRATION_CHECK_{self.site.name}"
         last_check_cfg = SiteConfig.objects.filter(key=last_check_key).first()
         
@@ -157,7 +159,7 @@ class UniversalHealer:
                 should_run = True
             else:
                 try:
-                    last_time = timezone.datetime.fromisoformat(last_check_cfg.value.get('time'))
+                    last_time = datetime.fromisoformat(last_check_cfg.value.get('time'))
                     if timezone.is_naive(last_time):
                         last_time = timezone.make_aware(last_time)
                     if timezone.now() - last_time >= timedelta(minutes=30):
@@ -165,7 +167,7 @@ class UniversalHealer:
                 except Exception:
                     should_run = True
 
-        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ ቶሎ እንዲጠግን ማድረግ [1, 2]
+        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ ቶሎ እንዲጠግን ማድረግ
         if not should_run:
             recent_db_errors = AgentErrorLog.objects.filter(
                 site=self.site,
@@ -194,7 +196,7 @@ class UniversalHealer:
             err_msg = str(e)
             logger.error(f"🚑 Schema Healer: Migration blocked by error: {err_msg}")
             
-            # 🟢 [MIGRATION DEFUSER]: የጠፋውን የ 'marketplace_name_8491f6_idx' ዱሚ ሰንጠረዥና ኢንዴክስ በዳይናሚክ መንገድ መፍታት
+            # 🟢 [የእርምጃ ቅደም ተከተል 1]፦ የጠፋውን የ 'marketplace_name_8491f6_idx' ዱሚ ሰንጠረዥና ኢንዴክስ በዳይናሚክ መንገድ መፍታት
             match_missing = re.search(r'relation "([^"]+)" does not exist', err_msg)
             if match_missing:
                 idx_name = match_missing.group(1)
@@ -204,29 +206,43 @@ class UniversalHealer:
                     logger.warning("🚑 Schema Healer: Missing legacy table/index 'marketplace_name' detected. Creating dummy to unblock...")
                     try:
                         with connection.cursor() as cursor:
-                            # በዳታቤዝ ዓይነት መሠረት መለያ (SQLite vs PostgreSQL Serial Support)
                             id_type = "integer PRIMARY KEY AUTOINCREMENT" if connection.vendor == 'sqlite' else "serial NOT NULL PRIMARY KEY"
                             cursor.execute(f'CREATE TABLE IF NOT EXISTS "marketplace_name" ("id" {id_type}, "name" varchar(255) NOT NULL);')
                             cursor.execute('CREATE INDEX IF NOT EXISTS "marketplace_name_8491f6_idx" ON "marketplace_name" ("name");')
                         
-                        # ዑደቱን እንደገና መሞከር
                         call_command('migrate', interactive=False)
                         logger.info("🚑 Schema Healer: Migration succeeded after creating dummy 'marketplace_name'!")
-                        
-                        # የስኬማ ቼክ ሰዓቱን በስኬት መመዝገብ
                         SiteConfig.objects.update_or_create(
                             key=last_check_key,
                             defaults={'value': {'time': timezone.now().isoformat()}}
                         )
                         return
                     except Exception as retry_err:
-                        err_msg = str(retry_err) # ስህተቱ ከቀጠለ ወደ AI Healer ማስተላለፍ
+                        err_msg = str(retry_err)
+
+            # 🟢 [የእርምጃ ቅደም ተከተል 2]፦ ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን በራስ-ሰር ፈልጎ ማጥፋት (DROP INDEX)
+            match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
+            if match_exists:
+                idx_name = match_exists.group(1)
+                logger.warning(f"🚑 Schema Healer: Conflicting index '{idx_name}' already exists. Auto-dropping from DB...")
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute(f'DROP INDEX IF EXISTS "{idx_name}";')
+                    
+                    call_command('migrate', interactive=False)
+                    logger.info(f"🚑 Schema Healer: Migration succeeded after dropping conflicting index {idx_name}!")
+                    SiteConfig.objects.update_or_create(
+                        key=last_check_key,
+                        defaults={'value': {'time': timezone.now().isoformat()}}
+                    )
+                    return
+                except Exception as retry_err:
+                    err_msg = str(retry_err)
             
-            # 🟢 [DYNAMIC AI SQL HEALER]: አሮጌውን ጠቋሚ ካርታዎችን በማስወገድ፣ በ AI በዳይናሚክ የተጠየቀውን SQL መተግበር [1, 2, 3.1.2]
+            # 🟢 [የእርምጃ ቅደም ተከተል 3 - የመጨረሻ አማራጭ]፦ በ AI የሚመራውን ሁለንተናዊ የረድኤት ጠጋኝ (Generative Healer) ማነቃቃት
             try:
                 logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer to resolve database block...")
                 
-                # የድረ-ገጹን አጠቃላይ የሰንጠረዦች መዋቅር በዳይናሚክ መንገድ ሰብስቦ ለ AI መላክ (በግምት መገመትን ያስቀራል) [3.1.2]
                 all_tables = []
                 try:
                     for model in apps.get_models():
@@ -260,7 +276,6 @@ class UniversalHealer:
                     
                     logger.info("✨ Schema Healer: Successfully executed AI SQL to heal database schema.")
                     
-                    # የጥገና እንቅስቃሴ ታሪኩን መመዝገብ
                     try:
                         SelfHealingLog.objects.create(
                             error_message=err_msg,
@@ -270,7 +285,6 @@ class UniversalHealer:
                     except Exception as log_err:
                         logger.error(f"Failed to save SelfHealingLog: {log_err}")
                     
-                    # ጥገናው ከተጠናቀቀ በኋላ ፍልሰቶቹን ድጋሚ መሞከር
                     try:
                         call_command('migrate', interactive=False)
                         SiteConfig.objects.update_or_create(
@@ -310,7 +324,7 @@ class UniversalHealer:
                 description="FieldError found: Cannot resolve keyword 'product_set' into field. Replace all instances of 'product_set' with 'product' in views.py model queries to restore homepage.",
                 business_impact_score=10
             )
-            logger.info("🚑 Model Healer: Created REFACTOR task successfully.")
+            logger.info("manager Model Healer: Created REFACTOR task successfully.")
 
     def _heal_production_errors(self):
         """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
