@@ -1,33 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.10 - Fully Integrated High-Throughput & Dynamic Progress Bar Edition)
-# ✅ የተፈቱ ችግሮች፦
-#   1. 🧬 LAW 0 — Self-Readiness Gate (SelfBootstrapManager): ኤጀንቱ ራሱን አስቀድሞ
-#      ይመረምራል፣ የጎደለውን/የተበላሸውን ራሱ ይጠገናል፣ ብቁ መሆኑን ካረጋገጠ በኋላ ብቻ ወደ ሙሉ
-#      ድረ-ገጽ ማኔጅመንት ይገባል።
-#   2. curate_user_listings() ከ class ውጭ "ተንሳፍፎ" የቀረ dead-code ችግር ተፍቷል —
-#      በ CEOOperations ውስጥ በትክክል ገብቶ run_business_growth() ላይ ተገናኝቷል።
-#   3. apply_code_change() Return Value ቀደም ይዘለል ነበር — አሁን ይታያል፣ ካልተሳካ
-#      early-exit ይደረጋል (false-positive "Success" መከላከያ)።
-#   4. Real Disk-Level Verification + Deep Django Check (subprocess-based፣ ድሮውን
-#      in-memory module ሳይሆን disk ላይ ያለውን አዲስ ኮድ ይፈትሻል) + Rollback on Failure።
-#   5. Duplicate AICache ክፍል ተወግዷል (ai_utils.py ራሱ ባለቤት ስለሆነ)።
-#   6. Risk-tiered cooldown፣ parallel multi-task builder፣ EVOLUTION_LOCK wiring፣
-#      adaptive sleep interval ሁሉም ተጠብቀዋል/ተጠናክረዋል።
-#   7. [OPTIMIZED CONCURRENCY]: በአንድ ዑደት ውስጥ እስከ 4 የሚደርሱ የባክሎግ ስራዎችን በትይዩ
-#      ያከናውናል፤ የ Cooldown ቆይታዎች ለ backend ፋይሎች ወደ 3 ደቂቃ (0.05 ሰዓት)፣ ለ HTML ደግሞ ወደ 1 ደቂቃ (0.016 ሰዓት) ዝቅ ብለዋል [1, 2]።
-#   8. [DYNAMIC DISCOVERY SCRAPER]: ቋሚ ዌብሳይቶችን ብቻ ከመቃኘት ይልቅ፣ ምርጥ የገበያ ምንጮችን
-#      ራሱ አጥንቶ በመመዝገብ በ AI ዳይናሚክ በሆነ መልኩ በጅምላ ያሳሳል [1, 2, 3.1.2]።
-#   9. [MULTICHANNEL DISPATCH]: ከሻጮች አድራሻ ላይ ዋትሳፕ፣ ቴሌግራም ቀጥታ፣ ኢሞ፣ SMS/Call እና
-#      ሜሴንጀር የመገናኛ ሊንኮችን በራስ-ሰር በመለየት ማሳወቂያዎችን ያመነጫል [3.1.2]።
-#   10. [ANTI-BLOAT & OPTIMIZATION]: የኮድ ማበጥን የሚከላከለው Anti-Bloat Engine እና የፊቸር ውህደት (Feature Merging)
-#       መመሪያዎች በእቅድ፣ በአፈጻጸምና በራስ-ጥገና ደረጃዎች ላይ ሙሉ በሙሉ ተዋህደዋል [1, 2]።
-#   11. [ADMIN INTENT OVERRIDE]: አድሚኑ የሰጠውን `MANUAL_SITE_INTENT` በራስ-ሰር በመቀበል
-#       ስልታዊ የእድገት ፍኖተ-ካርታዎችን ያዘጋጃል [3.1.2]።
-#   12. [PERFORMANCE SYSTEM]: ገጽ መጫኛ እንዳይዘገይ inline stylings እና scripts እንዳይጽፍ
-#       የተደነገገበት የጽኑ አጻጻፍ መመሪያ ተጭኖበታል [3.1.2]።
-#   13. [DYNAMIC PROGRESS BAR]: የኤጀንቱን የአፈጻጸም ደረጃ (Progress Bar ፐርሰንት) በዳሽቦርዱ ላይ በየሰከንዱ በላይቭ ሰዓት ያዘምናል [3.1.2]።
-#   14. [FIXED DB CONSTRAINT]: በጅምላ ምርት ዳሰሳ ወቅት database not-null constraint 'listing_type' ስህተት በግልጽ default 'sale' በመስጠት ተፈትቷል [1, 2, 3.1.2]።
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.11 - Strictly Django & Real-Time Progress Aligned)
+# ✅ የተፈቱ ችግሮች፦ Dynamic prediction & security index maps, Throttled migration check, Dynamic Daily Performance Audit, AST HTML safety, Anti-Bloat Code Pruner, Resolved Django-Only Framework Constraint and not-null DB issues
 # 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
@@ -106,7 +80,7 @@ def has_seeded_products(site):
     orphaned_count = orphaned_qs.count()
     total_globally = Product.objects.count()
 
-    # 🩹 Self-Heal: NULL-site ምርቶች ካሉ እና ብቸኛ active site ካለ (ambiguity-free)፣
+    # 🩹 Self-Heal: NULL-site ምርቶች ካሉ და ብቸኛ active site ካለ (ambiguity-free)፣
     # በራስ-ሰር ለ ሳይቱ ማያያዝ ምክንያታዊ ነው
     if orphaned_count > 0:
         active_site_count = SiteRegistry.objects.filter(is_active=True).count()
@@ -464,6 +438,8 @@ class RecursiveBuilder:
         prompt = (
             f"Task: {task.task_name}. Write full clean Python/HTML code for {task.target_file} using 2026 standards. "
             f"CRITICAL: Avoid repeating these past failures/issues: {json.dumps(memory_context, ensure_ascii=False)}. "
+            # 📌 የጃንጎ 4/5 ጥብቅ መመሪያ (Flask/FastAPI ግጭትን ሙሉ በሙሉ መከላከያ) [3.1.2]
+            f"CRITICAL FRAMEWORK RULE: We are using Django 4/5. Never generate code for Flask, FastAPI, or any other frameworks. Write strictly Django-compliant Python.\n"
             # 📌 የፊቸር ውህደት መመሪያ (Feature Merging Directive) [1, 2]
             f"FEATURE CONSOLIDATION RULE: Before appending new functions or classes, examine the existing code of the file. "
             f"If the new feature overlaps with existing functions, you MUST refactor and extend the existing functions (merge them) "
@@ -1163,7 +1139,7 @@ class SelfBootstrapManager:
                 logger.critical(
                     f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted for {list(broken.keys())}. "
                     f"Proceeding in DEGRADED mode (current process still uses its last-known-good "
-                    f"in-memory code) — MANUAL REVIEW REQUIRED before next restart."
+                    f"in-memory code) — MANUAL REQUIRED before next restart."
                 )
                 SiteConfig.objects.update_or_create(
                     key=cls.READY_KEY,
