@@ -2,18 +2,11 @@
 # 📁 ፋይል፦ EthAfri/marketplace/event_bus.py
 # 📝 ዓላማ፦ Asynchronous Event Bus (Pruned & Thread-Safe Utility - v1.1)
 # ✅ የተፈቱ ችግሮች፦ close_old_connections ImportError Fixed, Thread-safe database connections
-# 📅 ቀን፦ 2026-06-25
+# 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
-
-"""
-ይህ ፋይል በክስተት-ተኮር (Event-Driven) አርክቴክቸር ላይ የተመሰረተ 
-የኤጀንት ክስተት አስተዳደር ስርዓት ቀሊል መጋጠሚያ ነው።
-አላስፈላጊ ክሮችንና ዑደቶችን ሳይፈጥር ክስተቶችን በቀጥታ ያስተናግዳል።
-"""
 
 import logging
 from django.utils import timezone
-# ✅ FIXED: የዲፔንደንሲ ክራሽን ለመከላከል close_old_connections በቀጥታ ገብቷል (የሕግ 3 ጥበቃ)
 from django.db import close_old_connections
 from .models import AIProjectBacklog, AgentErrorLog, VectorMemory, SiteRegistry
 
@@ -50,7 +43,6 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         try:
             site = SiteRegistry.objects.filter(id=site_id).first() if site_id else None
             if site:
-                # ✅ Circular Dependency ለመከላከል (Lazy Import)
                 from .growth_agent import get_or_create_backlog_task_safe
                 get_or_create_backlog_task_safe(
                     site=site,
@@ -68,7 +60,6 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
         except Exception as e:
             logger.warning(f"Failed to handle product creation event: {e}")
         finally:
-            # ✅ FIXED: close_old_connections በቀጥታ በጥንቃቄ ተጠርቷል
             close_old_connections()
 
     # 2. ተግባር ሲጠናቀቅ RAG ትውስታ ውስጥ ማስቀመጥ
@@ -121,7 +112,6 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
             site = SiteRegistry.objects.filter(id=site_id).first() if site_id else None
             if site:
                 from .growth_agent import get_or_create_backlog_task_safe
-                # ✅ የ Type Safety ማረጋገጫ በ str()
                 trend_str = str(trend)
                 get_or_create_backlog_task_safe(
                     site=site,

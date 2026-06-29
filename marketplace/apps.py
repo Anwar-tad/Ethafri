@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.14 Phoenix Auto-Installer — DB-Agnostic Migration Defuser
-# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection (SQLite compatible), bypass missing index errors permanently, 100% zero-crash boot
-# 📅 ቀን፦ 2026-06-29
+# 📝 ለውጥ፦ v9.15 Phoenix Auto-Installer — Instant Polling & DB-Agnostic Setup
+# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection (SQLite compatible), 5-Second Instant Webhook/Manual Trigger Polling, throttled Cron safety Net, 100% zero-crash boot
+# 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
 import os
@@ -143,7 +143,7 @@ class MarketplaceConfig(AppConfig):
             logger.info("🛠️ Auto-Migrator: Running migrate...")
             call_command('migrate', interactive=False)
             
-            # 🛠️ 3. የ 147 ምርቶች መጣረስ ለመፍታት ወዲያውኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት
+            # 🛠️ 3. የ 147 ምርቶች መጣረስ ለመፍታት ወዲኑኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት
             from .models import Product, SiteRegistry
             site = SiteRegistry.objects.filter(name='primary').first()
             if site:
@@ -157,7 +157,7 @@ class MarketplaceConfig(AppConfig):
 
         logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")
 
-        # --- ክር 1፦ ዋናው አውቶኖመስ ኤጀንት ---
+        # --- kር 1፦ ዋናው አውቶኖመስ ኤጀንት ---
         def run_agent_thread():
             logger.info("🤖 Autonomous Agent Thread starting (30s delay)...")
             time.sleep(30)
@@ -169,50 +169,66 @@ class MarketplaceConfig(AppConfig):
             finally:
                 connections.close_all()
 
-        # --- --- ክር 2፦ ሴፍቲኔት (የውጭ ፒንግ ከዘገየ ስራ የሚያስጀምር) ---
+        # --- --- kር 2፦ ሴፍቲኔት (የውጭ ፒንግ መዘግየት + ፈጣን የቀጥታ ታስክ ዑደት) ---
         def run_safetynet_thread():
             time.sleep(60)
+            last_cron_fallback_run = None
             while True:
                 try:
                     from .models import SiteConfig, SiteRegistry
                     from .growth_agent import execute_master_cycle
                     
-                    cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
-                    should_run = True
-                    
-                    if cron_ping and cron_ping.value:
-                        time_str = None
-                        if isinstance(cron_ping.value, dict):
-                            time_str = cron_ping.value.get('time')
-                        elif isinstance(cron_ping.value, str):
-                            try:
-                                parsed_json = json.loads(cron_ping.value)
-                                if isinstance(parsed_json, dict):
-                                    time_str = parsed_json.get('time')
-                            except json.JSONDecodeError:
-                                time_str = cron_ping.value
+                    # 🟢 1. ፈጣን የቀጥታ ታስክ ዑደት (Instant Trigger Polling - 5 ሰከንድ ምላሽ) [1, 2]
+                    trigger = SiteConfig.objects.filter(key="EVOLVE_TRIGGER_PENDING").first()
+                    if trigger and trigger.value and isinstance(trigger.value, dict) and trigger.value.get('status') == 'pending':
+                        logger.info("⚡ SafetyNet Trigger: Instant manual/webhook trigger detected! Starting Master Cycle...")
+                        trigger.value = {"status": "completed", "time": timezone.now().isoformat()}
+                        trigger.save()
                         
-                        if isinstance(time_str, str):
-                            try:
-                                last_time = datetime.fromisoformat(time_str)
-                                if timezone.is_naive(last_time):
-                                    last_time = timezone.make_aware(last_time)
-                                if (timezone.now() - last_time) < timedelta(minutes=15):
-                                    should_run = False
-                            except ValueError:
-                                pass
-                    
-                    if should_run:
-                        logger.info("🔄 SafetyNet Triggering: External Cron missed. Running Master Cycle...")
                         execute_master_cycle()
+                        time.sleep(5)
+                        continue
+
+                    # 🟢 2. የድሮው 10-ደቂቃ የውጭ ፒንግ መከላከያ (Cron safety fallback - Throttled safely) [1, 2]
+                    now = timezone.now()
+                    if not last_cron_fallback_run or (now - last_cron_fallback_run) >= timedelta(minutes=10):
+                        cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
+                        should_run = True
+                        
+                        if cron_ping and cron_ping.value:
+                            time_str = None
+                            if isinstance(cron_ping.value, dict):
+                                time_str = cron_ping.value.get('time')
+                            elif isinstance(cron_ping.value, str):
+                                try:
+                                    parsed_json = json.loads(cron_ping.value)
+                                    if isinstance(parsed_json, dict):
+                                        time_str = parsed_json.get('time')
+                                except json.JSONDecodeError:
+                                    time_str = cron_ping.value
+                            
+                            if isinstance(time_str, str):
+                                try:
+                                    last_time = datetime.fromisoformat(time_str)
+                                    if timezone.is_naive(last_time):
+                                        last_time = timezone.make_aware(last_time)
+                                    if (timezone.now() - last_time) < timedelta(minutes=15):
+                                        should_run = False
+                                except ValueError:
+                                    pass
+                        
+                        if should_run:
+                            logger.info("🔄 SafetyNet Triggering: External Cron missed. Running Master Cycle...")
+                            execute_master_cycle()
+                            last_cron_fallback_run = timezone.now()
                             
                 except Exception as e:
                     logger.error(f"❌ SafetyNet Error: {e}")
                 finally:
                     connections.close_all()
-                time.sleep(600)
+                time.sleep(5) # 🟢 በየ 5 ሰከንዱ ፖል ያደርጋል (ቅጽበታዊ ፍጥነት ለመስጠት) [1, 2]
 
-        # --- ክር 3፦ ሄልዝ ቼክ እና ራሱን የማከም ስራ (Emergency Fixer) ---
+        # --- kር 3፦ ሄልዝ ቼክ እና ራሱን የማከም ስራ (Emergency Fixer) ---
         def run_health_check_thread():
             logger.info("🩺 Health Check & Self-Healing Thread starting...")
             while True:

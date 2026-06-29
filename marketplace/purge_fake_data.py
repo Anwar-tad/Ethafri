@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/purge_fake_data.py
-# 📝 ዓላማ፦ Safe Database Purge — Fresh Start for v9.5 Agent
+# 📝 ዓላማ፦ Safe Database Purge — Fresh Start for v9.5 Agent (v1.0)
 # ============================================================
 
 import os

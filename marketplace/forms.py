@@ -1,25 +1,57 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/forms.py
-# 📝 ለውጥ፦ v1.3 Site Registration Form — Dynamic Form Active Sync & i18n
-# ✅ የተፈቱ ችግሮች፦ Form-level is_active default alignment, complete translation tags (i18n) for errors/help text
-# 📅 ቀን፦ 2026-06-27
+# 📝 ለውጥ፦ v1.4 Site Registration Form — Universal Marketplace Sync & i18n
+# ✅ የተፈቱ ችግሮች፦ Added listing_type, contact_info, and image_gallery to forms, Form-level is_active default alignment, complete translation tags (i18n) for errors/help text
+# 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
 from django import forms
 from django.contrib.auth.models import User
-from django.utils.translation import gettext_lazy as _  # ✅ i18n ድጋፍ ተጨምሯል
+from django.utils.translation import gettext_lazy as _  # ✅ i18n ድጋፍ
+import json
 from .models import Product, Category, SiteRegistry
 
 
 class ProductForm(forms.ModelForm):
-    """የምርት መለጠፊያ ፎርም — Multi-Site ድጋፍ ያለው"""
+    """የምርት፣ የቤት፣ የመኪናና የአገልግሎት መለጠፊያ ፎርም — Multi-Site ድጋፍ ያለው"""
+    
+    # 🟢 አዲስ የተጨመረ፦ የምርት ዝርዝር አይነት ምርጫ (ሽያጭ፣ ኪራይ ወይም አገልግሎት)
+    listing_type = forms.ChoiceField(
+        choices=Product.LISTING_TYPES,
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        initial='sale',
+        label=_("Listing Type")
+    )
+    
+    # 🟢 አዲስ የተጨመረ፦ የሻጩ ስልክ ወይም የቴሌግራም ዩዘርኔም
+    contact_info = forms.CharField(
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('የባለቤቱ ስልክ ወይም የቴሌግራም ዩዘርኔም (ለምሳሌ 0912345678)...')
+        }),
+        label=_("Contact Info")
+    )
+    
+    # 🟢 አዲስ የተጨመረ፦ ተጨማሪ የምስል ሊንኮች ዝርዝር ለስላይደር
+    image_gallery = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 2,
+            'placeholder': _('ተጨማሪ የምስል ሊንኮችን በነጠላ ሰረዝ (,) በመለየት ያስገቡ...')
+        }),
+        label=_("Additional Images Gallery"),
+        help_text=_("ከተፈለገ ተጨማሪ የምስል ሊንኮችን በኮማ በመለየት ያስገቡ።")
+    )
     
     site = forms.ModelChoiceField(
         queryset=SiteRegistry.objects.filter(is_active=True),
         required=False,
-        empty_label=_("Select Site (optional)"),  # ✅ የትርጉም መለያ ተዋቅሯል
+        empty_label=_("Select Site (optional)"),
         widget=forms.Select(attrs={'class': 'form-select'}),
-        help_text=_("ይህ ምርት የሚለጠፍበትን ጣቢያ ይምረጡ")  # ✅ የትርጉም መለያ ተዋቅሯል
+        help_text=_("ይህ ምርት የሚለጠፍበትን ጣቢያ ይምረጡ")
     )
     
     category = forms.ModelChoiceField(
@@ -31,7 +63,7 @@ class ProductForm(forms.ModelForm):
     
     class Meta:
         model = Product
-        fields = ['title', 'description', 'price', 'category', 'location', 'image', 'site']
+        fields = ['title', 'description', 'price', 'category', 'location', 'image', 'listing_type', 'contact_info', 'image_gallery', 'site']
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -78,12 +110,20 @@ class ProductForm(forms.ModelForm):
         """ፎርሙን በማስቀመጥ ላይ — Multi-Site ድጋፍ"""
         product = super().save(commit=False)
         
+        # 🟢 አዲስ የተጨመረ፦ የምስሎች ስብስብ ጽሁፍን ወደ JSON ዝርዝር መቀየር
+        gallery_raw = self.cleaned_data.get('image_gallery', '').strip()
+        if gallery_raw:
+            gallery_list = [url.strip() for url in gallery_raw.split(',') if url.strip()]
+            product.image_gallery = json.dumps(gallery_list)
+        else:
+            product.image_gallery = '[]'
+        
         site = self.cleaned_data.get('site')
         if site:
             if not product.location:
                 product.location = site.target_market
         
-        # ✅ v1.3 UX alignment: ምርቱ በፎርም ደረጃም ሲመዘገብ ወዲያውኑ መነሻ ገጹ ላይ እንዲነቃ ማድረግ
+        # v1.4 UX alignment: ምርቱ በፎርም ደረጃም ሲመዘገብ ወዲያውኑ መነሻ ገጹ ላይ እንዲነቃ ማድረግ
         product.is_active = True
         
         if commit:

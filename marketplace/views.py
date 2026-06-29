@@ -1,14 +1,15 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ 100% Complete Master CEO Views — WSGI & Thread Safe (v1.6 - Ultra-Secure)
-# ✅ የተፈቱ ችግሮች፦ Instant product listing (is_active=True UX fix), SaaS Metrics Live Sync, Database-agnostic Case-When
-# 📅 ቀን፦ 2026-06-27
+# 📝 ለውጥ፦ 100% Complete Master CEO Views — WSGI & Thread Safe (v1.7 - Universal Marketplace)
+# ✅ የተፈቱ ችግሮች፦ Dynamic Multi-Category Support, WhatsApp/IMO/Telegram Direct Dispatch, Carousel Sliders, SaaS Metrics Live Sync
+# 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
 import logging
 import uuid
 import json
 import threading
+import re
 from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -21,9 +22,9 @@ from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.utils.translation import get_language, gettext_lazy as _
 from django.contrib import messages
 from django.utils import timezone
-from django.db.models import Count, Sum, Q, Avg, Case, When, IntegerField, Value
 from django.db import connection, connections
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db.models import Count, Sum, Q, Avg, Case, When, IntegerField, Value
 
 # ሁሉንም የኤጀንት ሞዴሎች ማምጣት
 from .models import (
@@ -47,6 +48,36 @@ def _safe_json_decode(value, default_dict):
     except:
         return default_dict
 
+
+def _generate_contact_links(contact_str):
+    """የሻጩን ስልክ ወይም ዩዘርኔም በመለየት የዋትሳፕ፣ ቴሌግራም ቀጥታ፣ ኢሞ እና የስልክ ማሳወቂያ ሊንኮችን ያመነጫል"""
+    links = {}
+    if not contact_str:
+        return links
+    
+    # ስልክ ቁጥር መሆኑን መለየት (ምሳሌ፡ 09..., 07..., +251...)
+    phone_match = re.search(r'(?:\+251|09|07)\d{8}', contact_str)
+    if phone_match:
+        raw_phone = phone_match.group(0)
+        clean_phone = raw_phone
+        if clean_phone.startswith('0'):
+            clean_phone = '251' + clean_phone[1:]
+        elif clean_phone.startswith('+'):
+            clean_phone = clean_phone.replace('+', '')
+            
+        links['whatsapp'] = f"https://wa.me/{clean_phone}"
+        links['telegram'] = f"https://t.me/+{clean_phone}"
+        links['imo'] = f"imo://chat?phone={clean_phone}"
+        links['call'] = f"tel:+{clean_phone}"
+    else:
+        # ዩዘርኔም ከሆነ (ለምሳሌ @username)
+        clean_username = contact_str.replace('@', '').strip()
+        if clean_username:
+            links['telegram'] = f"https://t.me/{clean_username}"
+            links['messenger'] = f"https://m.me/{clean_username}"
+            
+    return links
+
 # ============================================================
 # 🎨 1. GLOBAL UI CONTEXT (የዲዛይን ሞተር)
 # ============================================================
@@ -64,6 +95,7 @@ def home(request):
     query = request.GET.get('q', '').strip()  
     category_id = request.GET.get('category')
     site_id = request.GET.get('site')
+    listing_type = request.GET.get('listing_type') # 🟢 አዲስ የተጨመረ የገበያ አይነት ማጣሪያ
 
     products = Product.objects.select_related('seller', 'category', 'site').filter(is_active=True)
     
@@ -74,6 +106,8 @@ def home(request):
         products = products.filter(category_id=category_id)
     if site_id:
         products = products.filter(site_id=site_id)
+    if listing_type:
+        products = products.filter(listing_type=listing_type)
 
     # የጃንጎን ሪቨርስ ሉክአፕ ከ 'product_set' ወደ 'product' በመቀየር የ FieldError ስህተት በቋሚነት ተፈትቷል
     categories = Category.objects.annotate(
@@ -90,6 +124,7 @@ def home(request):
         'sites': SiteRegistry.objects.filter(is_active=True),
         'active_category': int(category_id) if category_id and category_id.isdigit() else None,
         'current_site': current_site_obj,
+        'active_listing_type': listing_type,
     }
     return render(request, 'marketplace/home.html', context)
 
@@ -99,12 +134,20 @@ def product_detail(request, pk):
     product.view_count += 1
     product.save(update_fields=['view_count'])
     
+    # 🟢 አዲስ የተጨመረ፦ የሻጩን ስልክ ወደ ቀጥታ ዋትሳፕ/ቴሌግራም/ኢሞ ሊንኮች መቀየር
+    contact_links = _generate_contact_links(product.contact_info)
+    
     related = Product.objects.filter(category=product.category).exclude(pk=pk)[:4]
-    return render(request, 'marketplace/product_detail.html', {'product': product, 'related_products': related})
+    return render(request, 'marketplace/product_detail.html', {
+        'product': product, 
+        'related_products': related,
+        'contact_links': contact_links, # 🟢 በቀጥታ ለቴምፕሌቱ ማስተላለፍ
+        'image_gallery': product.get_image_gallery_list() # 🟢 ለስላይደሩ የሚሆን ፎቶዎች
+    })
 
 @login_required
 def post_product(request):
-    """ምርት መለጠፊያ — ከባለብዙ-ጣቢያ ምርጫ ጋር (v1.6 UX የተስተካከለ)"""
+    """ምርት መለጠፊያ — ከባለብዙ-ጣቢያና ከምድቦች ውህደት ጋር"""
     if request.method == "POST":
         title = request.POST.get('title', '').strip()
         price_str = request.POST.get('price', '0').strip()
@@ -114,6 +157,11 @@ def post_product(request):
         location = request.POST.get('location', 'Global').strip()
         image = request.FILES.get('image')
         image_url = request.POST.get('image_url', '').strip()
+        
+        # 🟢 አዲስ የተጨመሩ እሴቶችን ከፎርሙ መቀበል
+        listing_type = request.POST.get('listing_type', 'sale').strip()
+        contact_info = request.POST.get('contact_info', '').strip()
+        gallery_urls_raw = request.POST.get('image_gallery', '').strip()
 
         if not title or not category_id:
             messages.error(request, _("እባክዎ የምርቱን ስም እና ካቴጎሪ በትክክል ያስገቡ።"))
@@ -124,12 +172,15 @@ def post_product(request):
         except ValueError:
             price = 0.0
 
+        # የፎቶዎችን ሊስት ወደ JSON መቀየር
+        gallery_list = [url.strip() for url in gallery_urls_raw.split(',') if url.strip()]
+        image_gallery_json = json.dumps(gallery_list)
+
         category = get_object_or_404(Category, id=category_id)
         site = None
         if site_id and site_id.isdigit():
             site = SiteRegistry.objects.filter(id=site_id).first()
 
-        # ✅ FIXED: ምርቱ መጀመሪያ ወዲያውኑ መነሻ ገጽ ላይ እንዲታይ is_active=True እናደርገዋለን!
         product = Product.objects.create(
             seller=request.user,
             site=site,
@@ -140,11 +191,13 @@ def post_product(request):
             location=location,
             image=image,
             image_url=image_url,
-            is_active=True,  # 🟢 ወዲያውኑ መነሻ ገጹ ላይ እንዲታይ!
-            translations=None  # ኤጀንቱ ገና እንዳልተረጎመው ለማወቅ
+            listing_type=listing_type, # 🟢 አዲስ
+            contact_info=contact_info, # 🟢 አዲስ
+            image_gallery=image_gallery_json, # 🟢 አዲስ
+            is_active=True,
+            translations=None
         )
         
-        # የወላጅ ሳይቱን የሥራ ስታቲስቲክስ ወዲያውኑ ማሳደግ (SaaS Metrics Live Sync)
         if site:
             try:
                 site.real_product_count = Product.objects.filter(site=site, is_active=True).count()
@@ -158,7 +211,8 @@ def post_product(request):
     
     return render(request, 'marketplace/post_product.html', {
         'categories': Category.objects.all(),
-        'sites': SiteRegistry.objects.filter(is_active=True)
+        'sites': SiteRegistry.objects.filter(is_active=True),
+        'listing_types': Product.LISTING_TYPES # 🟢 የካቴጎሪ ምርጫዎችን ለፎርሙ ማሳለፍ
     })
 
 def post_success(request):
@@ -271,8 +325,7 @@ def marketing_dashboard(request):
         'total_sent': total_s or 0,
         'campaign_stats': {
             'total': MarketingCampaign.objects.count(),
-            'running': MarketingCampaign.objects.filter(status='running').count(),
-            'scheduled': MarketingCampaign.objects.filter(status='scheduled').count(),
+            'running': MarketingCampaign.objects.filter(status='running').count() if hasattr(MarketingCampaign, 'status') else 0,
             'total_converted': total_c or 0
         }
     }
@@ -394,3 +447,74 @@ def trigger_autonomous_evolution(request):
     config.save()
     
     return JsonResponse({"status": "flagged_for_execution", "message": "apps.py will pick this up"}, status=200)
+    
+@staff_member_required
+@csrf_exempt
+def purge_database_view(request):
+    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን በ 1 ጠቅታ ከአድሚን ዳሽቦርድ ላይ የሚያጸዳ [1.1.2, 1.1.5]"""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST method required"}, status=400)
+    
+    try:
+        with transaction.atomic():
+            # የውሸት ምርቶችን እና ሻጮችን በጅምላ ማጽዳት
+            Product.objects.all().delete()
+            SellerProfile.objects.all().delete()
+            NotificationQueue.objects.all().delete()
+            
+            # የድሮ የኤጀንት መዝገቦችን በሙሉ ማጽዳት
+            AIProjectBacklog.objects.all().delete()
+            SecurityLog.objects.all().delete()
+            AgentErrorLog.objects.all().delete()
+            AIEvolutionLog.objects.all().delete()
+            VectorMemory.objects.all().delete()
+            SelfHealingLog.objects.all().delete()
+            
+            # የጣቢያዎች መዝገብን ማጽዳትና primary ብቻ እንዲቀር ማድረግ [1.1.5]
+            SiteRegistry.objects.all().delete()
+            SiteRegistry.objects.create(
+                name="primary",
+                display_name="EthAfri Primary",
+                niche="general",
+                target_market="Global",
+                is_active=True,
+                build_phase=0
+            )
+        
+        messages.success(request, "🧹 የመረጃ ቋቱ በንጽህና ጸድቷል! የ 'primary' ሳይት በድጋሚ ተመዝግቧል።")
+        return JsonResponse({"status": "success", "message": "Database successfully purged!"})
+    except Exception as e:
+        logger.error(f"Purge database view failed: {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@staff_member_required
+@csrf_exempt
+def toggle_autopilot_view(request):
+    """🤖 የኤጀንቱን 24/7 የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል መከታተያ [1, 1.1.2]"""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST method required"}, status=400)
+        
+    try:
+        data = json.loads(request.body)
+        active = data.get('active', False)
+        
+        # በ SiteConfig ላይ ሁኔታውን መመዝገብ
+        SiteConfig.objects.update_or_create(
+            key="AGENT_AUTOPILOT_ACTIVE",
+            defaults={'value': {'active': active, 'updated_at': timezone.now().isoformat()}}
+        )
+        
+        # ቶግሉ ON ሲሆን የጥገና ታስኮችን በፍጥነት እንዲጀምር ቀስቃሽ ባንዲራ መስጠት [1, 1.1.2]
+        if active:
+            SiteConfig.objects.update_or_create(
+                key="EVOLVE_TRIGGER_PENDING",
+                defaults={'value': {'status': 'pending', 'time': timezone.now().isoformat()}}
+            )
+        
+        status_text = "ተነስቷል (ON)" if active else "ጠፍቷል (OFF)"
+        messages.success(request, f"🤖 የኤጀንቱ የጀርባ አውቶ-ፓይለት ዑደት በተሳካ ሁኔታ {status_text}።")
+        return JsonResponse({"status": "success", "active": active})
+    except Exception as e:
+        logger.error(f"Toggle autopilot view failed: {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)

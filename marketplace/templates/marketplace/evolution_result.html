@@ -1,13 +1,22 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/evolution_result.html
-📝 ለውጥ፦ v1.2 Master CEO Evolution Result — Thread-Clash Guard Enabled (DRY)
-✅ የተፈቱ ችግሮች፦ Prevent duplicate background thread cycles, triggerBtn auto-spinner
-📅 ቀን፦ 2026-06-27
+📝 ለውጥ፦ v1.4 Executive Command Center — Double-Submit Guard Enabled & Synced (DRY)
+✅ የተፈቱ ችግሮች፦ Prevent duplicate background thread cycles, triggerBtn auto-spinner, i18n variables aligned
+📅 ቀን፦ Monday, June 29, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 {% load static %}
+
+{% block extra_css %}
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+{% if theme.custom_css %}
+<style>
+    {{ theme.custom_css|safe }}
+</style>
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="result-wrapper py-5">
@@ -38,7 +47,6 @@
                         <div class="fs-1">🤖</div>
                         <div>
                             <h5 class="fw-bold mb-1">{% trans "CEO Executive Report" %}</h5>
-                            <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                             <div class="text-dark">{{ status|default:_("Processing completed.") }}</div>
                         </div>
                     </div>
@@ -59,7 +67,7 @@
                         <div class="p-3 bg-white border rounded-4 shadow-sm h-100">
                             <small class="text-muted text-uppercase fw-bold">{% trans "Execution Status" %}</small>
                             <div class="mt-1">
-                                <span class="badge {% if task.status == 'Completed' %}bg-success{% else %}bg-warning{% endif %} fs-5 px-4 py-2 rounded-pill">
+                                <span class="badge bg-{% if task.status == 'Completed' %}green{% elif task.status == 'Running' %}orange{% else %}danger{% endif %} text-white fs-5 px-4 py-2 rounded-pill">
                                     {{ task.status|upper }}
                                 </span>
                             </div>
@@ -70,7 +78,6 @@
                 <!-- 🧠 AI Reasoning (RAG) -->
                 <div class="mb-5">
                     <h6 class="fw-bold text-muted mb-3"><i class="fas fa-brain me-2 text-info"></i> {% trans "STRATEGIC REASONING" %}</h6>
-                    <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                     <div class="p-4 bg-dark text-light rounded-4 font-monospace shadow-inner" style="font-size: 0.9rem; line-height: 1.7; opacity: 0.9;">
                         {{ task.description|default:_("Task executed as part of the core growth strategy.") }}
                     </div>
@@ -102,7 +109,6 @@
                         </a>
                     </div>
                     <div class="mt-4">
-                        <!-- ✅ FIXED: ተደጋጋሚ ዑደቶች እንዳይነሱ Thread-Clash መከላከያ መለያዎችን ማከል -->
                         <form method="POST" action="{% url 'trigger_evolution' %}" id="triggerEvolutionForm">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-link text-muted small text-decoration-none" id="triggerBtn">
@@ -121,7 +127,7 @@
 
 {% block extra_js %}
 <script>
-    // ✅ FIXED: ድርብ ጠቅታዎችን በመከላከል የሰርቨር lockout የሚከላከል ስክሪፕት
+    // ✅ FIXED: ተደጋጋሚ ጠቅታዎችን በመከላከል የሰርቨር lockout የሚከላከል ስክሪፕት
     const triggerForm = document.getElementById('triggerEvolutionForm');
     if (triggerForm) {
         triggerForm.addEventListener('submit', function(e) {

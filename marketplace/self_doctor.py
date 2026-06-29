@@ -1,19 +1,20 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.2 - High Performance Edition)
-# ✅ የተፈቱ ችግሮች፦ Throttled migration check (98% faster normal cycles), Resolution loop prevention, AST HTML safety unblocked
-# 📅 ቀን፦ 2026-06-29
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.3 - Performance Scan & Anti-Bloat Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic prediction & security index maps, Throttled migration check, Dynamic Daily Performance Audit, AST HTML safety, Anti-Bloat Code Pruner
+# 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
 import os
 import ast
 import re
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db import connection, connections
 from django.core.management import call_command
 from django.db.models import Q
+from django.conf import settings # 🟢 አዲስ የተጨመረ የፓዝ መፍቻ
 
 # SiteConfig ተጨምሯል (ለ Throttling መከታተያ)
 from .models import (
@@ -133,13 +134,19 @@ class UniversalHealer:
         except Exception as e:
             logger.error(f"Failed to reset stuck tasks: {e}")
 
+        # 🟢 አዲስ የተጨመረ፦ ዕለታዊ የፍጥነት ኦዲት ማካሄድ [1, 2]
+        try:
+            PerformanceAuditor.run_daily_performance_audit(self.site)
+        except Exception as e:
+            logger.error(f"Failed to run daily performance audit: {e}")
+
         self._heal_production_errors()
         self._heal_security_issues()
 
     def heal_database_migrations_autonomously(self, force=False):
         """የ PostgreSQL የኢንዴክስ መጣረስ ስህተቶችን በራስ-ሰር ፈልጎ ይፈታል (Smart Throttling ተጨምሮለታል)"""
         
-        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ (ከፍተኛ አፈጻጸም ለማስገኘት)
+        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ (ከፍተኛ አፈጻጸም ለማስገኘት) [1, 2]
         last_check_key = f"LAST_SCHEMA_MIGRATION_CHECK_{self.site.name}"
         last_check_cfg = SiteConfig.objects.filter(key=last_check_key).first()
         
@@ -149,7 +156,7 @@ class UniversalHealer:
                 should_run = True
             else:
                 try:
-                    last_time = timezone.datetime.fromisoformat(last_check_cfg.value.get('time'))
+                    last_time = datetime.fromisoformat(last_check_cfg.value.get('time'))
                     if timezone.is_naive(last_time):
                         last_time = timezone.make_aware(last_time)
                     if timezone.now() - last_time >= timedelta(minutes=30):
@@ -157,7 +164,7 @@ class UniversalHealer:
                 except Exception:
                     should_run = True
 
-        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ Throttling ወዲያውኑ ይነሳል
+        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ Throttling ወዲያውኑ ይነሳል [1, 2]
         if not should_run:
             recent_db_errors = AgentErrorLog.objects.filter(
                 site=self.site,
@@ -341,7 +348,121 @@ class UniversalHealer:
 
 
 # ============================================================
-# ⚙️ 3. LOG PROTECTOR
+# 🩺 3. DAILY PERFORMANCE AUDITOR (ዕለታዊ የፍጥነት ኦዲተር)
+# ============================================================
+class PerformanceAuditor:
+    """በየ 24 ሰዓቱ የድረ-ገጽ መጫኛ ፍጥነትን የሚቀንሱ የኮድ አወቃቀሮችን (N+1 queries, blocking scripts)
+    በመቃኘት ቅድሚያ የሚሰጣቸውን የጥገና ስራዎች በራሱ የሚፈጥርና የሚፈውስ ማዕከል [1, 2, 3.1.2]"""
+    
+    @staticmethod
+    def run_daily_performance_audit(site):
+        # 1. Throttling: በቀን አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ [1, 2]
+        last_perf_audit = SiteConfig.objects.filter(key=f"LAST_PERF_AUDIT_{site.name}").first()
+        if last_perf_audit:
+            try:
+                last_time = datetime.fromisoformat(last_perf_audit.value.get('time'))
+                if timezone.is_naive(last_time):
+                    last_time = timezone.make_aware(last_time)
+                if timezone.now() - last_time < timedelta(hours=24):
+                    return # ከ24 ሰዓት በታች ከሆነ ይዘለላል (የአፈጻጸም ቆጣቢ)
+            except Exception:
+                pass
+        
+        logger.info(f"🩺 Performance Auditor: Running daily page-load speed audit for {site.name}...")
+        issues_found = []
+        
+        # 2. የ views.py ፋይልን ለ N+1 queries እና unoptimized ሎጂኮች መቃኘት [1, 2, 3.1.2]
+        views_path = os.path.join(str(settings.BASE_DIR), 'marketplace', 'views.py')
+        if os.path.exists(views_path):
+            try:
+                with open(views_path, 'r', encoding='utf-8') as f:
+                    views_code = f.read()
+                
+                # .select_related() ወይም .prefetch_related() ሳይጠቀሙ የባዕድ ቁልፎችን መፈለግ
+                if "Product.objects." in views_code and "select_related" not in views_code:
+                    issues_found.append("Critical Performance Issue: Product queries in views.py do not use select_related(), causing N+1 database latency.")
+                
+                if "Category.objects." in views_code and "select_related" not in views_code and "prefetch_related" not in views_code:
+                    issues_found.append("Performance Issue: Category queries in views.py could be optimized with prefetch_related() / select_related().")
+            except Exception as e:
+                logger.error(f"Performance scanning error for views.py: {e}")
+
+        # 3. የ templates ፋይሎችን ለ inline styles/scripts መቃኘት (ገጽ የሚቀረቅሩ) [3.1.2]
+        templates_dir = os.path.join(str(settings.BASE_DIR), 'marketplace', 'templates', 'marketplace')
+        if os.path.exists(templates_dir):
+            try:
+                for root, dirs, files in os.walk(templates_dir):
+                    for file in files:
+                        if file.endswith('.html'):
+                            full_path = os.path.join(root, file)
+                            with open(full_path, 'r', encoding='utf-8') as f:
+                                html_content = f.read()
+                            if "<style>" in html_content or "<script>" in html_content:
+                                issues_found.append(f"Performance Warning: Inline CSS/JS blocks found in {file}. Move these to global.css or global.js to unblock page-rendering.")
+                                break # አንድ ማስጠንቀቂያ ይበቃል
+            except Exception as e:
+                logger.error(f"Performance scanning error for templates: {e}")
+
+        # 4. ያጋጠሙ ችግሮችን ቅድሚያ (Critical Priority) በመስጠት በራሱ እንዲያክም ባክሎግ ታስክ መፍጠር [1, 2]
+        for issue in issues_found:
+            task_name = f"⚡ PERFORMANCE OPTIMIZATION: {issue[:50]}..."
+            active_task = AIProjectBacklog.objects.filter(site=site, task_name=task_name, status__in=['Pending', 'Running']).exists()
+            if not active_task:
+                target = "views" if "views.py" in issue else "home_html"
+                AIProjectBacklog.objects.create(
+                    site=site,
+                    task_name=task_name,
+                    target_file=target,
+                    priority="Critical", # ፕራዮሪቲ Critical ተደርጓል [1, 2]!
+                    description=f"Performance bottleneck detected during daily audit: {issue} Fix this immediately to drastically improve page load speed.",
+                    business_impact_score=10 # ከፍተኛው ውጤት [1, 2]
+                )
+                logger.warning(f"🩺 Performance Auditor: Created critical healing task for: {issue}")
+
+        # 5. የስካን ሰዓቱን መመዝገብ
+        SiteConfig.objects.update_or_create(
+            key=f"LAST_PERF_AUDIT_{site.name}",
+            defaults={'value': {'time': timezone.now().isoformat()}}
+        )
+
+
+# ============================================================
+# ✂️ 4. ANTI-BLOAT ENGINE (የኮድ ማሳጠሪያና ማጽጃ ሞተር)
+# ============================================================
+class AntiBloatEngine:
+    """ኤጀንቱ ለራሱም ሆነ ለድረ-ገጹ ኮድ ሲጽፍ እንዳያብጥ፣ አላስፈላጊ ኮድ እንዲቀንስና እንዲያጸዳ የሚከላከል መመሪያ [1, 2]"""
+
+    @staticmethod
+    def prune_and_optimize(old_code, new_code, file_path):
+        """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከላል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል [1, 2]"""
+        # የፋይሉ መጠን ከ 12,000 ካራክተር በላይ ከሆነ ወይም ካለፈው ኮድ ከ 20% በላይ ካበጠ ብቻ ማሳጠርያውን ያነቃቃል [1, 2]
+        if len(new_code) < 12000 or (old_code and len(new_code) < len(old_code) * 1.20):
+            return new_code
+
+        logger.warning(f"⚠️ Anti-Bloat Guard: Code for {file_path} is bloating ({len(new_code)} chars). Activating self-pruning...")
+
+        prompt = (
+            f"Optimize and shrink this Python code for '{file_path}'.\n"
+            f"1. Remove any dead code, unused helper functions, and redundant imports.\n"
+            f"2. Merge repetitive logics into compact, multi-functional, parameter-driven helpers.\n"
+            f"3. Strictly preserve all existing business logic, security guards, and core features, but write it with the minimum possible code lines.\n"
+            f"Return JSON with key 'code' containing only the compressed, highly-optimized code."
+        )
+        
+        # dynamic import - circular dependency ለመከላከል [1, 2]
+        from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+        res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
+        
+        if res and isinstance(res, dict) and 'code' in res:
+            pruned_code = res['code']
+            logger.info(f"✨ Anti-Bloat: Shrank {file_path} from {len(new_code)} to {len(pruned_code)} characters!")
+            return pruned_code
+            
+        return new_code
+
+
+# ============================================================
+# ⚙️ 5. LOG PROTECTOR & DB REFRESHER
 # ============================================================
 def refresh_db_connection_on_error(error_message):
     """የዳታቤዝ ግንኙነት ሲመረዝ ወዲያውኑ አዲስ ግንኙነት የሚከፍት"""

@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/growth_dashboard.html
-📝 ለውጥ፦ v1.3 Master CEO Dashboard — Real-Time WebSocket Stats (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Dynamic Task Status Updates, Real-time Running Marquee, Version Synced
-📅 ቀን፦ 2026-06-27
+📝 ለውጥ፦ v1.5 Master CEO Dashboard — Web-Managed Autopilot Toggle & Secure Purge DB Added (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Dynamic Task Status Updates, Real-time Running Marquee, Version Synced to v10.6, Agent Autopilot Switch, secure DB purger button
+📅 ቀን፦ Monday, June 29, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -25,31 +25,43 @@
         <!-- 🤖 ዋና የኤጀንት ሁኔታ -->
         <div class="agent-core-card mb-4">
             <div class="row align-items-center">
-                <div class="col-md-8">
+                <div class="col-md-7">
                     <h2 class="fw-bold mb-2">
                         <i class="fas fa-brain me-2 text-info"></i>
-                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v9.7</span> <!-- ✅ FIXED: ስሪቱ ተዘምኗል -->
+                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v10.6</span>
                     </h2>
                     <p class="opacity-75 mb-4">Autonomous Strategic Growth & System Evolution Engine</p>
-                    <div class="d-flex flex-wrap gap-3">
+                    <div class="d-flex flex-wrap gap-3 align-items-center">
                         <div class="bg-white bg-opacity-10 rounded-pill px-3 py-2 border border-white border-opacity-10">
                             <span class="live-pulse pulse-green"></span>
-                            <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
                             <small id="running-task-name">{% trans "CEO is Analyzing Codebase..." %}</small>
                         </div>
                         <div class="bg-white bg-opacity-10 rounded-pill px-3 py-2 border border-white border-opacity-10">
                             <i class="fas fa-history me-1 text-warning"></i>
                             <small>{% trans "Last Run" %}: {{ status_info.last_run|default:"Just now" }}</small>
                         </div>
+                        
+                        <!-- 🟢 አዲስ የተጨመረ፦ የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል (Toggle Switch) -->
+                        <div class="form-check form-switch bg-white bg-opacity-10 rounded-pill px-4 py-2 border border-white border-opacity-10 d-flex align-items-center gap-2">
+                            <input class="form-check-input" type="checkbox" role="switch" id="autopilotToggle" {% if autopilot_active %}checked{% endif %} style="cursor: pointer; width: 2.2em; height: 1.1em; margin-top: 0;">
+                            <label class="form-check-label text-white small fw-bold" for="autopilotToggle" style="cursor: pointer;">🤖 Autopilot</label>
+                        </div>
                     </div>
                 </div>
-                <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                    <form method="POST" action="{% url 'trigger_evolution' %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-info btn-lg rounded-pill px-5 fw-bold shadow-lg">
-                            <i class="fas fa-sync-alt me-2"></i> {% trans "Run Evolution" %}
+                <div class="col-md-5 text-md-end mt-3 mt-md-0">
+                    <div class="d-flex justify-content-md-end gap-2">
+                        <form method="POST" action="{% url 'trigger_evolution' %}" style="margin: 0;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-info btn-lg rounded-pill px-4 fw-bold shadow-lg">
+                                <i class="fas fa-sync-alt me-2"></i> {% trans "Run Evolution" %}
+                            </button>
+                        </form>
+                        
+                        <!-- 🟢 አዲስ የተጨመረ፦ የዳታቤዝ የጅምላ ማጽጃ ቁልፍ (Secure Purge DB Button) -->
+                        <button class="btn btn-outline-danger btn-lg rounded-pill px-4 fw-bold shadow-lg" id="purgeBtn" onclick="confirmPurge()">
+                            <i class="fas fa-trash-alt me-2"></i> {% trans "Purge Database" %}
                         </button>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -71,7 +83,6 @@
             <div class="col-6 col-md-3">
                 <div class="stat-box">
                     <div class="stat-label">{% trans "Pending Tasks" %}</div>
-                    <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
                     <div class="stat-val text-primary" id="pending-tasks-count">{{ active_tasks }}</div>
                 </div>
             </div>
@@ -126,8 +137,12 @@
             <!-- 👑 የአድሚን ትዕዛዝ መስጫ (Executive Override) -->
             <div class="col-lg-5">
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
-                    <div class="card-header bg-primary text-white py-3 border-0">
+                    <!-- 🟢 ቀጥተኛ ወደ መመሪያ ገጽ መሄጃ በተን (Full View) የተጨመረበት -->
+                    <div class="card-header bg-primary text-white py-3 border-0 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold"><i class="fas fa-crown me-2"></i> CEO Direct Command</h5>
+                        <a href="{% url 'owner_directive' %}" class="btn btn-sm btn-outline-light rounded-pill px-3">
+                            <i class="fas fa-external-link-alt me-1"></i> Full View
+                        </a>
                     </div>
                     <div class="card-body">
                         <p class="small text-muted">Force the Agent to prioritize a specific mission globally.</p>
@@ -170,34 +185,93 @@
 
 {% block extra_js %}
 <script>
-    // 📟 WebSocket Connection — ዳሽቦርዱን በእውነተኛ ሰዓት (Real-time) ለማዘመን የተጨመረ ሎጂክ
+    // 📟 WebSocket Connection
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
 
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
         
-        // 1. የባክሎግ ቁጥር መዘመኛ (በየ 5 ሰከንዱ በራስ-ሰር ይተገበራል)
+        // 1. የባክሎግ ቁጥር መዘመኛ
         if (data.type === 'status_update' || data.type === 'live_stats') {
             const pendingTasksCountEl = document.getElementById('pending-tasks-count');
             if (pendingTasksCountEl && data.task_stats) {
-                pendingTasksTasksCountEl = pendingTasksCountEl.innerText = data.task_stats.pending;
+                pendingTasksCountEl.innerText = data.task_stats.pending;
             }
         }
         
-        // 2. ኤጀንቱ አሁን እየሠራ ያለውን ሥራ በቀጥታ ከላይ ባለው ማርኪ (Marquee) ላይ ማሳየት
+        // 2. ኤጀንቱ አሁን እየሠራ ያለውን ሥራ ማሳየት
         else if (data.type === 'terminal_log') {
             const runningTaskEl = document.getElementById('running-task-name');
             const log = data.log || {};
             if (runningTaskEl && log.message) {
-                // መረጃው በጣም ረጅም ከሆነ አሳጥሮ ማሳየት
                 const displayMsg = log.message.length > 55 ? log.message.substring(0, 52) + '...' : log.message;
                 runningTaskEl.innerText = displayMsg;
             }
         }
     };
 
-    // ዌብሶኬት ግንኙነቱ ቢቋረጥ እንኳ ገጹ በየ10 ደቂቃው ራሱን ያድሳል
+    // 🟢 አዲስ የተጨመረ፦ የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል (Toggle Switch AJAX Handler)
+    const toggle = document.getElementById('autopilotToggle');
+    if (toggle) {
+        toggle.addEventListener('change', function() {
+            const isActive = this.checked;
+            fetch("{% url 'api_toggle_autopilot' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({ active: isActive })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload(); // የጃንጎ ስኬት መልእክት እንዲታይ ገጹን ማደስ
+                } else {
+                    alert("Error toggling autopilot: " + data.message);
+                    this.checked = !isActive;
+                }
+            })
+            .catch(err => {
+                alert("Connection error: " + err);
+                this.checked = !isActive;
+            });
+        });
+    }
+
+    // 🟢 አዲስ የተጨመረ፦ የመረጃ ቋት ማጽጃ AJAX ሎጂክ (Purge Database AJAX Handler)
+    function confirmPurge() {
+        if (confirm("⚠️ ማስጠንቀቂያ፦ የመረጃ ቋቱን በንጽህና ለማጽዳት እርግጠኛ ነዎት? ሁሉንም ምርቶች፣ ሻጮች እና የኤጀንት ዑደቶች ያጠፋል!")) {
+            const purgeBtn = document.getElementById('purgeBtn');
+            if (purgeBtn) {
+                purgeBtn.disabled = true;
+                purgeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Purging...';
+            }
+            fetch("{% url 'api_purge_database' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}"
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert("Error purging database: " + data.message);
+                    purgeBtn.disabled = false;
+                    purgeBtn.innerHTML = '<i class="fas fa-trash-alt me-2"></i> Purge Database';
+                }
+            })
+            .catch(err => {
+                alert("Connection error: " + err);
+                purgeBtn.disabled = false;
+                purgeBtn.innerHTML = '<i class="fas fa-trash-alt me-2"></i> Purge Database';
+            });
+        }
+    }
+
     setTimeout(function() { location.reload(); }, 600000);
 </script>
 {% endblock %}

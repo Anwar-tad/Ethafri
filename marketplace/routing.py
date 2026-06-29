@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/routing.py
-# 📝 ዓላማ፦ WebSocket Routing for Real-time Dashboard Updates
+# 📝 ዓላማ፦ WebSocket Routing for Real-time Dashboard Updates (v1.0)
 # ============================================================
 
 from django.urls import re_path

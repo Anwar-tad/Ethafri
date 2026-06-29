@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/admin.py
-# 📝 ለውጥ፦ Dynamic Diagnostics & Safe Severity Tagging (v1.2)
-# ✅ የተፈቱ ችግሮች፦ Missing is_active and auto settings on SiteRegistryAdmin fieldsets
-# 📅 ቀን፦ Friday, June 26, 2026
+# 📝 ለውጥ፦ Dynamic Diagnostics & Universal Marketplace Synced (v1.3)
+# ✅ የተፈቱ ችግሮች፦ Added listing_type and contact_info to list_display and list_filter, Missing is_active and auto settings on SiteRegistryAdmin fieldsets, safe status colors
+# 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
 from django.contrib import admin
@@ -30,8 +30,12 @@ from .models import (
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('title', 'get_site', 'price', 'category', 'is_active', 'market_status', 'view_count', 'created_at')
-    list_filter = ('site', 'category', 'is_active', 'market_value_status')
+    # 🟢 አዲስ የተጨመሩ፦ listing_type እና contact_info በአድሚን የምርት ዝርዝር ላይ እንዲታዩ ተደርገዋል
+    list_display = ('title', 'get_site', 'price', 'category', 'listing_type', 'contact_info', 'is_active', 'market_status', 'view_count', 'created_at')
+    
+    # 🟢 አዲስ የተጨመረ፦ የሽያጭ/የኪራይ አይነት ፈጣን ማጣሪያ (listing_type)
+    list_filter = ('site', 'category', 'listing_type', 'is_active', 'market_value_status')
+    
     search_fields = ('title', 'description', 'location')
     readonly_fields = ('view_count', 'inquiry_count', 'created_at', 'updated_at')
     
@@ -47,8 +51,6 @@ class ProductAdmin(admin.ModelAdmin):
 admin.site.register(Category)
 admin.site.register(TranslationQueue)
 admin.site.register(ProductTranslation)
-
-# FIXED: የፍለጋ መረጃዎችን በዳሽቦርዱ ላይ ለመከታተል የተመዘገበ
 admin.site.register(UserSearch)
 
 # ============================================================
@@ -63,7 +65,6 @@ class SiteRegistryAdmin(admin.ModelAdmin):
         ('መሠረታዊ መረጃ', {'fields': ('name', 'display_name', 'niche', 'target_market')}),
         ('ቴክኒክ (Repo/URL)', {'fields': ('repo_path', 'deployment_url')}),
         ('የእድገት ሁኔታ', {'fields': ('growth_level', 'build_phase', 'real_product_count', 'monthly_visitors')}),
-        # ✅ FIXED: የኤጀንቱ ማስነሻ፣ ማቆሚያና ማርኬቲንግ ማብሪያዎች በአድሚኑ ማሻሻያ ገጽ ላይ እንዲታዩ ተጨምረዋል (የሕግ 3 ጥበቃ)
         ('የኤጀንት መቆጣጠሪያ (Agent Control)', {'fields': ('is_active', 'auto_update_enabled', 'auto_marketing_enabled')}),
     )
 
@@ -84,7 +85,6 @@ class AIProjectBacklogAdmin(admin.ModelAdmin):
         return format_html('<b style="color: {};">{}</b>', colors.get(obj.status, 'black'), obj.status)
 
 
-# FIXED: የኮድ ለውጦች ታሪክ (Evolution Logs) በአድሚን ገጽ ላይ እጅግ በጣም ንጹህና የተደራጀ እንዲሆን የተለየ ክላስ ተገንብቷል
 @admin.register(AIEvolutionLog)
 class AIEvolutionLogAdmin(admin.ModelAdmin):
     list_display = ('target_file', 'site', 'reason_preview', 'created_at')
@@ -114,7 +114,6 @@ class SelfHealingLogAdmin(admin.ModelAdmin):
     list_display = ('error_message_short', 'resolved', 'created_at')
     
     def error_message_short(self, obj):
-        # FIXED: TypeError ለመከላከል Null-Safe አቀራረብ ተተክቷል
         msg = obj.error_message or ""
         return msg[:100] + "..." if len(msg) > 100 else msg
 

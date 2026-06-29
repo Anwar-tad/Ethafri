@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/urls.py
 # 📝 ለውጥ፦ Master CEO Agent URL Mapping — 100% View Sync & API Refined
-# ✅ የተፈቱ ችግሮች፦ View API Return Mismatches, Clean Routing Hierarchy
-# 📅 ቀን፦ 2026-06-25
+# ✅ የተፈቱ ችግሮች፦ View API Return Mismatches, Clean Routing Hierarchy, Synced with v1.7 views
+# 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
 from django.urls import path
@@ -48,12 +48,15 @@ urlpatterns = [
     # ለሪል-ታይም ዳሽቦርድ የሚሆን ዳታ መመለሻ
     path('api/advanced-stats/', views.advanced_stats_api, name='advanced_stats_api'),
     
-    # 🤖 ኤጀንቱን በኤፒአይ በኩል በራስ-ገዝ ማስነሻ (ዘዴኛ ማሻሻያ፦ ዌብሁኩን ይጠራል)
+    # 🤖 ኤጀንቱን በኤፒአይ በኩል በራስ-ገዝ ማስነሻ
     path('api/agent/run/', views.trigger_autonomous_evolution, name='api_trigger_evolution'),
     
-    # 🤖 የኤጀንት ሁኔታ በ JSON መልክ (ዘዴኛ ማሻሻያ፦ የ JSON ኤፒአዩን ይጠራል)
+    # 🤖 የኤጀንት ሁኔታ በ JSON መልክ
     path('api/agent/status/', views.advanced_stats_api, name='api_agent_status'),
     
     # የውጭ ክሮን (External Cron) Webhook Gateway
     path('evolve-now-secret-123/', views.trigger_autonomous_evolution, name='trigger_autonomous_evolution'),
+    path('api/agent/purge-db/', views.purge_database_view, name='api_purge_database'),
+    path('api/agent/toggle-autopilot/', views.toggle_autopilot_view, name='api_toggle_autopilot'),
 ]
+

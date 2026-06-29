@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/agent_status.html
-📝 ለውጥ፦ v1.7 Master CEO Agent Status — Interactive Details Dropdowns Added (v1.7)
-✅ የተፈቱ ችግሮች፦ Clickable stat cards, Live pending list rendering, Bootstrap styled switches
-📅 ቀን፦ 2026-06-27
+📝 ለውጥ፦ v1.8 Master CEO Agent Status — Admin Diagnostics & Active Unresolved Errors Table Added (v1.8)
+✅ የተፈቱ ችግሮች፦ Clickable stat cards, Live pending list rendering, Bootstrap styled switches, RAG memory details, active security logs, SEO forecasts, unresolved errors monitoring
+📅 ቀን፦ Monday, June 29, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -71,7 +71,7 @@
                 </div>
             </div>
 
-            <!-- 📋 በይነተገናኝ የዝርዝር ሰሌዳ (✅ v1.7 የተጨመረ መረጃዎችን ከካርዱ በታች ማሳያ) -->
+            <!-- 📋 በይነተገናኝ የዝርዝር ሰሌዳ (ካርዱ ሲነካ ዝርዝሩን ከታች ማሳያ) -->
             <div class="status-card p-3 mb-4 bg-dark text-white rounded border border-secondary" id="details-panel" style="display: none;">
                 
                 <!-- የ Pending ስራዎች ዝርዝር ሰሌዳ -->
@@ -132,6 +132,120 @@
             </div>
         </div>
     </div>
+
+    <!-- ============================================================
+    👑 3. ADMIN DIAGNOSTIC CENTER (የአድሚን መመርመሪያ ማዕከል)
+    ============================================================ -->
+    {% if user.is_staff %}
+    <div class="row g-4 mt-2">
+        <!-- 1. የትውስታ መዝገብ (RAG Memory) -->
+        <div class="col-md-4">
+            <div class="status-card p-4 bg-dark text-white rounded border border-info h-100">
+                <h5 class="fw-bold mb-3 text-info"><i class="fas fa-brain me-2"></i> RAG Memory Map</h5>
+                <div class="d-flex justify-content-between mb-2 pb-1 border-bottom border-secondary small">
+                    <span>{% trans "Overall Success Rate" %}</span>
+                    <span class="text-success fw-bold">{{ success_rate|floatformat:1 }}%</span>
+                </div>
+                {% for stat in memory_stats %}
+                <div class="d-flex justify-content-between align-items-center mb-1 text-white-50 small">
+                    <span><i class="fas fa-database me-2" style="font-size: 0.7rem;"></i>{{ stat.memory_type|title }} Memories</span>
+                    <span class="badge bg-secondary">{{ stat.count }}</span>
+                </div>
+                {% empty %}
+                <div class="text-muted small py-2">{% trans "No semantic memories stored yet." %}</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 2. የደህንነት ኦዲት (Security Log) -->
+        <div class="col-md-4">
+            <div class="status-card p-4 bg-dark text-white rounded border border-danger h-100">
+                <h5 class="fw-bold mb-3 text-danger"><i class="fas fa-shield-halved me-2"></i> Security Shield Logs</h5>
+                <div class="d-flex justify-content-between mb-2 pb-1 border-bottom border-secondary small">
+                    <span>{% trans "Vulnerabilities Found" %}</span>
+                    <span class="text-danger fw-bold">
+                        {% if security_issues %}
+                            {{ security_issues|length }} Active
+                        {% else %}
+                            0 Active
+                        {% endif %}
+                    </span>
+                </div>
+                <div style="max-height: 150px; overflow-y: auto;">
+                    {% for issue in security_issues %}
+                    <div class="p-1 mb-1 border-bottom border-secondary border-opacity-25 small text-white-50">
+                        <span class="badge bg-danger me-1" style="font-size: 0.55rem;">{{ issue.severity|upper }}</span>
+                        {{ issue.description|truncatechars:45 }}
+                    </div>
+                    {% empty %}
+                    <div class="text-success small py-2"><i class="fas fa-check-circle me-2"></i>{% trans "No vulnerabilities detected. AST Shield is solid!" %}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. የ AI የትንበያ መዝገቦች (Predictions) -->
+        <div class="col-md-4">
+            <div class="status-card p-4 bg-dark text-white rounded border border-warning h-100">
+                <h5 class="fw-bold mb-3 text-warning"><i class="fas fa-chart-line me-2"></i> Predictive Brain Forecasts</h5>
+                <div class="d-flex justify-content-between mb-2 pb-1 border-bottom border-secondary small">
+                    <span>{% trans "Total System Predictions" %}</span>
+                    <span class="text-warning fw-bold">{{ prediction_stats.total|default:0 }}</span>
+                </div>
+                <div class="small text-white-50">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Traffic Forecasts</span>
+                        <span>{{ prediction_stats.traffic|default:0 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>SEO Forecasts</span>
+                        <span>{{ prediction_stats.seo|default:0 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Marketing Notifications</span>
+                        <span>{{ marketing_stats.notifications|default:0 }} pending</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🛠️ 4. ንቁ የሰርቨር ስህተቶች ሰሌዳ (Active Unresolved Errors Table) -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="status-card p-4 bg-dark text-white rounded border border-secondary">
+                <h5 class="fw-bold mb-3 text-danger"><i class="fas fa-bug me-2"></i> Active Unresolved Server Errors</h5>
+                <div class="table-responsive small">
+                    <table class="table table-dark table-hover table-borderless align-middle mb-0">
+                        <thead>
+                            <tr class="border-bottom border-secondary text-white-50">
+                                <th>{% trans "Task Name" %}</th>
+                                <th>{% trans "Error Type" %}</th>
+                                <th>{% trans "Error Message" %}</th>
+                                <th>{% trans "Logged At" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for err in unresolved_errors %}
+                            <tr class="border-bottom border-secondary border-opacity-10 text-white-50">
+                                <td class="fw-bold text-white">{{ err.task_name }}</td>
+                                <td><span class="badge bg-secondary">{{ err.error_type }}</span></td>
+                                <td class="text-danger">{{ err.error_message|truncatechars:80 }}</td>
+                                <td>{{ err.created_at|date:"Y-m-d H:i" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-success text-center py-3"><i class="fas fa-check-circle me-2"></i>{% trans "Zero active unresolved errors! The healer is completely caught up." %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}
 
@@ -153,7 +267,7 @@
     // የ Pending ስራዎች የላይቭ ዝርዝር መያዣ
     let livePendingTasks = [];
 
-    // ✅ FIXED: የ Pending ስራዎችን በእውነተኛ ሰዓት ወደ HTML መለወጫ
+    // የ Pending ስራዎችን በእውነተኛ ሰዓት ወደ HTML መለወጫ
     function renderPendingTasksList() {
         const listContainer = document.getElementById('pending-tasks-list');
         if (!listContainer) return;
@@ -182,7 +296,7 @@
         listContainer.innerHTML = html;
     }
 
-    // ✅ FIXED: ካርዶቹ ሲነኩ ዝርዝሩን ከታች መክፈቻ/መዝጊያ (Toggle) ሎጂክ
+    // ካርዶቹ ሲነኩ ዝርዝሩን ከታች መክፈቻ/መዝጊያ (Toggle) ሎጂክ
     function toggleDetails(type) {
         const panel = document.getElementById('details-panel');
         const pendingSection = document.getElementById('pending-details');
@@ -190,7 +304,6 @@
         const pendingCard = document.getElementById('pending-card');
         const resolvedCard = document.getElementById('resolved-card');
 
-        // ገጹ ቀድሞውኑ ክፍት ከሆነና ያንኑ ካርድ ድጋሚ ከነካው መዝጋት
         if (panel.style.display === 'block' && 
             ((type === 'pending' && pendingSection.style.display === 'block') || 
              (type === 'resolved' && resolvedSection.style.display === 'block'))) {
@@ -255,7 +368,6 @@
             // የላይቭ የባክሎግ ዝርዝር መዝገብን ማዘመን
             if (data.pending_tasks) {
                 livePendingTasks = data.pending_tasks;
-                // የፔንዲንግ ዝርዝሩ ክፍት ከሆነ ወዲያውኑ መልሰን በይነገጹን መሳል
                 if (document.getElementById('pending-details').style.display === 'block') {
                     renderPendingTasksList();
                 }

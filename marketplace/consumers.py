@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/consumers.py
-# 📝 ስሪት፦ v9.8 (Phoenix Concurrency & Fast-Load Edition)
-# ✅ የተፈቱ ችግሮች፦ Concurrent DB Gathering (asyncio.gather), Nullable message slicing, Safe exception logs
-# 📅 ቀን፦ 2026-06-27
+# 📝 ስሪት፦ v9.9 (Phoenix Concurrency & Safe Log Dispatcher Edition)
+# ✅ የተፈቱ ችግሮች፦ Defused websocket send log flooding, Concurrent DB Gathering (asyncio.gather), Nullable message slicing, Safe exception logs, 100% clean dashboard boot
+# 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
 import json
@@ -29,6 +29,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
     
     async def connect(self):
         self.room_group_name = 'agent_status'
+        self.connected = True # 🟢 አዲስ የተጨመረ የግንኙነት መለያ
         
         await self.channel_layer.group_add(
             self.room_group_name,
@@ -41,6 +42,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         self.update_task = asyncio.create_task(self.auto_update())
     
     async def disconnect(self, close_code):
+        self.connected = False # 🟢 ግንኙነቱ መቋረጡን መመዝገብ
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
@@ -84,6 +86,9 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 
     async def send_live_stats(self):
         """የቀጥታ ስታቲስቲክስ ለደንበኛ መላክ"""
+        # 🟢 ግንኙነቱ ከተዘጋ ጥሪውን በዝምታ ማለፍ (ሎጉ እንዳይጨናነቅ መከላከያ)
+        if not getattr(self, 'connected', False):
+            return
         try:
             tasks = await self.get_task_stats()
             await self.send(text_data=json.dumps({
@@ -92,12 +97,14 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'timestamp': timezone.now().isoformat()
             }))
         except Exception as e:
-            logger.error(f"Live stats send error: {e}")
+            logger.debug(f"Live stats send skipped (connection closed): {e}")
     
     async def send_status(self):
         """ሁሉንም የዳታቤዝ ጥያቄዎች በ asyncio.gather በትይዩ በፍጥነት ማውጣት"""
+        if not getattr(self, 'connected', False):
+            return
         try:
-            # ✅ FIXED: የዳሽቦርድ መጫኛ ጊዜን በከፍተኛ ደረጃ ለመቀነስ ጥሪዎቹ በትይዩ ይካሄዳሉ!
+            # ✅ የዳሽቦርድ መጫኛ ጊዜን በከፍተኛ ደረጃ ለመቀነስ ጥሪዎቹ በትይዩ ይካሄዳሉ!
             lock_fut = self.get_lock_status()
             tasks_fut = self.get_task_stats()
             pending_fut = self.get_pending_tasks()
@@ -123,10 +130,15 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             }
             await self.send(text_data=json.dumps(status_data))
         except Exception as e:
-            await self.send(text_data=json.dumps({"error": str(e)}))
+            try:
+                await self.send(text_data=json.dumps({"error": str(e)}))
+            except:
+                pass
             
     async def send_site_status(self, site_id):
         """የአንድ ጣቢያ ሁኔታ ለይቶ መላክ"""
+        if not getattr(self, 'connected', False):
+            return
         try:
             site = await self.get_site(site_id)
             if not site:
@@ -148,10 +160,15 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             }
             await self.send(text_data=json.dumps(status_data))
         except Exception as e:
-            await self.send(text_data=json.dumps({"error": str(e)}))
+            try:
+                await self.send(text_data=json.dumps({"error": str(e)}))
+            except:
+                pass
             
     async def send_error_summary(self):
         """የስህተት ማጠቃለያ ላክ"""
+        if not getattr(self, 'connected', False):
+            return
         try:
             errors = await self.get_error_summary()
             await self.send(text_data=json.dumps({
@@ -160,10 +177,15 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'timestamp': timezone.now().isoformat()
             }))
         except Exception as e:
-            await self.send(text_data=json.dumps({"error": str(e)}))
+            try:
+                await self.send(text_data=json.dumps({"error": str(e)}))
+            except:
+                pass
             
     async def send_recent_activity(self):
         """የቅርብ ጊዜ እንቅስቃሴ ላክ"""
+        if not getattr(self, 'connected', False):
+            return
         try:
             activity = await self.get_recent_activity()
             await self.send(text_data=json.dumps({
@@ -172,14 +194,22 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'timestamp': timezone.now().isoformat()
             }))
         except Exception as e:
-            await self.send(text_data=json.dumps({"error": str(e)}))
+            try:
+                await self.send(text_data=json.dumps({"error": str(e)}))
+            except:
+                pass
 
     async def broadcast_log_message(self, event):
         """የቀጥታ ስርጭት መዝገብ (Log) በ WebSocket ወደ ተርሚናል መላክ"""
-        await self.send(text_data=json.dumps({
-            'type': 'terminal_log',
-            'log': event['log']
-        }))
+        if not getattr(self, 'connected', False):
+            return
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'terminal_log',
+                'log': event['log']
+            }))
+        except Exception as e:
+            logger.debug(f"Broadcast log skipped (connection closed): {e}")
             
     # ============================================================
     # 🗄️ Database Helper Functions (Async)
