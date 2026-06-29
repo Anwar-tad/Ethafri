@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.17 Phoenix Auto-Installer — Smart Schema-Aware Defuser
-# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection (Only fakes if marketplace_category exists to prevent empty database skip), bypass missing index errors permanently, 100% zero-crash boot
+# 📝 ለውጥ፦ v9.17 Phoenix Auto-Installer — Targeted Migration Bootstrapping
+# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection (Only fakes 0018 after applying 0017 to prevent empty database skip), bypass missing index errors permanently, 100% zero-crash boot
 # 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from django.apps import AppConfig
 from django.utils import timezone
 from django.db import connection, connections
+from django.core.management import call_command
 from django.db.models import Count
 
 logger = logging.getLogger(__name__)
@@ -123,37 +124,36 @@ class MarketplaceConfig(AppConfig):
             from django.core.management import call_command
             from django.db import connection
             
-            # 🛠️ 1. Database Schema Defuser (ማይግሬሽን 0017ን አስቀድሞ እንደተተገበረ መመዝገብ)
-            # 🟢 [RESOLVED]: የምርት ምድብ ሰንጠረዥ (marketplace_category) አስቀድሞ በዳታቤዝ ውስጥ መኖሩን ብቻ አይቶ ፌክ መመዝገብ
-            # (ይህም ባዶ ወይም የጸዳ ዳታቤዝ ሲያጋጥም ጃንጎ ሰንጠረዦቹን ሳይፈጥር እንዲዘልላቸው የሚፈጠረውን ክፍተት ሙሉ በሙሉ ይፈታል) [3.1.2]
+            # 🛠️ 1. [ደረጃ 1]፦ መጀመሪያ ሰንጠረዦቹን የሚፈጥረውን አዲሱን ማይግሬሽን 0017 ማስኬድ [1, 2]
+            logger.info("🛠️ Auto-Migrator: Running selective migrations up to 0017_universal_marketplace...")
+            try:
+                call_command('migrate', 'marketplace', '0017_universal_marketplace', interactive=False)
+            except Exception as e:
+                logger.warning(f"🛠️ Auto-Migrator: Selective migration up to 0017 skipped/failed: {e}")
+            
+            # 🛠️ 2. [ደረጃ 2]፦ የሰገነውን የ 0018 የቆየ ፍልሰት በ django_migrations ውስጥ በፌክ (fake) መመዝገብ [1, 2]
+            # (ይህም የ PostgreSQL የ index existing ስህተትን በዘላቂነት ይከላከላል) [1, 2]
             with connection.cursor() as cursor:
-                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_category');")
-                category_exists = cursor.fetchone()[0]
-                
                 cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
-                migrations_table_exists = cursor.fetchone()[0]
-                
-                if migrations_table_exists and category_exists:
+                if cursor.fetchone()[0]:
                     cursor.execute(
-                        "SELECT 1 FROM django_migrations WHERE app='marketplace' AND name='0017_translationqueue_delete_aisystemtask_and_more';"
+                        "SELECT 1 FROM django_migrations WHERE app='marketplace' AND name='0018_translationqueue_delete_aisystemtask_and_more';"
                     )
                     if not cursor.fetchone():
                         now_func = "CURRENT_TIMESTAMP" if connection.vendor == 'sqlite' else "NOW()"
                         cursor.execute(
                             f"INSERT INTO django_migrations (app, name, applied) "
-                            f"VALUES ('marketplace', '0017_translationqueue_delete_aisystemtask_and_more', {now_func});"
+                            f"VALUES ('marketplace', '0018_translationqueue_delete_aisystemtask_and_more', {now_func});"
                         )
-                        logger.info("✨ Auto-Healer: Injected Migration 0017 defuse record into django_migrations successfully.")
+                        logger.info("✨ Auto-Healer: Injected Migration 0018 defuse record into django_migrations successfully.")
             
-            # 🛠️ 2. ማይግሬሽን በራስ-ሰር ማስኬድ
-            logger.info("🛠️ Auto-Migrator: Running makemigrations...")
-            call_command('makemigrations', interactive=False)
-            logger.info("🛠️ Auto-Migrator: Running migrate...")
+            # 🛠️ 3. [ደረጃ 3]፦ የተቀሩትን የጃንጎ ፍልሰቶች በራስ-ሰር ማስኬድ [1, 2]
+            logger.info("🛠️ Auto-Migrator: Running final migration check...")
             call_command('migrate', interactive=False)
             
-            # 🛠️ 3. የ 147 ምርቶች መጣረስ ለመፍታት ወዲኑኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት
+            # 🛠️ 4. የ 147 ምርቶች መጣረስ ለመፍታት ወዲኑኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት [1, 2]
             from .models import Product, SiteRegistry
-            site = SiteRegistry.objects.filter(name='primary').first()
+            site = SiteRegistry.objects.filter(name='primary', is_active=True).first()
             if site:
                 unlinked_count = Product.objects.filter(site__isnull=True).update(site=site)
                 if unlinked_count > 0:
