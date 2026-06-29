@@ -275,8 +275,8 @@ class MarketplaceConfig(AppConfig):
                                     parsed_json = json.loads(cron_ping.value)
                                     if isinstance(parsed_json, dict):
                                         time_str = parsed_json.get('time')
-                                    except json.JSONDecodeError:
-                                        time_str = cron_ping.value
+                                except json.JSONDecodeError:
+                                    time_str = cron_ping.value
                         
                         if isinstance(time_str, str):
                             try:
