@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.4 - Generative AI SQL Healer Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic Generative AI SQL Healer (100% Headless), Throttled migration check, Dynamic Daily Performance Audit, AST HTML safety, Anti-Bloat Code Pruner
-# 📅 ቀን፦ Monday, June 29, 2026
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.5 - Schema-Aware AI Healer & Legacy Migration Defuser Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic prediction & security index maps, Throttled migration check, Dynamic Daily Performance Audit, AST HTML safety, Anti-Bloat Code Pruner, Resolved SQL guessing error, Fixed marketplace_name_8491f6_idx missing error by dynamically creating dummy tables for SQLite/PostgreSQL
+# 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
 import os
@@ -15,6 +15,7 @@ from django.db import connection, connections
 from django.core.management import call_command
 from django.db.models import Q
 from django.conf import settings
+from django.apps import apps # 🟢 አዲስ የተጨመረ የሞዴሎች ስካነር
 
 # SiteConfig ተጨምሯል (ለ Throttling መከታተያ)
 from .models import (
@@ -146,7 +147,7 @@ class UniversalHealer:
     def heal_database_migrations_autonomously(self, force=False):
         """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል [1, 2, 3.1.2]"""
         
-        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ [1, 2]
+        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ (ከፍተኛ አፈጻጸም ለማስገኘት)
         last_check_key = f"LAST_SCHEMA_MIGRATION_CHECK_{self.site.name}"
         last_check_cfg = SiteConfig.objects.filter(key=last_check_key).first()
         
@@ -156,7 +157,7 @@ class UniversalHealer:
                 should_run = True
             else:
                 try:
-                    last_time = datetime.fromisoformat(last_check_cfg.value.get('time'))
+                    last_time = timezone.datetime.fromisoformat(last_check_cfg.value.get('time'))
                     if timezone.is_naive(last_time):
                         last_time = timezone.make_aware(last_time)
                     if timezone.now() - last_time >= timedelta(minutes=30):
@@ -193,13 +194,54 @@ class UniversalHealer:
             err_msg = str(e)
             logger.error(f"🚑 Schema Healer: Migration blocked by error: {err_msg}")
             
+            # 🟢 [MIGRATION DEFUSER]: የጠፋውን የ 'marketplace_name_8491f6_idx' ዱሚ ሰንጠረዥና ኢንዴክስ በዳይናሚክ መንገድ መፍታት
+            match_missing = re.search(r'relation "([^"]+)" does not exist', err_msg)
+            if match_missing:
+                idx_name = match_missing.group(1)
+                idx_name_clean = str(idx_name).lower()
+                
+                if "marketplace_name_8491f6_idx" in idx_name_clean or "marketplace_name" in idx_name_clean:
+                    logger.warning("🚑 Schema Healer: Missing legacy table/index 'marketplace_name' detected. Creating dummy to unblock...")
+                    try:
+                        with connection.cursor() as cursor:
+                            # በዳታቤዝ ዓይነት መሠረት መለያ (SQLite vs PostgreSQL Serial Support)
+                            id_type = "integer PRIMARY KEY AUTOINCREMENT" if connection.vendor == 'sqlite' else "serial NOT NULL PRIMARY KEY"
+                            cursor.execute(f'CREATE TABLE IF NOT EXISTS "marketplace_name" ("id" {id_type}, "name" varchar(255) NOT NULL);')
+                            cursor.execute('CREATE INDEX IF NOT EXISTS "marketplace_name_8491f6_idx" ON "marketplace_name" ("name");')
+                        
+                        # ዑደቱን እንደገና መሞከር
+                        call_command('migrate', interactive=False)
+                        logger.info("🚑 Schema Healer: Migration succeeded after creating dummy 'marketplace_name'!")
+                        
+                        # የስኬማ ቼክ ሰዓቱን በስኬት መመዝገብ
+                        SiteConfig.objects.update_or_create(
+                            key=last_check_key,
+                            defaults={'value': {'time': timezone.now().isoformat()}}
+                        )
+                        return
+                    except Exception as retry_err:
+                        err_msg = str(retry_err) # ስህተቱ ከቀጠለ ወደ AI Healer ማስተላለፍ
+            
             # 🟢 [DYNAMIC AI SQL HEALER]: አሮጌውን ጠቋሚ ካርታዎችን በማስወገድ፣ በ AI በዳይናሚክ የተጠየቀውን SQL መተግበር [1, 2, 3.1.2]
             try:
                 logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer to resolve database block...")
                 
+                # የድረ-ገጹን አጠቃላይ የሰንጠረዦች መዋቅር በዳይናሚክ መንገድ ሰብስቦ ለ AI መላክ (በግምት መገመትን ያስቀራል) [3.1.2]
+                all_tables = []
+                try:
+                    for model in apps.get_models():
+                        all_tables.append({
+                            "table": model._meta.db_table,
+                            "fields": [f.name for f in model._meta.fields]
+                        })
+                except Exception as schema_scan_err:
+                    logger.warning(f"🚑 Schema Healer: Failed to scan system model structures: {schema_scan_err}")
+
                 prompt = (
                     f"We encountered a database migration or schema error in our Django project: '{err_msg}'.\n"
-                    f"Identify the exact database table and columns involved in this error (considering our app is named 'marketplace').\n"
+                    f"Here are the ACTUAL database tables and fields currently registered in our Django project schema:\n"
+                    f"{json.dumps(all_tables, ensure_ascii=False)}\n\n"
+                    f"Based on these actual tables, identify the exact database table and columns involved in this error.\n"
                     f"Generate the exact, safe, raw SQL DDL statement to execute on PostgreSQL or SQLite to resolve this error "
                     f"(e.g., 'CREATE INDEX IF NOT EXISTS ... ON ... (...)', 'DROP INDEX IF EXISTS ...', or 'ALTER TABLE ...').\n"
                     f"Return strictly valid JSON with key 'sql' containing only the executable SQL query string, and 'explanation' explaining your reasoning."
