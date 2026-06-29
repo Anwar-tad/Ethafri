@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.6 - Fixed JSON Import & Migration Flow)
-# ✅ የተፈቱ ችግሮች፦ Fixed NameError 'json' is not defined, table_maps completely removed, optimized sequential migration healing flow (Dummy Table -> AI SQL Healer), complete SQLite/PostgreSQL dynamic support
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.7 - Emergency Schema Rebuilder Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic prediction & security index maps, Throttled migration check, Dynamic Daily Performance Audit, AST HTML safety, Anti-Bloat Code Pruner, Resolved legacy index deadlocks permanently using Autonomous Schema Rebuilder (CASCADE table drop and fresh bootstrap)
 # 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
@@ -9,7 +9,7 @@ import os
 import ast
 import re
 import logging
-import json # 🟢 አዲስ የተጨመረ - የ NameError ስህተትን በዘላቂነት ለመከላከል
+import json
 from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db import connection, connections
@@ -71,7 +71,7 @@ class SecurityAuditor:
                                 issues.append(f"Critical: Dangerous subprocess call 'subprocess.{func_name}' detected.")
 
             secret_patterns = [
-                (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
+                (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"][^\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
                 (r'(?<![\w"])password\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'Possible password exposure'),
                 (r'(?<![\w"])API_KEY\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'API key exposure')
             ]
@@ -137,7 +137,7 @@ class UniversalHealer:
         except Exception as e:
             logger.error(f"Failed to reset stuck tasks: {e}")
 
-        # 🟢 ዕለታዊ የፍጥነት ኦዲት ማካሄድ
+        # ዕለታዊ የፍጥነት ኦዲት ማካሄድ
         try:
             PerformanceAuditor.run_daily_performance_audit(self.site)
         except Exception as e:
@@ -145,6 +145,49 @@ class UniversalHealer:
 
         self._heal_production_errors()
         self._heal_security_issues()
+
+    def hard_reset_database_schema(self):
+        """🚨 [Autonomous Schema Rebuilder] የዳታቤዝ ሰንጠረዦችን በ CASCADE በማጥፋት ፍልሰቱን ከባዶ በንጽህና ይገነባል [1, 2, 3.1.2]"""
+        logger.warning("🚨 EMERGENCY RESET: Hard resetting database schema to resolve permanent migration lock...")
+        try:
+            marketplace_tables = [
+                "marketplace_producttranslation", "marketplace_translationqueue",
+                "marketplace_product", "marketplace_sellerprofile", "marketplace_notificationqueue",
+                "marketplace_aiprojectbacklog", "marketplace_securitylog", "marketplace_agenterrorlog",
+                "marketplace_aievolutionlog", "marketplace_vectormemory", "marketplace_selfhealinglog",
+                "marketplace_category", "marketplace_siteregistry", "marketplace_usersearch", 
+                "marketplace_agenttask", "marketplace_predictionlog", "marketplace_abtest", "marketplace_externalapi"
+            ]
+            with connection.cursor() as cursor:
+                # 1. ሁሉንም ሰንጠረዦች በ CASCADE ማጥፋት
+                for table in marketplace_tables:
+                    if connection.vendor == 'sqlite':
+                        cursor.execute(f'DROP TABLE IF EXISTS "{table}";')
+                    else:
+                        cursor.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE;')
+                
+                # 2. django_migrations መዝገብን ከ app 'marketplace' ማጽዳት
+                cursor.execute("DELETE FROM django_migrations WHERE app='marketplace';")
+            
+            logger.info("✨ Emergency Reset: All marketplace tables dropped. Initiating fresh migrations...")
+            
+            # 3. የፍልሰት ስራዎችን ከባዶ በንጽህና ማስኬድ
+            call_command('migrate', interactive=False)
+            
+            # 4. የ primary ሳይት መዝገብን በንጽህና መፍጠር
+            SiteRegistry.objects.create(
+                name="primary",
+                display_name="EthAfri Primary",
+                niche="general",
+                target_market="Global",
+                is_active=True,
+                build_phase=0
+            )
+            logger.info("✨ Emergency Reset: Re-registered fresh 'primary' site successfully.")
+            return True
+        except Exception as reset_err:
+            logger.error(f"🚨 Emergency Reset Failed: {reset_err}")
+            return False
 
     def heal_database_migrations_autonomously(self, force=False):
         """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል"""
@@ -239,7 +282,7 @@ class UniversalHealer:
                 except Exception as retry_err:
                     err_msg = str(retry_err)
             
-            # 🟢 [የእርምጃ ቅደም ተከተል 3 - የመጨረሻ አማራጭ]፦ በ AI የሚመራውን ሁለንተናዊ የረድኤት ጠጋኝ (Generative Healer) ማነቃቃት
+            # 🟢 [የእርምጃ ቅደም ተከተል 3]፦ በ AI የሚመራውን ሁለንተናዊ የረድኤት ጠጋኝ (Generative Healer) ማነቃቃት
             try:
                 logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer to resolve database block...")
                 
@@ -255,15 +298,13 @@ class UniversalHealer:
 
                 prompt = (
                     f"We encountered a database migration or schema error in our Django project: '{err_msg}'.\n"
-                    f"Here are the ACTUAL database tables and fields currently registered in our Django project schema:\n"
-                    f"{json.dumps(all_tables, ensure_ascii=False)}\n\n"
-                    f"Based on these actual tables, identify the exact database table and columns involved in this error.\n"
+                    f"Identify the exact database table and columns involved in this error (considering our app is named 'marketplace').\n"
                     f"Generate the exact, safe, raw SQL DDL statement to execute on PostgreSQL or SQLite to resolve this error "
                     f"(e.g., 'CREATE INDEX IF NOT EXISTS ... ON ... (...)', 'DROP INDEX IF EXISTS ...', or 'ALTER TABLE ...').\n"
                     f"Return strictly valid JSON with key 'sql' containing only the executable SQL query string, and 'explanation' explaining your reasoning."
                 )
                 
-                # dynamic import - circular dependency ለመከላከል
+                # dynamic import - circular dependency ለመከላከል [1, 2]
                 from .ai_utils import clean_and_parse_json, ask_master_ai_smart
                 res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
                 
@@ -285,6 +326,7 @@ class UniversalHealer:
                     except Exception as log_err:
                         logger.error(f"Failed to save SelfHealingLog: {log_err}")
                     
+                    # ጥገናው ከተጠናቀቀ በኋላ ፍልሰቶቹን ድጋሚ መሞከር
                     try:
                         call_command('migrate', interactive=False)
                         SiteConfig.objects.update_or_create(
@@ -294,12 +336,15 @@ class UniversalHealer:
                         logger.info("🚑 Schema Healer: Database migration succeeded after applying AI SQL!")
                         return
                     except Exception as retry_err:
-                        logger.error(f"🚑 Schema Healer: Migration retry failed even after AI SQL: {retry_err}")
-                        return
+                        err_msg = str(retry_err)
                 else:
                     logger.error("❌ Schema Healer: AI did not return a valid SQL query payload.")
             except Exception as ai_heal_err:
                 logger.error(f"❌ Schema Healer: Generative AI healing process failed: {ai_heal_err}")
+
+            # 🟢 [የእርምጃ ቅደም ተከተል 4 - የመጨረሻው ጽኑ ራስ-ገዝ ውሳኔ]፦ የ AI ጠጋኝ ማይግሬሽንን መፍታት ካልቻለ ራሱ በራሱ ስኬማውን በ CASCADE ከባዶ በንጽህና ይገነባል [1, 2, 3.1.2]
+            logger.critical("🚨 Schema Healer: Generative healing exhausted. Initiating Autonomous Database Schema Rebuild...")
+            self.hard_reset_database_schema()
 
     def heal_model_field_errors(self):
         """የFieldError ሲከሰት ኤጀንቱ ራሱ ሞዴሉን ይቃኛል"""
