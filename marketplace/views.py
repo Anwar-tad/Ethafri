@@ -159,7 +159,7 @@ def post_product(request):
         image = request.FILES.get('image')
         image_url = request.POST.get('image_url', '').strip()
         
-        # 🟢 አዲስ የተጨመሩ እሴቶችን ከፎርሙ መቀበል
+        # አዲስ የተጨመሩ እሴቶችን ከፎርሙ መቀበል
         listing_type = request.POST.get('listing_type', 'sale').strip()
         contact_info = request.POST.get('contact_info', '').strip()
         gallery_urls_raw = request.POST.get('image_gallery', '').strip()
@@ -192,9 +192,9 @@ def post_product(request):
             location=location,
             image=image,
             image_url=image_url,
-            listing_type=listing_type, # 🟢 አዲስ
-            contact_info=contact_info, # 🟢 አዲስ
-            image_gallery=image_gallery_json, # 🟢 አዲስ
+            listing_type=listing_type, 
+            contact_info=contact_info, 
+            image_gallery=image_gallery_json, 
             is_active=True,
             translations=None
         )
@@ -210,10 +210,17 @@ def post_product(request):
         messages.success(request, _("ምርትዎ በተሳካ ሁኔታ ተለጥፏል! ኤጀንቱ በጀርባ እያቀነባበረው ነው።"))
         return redirect('post_success')
     
+    # 🟢 [Optimized - Safe Fallback]: የ Product.LISTING_TYPES በሞዴሉ ላይ ባይኖር እንኳ ሰርቨሩ ጨርሶ እንዳይበላሽ getattr መጠቀም [1, 2, 3.1.2]
+    listing_choices = getattr(Product, 'LISTING_TYPES', [
+        ('sale', 'ለሽያጭ (For Sale)'),
+        ('rent', 'ለኪራይ (For Rent)'),
+        ('service', 'አገልግሎት / ስራ (Service)'),
+    ])
+
     return render(request, 'marketplace/post_product.html', {
         'categories': Category.objects.all(),
         'sites': SiteRegistry.objects.filter(is_active=True),
-        'listing_types': Product.LISTING_TYPES # 🟢 የካቴጎሪ ምርጫዎችን ለፎርሙ ማሳለፍ
+        'listing_types': listing_choices # 🟢 የካቴጎሪ ምርጫዎችን ለፎርሙ ማሳለፍ
     })
 
 def post_success(request):
