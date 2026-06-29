@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.3 - Performance Scan & Anti-Bloat Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic prediction & security index maps, Throttled migration check, Dynamic Daily Performance Audit, AST HTML safety, Anti-Bloat Code Pruner
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.4 - Generative AI SQL Healer Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic Generative AI SQL Healer (100% Headless), Throttled migration check, Dynamic Daily Performance Audit, AST HTML safety, Anti-Bloat Code Pruner
 # 📅 ቀን፦ Monday, June 29, 2026
 # ============================================================
 
@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.db import connection, connections
 from django.core.management import call_command
 from django.db.models import Q
-from django.conf import settings # 🟢 አዲስ የተጨመረ የፓዝ መፍቻ
+from django.conf import settings
 
 # SiteConfig ተጨምሯል (ለ Throttling መከታተያ)
 from .models import (
@@ -134,7 +134,7 @@ class UniversalHealer:
         except Exception as e:
             logger.error(f"Failed to reset stuck tasks: {e}")
 
-        # 🟢 አዲስ የተጨመረ፦ ዕለታዊ የፍጥነት ኦዲት ማካሄድ [1, 2]
+        # ዕለታዊ የፍጥነት ኦዲት ማካሄድ
         try:
             PerformanceAuditor.run_daily_performance_audit(self.site)
         except Exception as e:
@@ -144,9 +144,9 @@ class UniversalHealer:
         self._heal_security_issues()
 
     def heal_database_migrations_autonomously(self, force=False):
-        """የ PostgreSQL የኢንዴክስ መጣረስ ስህተቶችን በራስ-ሰር ፈልጎ ይፈታል (Smart Throttling ተጨምሮለታል)"""
+        """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል [1, 2, 3.1.2]"""
         
-        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ (ከፍተኛ አፈጻጸም ለማስገኘት) [1, 2]
+        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ [1, 2]
         last_check_key = f"LAST_SCHEMA_MIGRATION_CHECK_{self.site.name}"
         last_check_cfg = SiteConfig.objects.filter(key=last_check_key).first()
         
@@ -164,7 +164,7 @@ class UniversalHealer:
                 except Exception:
                     should_run = True
 
-        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ Throttling ወዲያውኑ ይነሳል [1, 2]
+        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ ቶሎ እንዲጠግን ማድረግ [1, 2]
         if not should_run:
             recent_db_errors = AgentErrorLog.objects.filter(
                 site=self.site,
@@ -193,77 +193,57 @@ class UniversalHealer:
             err_msg = str(e)
             logger.error(f"🚑 Schema Healer: Migration blocked by error: {err_msg}")
             
-            match_missing = re.search(r'relation "([^"]+)" does not exist', err_msg)
-            if match_missing:
-                idx_name = match_missing.group(1)
-                logger.warning(f"🚑 Schema Healer: Missing index '{idx_name}' detected. Auto-creating in DB...")
+            # 🟢 [DYNAMIC AI SQL HEALER]: አሮጌውን ጠቋሚ ካርታዎችን በማስወገድ፣ በ AI በዳይናሚክ የተጠየቀውን SQL መተግበር [1, 2, 3.1.2]
+            try:
+                logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer to resolve database block...")
                 
-                table_maps = {
-                    "marketplace_agentty_847321_idx": ("marketplace_agenttask", "agent_type, status"),
-                    "marketplace_site_id_6bde06_idx": ("marketplace_agenttask", "site_id, status"),
-                    "marketplace_predicti_9ce3e9_idx": ("marketplace_predictionlog", "prediction_type, site_id"),
-                    "marketplace_predicti_1a7d5d_idx": ("marketplace_predictionlog", "prediction_type"),
-                    "marketplace_security_128a46_idx": ("marketplace_securitylog", "severity"),
-                    "marketplace_security_840055_idx": ("marketplace_securitylog", "severity")
-                }
+                prompt = (
+                    f"We encountered a database migration or schema error in our Django project: '{err_msg}'.\n"
+                    f"Identify the exact database table and columns involved in this error (considering our app is named 'marketplace').\n"
+                    f"Generate the exact, safe, raw SQL DDL statement to execute on PostgreSQL or SQLite to resolve this error "
+                    f"(e.g., 'CREATE INDEX IF NOT EXISTS ... ON ... (...)', 'DROP INDEX IF EXISTS ...', or 'ALTER TABLE ...').\n"
+                    f"Return strictly valid JSON with key 'sql' containing only the executable SQL query string, and 'explanation' explaining your reasoning."
+                )
                 
-                idx_name_clean = str(idx_name).lower()
-                for old_name, sql_map in table_maps.items():
-                    if old_name in idx_name_clean:
-                        table, cols = sql_map
-                        with connection.cursor() as cursor:
-                            cursor.execute(f"SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='{table}');")
-                            table_exists = cursor.fetchone()[0]
-                            if table_exists:
-                                cursor.execute(f"CREATE INDEX IF NOT EXISTS {old_name} ON {table} ({cols});")
-                                logger.info(f"✨ Schema Healer: Successfully created missing index {old_name} on {table}")
-                        
-                        try:
-                            SelfHealingLog.objects.create(
-                                error_message=f"Missing Index {old_name} on {table}",
-                                solution_sql=f"CREATE INDEX IF NOT EXISTS {old_name} ON {table} ({cols});",
-                                resolved=True
-                            )
-                        except Exception as log_err:
-                            logger.error(f"Failed to save SelfHealingLog: {log_err}")
-                            
-                        try:
-                            call_command('migrate', interactive=False)
-                            # የስኬማ ቼክ ሰዓቱን በስኬት መመዝገብ
-                            SiteConfig.objects.update_or_create(
-                                key=last_check_key,
-                                defaults={'value': {'time': timezone.now().isoformat()}}
-                            )
-                            return
-                        except Exception as retry_err:
-                            logger.error(f"🚑 Schema Healer: Retry failed: {retry_err}")
-                            return
-
-            match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
-            if match_exists:
-                idx_name = match_exists.group(1)
-                logger.warning(f"🚑 Schema Healer: Conflicting index '{idx_name}' already exists. Auto-dropping...")
-                with connection.cursor() as cursor:
-                    cursor.execute(f"DROP INDEX IF EXISTS {idx_name};")
-                logger.info(f"✨ Schema Healer: Successfully dropped conflicting index {idx_name}")
+                # dynamic import - circular dependency ለመከላከል
+                from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+                res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
                 
-                try:
-                    SelfHealingLog.objects.create(
-                        error_message=f"Conflicting Index {idx_name} already exists",
-                        solution_sql=f"DROP INDEX IF EXISTS {idx_name};",
-                        resolved=True
-                    )
-                except Exception as log_err:
-                    logger.error(f"Failed to save SelfHealingLog: {log_err}")
+                if res and isinstance(res, dict) and res.get('sql'):
+                    sql_query = res['sql']
+                    logger.warning(f"🚑 Schema Healer: Executing AI-generated healing SQL: {sql_query}")
                     
-                try:
-                    call_command('migrate', interactive=False)
-                    SiteConfig.objects.update_or_create(
-                        key=last_check_key,
-                        defaults={'value': {'time': timezone.now().isoformat()}}
-                    )
-                except Exception as retry_err:
-                    logger.error(f"🚑 Schema Healer: Retry failed: {retry_err}")
+                    with connection.cursor() as cursor:
+                        cursor.execute(sql_query)
+                    
+                    logger.info("✨ Schema Healer: Successfully executed AI SQL to heal database schema.")
+                    
+                    # የጥገና እንቅስቃሴ ታሪኩን መመዝገብ
+                    try:
+                        SelfHealingLog.objects.create(
+                            error_message=err_msg,
+                            solution_sql=sql_query,
+                            resolved=True
+                        )
+                    except Exception as log_err:
+                        logger.error(f"Failed to save SelfHealingLog: {log_err}")
+                    
+                    # ጥገናው ከተጠናቀቀ በኋላ ፍልሰቶቹን ድጋሚ መሞከር
+                    try:
+                        call_command('migrate', interactive=False)
+                        SiteConfig.objects.update_or_create(
+                            key=last_check_key,
+                            defaults={'value': {'time': timezone.now().isoformat()}}
+                        )
+                        logger.info("🚑 Schema Healer: Database migration succeeded after applying AI SQL!")
+                        return
+                    except Exception as retry_err:
+                        logger.error(f"🚑 Schema Healer: Migration retry failed even after AI SQL: {retry_err}")
+                        return
+                else:
+                    logger.error("❌ Schema Healer: AI did not return a valid SQL query payload.")
+            except Exception as ai_heal_err:
+                logger.error(f"❌ Schema Healer: Generative AI healing process failed: {ai_heal_err}")
 
     def heal_model_field_errors(self):
         """የFieldError ሲከሰት ኤጀንቱ ራሱ ሞዴሉን ይቃኛል"""

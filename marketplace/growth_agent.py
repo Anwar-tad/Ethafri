@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.8 - Fully Integrated High-Throughput & Universal Marketplace Edition)
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.9 - Fully Integrated High-Throughput & Universal Marketplace Edition)
 # ✅ የተፈቱ ችግሮች፦
 #   1. 🧬 LAW 0 — Self-Readiness Gate (SelfBootstrapManager): ኤጀንቱ ራሱን አስቀድሞ
 #      ይመረምራል፣ የጎደለውን/የተበላሸውን ራሱ ይጠገናል፣ ብቁ መሆኑን ካረጋገጠ በኋላ ብቻ ወደ ሙሉ
@@ -605,17 +605,16 @@ class MultiChannelHarvester:
                                 "image_url": images[i] if i < len(images) else ""
                             })
                 else:
-                    # Universal Web/Jiji/Engocha/Facebook scraper
-                    # Fetches raw HTML, strips script/style tags (token compression), and crawls
+                    # የኮድ መደራረብን ለመቀነስ የተዘጋጀ ሁለንተናዊ የዌብ ገጽ መረጃ አምጭ (Plain Text Parser) [3.1.2]
                     res = requests.get(target, headers=headers, timeout=6)
                     if res.status_code == 200:
-                        # Strip script, style, and head to compress tokens
+                        # ቶከን ለመቆጠብ script እና style ታጎችን ሙሉ በሙሉ ማጽዳት (Token Compression) [1, 2]
                         clean_html = re.sub(r'<script.*?>.*?</script>', '', res.text, flags=re.DOTALL)
                         clean_html = re.sub(r'<style.*?>.*?</style>', '', clean_html, flags=re.DOTALL)
-                        clean_html = re.sub(r'<[^>]+>', ' ', clean_html)  # plain text
-                        compressed_text = " ".join(clean_html.split())[:1500]  # token limit compression
+                        clean_html = re.sub(r'<[^>]+>', ' ', clean_html)  # plain text ማውጣት
+                        compressed_text = " ".join(clean_html.split())[:1500]  # የምርቱን መግለጫዎች ቆርጦ ማሳጠር
                         
-                        # Extract images with simple regex
+                        # ምስሎችን በዳይናሚክ ሪጀክስ ፈልጎ ማውጣት
                         imgs = re.findall(r'https?://[^\s"]+\.(?:jpg|jpeg|png)', res.text)[:3]
                         raw_data_pool.append({
                             "source": f"{p_type}: {target}",
@@ -629,7 +628,7 @@ class MultiChannelHarvester:
 
 
 # ============================================================
-# 💼 CEO OPERATIONS (Bulk Harvesting & Direct-Contact Links)
+# 💼 CEO OPERATIONS (የጅምላ ዳታ አጻጻፍ እና የዋትሳፕ/ኢሞ ቀጥታ ሊንኮች ማመንጫ)
 # ============================================================
 class CEOOperations:
     def __init__(self, site: SiteRegistry):
@@ -706,7 +705,7 @@ class CEOOperations:
                     clean_price = 0.0
 
                 # 1. ምርቱን ለጅምላ አጻጻፍ ዝግጁ ማድረግ
-                # 🟢 ፅኑ የዳታቤዝ አቅራቢ መከላከያ፦ listing_type በግልጽ 'sale' ተብሎ መመዝገቡ constraints ስህተትን ይከላከላል [1, 2, 3.1.2]
+                # 🟢 ፅኑ የዳታቤዝ አቅራቢ መከላከያ፦ listing_type በግልጽ 'sale' እና የ contact_info እሴቶችን በአንድ ላይ መመዝገቡ constraints ስህተትን ይከላከላል [1, 2, 3.1.2]
                 product_obj = Product(
                     seller=user,
                     site=self.site,
@@ -715,6 +714,7 @@ class CEOOperations:
                     description=p.get('desc', ''),
                     image_url=p.get('image_url', ''),
                     listing_type=p.get('listing_type', 'sale') or 'sale',
+                    contact_info=contact,
                     is_active=True
                 )
                 products_to_create.append(product_obj)
@@ -1052,6 +1052,7 @@ class SelfBootstrapManager:
         'self_doctor': 'marketplace/self_doctor.py',
     }
     RUNNING_PROCESS_MODULES = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
+    READY_KEY = "SELF_BOOTSTRAP_STATUS"
     READY_KEY = "SELF_BOOTSTRAP_STATUS"
     REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
     MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
