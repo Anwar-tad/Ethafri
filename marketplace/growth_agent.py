@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.0 - Self-Bootstrap Edition)
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.1 - High-Throughput Edition)
 # ✅ የተፈቱ ችግሮች፦
 #   1. 🧬 LAW 0 — Self-Readiness Gate (SelfBootstrapManager): ኤጀንቱ ራሱን አስቀድሞ
 #      ይመረምራል፣ የጎደለውን/የተበላሸውን ራሱ ይጠገናል፣ ብቁ መሆኑን ካረጋገጠ በኋላ ብቻ ወደ ሙሉ
@@ -14,7 +14,9 @@
 #   5. Duplicate AICache ክፍል ተወግዷል (ai_utils.py ራሱ ባለቤት ስለሆነ)።
 #   6. Risk-tiered cooldown፣ parallel multi-task builder፣ EVOLUTION_LOCK wiring፣
 #      adaptive sleep interval ሁሉም ተጠብቀዋል/ተጠናክረዋል።
-# 📅 ቀን፦ 2026-06-28
+#   7. [NEW] የ 24 ሰዓት የ Cooldown ገደብ ወደ ደቂቃዎች ዝቅ ተደርጓል፤ ኤጀንቱ በአጭር ጊዜ ውስጥ
+#      በርካታ (እስከ 4) ስራዎችን በትይዩ መስራት እንዲችል ፍጥነቱ ተሻሽሏል።
+# 📅 ቀን፦ 2026-06-29
 # ============================================================
 
 import ast
@@ -79,15 +81,6 @@ def is_html_target(target_file):
 
 # ============================================================
 # 🌱 SEEDING-FIRST GUARDRAIL — Self-Healing Product Recognition
-#
-# ቀደም ሲል `Product.objects.filter(site=self.site, is_active=True).exists()`
-# ብቸኛ ፍተሻ ብቻ ስለ ነበር፣ ዳታቤዙ ውስጥ ብዙ ምርት ቢኖርም ኤጀንቱ "ምርት የለም" ብሎ በስህተት
-# ይቆጥር ነበር፣ ምክንያቱ ብዙ ጊዜ፦
-#   1. ምርቶቹ site_id=NULL ናቸው (admin/shell ላይ ቀጥታ ቢጨመሩ፣ site field ሳይሞላ)
-#   2. ምርቶቹ is_active=False ናቸው (በ FraudHunter ወይም scam-curation ቢደበቁ)
-#   3. ድግግሞሽ SiteRegistry rows (bootstrap ድጋሚ ቢሰራ የተለየ site_id ቢፈጠር)
-# ይህ ፈንክሽን ምርት መኖሩን በትክክል ይለያል፣ ለ #1 (single-site ስርዓት ላይ ብቻ) በራስ-ሰር
-# ይጠገናል፣ እና ለ #2/#3 ግልጽ diagnostic log ያስቀምጣል ለ ባለቤቱ ምርመራ።
 # ============================================================
 def has_seeded_products(site):
     """ምርት ለ ሳይቱ መኖሩን ይለያል፣ site-mismatch/inactive ችግሮችን ራሱ ይጠግናል/ይዘግባል"""
@@ -138,11 +131,6 @@ def has_seeded_products(site):
 
 # ============================================================
 # 🔍 ለ Disk-Level Verification እና Rollback የሚያገልግሉ ረዳት ፈንክሽኖች
-#
-# ⚠️ ማስታወሻ፦ Python አንዴ የጫነውን ሞጁል (in-memory) ድጋሚ ከ disk ላይ አያነበውም።
-# ስለዚህ `call_command('check')` ብቻውን ድሮውን ኮድ ይፈትሻል፣ አዲሱን disk ላይ የተጻፈውን
-# አያረጋግጥም። ይህ ለ Django app files (models/views/urls/forms/admin) ብቻ
-# subprocess-based ጥልቅ ፍተሻ (አዲስ process፣ ድሮ module-cache የለውም) ይተግባል።
 # ============================================================
 def verify_disk_write(path):
     """ፋይሉ በትክክል disk ላይ መጻፉን ለማረጋገጥ ራሱን ዳግም ያነባል እና ይፈትሻል"""
@@ -223,7 +211,6 @@ def calculate_site_phase(state, site) -> int:
 
     if phase >= 2:
         try:
-            # ✅ FIXED: ድሮ ቀጥተኛ ፍተሻ site-mismatch/NULL-site ምርቶችን በስህተት "የለም" ይል ነበር
             if has_seeded_products(site):
                 phase = 3
         except Exception:
@@ -363,7 +350,6 @@ class StrategicCEO:
         last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
 
         if not last_self_audit or (timezone.now() - last_self_audit.updated_at) >= timedelta(hours=3):
-            # ✅ timestamp-suffixed ስም — ድግግሞሽ-አልባ (one-shot forever) ችግርን ይፈታል
             unique_task_name = f"🧠 SELF-EVOLUTION: Optimize Agent Code ({timezone.now().strftime('%Y-%m-%d %H')})"
             get_or_create_backlog_task_safe(
                 self.site,
@@ -407,9 +393,9 @@ class RecursiveBuilder:
 
     @staticmethod
     def _get_cooldown_hours(target_file):
-        # ✅ Risk-tiered cooldown፦ HTML/templates ፈጣን ድግግሞሽ ይፈቀዳቸዋል፣
-        # backend ፋይሎች (models/views/ራሱ ኤጀንቱ ፋይሎች) ግን 24-ሰዓት ይጠብቃሉ
-        return 1 if is_html_target(target_file) else 24
+        # ✅ High-Throughput Cooldown፦ HTML ፋይሎች 1 ደቂቃ (0.016 ሰዓት)፣
+        # የ backend ፋይሎች ደግሞ 3 ደቂቃ (0.05 ሰዓት) ብቻ እረፍት ያደርጋሉ።
+        return 0.016 if is_html_target(target_file) else 0.05
 
     @classmethod
     def is_on_cooldown(cls, site, target_file):
@@ -423,8 +409,6 @@ class RecursiveBuilder:
         if self.is_on_cooldown(self.site, task.target_file):
             return "Cooldown"
 
-        # ✅ FIXED: Seeding-First Guardrail — አሁን self-healing/diagnostic function ይጠቀማል
-        # (ቀደም ድሮው ቀጥተኛ ፍተሻ site-mismatch/NULL-site/inactive ምርቶችን በስህተት "የለም" ይል ነበር)
         is_coding_task = task.target_file in ['views', 'urls', 'forms'] or is_html_target(task.target_file)
         if is_coding_task and not has_seeded_products(self.site):
             logger.info(f"⏳ Seeding-First Guardrail Active: Halted coding task '{task.task_name}'.")
@@ -486,7 +470,6 @@ class RecursiveBuilder:
                 except Exception:
                     pass
 
-            # ✅ FIXED: apply_code_change() ምላሽ አሁን በትክክል ይፈተሻል (ቀደም ይዘለል ነበር)
             apply_result = apply_code_change(self.site, task.target_file, new_code, task.task_name, backlog_task=task)
 
             if not apply_result.get('success'):
@@ -506,7 +489,7 @@ class RecursiveBuilder:
                 task.save()
                 return "Verification Failed"
 
-            # 5. Deep verification (subprocess — ለ Django app files ብቻ፣ throughput ላልመጉዳት)
+            # 5. Deep verification (subprocess — ለ Django app files ብቻ)
             if task.target_file in DJANGO_APP_FILES:
                 deep_ok, dmsg = deep_verify_django_app()
                 if not deep_ok:
@@ -516,7 +499,6 @@ class RecursiveBuilder:
                     task.save()
                     return "Deep Verification Failed"
 
-        # apply_code_change() ራሱ task.status='Completed'ን አስቀድሞ አስቀምጧል (የተመሳሳይ object reference ስለሆነ)
         try:
             VectorMemory.objects.create(site=self.site, memory_type='solution', content=f"Success: {task.task_name}")
         except Exception:
@@ -623,7 +605,6 @@ class CEOOperations:
 
     def run_business_growth(self):
         self._harvest_verified_products()
-        # ✅ FIXED: ቀደም ከ class ውጭ "ተንሳፍፎ" የቀረው dead-code feature አሁን በትክክል ተገናኝቷል
         self.curate_user_listings()
         self._boost_revenue()
 
@@ -692,7 +673,6 @@ class CEOOperations:
                     price=clean_price, description=p.get('desc', ''), is_active=True
                 )
 
-                # SaaS Metrics Sync (best-effort, ካልነበሩ fields ምንም ጉዳት እንዳይኖር try/except)
                 try:
                     self.site.real_product_count = Product.objects.filter(site=self.site, is_active=True).count()
                     self.site.total_products = Product.objects.filter(site=self.site).count()
@@ -712,8 +692,7 @@ class CEOOperations:
         """
         [Real-Time Post-Validation Guardrail]
         አዲስ የተለጠፉ ምርቶችን መርምሮ ስካም/ሕገ-ወጥ ይዘት ካለው ወዲያውኑ ደብቆ ለሻጩ መልእክት ይልካል፤
-        ትክክለኛ ከሆነ ደግሞ የትርጉም ስራ ያካሂዳል። ድግግሞሽ-ምርመራ እንዳይፈጠር dedup በ SiteConfig
-        ይከታተላል (ምንም speculative model field ሳያስፈልግ — Product/SiteConfig ብቻ ይጠቅማል)።
+        ትክክለኛ ከሆነ ደግሞ የትርጉም ስራ ያካሂዳል።
         """
         dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
         dedup_config, _ = SiteConfig.objects.get_or_create(key=dedup_key, defaults={'value': []})
@@ -756,18 +735,11 @@ class CEOOperations:
 
         if newly_curated:
             curated_ids.update(newly_curated)
-            # ከ2000 በላይ እንዳይከማች የ dedup መዝገብን መገደብ
             dedup_config.value = list(curated_ids)[-2000:]
             dedup_config.save()
 
     def _generate_translations_for_product(self, product):
-        """
-        ምርቱን ለ Amharic/Oromo ቋንቋዎች በራስ-ሰር መተርጎም።
-        ⚠️ ማስታወሻ፦ `ProductTranslation` ሞዴል ካልኖረ ወይም የተለያየ field ስም ካለው
-        በሰላም ይዘላል (ImportError/Exception ሁለቱም guarded ናቸው) — እባክዎ ከ models.py ጋር
-        ያለውን field naming ያረጋግጡ (assumption: product, language, translated_title,
-        translated_description fields)።
-        """
+        """ምርቱን ለ Amharic/Oromo ቋንቋዎች በራስ-ሰር መተርጎም።"""
         try:
             from .models import ProductTranslation
         except ImportError:
@@ -978,26 +950,8 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
 
 # ============================================================
 # 🧬 LAW 0 — SELF-READINESS GATE
-#
-# Deploy ከተደረገ በኋላ ድረ-ገጹ ስራ ከጀመረ ጀምሮ ኤጀንቱ የመጀመሪያ ስራው የራሱን ኮር ፋይሎች
-# (ራሱን) መመርመር፣ የጎደለውን/የተበላሸውን ራሱ መጠገን፣ እና ሙሉ ብቁነቱን ካረጋገጠ በኋላ ብቻ
-# ወደ ሙሉ ድረ-ገጽ ማኔጅመንት (per-site CEO cycle) መግባት ነው።
-#
-# ⚠️ ወሳኝ ገደብ፦ Python አንዴ የጫነውን ሞጁል disk ላይ ድጋሚ አያነበውም። ስለዚህ ራሱን-የሚያስኪደው
-# ፋይል (growth_agent/ai_utils/code_apply/self_doctor) ቢጠገንም፣ ለውጡ ሙሉ ለሙሉ
-# የሚሰራው process ሲደገም (restart) ብቻ ነው። SELF_HEAL_AUTO_RESTART=true ካልተደረገ
-# ኤጀንቱ ይጠግናል ግን አሁን ባለው process ውስጥ ራሱ-በራሱ reload አያደርግም (በተለይ ለ web
-# dynos downtime ስለሚያስከትል በ default ጠፍቷል)። ይህ flag ለ worker process ብቻ
-# እንዲነቃ ይመከራል።
 # ============================================================
 class SelfBootstrapManager:
-    # ✅ FIXED (Deadlock Bug): ይህ gate growth_agent.py ራሱ በቀጥታ "from .X import Y"
-    # ብሎ የሚጠራቸውን 4 ፋይሎች ብቻ ይመለክታል። ቀደም ሲል models/views/urls/forms/admin/
-    # consumers እዚህ ውስጥ ገብተው ነበር — ይህ ራሱ permanent deadlock ይፈጥር ነበር፦
-    # 'forms.py' (ለምሳሌ) ገና ባዶ/ያላለቀ (Phase 0 ጀማሪ ሳይት ላይ የተለመደ ሁኔታ) ሲሆን
-    # gate ይህን እንደ "broken" ቆጥሮ ለዘላለም ያግደው ነበር። የድረ-ገጹ application ፋይሎች
-    # ሙሉነት ቀደም ብሎ በ StrategicCEO/RecursiveBuilder backlog ስርዓት በትክክል
-    # ይዳደራል — ለ "ራሱ ኤጀንት ጤና" gate ጋር መቀላቀል አልነበረበትም።
     CORE_MODULES = {
         'growth_agent': 'marketplace/growth_agent.py',
         'ai_utils': 'marketplace/ai_utils.py',
@@ -1008,7 +962,7 @@ class SelfBootstrapManager:
     READY_KEY = "SELF_BOOTSTRAP_STATUS"
     REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
     MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
-    MAX_TOTAL_ATTEMPTS_PER_MODULE = 15  # ✅ Cost-control: AI ጥሪ ላልተወሰነ ጊዜ እንዳይባክን ገደብ
+    MAX_TOTAL_ATTEMPTS_PER_MODULE = 15
 
     @classmethod
     def _scan_core_files(cls):
@@ -1094,14 +1048,6 @@ class SelfBootstrapManager:
         is_ready = len(broken) == 0
 
         if not is_ready:
-            # 🛟 SAFETY VALVE — ላልተወሰነ ጊዜ ሙሉ ስራ እንዳይታገድ
-            # ይህ ኮድ እያሄደ ስለ ደረሰ (process እየሄደ ስለሆነ)፣ growth_agent/ai_utils/
-            # code_apply/self_doctor በ import ጊዜ ትክክለኛ ስለ ነበሩ እርግጠኛ ነው (ካልሆኑ
-            # process ራሱ ገና በ import ላይ ይወድቅ ነበር)። disk ላይ ያለው ቅጂ ድህረ-ጅማት
-            # ቢበላሽም፣ አሁን እያሄደ ያለው process ላይ ምንም ቀጥተኛ ጉዳት የለውም — ለ
-            # next-restart ብቻ ስጋት ነው። ድግግሞሽ ሙከራዎች (በ cycles ተደጋግሞ) ካለቁ
-            # በኋላ፣ ለዘላለም ማገድ ምክንያታዊ አይደለም፤ critical alert ብቻ አስቀምጦ
-            # ስራውን (degraded mode) መቀጠል አለበት።
             all_exhausted = all(
                 cls._get_total_attempts(k) >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE for k in broken.keys()
             )
@@ -1119,7 +1065,7 @@ class SelfBootstrapManager:
                         'checked_at': timezone.now().isoformat()
                     }}
                 )
-                return True  # ✅ ላልተወሰነ ጊዜ አያግድም — business cycle ይቀጥላል
+                return True
 
             SiteConfig.objects.update_or_create(
                 key=cls.READY_KEY,
@@ -1144,7 +1090,7 @@ class SelfBootstrapManager:
                 broadcast_agent_log(primary_site, "Self-repair complete — restarting process to load fixes.", "success")
             except Exception:
                 pass
-            os._exit(1)  # Render/Gunicorn supervisor ራሱ በራስ-ሰር process ያስነሳል
+            os._exit(1)
 
         return True
 
@@ -1239,7 +1185,6 @@ def execute_master_cycle():
     except Exception:
         pass
 
-    # 🧬 LAW 0 — SELF-READINESS GATE: ራሱን ካደሰና ለስራ ዝግጁ መሆኑን ካረጋገጠ በኋላ ብቻ ይቀጥላል
     is_self_ready = SelfBootstrapManager.ensure_self_ready()
 
     if not is_self_ready:
@@ -1298,7 +1243,6 @@ def _run_site_cycle(site):
         FraudHunter(site).scan_for_scams()
         time.sleep(random.uniform(1.0, 3.0))
 
-        # ✅ Risk-tiered cooldown ግምት ውስጥ በማስገባት ብዙ ስራዎችን (የተለያየ target_file ላላቸው) በትይዩ መገንባት
         pending_tasks = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score')
         tasks_to_build = []
         seen_files = set()
@@ -1340,7 +1284,6 @@ def start_autonomous_ceo():
         try:
             execute_master_cycle()
 
-            # Adaptive Pacing: ብዙ pending backlog ካለ ፈጣን ድግግሞሽ፣ ካልሆነ ቶከን ቆጣቢ
             has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
             interval = 30 if has_pending else 600
             logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")

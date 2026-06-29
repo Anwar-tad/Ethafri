@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v9.9 (Phoenix Infinite Free-Tier — JSON-Parsing & Provider-Health Fixed)
+# 📝 ስሪት፦ v10.0 (High-Throughput Pacing & Safe JSON-Parsing Edition)
 # ✅ የተፈቱ ችግሮች፦
 #   1. 🔴 clean_json_response() Bracket-Detection Regression ተፍቷል — ቀደም
 #      `max(find('{'), find('['))` የተባለው ኮድ ለ ብዙ ጊዜ ጥቅም ላይ የሚውለውን
@@ -15,7 +15,9 @@
 #      GitHub ራሱ ወደ "models.github.ai/inference/chat/completions" እና
 #      publisher-namespaced model IDs (ለምሳሌ "meta/meta-llama-3.1-8b-instruct")
 #      ተቀይሯል። ሁለቱም (URL + model ID) ተስተካክለዋል።
-# 📅 ቀን፦ 2026-06-28
+#   5. [NEW] የ API Pacing ገደቦች ከ 1.0 - 2.5 ሰከንድ ወደ 1.0 ሰከንድ እንዲስተካከሉ
+#      ተደርጓል፤ ይህም በ growth_agent.py ላይ የተሰራውን የትይዩ ስራ ፍጥነት ያፋጥነዋል።
+# 📅 ቀን፦ 2026-06-29
 # ============================================================
 
 import os
@@ -70,8 +72,7 @@ class AICache:
             del self.cache[oldest]
 
 
-# በ utils ደረጃ የሚጋራ የ cache መጋዘን (ራሱን-ችሎ thread-safe — provider-pacing lock
-# ላይ ምንም ጫና አያስከትልም)
+# በ utils ደረጃ የሚጋራ የ cache መጋዘን
 _ai_cache = AICache(ttl=1800)
 
 
@@ -92,7 +93,7 @@ def get_api_keys():
 
 
 def _get_provider_lock(provider):
-    """ለእያንዳንዱ አቅራቢ (Provider) የራሱን ራሱን የቻለ Thread Lock በዳይናሚክ መልክ ያመነጫል"""
+    """ለእያንዳንዱ አቅራቢ (Provider) የራሱን thread lock ያመነጫል"""
     if provider not in _provider_locks:
         with _cooldown_lock:
             _provider_locks.setdefault(provider, threading.Lock())
@@ -102,16 +103,15 @@ def _get_provider_lock(provider):
 def _pace_provider(provider):
     """
     የነፃ ኤፒአይዎችን RPM (Requests Per Minute) ገደብ ለመጠበቅ ጥሪዎችን ያፈራርቃል።
-    ✅ Per-provider lock (ሁሉንም providers በ ብቸኛ global lock የማይተሳሰር) + sleep
-    ከ lock ውጭ — ይህ ራሱ ቀደም ስለ ነበረው "ኤጀንቱ ለምን ቀርፍ ነው" ጥያቄ root-cause fix ነው።
+    ትይዩ ስራዎችን በከፍተኛ ፍጥነት ለማጠናቀቅ pacing ገደቦቹ ወደ 1.0 ሰከንድ ዝቅ ተደርገዋል።
     """
     pacing_limits = {
-        'GROQ': 2.5,
-        'GEMINI': 2.0,
-        'MISTRAL': 1.5,
+        'GROQ': 1.0,
+        'GEMINI': 1.0,
+        'MISTRAL': 1.0,
         'OPENROUTER': 1.0,
         'HUGGINGFACE': 1.0,
-        'GITHUB': 1.5
+        'GITHUB': 1.0
     }
     wait_time = pacing_limits.get(provider, 1.0)
     lock = _get_provider_lock(provider)
@@ -144,23 +144,13 @@ def is_provider_cooled_down(provider):
 
 
 def clean_json_response(raw_text):
-    """
-    ከ AI የሚመጣን ምላሽ ፈልቅቆ ንጹህ የ JSON ጽሑፍ ብቻ ያወጣል።
-
-    ✅ FIXED (Critical Regression): ቀደም `max(text.find('{'), text.find('['))`
-    የተባለው ኮድ "የትኛው bracket ዘግይቶ ተገኘ" ብቻ ይመለክት ነበር፣ "የትኛው ትክክለኛ outer root
-    ነው" የሚለውን አያይም ነበር። ይህ ለ `{"products": [...]}` / `{"backlog": [...]}`
-    ዓይነት (በዚህ ስርዓት ውስጥ በብዛት ጥቅም ላይ የሚውለው pattern) ሁልጊዜ JSON parse ይከስር
-    ነበር — ምክንያቱም inner array's '[' ከ outer object's '{' ዘግይቶ ይገኛል። sandbox
-    ላይ ተረጋግጧል። አሁን የትኛው bracket ቀድሞ እንደሚጀመር (object ወይም array) በትክክል
-    ይለያል።
-    """
-    if not raw_text:
+    """ከ AI የሚመጣን ምላሽ ፈልቅቆ ንጹህ የ JSON ጽሑፍ ብቻ ያወጣል"""
+    if not raw_text or not isinstance(raw_text, str):
         return "{}"
 
     text = re.sub(r'```json|```', '', raw_text).strip()
 
-    # ✅ FIXED: trailing commas (AI ሞዴሎች በተደጋጋሚ የሚፈጥሩት ስህተት) ማስተካከል
+    # trailing commas ማስተካከል
     text = re.sub(r',\s*([\]}])', r'\1', text)
 
     first_curly = text.find('{')
@@ -168,7 +158,7 @@ def clean_json_response(raw_text):
     first_square = text.find('[')
     last_square = text.rfind(']')
 
-    # ✅ ትክክለኛ outer root መለየት፦ የትኛው (object ወይም array) ቀድሞ እንደሚጀመር
+    # ትክክለኛ outer root መለየት፦ የትኛው (object ወይም array) ቀድሞ እንደሚጀመር
     if first_curly != -1 and (first_square == -1 or first_curly < first_square):
         if last_curly != -1:
             text = text[first_curly:last_curly + 1]
@@ -194,7 +184,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
     _pace_provider(provider)
 
     try:
-        # 1. GROQ ENGINES (ከፍተኛ ፍጥነት ለሚሹ የኮድ እና የሰዋስው ፍተሻዎች)
+        # 1. GROQ ENGINES
         if provider == 'GROQ':
             url = "https://api.groq.com/openai/v1/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -212,7 +202,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
 
-        # 2. GEMINI ENGINES (ለትርጉም፣ ለይዘት ፈጠራ እና ለገበያ ጥናት)
+        # 2. GEMINI ENGINES
         elif provider == 'GEMINI':
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
             headers = {"Content-Type": "application/json"}
@@ -225,7 +215,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
 
-        # 3. MISTRAL ENGINES (ለተወሳሰቡ የኮድ ሎጂኮች እና ስልታዊ ውሳኔዎች)
+        # 3. MISTRAL ENGINES
         elif provider == 'MISTRAL':
             url = "https://api.mistral.ai/v1/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -242,7 +232,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
 
-        # 4. OPENROUTER (ፎልባክ እና ለላቁ ስታቲስቲክስ ስራዎች)
+        # 4. OPENROUTER
         elif provider == 'OPENROUTER':
             url = "https://openrouter.ai/api/v1/chat/completions"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -256,7 +246,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
 
-        # 5. HUGGINGFACE (Serverless Inference API — የነፃ ምትኬ ሞዴል)
+        # 5. HUGGINGFACE
         elif provider == 'HUGGINGFACE':
             url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -271,18 +261,10 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
                     return res_json[0]['generated_text'].strip()
                 elif isinstance(res_json, dict) and 'generated_text' in res_json:
                     return res_json['generated_text'].strip()
-            # ✅ FIXED: HUGGINGFACE ብቸኛ ይህን አላገኘ ነበር — HF Serverless Inference
-            # ላይ 503 "model is loading" (cold-start) በተደጋጋሚ ይከሰታል፣ ይህ ካልተያያዘ
-            # cooldown ሳይኖር ያንኑ provider ደጋግሞ ይጠራዋል
             elif response.status_code in [429, 500, 502, 503]:
                 mark_provider_failed(provider)
 
         # 6. GITHUB MODELS API
-        # ✅ FIXED: ድረ-ገጹ ላይ ተረጋግጦ ተስተካክሏል — ድሮው "models.inference.ai.azure.com"
-        # endpoint GitHub's own community discussion ላይ "legacy/being phased out"
-        # ተብሎ ተገልጿል፤ አዲሱ "models.github.ai/inference/chat/completions" endpoint
-        # ላይ model IDs publisher-namespaced ናቸው (ለምሳሌ "meta/meta-llama-3.1-8b-instruct"
-        # እንጂ ቀደም እንደ ነበረው "meta-llama-3-8b-instruct" ብቻ አይደለም)።
         elif provider == 'GITHUB':
             url = "https://models.github.ai/inference/chat/completions"
             headers = {
@@ -359,10 +341,7 @@ def get_translation_cache():
 
 
 def translate_text_incremental(text_list, target_lang="am"):
-    """
-    [Gemini Incremental Translation Cache]
-    ቃላትን እስከ 20 በሆኑ ትንንሽ ስብስቦች እየከፋፈለ፣ ያልተተረጎሙትን ብቻ ለይቶ ይተረጉማል
-    """
+    """ቃላትን እስከ 20 በሆኑ ትንንሽ ስብስቦች እየከፋፈለ፣ ያልተተረጎሙትን ብቻ ለይቶ ይተረጉማል"""
     if not text_list:
         return {}
 
@@ -432,11 +411,7 @@ def translate_text_incremental(text_list, target_lang="am"):
 
 
 def ask_master_ai_smart(prompt, task_type="analysis", system_instruction="", task=None):
-    """
-    [Dependency Guard] growth_agent.py የሚጠራውና ወደ smart_ai_router የሚመራው ዋና ፈንክሽን።
-    ✅ AICache wiring: 'analysis'/'market_research' ዓይነት ጥያቄዎች ላይ cache ይጠቅማል
-    (coding tasks ግን ሁልጊዜ ትኩስ ምላሽ ያስፈልጋቸዋል ስለዚህ cache አያደርጉም)።
-    """
+    """growth_agent.py የሚጠራውና ወደ smart_ai_router የሚመራው ዋና ፈንክሽን"""
     if not system_instruction:
         system_instruction = (
             "You are the Autonomous CEO of EthAfri. Respond with clean JSON or raw code "

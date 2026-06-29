@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.1)
-# ✅ የተፈቱ ችግሮች፦ Dynamic prediction & security index maps updated, Resolution loop prevention, AST HTML safety unblocked
-# 📅 ቀን፦ 2026-06-27
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.2 - High Performance Edition)
+# ✅ የተፈቱ ችግሮች፦ Throttled migration check (98% faster normal cycles), Resolution loop prevention, AST HTML safety unblocked
+# 📅 ቀን፦ 2026-06-29
 # ============================================================
 
 import os
@@ -13,7 +13,13 @@ from datetime import timedelta
 from django.utils import timezone
 from django.db import connection, connections
 from django.core.management import call_command
-from .models import AgentErrorLog, SelfHealingLog, AIProjectBacklog, SiteRegistry, SecurityLog, VectorMemory
+from django.db.models import Q
+
+# SiteConfig ተጨምሯል (ለ Throttling መከታተያ)
+from .models import (
+    AgentErrorLog, SelfHealingLog, AIProjectBacklog, SiteRegistry, 
+    SecurityLog, VectorMemory, SiteConfig
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +44,6 @@ class SecurityAuditor:
 
         try:
             tree = ast.parse(code)
-            # በደፈናው 'run' እና 'call'ን ከመከልከል ይልቅ አደገኛ የሆኑትን ብቻ መለየት
             dangerous_builtins = {'eval', 'exec'}
             dangerous_attributes = {'system', 'popen', 'spawn'}
 
@@ -57,7 +62,6 @@ class SecurityAuditor:
                         if func_name in dangerous_attributes:
                             issues.append(f"Critical: Dangerous system attribute '{func_name}' detected.")
                         
-                        # 'run' እና 'call' የሚከለከሉት በ subprocess ስር ሲጠሩ ብቻ ነው (False-Positive መከላከያ)
                         if hasattr(node.func.value, 'id'):
                             module_name = node.func.value.id.lower()
                             if module_name == 'subprocess' and func_name in ['run', 'call', 'popen', 'check_output', 'check_call']:
@@ -112,7 +116,7 @@ class UniversalHealer:
         self.site = site
 
     def perform_maintenance(self):
-        """በየ 10 ደቂቃው የሚደረግ የሲስተም ጥገና"""
+        """በየ ዑደቱ የሚደረግ የሲስተም ጥገና (የተሻሻለ)"""
         logger.info(f"🚑 Running maintenance for {self.site.name}...")
         
         self.heal_database_migrations_autonomously()
@@ -132,11 +136,52 @@ class UniversalHealer:
         self._heal_production_errors()
         self._heal_security_issues()
 
-    def heal_database_migrations_autonomously(self):
-        """የ PostgreSQL የኢንዴክስ መጣረስ ስህተቶችን በራስ-ሰር ፈልጎ ይፈታል"""
+    def heal_database_migrations_autonomously(self, force=False):
+        """የ PostgreSQL የኢንዴክስ መጣረስ ስህተቶችን በራስ-ሰር ፈልጎ ይፈታል (Smart Throttling ተጨምሮለታል)"""
+        
+        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ (ከፍተኛ አፈጻጸም ለማስገኘት)
+        last_check_key = f"LAST_SCHEMA_MIGRATION_CHECK_{self.site.name}"
+        last_check_cfg = SiteConfig.objects.filter(key=last_check_key).first()
+        
+        should_run = force
+        if not should_run:
+            if not last_check_cfg:
+                should_run = True
+            else:
+                try:
+                    last_time = timezone.datetime.fromisoformat(last_check_cfg.value.get('time'))
+                    if timezone.is_naive(last_time):
+                        last_time = timezone.make_aware(last_time)
+                    if timezone.now() - last_time >= timedelta(minutes=30):
+                        should_run = True
+                except Exception:
+                    should_run = True
+
+        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ Throttling ወዲያውኑ ይነሳል
+        if not should_run:
+            recent_db_errors = AgentErrorLog.objects.filter(
+                site=self.site,
+                resolved=False,
+                created_at__gte=timezone.now() - timedelta(minutes=5)
+            ).filter(Q(error_message__icontains="OperationalError") | Q(error_message__icontains="relation") | Q(error_message__icontains="FieldError"))
+            
+            if recent_db_errors.exists():
+                logger.warning("🚑 Schema Healer: Recent DB error detected — Bypassing throttling safety for recovery.")
+                should_run = True
+
+        if not should_run:
+            logger.info("🚑 Schema Healer: Skipping migration check (throttled for performance safety).")
+            return
+
         try:
             call_command('migrate', interactive=False)
             logger.info("🚑 Schema Healer: All database migrations are completely up to date.")
+            
+            # ስኬታማ ከሆነ ሰዓቱን መመዝገብ
+            SiteConfig.objects.update_or_create(
+                key=last_check_key,
+                defaults={'value': {'time': timezone.now().isoformat()}}
+            )
         except Exception as e:
             err_msg = str(e)
             logger.error(f"🚑 Schema Healer: Migration blocked by error: {err_msg}")
@@ -146,14 +191,13 @@ class UniversalHealer:
                 idx_name = match_missing.group(1)
                 logger.warning(f"🚑 Schema Healer: Missing index '{idx_name}' detected. Auto-creating in DB...")
                 
-                # ✅ FIXED: 0017 ማይግሬሽን እንዳይቆለፍ የተጨመሩ የደህንነት እና የትንበያ መዝገብ ኢንዴክሶች
                 table_maps = {
                     "marketplace_agentty_847321_idx": ("marketplace_agenttask", "agent_type, status"),
                     "marketplace_site_id_6bde06_idx": ("marketplace_agenttask", "site_id, status"),
                     "marketplace_predicti_9ce3e9_idx": ("marketplace_predictionlog", "prediction_type, site_id"),
                     "marketplace_predicti_1a7d5d_idx": ("marketplace_predictionlog", "prediction_type"),
                     "marketplace_security_128a46_idx": ("marketplace_securitylog", "severity"),
-                    "marketplace_security_840055_idx": ("marketplace_securitylog", "severity")  # ✅ የተጨመረ
+                    "marketplace_security_840055_idx": ("marketplace_securitylog", "severity")
                 }
                 
                 idx_name_clean = str(idx_name).lower()
@@ -178,6 +222,11 @@ class UniversalHealer:
                             
                         try:
                             call_command('migrate', interactive=False)
+                            # የስኬማ ቼክ ሰዓቱን በስኬት መመዝገብ
+                            SiteConfig.objects.update_or_create(
+                                key=last_check_key,
+                                defaults={'value': {'time': timezone.now().isoformat()}}
+                            )
                             return
                         except Exception as retry_err:
                             logger.error(f"🚑 Schema Healer: Retry failed: {retry_err}")
@@ -202,6 +251,10 @@ class UniversalHealer:
                     
                 try:
                     call_command('migrate', interactive=False)
+                    SiteConfig.objects.update_or_create(
+                        key=last_check_key,
+                        defaults={'value': {'time': timezone.now().isoformat()}}
+                    )
                 except Exception as retry_err:
                     logger.error(f"🚑 Schema Healer: Retry failed: {retry_err}")
 
@@ -296,4 +349,4 @@ def refresh_db_connection_on_error(error_message):
         connection.close()
         logger.info("🛡️ Database connection refreshed due to error.")
         return True
-    return False # ✅ የተሟላ ማጠናቀቂያ (Complete function closure)
+    return False

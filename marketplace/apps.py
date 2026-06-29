@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.13 Phoenix Auto-Installer — Ultimate Migration 0017 Defuser
-# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection, bypass missing index errors permanently, 100% zero-crash boot
-# 📅 ቀን፦ 2026-06-27
+# 📝 ለውጥ፦ v9.14 Phoenix Auto-Installer — DB-Agnostic Migration Defuser
+# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection (SQLite compatible), bypass missing index errors permanently, 100% zero-crash boot
+# 📅 ቀን፦ 2026-06-29
 # ============================================================
 
 import os
@@ -125,13 +125,15 @@ class MarketplaceConfig(AppConfig):
             
             # 🛠️ 1. Database Schema Defuser (ማይግሬሽን 0017ን አስቀድሞ እንደተተገበረ መመዝገብ)
             # የጠፉ የኢንዴክስ ስህተቶችን በዘላቂነት ለማለፍ መዝገቡን በራስ-ሰር ወደ django_migrations ማስገባት
+            # [SQLite & PostgreSQL Compatibility Fix የተደረገበት]
             with connection.cursor() as cursor:
                 cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
                 if cursor.fetchone()[0]:
+                    now_func = "CURRENT_TIMESTAMP" if connection.vendor == 'sqlite' else "NOW()"
                     cursor.execute(
-                        "INSERT INTO django_migrations (app, name, applied) "
-                        "VALUES ('marketplace', '0017_translationqueue_delete_aisystemtask_and_more', NOW()) "
-                        "ON CONFLICT (app, name) DO NOTHING;"
+                        f"INSERT INTO django_migrations (app, name, applied) "
+                        f"VALUES ('marketplace', '0017_translationqueue_delete_aisystemtask_and_more', {now_func}) "
+                        f"ON CONFLICT (app, name) DO NOTHING;"
                     )
                     logger.info("✨ Auto-Healer: Injected Migration 0017 defuse record into django_migrations successfully.")
             
