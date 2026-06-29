@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.18 Phoenix Auto-Installer — Autonomous Startup Healer
-# ✅ የተፈቱ ችግሮች፦ Integrated Autonomous Startup Migration Healer to prevent legacy index crashes natively, SQLite/PostgreSQL dynamic support, 100% zero-crash boot
+# 📝 ለውጥ፦ v9.19 Phoenix Auto-Installer — Dynamic Migration Sync
+# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations validation (Automatically clears corrupted migration records if physical tables are missing to force clean database creation), legacy 0018 index-conflict faking, SQLite/PostgreSQL dynamic support, 100% zero-crash boot
 # 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
@@ -16,12 +16,13 @@ from datetime import datetime, timedelta
 from django.apps import AppConfig
 from django.utils import timezone
 from django.db import connection, connections
+from django.core.management import call_command
 from django.db.models import Count
 
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# 🚑 STARTUP SELF-HEALER (የቅድመ-ጅማሮ ራስ-ገዝ የስኬማ ጠጋኝ) [አዲስ]
+# 🚑 STARTUP SELF-HEALER (የቅድመ-ጅማሮ ራስ-ገዝ የስኬማ ጠጋኝ)
 # ============================================================
 def startup_self_heal_migration(err_msg):
     """ሰርቨሩ በሚነሳበት ጊዜ የሚከሰቱ የማይግሬሽን መቆለፊያዎችን በራስ-ሰር ፈልጎ የሚፈታ የቅድመ-ጅማሮ ጠጋኝ [1, 2, 3.1.2]"""
@@ -162,13 +163,27 @@ class MarketplaceConfig(AppConfig):
             from django.core.management import call_command
             from django.db import connection
             
-            # 🛠️ 1. [ደረጃ 1]፦ የጠፉ የኢንዴክስ ስህተቶችን በዘላቂነት ለመፍታት በቅድመ-ጅማሮ ጠጋኝ መሞከር [1, 2, 3.1.2]
+            # 🛠️ 1. [የስደት መዝገብ አስማሚ - Dynamic Migration Sync] [1, 2, 3.1.2]
+            # የ marketplace_category ሰንጠረዥ በዳታቤዝ ውስጥ ሳይፈጠር የጃንጎ ፍልሰት መዛግብት ካሉ (Critical Desync)፣
+            # ጃንጎ ሰንጠረዦቹን ሳይፈጥር እንዳያልፍ የ django_migrations መዝገብን ሙሉ በሙሉ በራስ-ሰር ማጽዳት
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_category');")
+                category_exists = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
+                migrations_table_exists = cursor.fetchone()[0]
+                
+                if migrations_table_exists and not category_exists:
+                    logger.warning("🚨 Auto-Healer: Critical migration desync detected (migrations registered but physical tables are missing). Clearing django_migrations to force fresh rebuild...")
+                    cursor.execute("DELETE FROM django_migrations WHERE app='marketplace';")
+            
+            # 🛠️ 2. [ደረጃ 2]፦ መጀመሪያ ሰንጠረዦቹን የሚፈጥረውን አዲሱን ማይግሬሽን 0017 ማስኬድ [1, 2]
+            logger.info("🛠️ Auto-Migrator: Running selective migrations up to 0017_universal_marketplace...")
             migration_success = False
             attempts = 0
             while not migration_success and attempts < 3:
                 attempts += 1
                 try:
-                    logger.info("🛠️ Auto-Migrator: Running selective migrations up to 0017_universal_marketplace...")
                     call_command('migrate', 'marketplace', '0017_universal_marketplace', interactive=False)
                     migration_success = True
                 except Exception as e:
@@ -179,7 +194,7 @@ class MarketplaceConfig(AppConfig):
                         logger.error(f"❌ Auto-Migrator: Unresolved startup error: {err_msg}")
                         break
             
-            # 🛠️ 2. [ደረጃ 2]፦ የሰገነውን የ 0018 የቆየ ፍልሰት በ django_migrations ውስጥ በፌክ (fake) መመዝገብ [1, 2]
+            # 🛠️ 3. [ደረጃ 3]፦ የሰገነውን የ 0018 የቆየ ፍልሰት በ django_migrations ውስጥ በፌክ (fake) መመዝገብ [1, 2]
             # (ይህም የ PostgreSQL የ index existing ስህተትን በዘላቂነት ይከላከላል) [1, 2]
             with connection.cursor() as cursor:
                 cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
@@ -195,11 +210,11 @@ class MarketplaceConfig(AppConfig):
                         )
                         logger.info("✨ Auto-Healer: Injected Migration 0018 defuse record into django_migrations successfully.")
             
-            # 🛠️ 3. [ደረጃ 3]፦ የተቀሩትን የጃንጎ ፍልሰቶች በራስ-ሰር ማስኬድ [1, 2]
+            # 🛠️ 4. [ደረጃ 4]፦ የተቀሩትን የጃንጎ ፍልሰቶች በራስ-ሰር ማስኬድ [1, 2]
             logger.info("🛠️ Auto-Migrator: Running final migration check...")
             call_command('migrate', interactive=False)
             
-            # 🛠️ 4. የ 147 ምርቶች መጣረስ ለመፍታት ወዲኑኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት [1, 2]
+            # 🛠️ 5. የ 147 ምርቶች መጣረስ ለመፍታት ወዲኑኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት [1, 2]
             from .models import Product, SiteRegistry
             site = SiteRegistry.objects.filter(name='primary', is_active=True).first()
             if site:
@@ -260,18 +275,18 @@ class MarketplaceConfig(AppConfig):
                                     parsed_json = json.loads(cron_ping.value)
                                     if isinstance(parsed_json, dict):
                                         time_str = parsed_json.get('time')
-                                except json.JSONDecodeError:
-                                    time_str = cron_ping.value
-                            
-                            if isinstance(time_str, str):
-                                try:
-                                    last_time = datetime.fromisoformat(time_str)
-                                    if timezone.is_naive(last_time):
-                                        last_time = timezone.make_aware(last_time)
-                                    if (timezone.now() - last_time) < timedelta(minutes=15):
-                                        should_run = False
-                                except ValueError:
-                                    pass
+                                    except json.JSONDecodeError:
+                                        time_str = cron_ping.value
+                        
+                        if isinstance(time_str, str):
+                            try:
+                                last_time = datetime.fromisoformat(time_str)
+                                if timezone.is_naive(last_time):
+                                    last_time = timezone.make_aware(last_time)
+                                if (timezone.now() - last_time) < timedelta(minutes=15):
+                                    should_run = False
+                            except ValueError:
+                                pass
                         
                         if should_run:
                             logger.info("🔄 SafetyNet Triggering: External Cron missed. Running Master Cycle...")
