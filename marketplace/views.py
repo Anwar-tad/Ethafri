@@ -25,7 +25,8 @@ from django.utils import timezone
 from django.db import connection, connections
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Count, Sum, Q, Avg, Case, When, IntegerField, Value
-
+from django.db import transaction
+from django.views.decorators.csrf import csrf_exempt
 # ሁሉንም የኤጀንት ሞዴሎች ማምጣት
 from .models import (
     Product, Category, UserSearch, SiteConfig, MarketTrend, SelfHealingLog,

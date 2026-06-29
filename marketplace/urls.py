@@ -56,6 +56,7 @@ urlpatterns = [
     
     # የውጭ ክሮን (External Cron) Webhook Gateway
     path('evolve-now-secret-123/', views.trigger_autonomous_evolution, name='trigger_autonomous_evolution'),
+    # 🟢 አዲስ የተጨመሩ የዳሽቦርድ Purge እና Autopilot ኤፒአይዎች
     path('api/agent/purge-db/', views.purge_database_view, name='api_purge_database'),
     path('api/agent/toggle-autopilot/', views.toggle_autopilot_view, name='api_toggle_autopilot'),
 ]
