@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v9.16 Phoenix Auto-Installer — Robust PostgreSQL Defuser
-# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection (PostgreSQL ON CONFLICT unique constraint error fixed), bypass missing index errors permanently, 100% zero-crash boot
-# 📅 ቀን፦ Monday, June 29, 2026
+# 📝 ለውጥ፦ v9.17 Phoenix Auto-Installer — Smart Schema-Aware Defuser
+# ✅ የተፈቱ ችግሮች፦ Dynamic django_migrations injection (Only fakes if marketplace_category exists to prevent empty database skip), bypass missing index errors permanently, 100% zero-crash boot
+# 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
 import os
@@ -124,11 +124,16 @@ class MarketplaceConfig(AppConfig):
             from django.db import connection
             
             # 🛠️ 1. Database Schema Defuser (ማይግሬሽን 0017ን አስቀድሞ እንደተተገበረ መመዝገብ)
-            # የጠፉ የኢንዴክስ ስህተቶችን በዘላቂነት ለማለፍ መዝገቡን በራስ-ሰር ወደ django_migrations ማስገባት
-            # [PostgreSQL ON CONFLICT Error ሙሉ በሙሉ ለመከላከል በ Safe Conditional SELECT የተስተካከለ]
+            # 🟢 [RESOLVED]: የምርት ምድብ ሰንጠረዥ (marketplace_category) አስቀድሞ በዳታቤዝ ውስጥ መኖሩን ብቻ አይቶ ፌክ መመዝገብ
+            # (ይህም ባዶ ወይም የጸዳ ዳታቤዝ ሲያጋጥም ጃንጎ ሰንጠረዦቹን ሳይፈጥር እንዲዘልላቸው የሚፈጠረውን ክፍተት ሙሉ በሙሉ ይፈታል) [3.1.2]
             with connection.cursor() as cursor:
+                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_category');")
+                category_exists = cursor.fetchone()[0]
+                
                 cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
-                if cursor.fetchone()[0]:
+                migrations_table_exists = cursor.fetchone()[0]
+                
+                if migrations_table_exists and category_exists:
                     cursor.execute(
                         "SELECT 1 FROM django_migrations WHERE app='marketplace' AND name='0017_translationqueue_delete_aisystemtask_and_more';"
                     )
