@@ -1315,7 +1315,50 @@ def execute_master_cycle():
 def _run_site_cycle(site):
     from .ai_utils import broadcast_agent_log
     try:
-        # 🟢 [Progress Bar]: የሰልፍ ዶክተር ጥገናን መጀመር መመዝገብ (10%) [3.1.2]
+        # ============================================================
+        # 🩺 ደረጃ 0: SELF-DOCTOR ኤጀንቱ ከመነሳቱ በፊት ይሰራል
+        # ============================================================
+        update_agent_progress(site, "Self-Doctor: Full Database Check...", 5)
+        broadcast_agent_log(site, f"🩺 Self-Doctor: Running pre-flight database check for {site.name}...", "info")
+        
+        try:
+            from .self_doctor import DatabaseInspector, DynamicTableGenerator, UniversalHealer
+            
+            # 1. ቴብሎችን ያረጋግጡ
+            inspector = DatabaseInspector()
+            inspection = inspector.inspect_database()
+            
+            if inspection['has_missing_tables']:
+                logger.warning(f"⚠️ Self-Doctor: Found {len(inspection['missing_tables'])} missing tables for {site.name}!")
+                generator = DynamicTableGenerator()
+                result = generator.generate_missing_tables(inspection)
+                created = result.get('generated', [])
+                if created:
+                    logger.info(f"✅ Self-Doctor: Created {len(created)} tables: {', '.join(created)}")
+                    broadcast_agent_log(site, f"✅ Created {len(created)} missing tables: {', '.join(created)}", "success")
+                if result.get('failed'):
+                    logger.error(f"❌ Self-Doctor: Failed to create: {result['failed']}")
+            else:
+                logger.info("✅ Self-Doctor: All tables exist!")
+            
+            # 2. ማይግሬሽኖችን ያስተካክሉ
+            logger.info("🔄 Self-Doctor: Healing migrations...")
+            healer = UniversalHealer(site)
+            healer.heal_database_migrations_autonomously(force=True)
+            
+            # 3. ተጣብቀው የቀሩ ተግባራትን ያስተካክሉ
+            healer._reset_stuck_tasks()
+            
+            logger.info(f"✅ Self-Doctor: Pre-flight check complete for {site.name}!")
+            broadcast_agent_log(site, "✅ Self-Doctor: Database is healthy and ready!", "success")
+            
+        except Exception as self_doctor_err:
+            logger.error(f"❌ Self-Doctor pre-flight check failed: {self_doctor_err}")
+            broadcast_agent_log(site, f"⚠️ Self-Doctor error: {str(self_doctor_err)[:100]}", "error")
+        
+        # ============================================================
+        # 🟢 ደረጃ 1: መደበኛ የኤጀንት ስራዎች ይቀጥላሉ
+        # ============================================================
         update_agent_progress(site, "Running Self-Doctor Maintenance...", 10)
         time.sleep(random.uniform(1.5, 4.0))
         broadcast_agent_log(site, f"Running Self-Doctor maintenance for {site.name}...", "info")
@@ -1378,6 +1421,16 @@ def _run_site_cycle(site):
     except Exception as e:
         logger.error(f"❌ Error in master cycle for {site.name}: {e}", exc_info=True)
         update_agent_progress(site, f"Error: {str(e)[:50]}", 100)
+        
+        # 🚨 ስህተት ሲከሰት ሰልፍ ዶክተሩን ወዲያውኑ ይጠራል
+        try:
+            from .self_doctor import UniversalHealer
+            logger.warning(f"🩺 Self-Doctor: Emergency healing triggered due to error...")
+            healer = UniversalHealer(site)
+            healer.heal_database_migrations_autonomously(force=True)
+            logger.info(f"✅ Self-Doctor: Emergency healing complete!")
+        except Exception as heal_err:
+            logger.error(f"❌ Emergency healing failed: {heal_err}")
     finally:
         from django.db import close_old_connections
         close_old_connections()

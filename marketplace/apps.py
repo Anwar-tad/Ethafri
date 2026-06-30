@@ -101,178 +101,227 @@ class MarketplaceConfig(AppConfig):
     name = 'marketplace'
 
     def ready(self):
-        """ሲስተሙ ሲነሳ ኤጀንቱን፣ ማይግሬሽኑን እና የዳታቤዝ ጥገናውን በራስ-ሰር ይቀሰቅሳል"""
-        
-        # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል
-        if 'manage.py' in sys.argv:
-            command = sys.argv[1] if len(sys.argv) > 1 else ''
-            if command in ['migrate', 'makemigrations', 'collectstatic', 'shell', 'check']:
-                return
-
-        # 2. በሪሎደር ምክንያት ድርብ ክሮች እንዳይፈጠሩ መከላከል
-        if os.environ.get('RUN_MAIN') != 'true' and 'manage.py' in sys.argv[0]:
+    """ሲስተሙ ሲነሳ ኤጀንቱን፣ ማይግሬሽኑን እና የዳታቤዝ ጥገናውን በራስ-ሰር ይቀሰቅሳል"""
+    
+    # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል
+    if 'manage.py' in sys.argv:
+        command = sys.argv[1] if len(sys.argv) > 1 else ''
+        if command in ['migrate', 'makemigrations', 'collectstatic', 'shell', 'check']:
             return
 
-        # የቅድመ-በረራ ራስ-መፍጠርያ ሎጂክን መጥራት
-        verify_and_bootstrap_agent_files()
+    # 2. በሪሎደር ምክንያት ድርብ ክሮች እንዳይፈጠሩ መከላከል
+    if os.environ.get('RUN_MAIN') != 'true' and 'manage.py' in sys.argv[0]:
+        return
 
+    # የቅድመ-በረራ ራስ-መፍጠርያ ሎጂክን መጥራት
+    verify_and_bootstrap_agent_files()
+
+    # ============================================================
+    # 🩺 ደረጃ 0: SELF-DOCTOR ኤጀንቱ ከመነሳቱ በፊት ይሰራል
+    # ============================================================
+    try:
+        from .self_doctor import DatabaseInspector, DynamicTableGenerator, UniversalHealer
+        from .models import SiteRegistry
+        
+        logger.info("🩺 Self-Doctor: Pre-flight database check starting...")
+        
+        # ዋናውን ሳይት ያግኙ ወይም ይፍጠሩ
+        site = SiteRegistry.objects.filter(name='primary', is_active=True).first()
+        if not site:
+            site = SiteRegistry.objects.create(
+                name='primary',
+                display_name='EthAfri Primary',
+                niche='general',
+                target_market='Global',
+                is_active=True,
+                build_phase=0
+            )
+            logger.info("✅ Created primary site registry.")
+        
         # ============================================================
-        # ⚡ Render Free-Tier Rescue Engine (ማይግሬሽን 0017 Defuser)
+        # 🔍 ደረጃ 0a: የጎደሉትን ቴብሎች ይፈልጉ እና ይፍጠሩ
         # ============================================================
-        try:
-            from django.core.management import call_command
-            from django.db import connection
-            
-            # 🛠️ 1. Database Schema Defuser (ማይግሬሽን 0017ን አስቀድሞ እንደተተገበረ መመዝገብ)
-            # የጠፉ የኢንዴክስ ስህተቶችን በዘላቂነት ለማለፍ መዝገቡን በራስ-ሰር ወደ django_migrations ማስገባት
-            # [PostgreSQL ON CONFLICT Error ሙሉ በሙሉ ለመከላከል በ Safe Conditional SELECT የተስተካከለ]
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
-                if cursor.fetchone()[0]:
+        inspector = DatabaseInspector()
+        inspection = inspector.inspect_database()
+        
+        if inspection['has_missing_tables']:
+            logger.warning(f"⚠️ Self-Doctor: Found {len(inspection['missing_tables'])} missing tables!")
+            generator = DynamicTableGenerator()
+            result = generator.generate_missing_tables(inspection)
+            created = result.get('generated', [])
+            if created:
+                logger.info(f"✅ Self-Doctor: Created {len(created)} tables: {', '.join(created)}")
+            if result.get('failed'):
+                logger.error(f"❌ Self-Doctor: Failed to create: {result['failed']}")
+        else:
+            logger.info("✅ Self-Doctor: All tables exist!")
+        
+        # ============================================================
+        # 🛠️ ደረጃ 0b: ማይግሬሽኖችን ያስተካክሉ
+        # ============================================================
+        logger.info("🔄 Self-Doctor: Healing migrations...")
+        healer = UniversalHealer(site)
+        healer.heal_database_migrations_autonomously(force=True)
+        
+        logger.info("✅ Self-Doctor: Pre-flight check complete!")
+        
+    except Exception as self_doctor_err:
+        logger.error(f"❌ Self-Doctor pre-flight check failed: {self_doctor_err}")
+        import traceback
+        traceback.print_exc()
+
+    # ============================================================
+    # ⚡ Render Free-Tier Rescue Engine (ማይግሬሽን 0017 Defuser)
+    # ============================================================
+    try:
+        from django.core.management import call_command
+        from django.db import connection
+        
+        # 🛠️ 1. Database Schema Defuser
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
+            if cursor.fetchone()[0]:
+                cursor.execute(
+                    "SELECT 1 FROM django_migrations WHERE app='marketplace' AND name='0017_translationqueue_delete_aisystemtask_and_more';"
+                )
+                if not cursor.fetchone():
+                    now_func = "CURRENT_TIMESTAMP" if connection.vendor == 'sqlite' else "NOW()"
                     cursor.execute(
-                        "SELECT 1 FROM django_migrations WHERE app='marketplace' AND name='0017_translationqueue_delete_aisystemtask_and_more';"
+                        f"INSERT INTO django_migrations (app, name, applied) "
+                        f"VALUES ('marketplace', '0017_translationqueue_delete_aisystemtask_and_more', {now_func});"
                     )
-                    if not cursor.fetchone():
-                        now_func = "CURRENT_TIMESTAMP" if connection.vendor == 'sqlite' else "NOW()"
-                        cursor.execute(
-                            f"INSERT INTO django_migrations (app, name, applied) "
-                            f"VALUES ('marketplace', '0017_translationqueue_delete_aisystemtask_and_more', {now_func});"
-                        )
-                        logger.info("✨ Auto-Healer: Injected Migration 0017 defuse record into django_migrations successfully.")
-            
-            # 🛠️ 2. ማይግሬሽን በራስ-ሰር ማስኬድ
-            logger.info("🛠️ Auto-Migrator: Running makemigrations...")
-            call_command('makemigrations', interactive=False)
-            logger.info("🛠️ Auto-Migrator: Running migrate...")
-            call_command('migrate', interactive=False)
-            
-            # 🛠️ 3. የ 147 ምርቶች መጣረስ ለመፍታት ወዲኑኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት
-            from .models import Product, SiteRegistry
-            site = SiteRegistry.objects.filter(name='primary').first()
-            if site:
-                unlinked_count = Product.objects.filter(site__isnull=True).update(site=site)
-                if unlinked_count > 0:
-                    logger.info(f"✨ Auto-Healer: Successfully linked {unlinked_count} unlinked products to 'primary' site.")
-        except Exception as mig_err:
-            logger.error(f"❌ Auto-Migrator/Healer failed: {mig_err}")
+                    logger.info("✨ Auto-Healer: Injected Migration 0017 defuse record.")
+        
+        # 🛠️ 2. ማይግሬሽን በራስ-ሰር ማስኬድ
+        logger.info("🛠️ Auto-Migrator: Running migrations...")
+        call_command('migrate', interactive=False)
+        
+        # 🛠️ 3. የ 147 ምርቶች መጣረስ ለመፍታት ወዲኑኑ ከ primary ሳይት ጋር በጅምላ ማገናኘት
+        from .models import Product, SiteRegistry
+        site = SiteRegistry.objects.filter(name='primary').first()
+        if site:
+            unlinked_count = Product.objects.filter(site__isnull=True).update(site=site)
+            if unlinked_count > 0:
+                logger.info(f"✨ Auto-Healer: Successfully linked {unlinked_count} unlinked products to 'primary' site.")
+    except Exception as mig_err:
+        logger.error(f"❌ Auto-Migrator/Healer failed: {mig_err}")
+    finally:
+        connections.close_all()
+
+    logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")
+
+    # --- ክር 1፦ ዋናው አውቶኖመስ ኤጀንት ---
+    def run_agent_thread():
+        logger.info("🤖 Autonomous Agent Thread starting (30s delay)...")
+        time.sleep(30)
+        try:
+            from .growth_agent import start_autonomous_ceo
+            start_autonomous_ceo()
+        except Exception as e:
+            logger.error(f"❌ Agent Thread Error: {e}")
         finally:
             connections.close_all()
 
-        logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")
-
-        # --- kር 1፦ ዋናው አውቶኖመስ ኤጀንት ---
-        def run_agent_thread():
-            logger.info("🤖 Autonomous Agent Thread starting (30s delay)...")
-            time.sleep(30)
+    # --- ክር 2፦ ሴፍቲኔት ---
+    def run_safetynet_thread():
+        time.sleep(60)
+        last_cron_fallback_run = None
+        while True:
             try:
-                from .growth_agent import start_autonomous_ceo
-                start_autonomous_ceo()
+                from .models import SiteConfig, SiteRegistry
+                from .growth_agent import execute_master_cycle
+                
+                # 🟢 1. ፈጣን የቀጥታ ታስክ ዑደት
+                trigger = SiteConfig.objects.filter(key="EVOLVE_TRIGGER_PENDING").first()
+                if trigger and trigger.value and isinstance(trigger.value, dict) and trigger.value.get('status') == 'pending':
+                    logger.info("⚡ SafetyNet Trigger: Instant manual/webhook trigger detected! Starting Master Cycle...")
+                    trigger.value = {"status": "completed", "time": timezone.now().isoformat()}
+                    trigger.save()
+                    execute_master_cycle()
+                    time.sleep(5)
+                    continue
+
+                # 🟢 2. የድሮው 10-ደቂቃ የውጭ ፒንግ መከላከያ
+                now = timezone.now()
+                if not last_cron_fallback_run or (now - last_cron_fallback_run) >= timedelta(minutes=10):
+                    cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
+                    should_run = True
+                    
+                    if cron_ping and cron_ping.value:
+                        time_str = None
+                        if isinstance(cron_ping.value, dict):
+                            time_str = cron_ping.value.get('time')
+                        elif isinstance(cron_ping.value, str):
+                            try:
+                                parsed_json = json.loads(cron_ping.value)
+                                if isinstance(parsed_json, dict):
+                                    time_str = parsed_json.get('time')
+                            except json.JSONDecodeError:
+                                time_str = cron_ping.value
+                        
+                        if isinstance(time_str, str):
+                            try:
+                                last_time = datetime.fromisoformat(time_str)
+                                if timezone.is_naive(last_time):
+                                    last_time = timezone.make_aware(last_time)
+                                if (timezone.now() - last_time) < timedelta(minutes=15):
+                                    should_run = False
+                            except ValueError:
+                                pass
+                    
+                    if should_run:
+                        logger.info("🔄 SafetyNet Triggering: External Cron missed. Running Master Cycle...")
+                        execute_master_cycle()
+                        last_cron_fallback_run = timezone.now()
+                        
             except Exception as e:
-                logger.error(f"❌ Agent Thread Error: {e}")
+                logger.error(f"❌ SafetyNet Error: {e}")
+            finally:
+                connections.close_all()
+            time.sleep(5)
+
+    # --- ክር 3፦ ሄልዝ ቼክ ---
+    def run_health_check_thread():
+        logger.info("🩺 Health Check & Self-Healing Thread starting...")
+        while True:
+            try:
+                time.sleep(300)
+                from .models import AgentErrorLog, AIProjectBacklog
+                
+                unresolved = AgentErrorLog.objects.filter(resolved=False)
+                if unresolved.count() > 500:
+                    logger.warning(f"🧹 Clearing {unresolved.count()} unresolved errors.")
+                    unresolved.update(resolved=True)
+
+                duplicates = (
+                    AIProjectBacklog.objects.filter(status='Pending')
+                    .values('task_name')
+                    .annotate(name_count=Count('id'))
+                    .filter(name_count__gt=1)
+                )
+                for dup in duplicates:
+                    task_name = dup['task_name']
+                    keep_task = AIProjectBacklog.objects.filter(task_name=task_name).first()
+                    if keep_task:
+                        AIProjectBacklog.objects.filter(task_name=task_name, status='Pending').exclude(id=keep_task.id).delete()
+
+                stuck_limit = timezone.now() - timedelta(minutes=15)
+                stuck_tasks = AIProjectBacklog.objects.filter(status='Running', updated_at__lt=stuck_limit)
+                if stuck_tasks.exists():
+                    logger.info(f"🛠️ Resetting {stuck_tasks.count()} stuck tasks.")
+                    stuck_tasks.update(status='Pending')
+
+            except Exception as e:
+                logger.error(f"❌ Health Check Loop Error: {e}")
             finally:
                 connections.close_all()
 
-        # --- --- kር 2፦ ሴፍቲኔት (የውጭ ፒንግ መዘግየት + ፈጣን የቀጥታ ታስክ ዑደት) ---
-        def run_safetynet_thread():
-            time.sleep(60)
-            last_cron_fallback_run = None
-            while True:
-                try:
-                    from .models import SiteConfig, SiteRegistry
-                    from .growth_agent import execute_master_cycle
-                    
-                    # 🟢 1. ፈጣን የቀጥታ ታስክ ዑደት (Instant Trigger Polling - 5 ሰከንድ ምላሽ) [1, 2]
-                    trigger = SiteConfig.objects.filter(key="EVOLVE_TRIGGER_PENDING").first()
-                    if trigger and trigger.value and isinstance(trigger.value, dict) and trigger.value.get('status') == 'pending':
-                        logger.info("⚡ SafetyNet Trigger: Instant manual/webhook trigger detected! Starting Master Cycle...")
-                        trigger.value = {"status": "completed", "time": timezone.now().isoformat()}
-                        trigger.save()
-                        
-                        execute_master_cycle()
-                        time.sleep(5)
-                        continue
+    t1 = threading.Thread(target=run_agent_thread, daemon=True)
+    t2 = threading.Thread(target=run_safetynet_thread, daemon=True)
+    t3 = threading.Thread(target=run_health_check_thread, daemon=True)
+    
+    t1.start()
+    t2.start()
+    t3.start()
 
-                    # 🟢 2. የድሮው 10-ደቂቃ የውጭ ፒንግ መከላከያ (Cron safety fallback - Throttled safely) [1, 2]
-                    now = timezone.now()
-                    if not last_cron_fallback_run or (now - last_cron_fallback_run) >= timedelta(minutes=10):
-                        cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
-                        should_run = True
-                        
-                        if cron_ping and cron_ping.value:
-                            time_str = None
-                            if isinstance(cron_ping.value, dict):
-                                time_str = cron_ping.value.get('time')
-                            elif isinstance(cron_ping.value, str):
-                                try:
-                                    parsed_json = json.loads(cron_ping.value)
-                                    if isinstance(parsed_json, dict):
-                                        time_str = parsed_json.get('time')
-                                except json.JSONDecodeError:
-                                    time_str = cron_ping.value
-                            
-                            if isinstance(time_str, str):
-                                try:
-                                    last_time = datetime.fromisoformat(time_str)
-                                    if timezone.is_naive(last_time):
-                                        last_time = timezone.make_aware(last_time)
-                                    if (timezone.now() - last_time) < timedelta(minutes=15):
-                                        should_run = False
-                                except ValueError:
-                                    pass
-                        
-                        if should_run:
-                            logger.info("🔄 SafetyNet Triggering: External Cron missed. Running Master Cycle...")
-                            execute_master_cycle()
-                            last_cron_fallback_run = timezone.now()
-                            
-                except Exception as e:
-                    logger.error(f"❌ SafetyNet Error: {e}")
-                finally:
-                    connections.close_all()
-                time.sleep(5) # 🟢 በየ 5 ሰከንዱ ፖል ያደርጋል (ቅጽበታዊ ፍጥነት ለመስጠት) [1, 2]
-
-        # --- kር 3፦ ሄልዝ ቼክ እና ራሱን የማከም ስራ (Emergency Fixer) ---
-        def run_health_check_thread():
-            logger.info("🩺 Health Check & Self-Healing Thread starting...")
-            while True:
-                try:
-                    time.sleep(300)
-                    from .models import AgentErrorLog, AIProjectBacklog
-                    
-                    unresolved = AgentErrorLog.objects.filter(resolved=False)
-                    if unresolved.count() > 500:
-                        logger.warning(f"🧹 Clearing {unresolved.count()} unresolved errors.")
-                        unresolved.update(resolved=True)
-
-                    duplicates = (
-                        AIProjectBacklog.objects.filter(status='Pending')
-                        .values('task_name')
-                        .annotate(name_count=Count('id'))
-                        .filter(name_count__gt=1)
-                    )
-                    for dup in duplicates:
-                        task_name = dup['task_name']
-                        keep_task = AIProjectBacklog.objects.filter(task_name=task_name).first()
-                        if keep_task:
-                            AIProjectBacklog.objects.filter(task_name=task_name, status='Pending').exclude(id=keep_task.id).delete()
-
-                    stuck_limit = timezone.now() - timedelta(minutes=15)
-                    stuck_tasks = AIProjectBacklog.objects.filter(status='Running', updated_at__lt=stuck_limit)
-                    if stuck_tasks.exists():
-                        logger.info(f"🛠️ Resetting {stuck_tasks.count()} stuck tasks.")
-                        stuck_tasks.update(status='Pending')
-
-                except Exception as e:
-                    logger.error(f"❌ Health Check Loop Error: {e}")
-                finally:
-                    connections.close_all()
-
-        t1 = threading.Thread(target=run_agent_thread, daemon=True)
-        t2 = threading.Thread(target=run_safetynet_thread, daemon=True)
-        t3 = threading.Thread(target=run_health_check_thread, daemon=True)
-        
-        t1.start()
-        t2.start()
-        t3.start()
-
-        logger.info("✅ All systems initialized. Autonomous loop is running.")
+    logger.info("✅ All systems initialized. Autonomous loop is running.")
