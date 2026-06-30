@@ -11,7 +11,22 @@
 #   - ከተሳሳተ መማር እና ራስን ማሻሻል
 # 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
+import os
+import sys
+import time
+import json
+import threading
+import logging
+import re
+from datetime import datetime, timedelta
 
+from django.apps import AppConfig
+from django.utils import timezone
+from django.db import connection, connections
+from django.core.management import call_command
+from django.db.models import Count
+
+logger = logging.getLogger(__name__)
 import os
 import ast
 import re
