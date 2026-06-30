@@ -1,1422 +1,487 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ ሁሉንም ችግሮች በራሱ የሚፈታ ዘመናዊ Self-Healing System (v12.0 - Ultimate Dynamic Edition)
-# ✅ ችሎታዎች፦
-#   - ራሱ ዳታቤዙን ተቆጣጥሮ የጎደሉትን ቴብሎች መለየት እና መፍጠር
-#   - ያልታወቁ የስህተት ንድፎችን መማር እና ማስታወስ
-#   - AI ን በመጠቀም አዲስ መፍትሄዎችን መፍጠር
-#   - ሙሉ ራስ-ፈወስ ዑደት ከ growth_agent ጋር የተቀናጀ
-#   - የደህንነት እና የአፈጻጸም ችግሮችን በራሱ መፈታት
-#   - ሙሉ ሪፖርት እና የጥገና ታሪክ
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.6 - Fresh Start Edition)
+# ✅ የተፈቱ ችግሮች፦ Cleaned up legacy index defusers, Throttled migration check, Dynamic Daily Performance Audit, AST HTML safety, Anti-Bloat Code Pruner, Generative AI SQL Healer (100% Headless fallback preserved)
 # 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
 import os
 import ast
 import re
-import json
 import logging
-import time
+import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Optional, Any
-
 from django.utils import timezone
-from django.db import connection, connections, DatabaseError, OperationalError, transaction
+from django.db import connection, connections
 from django.core.management import call_command
-from django.db.models import Q, Count
+from django.db.models import Q
 from django.conf import settings
 from django.apps import apps
 
+# SiteConfig ተጨምሯል (ለ Throttling መከታተያ)
 from .models import (
-    AgentErrorLog, SelfHealingLog, AIProjectBacklog, SiteRegistry,
+    AgentErrorLog, SelfHealingLog, AIProjectBacklog, SiteRegistry, 
     SecurityLog, VectorMemory, SiteConfig
 )
-from .code_apply import apply_code_change
 
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# 🔧 ረዳት: ቅንጅቶችን ከ SiteConfig ማምጣት
-# ============================================================
-def _cfg(key: str, default):
-    """SiteConfig ከሌለ default ዋጋን ይመልሳል"""
-    try:
-        obj = SiteConfig.objects.filter(key=key).first()
-        return obj.value.get("v", default) if obj else default
-    except Exception:
-        return default
-
-
-# ============================================================
-# 🛡️ SQL Whitelist Validator
-# ============================================================
-_ALLOWED_SQL_PREFIXES = (
-    "create index", "drop index", "create table", "alter table",
-    "delete from django_migrations",
-)
-_FORBIDDEN_SQL_PATTERNS = re.compile(
-    r"\b(drop\s+database|truncate|drop\s+table\s+(?!if\s+exists\s+\"marketplace_)"
-    r"|insert\s+into\s+(?!marketplace_)|update\s+(?!marketplace_))\b",
-    re.IGNORECASE,
-)
-
-def _validate_ai_sql(sql: str) -> Tuple[bool, str]:
-    """AI-produced SQL ን ደህንነቱ ጠብቆ ይፈትሻል"""
-    if not sql or not isinstance(sql, str):
-        return False, "SQL empty or not a string"
-    normalized = sql.strip().lower()
-    if not any(normalized.startswith(p) for p in _ALLOWED_SQL_PREFIXES):
-        return False, f"SQL starts with disallowed keyword: {normalized[:40]}"
-    if _FORBIDDEN_SQL_PATTERNS.search(sql):
-        return False, "SQL contains forbidden destructive pattern"
-    if len(sql) > 2000:
-        return False, "SQL suspiciously long (> 2000 chars)"
-    return True, ""
-
-
-# ============================================================
-# 🧠 ዘመናዊ የስህተት ንድፍ መማሪያ እና መዝገብ
-# ============================================================
-class ErrorPatternLearner:
-    """ከተሳሳተ ይማራል እና ለቀጣይ ያስታውሳል"""
-    
-    @staticmethod
-    def learn_from_error(error_message: str, solution: str, site, success: bool = True):
-        """አዲስ የስህተት ንድፍ ይማራል"""
-        try:
-            # የስህተቱን ዋና ንድፍ ያውጣል
-            pattern = re.sub(r'\d+', '{number}', error_message)
-            pattern = re.sub(r'"[^"]*"', '{string}', pattern)
-            pattern = re.sub(r"\'[^\']*\'", '{string}', pattern)
-            
-            # የስህተቱን አይነት ይለያል
-            error_type = "unknown"
-            if "relation" in error_message.lower() and "does not exist" in error_message.lower():
-                error_type = "missing_table"
-            elif "column" in error_message.lower() and "does not exist" in error_message.lower():
-                error_type = "missing_column"
-            elif "OperationalError" in error_message:
-                error_type = "connection_error"
-            elif "SyntaxError" in error_message:
-                error_type = "syntax_error"
-            elif "FieldError" in error_message:
-                error_type = "field_error"
-            
-            VectorMemory.objects.create(
-                site=site,
-                memory_type='error_pattern',
-                content=f"Pattern: {pattern[:200]}\nSolution: {solution[:500]}",
-                metadata={
-                    'error': error_message[:500],
-                    'solution': solution[:500],
-                    'error_type': error_type,
-                    'success': success
-                },
-                success_rate=1.0 if success else 0.0,
-                usage_count=1
-            )
-            logger.info(f"🧠 Learned new error pattern: {error_type} - {pattern[:50]}...")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to learn error pattern: {e}")
-            return False
-    
-    @staticmethod
-    def find_solution_for_error(error_message: str, site) -> Optional[Dict]:
-        """ተመሳሳይ የስህተት ንድፍ ያገኛል"""
-        try:
-            # የስህተቱን ንድፍ ያውጣል
-            pattern = re.sub(r'\d+', '{number}', error_message)
-            pattern = re.sub(r'"[^"]*"', '{string}', pattern)
-            pattern = re.sub(r"\'[^\']*\'", '{string}', pattern)
-            
-            memories = VectorMemory.objects.filter(
-                site=site,
-                memory_type='error_pattern',
-                content__icontains=pattern[:100]
-            ).order_by('-success_rate', '-usage_count')[:1]
-            
-            if memories:
-                memory = memories[0]
-                # ከተዘጋጀው ይዘት ውስጥ መፍትሄውን ያውጣል
-                content = memory.content
-                solution_match = re.search(r'Solution:\s*(.+?)(?:\n|$)', content)
-                if solution_match:
-                    return {
-                        'solution': solution_match.group(1).strip(),
-                        'success_rate': memory.success_rate,
-                        'usage_count': memory.usage_count
-                    }
-        except Exception as e:
-            logger.error(f"Failed to find solution: {e}")
-        return None
-    
-    @staticmethod
-    def get_common_errors(site, limit: int = 10) -> List[Dict]:
-        """በተደጋጋሚ የሚከሰቱ ስህተቶችን ያመጣል"""
-        try:
-            errors = AgentErrorLog.objects.filter(
-                site=site,
-                resolved=False
-            ).values('error_message').annotate(
-                count=Count('id')
-            ).order_by('-count')[:limit]
-            
-            return list(errors)
-        except Exception as e:
-            logger.error(f"Failed to get common errors: {e}")
-            return []
-
-
-# ============================================================
-# 🔍 ዳታቤዝ ኢንስፔክተር - ራሱ ዳታቤዙን የሚቆጣጠር
-# ============================================================
-class DatabaseInspector:
-    """ራሱ ዳታቤዙን ተቆጣጥሮ የጎደሉትን ቴብሎች የሚለይ ስርዓት"""
-    
-    def __init__(self):
-        self.existing_tables = []
-        self.missing_tables = []
-        self.table_structures = {}
-        self.all_models = []
-        self.scan_time = None
-        
-    def inspect_database(self) -> Dict[str, Any]:
-        """ዳታቤዙን ሙሉ በሙሉ ይቆጣጠራል"""
-        logger.info("🔍 Starting full database inspection...")
-        self.scan_time = timezone.now()
-        
-        try:
-            with connection.cursor() as cursor:
-                # 1. ነባር ቴብሎችን ያግኙ
-                self.existing_tables = self._get_existing_tables(cursor)
-                logger.info(f"📊 Found {len(self.existing_tables)} existing tables")
-                
-                # 2. ሁሉንም Django models ያግኙ
-                self.all_models = self._get_all_models()
-                logger.info(f"📚 Found {len(self.all_models)} Django models")
-                
-                # 3. የጎደሉትን ቴብሎች ይለዩ
-                self.missing_tables = self._find_missing_tables()
-                
-                # 4. የእያንዳንዱን ቴብል መዋቅር ያግኙ
-                for table in self.existing_tables:
-                    self.table_structures[table] = self._get_table_structure(cursor, table)
-                
-                # 5. የተገኙትን መረጃዎች ያስቀምጡ
-                self._save_inspection_results()
-                
-        except Exception as e:
-            logger.error(f"❌ Database inspection failed: {e}")
-            self._emergency_inspection()
-        
-        return self._generate_report()
-    
-    def _get_existing_tables(self, cursor) -> List[str]:
-        """ነባር ቴብሎችን ያግኙ"""
-        if connection.vendor == 'postgresql':
-            cursor.execute("""
-                SELECT tablename FROM pg_tables 
-                WHERE schemaname='public' AND tablename LIKE 'marketplace_%'
-                ORDER BY tablename
-            """)
-        else:
-            cursor.execute("""
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name LIKE 'marketplace_%'
-                ORDER BY name
-            """)
-        return [row[0] for row in cursor.fetchall()]
-    
-    def _get_all_models(self) -> List[Dict]:
-        """ሁሉንም Django models ያግኙ"""
-        models_data = []
-        try:
-            app_config = apps.get_app_config('marketplace')
-            for model in app_config.get_models():
-                model_data = {
-                    'name': model.__name__,
-                    'table_name': model._meta.db_table,
-                    'fields': [field.name for field in model._meta.get_fields()],
-                    'field_types': {
-                        field.name: field.get_internal_type() 
-                        for field in model._meta.get_fields()
-                    }
-                }
-                models_data.append(model_data)
-        except Exception as e:
-            logger.error(f"Failed to get models: {e}")
-        return models_data
-    
-    def _find_missing_tables(self) -> List[Dict]:
-        """የጎደሉትን ቴብሎች ይለያል"""
-        missing = []
-        expected_tables = [model['table_name'] for model in self.all_models]
-        
-        for expected in expected_tables:
-            if expected not in self.existing_tables:
-                model = next((m for m in self.all_models if m['table_name'] == expected), None)
-                if model:
-                    missing.append({
-                        'table_name': expected,
-                        'model_name': model['name'],
-                        'fields': model['fields'],
-                        'field_types': model['field_types']
-                    })
-        
-        if missing:
-            logger.warning(f"⚠️ Found {len(missing)} missing tables: {[m['table_name'] for m in missing]}")
-        else:
-            logger.info("✅ All tables exist!")
-        
-        return missing
-    
-    def _get_table_structure(self, cursor, table_name: str) -> Dict:
-        """የአንድን ቴብል መዋቅር ያግኙ"""
-        structure = {'columns': [], 'indexes': [], 'constraints': []}
-        try:
-            if connection.vendor == 'postgresql':
-                cursor.execute("""
-                    SELECT column_name, data_type, is_nullable
-                    FROM information_schema.columns
-                    WHERE table_name = %s
-                    ORDER BY ordinal_position
-                """, [table_name])
-                structure['columns'] = cursor.fetchall()
-                
-                cursor.execute("""
-                    SELECT indexname, indexdef
-                    FROM pg_indexes
-                    WHERE tablename = %s
-                """, [table_name])
-                structure['indexes'] = cursor.fetchall()
-        except Exception as e:
-            logger.debug(f"Could not get structure for {table_name}: {e}")
-        return structure
-    
-    def _save_inspection_results(self):
-        """የተገኙትን መረጃዎች ያስቀምጣል"""
-        try:
-            SiteConfig.objects.update_or_create(
-                key='DATABASE_INSPECTION_RESULTS',
-                defaults={
-                    'value': {
-                        'existing_tables': self.existing_tables,
-                        'missing_tables': [m['table_name'] for m in self.missing_tables],
-                        'model_count': len(self.all_models),
-                        'scan_time': self.scan_time.isoformat(),
-                        'table_count': len(self.existing_tables)
-                    }
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to save inspection results: {e}")
-    
-    def _generate_report(self) -> Dict:
-        """የቁጥጥር ሪፖርት ያዘጋጃል"""
-        return {
-            'existing_tables': self.existing_tables,
-            'missing_tables': [m['table_name'] for m in self.missing_tables],
-            'missing_table_details': self.missing_tables,
-            'model_count': len(self.all_models),
-            'table_count': len(self.existing_tables),
-            'scan_time': self.scan_time,
-            'has_missing_tables': len(self.missing_tables) > 0,
-            'health_percentage': (len(self.existing_tables) / max(len(self.all_models), 1)) * 100
-        }
-    
-    def _emergency_inspection(self):
-        """የቁጥጥር ስህተት ሲኖር የአደጋ ጊዜ ቁጥጥር"""
-        try:
-            with connection.cursor() as cursor:
-                self.existing_tables = self._get_existing_tables(cursor)
-        except Exception as e:
-            logger.error(f"Emergency inspection failed: {e}")
-
-
-# ============================================================
-# 🧬 ዘመናዊ ቴብል ጄኔሬተር
-# ============================================================
-class DynamicTableGenerator:
-    """AI ን በመጠቀም የጎደሉትን ቴብሎች በራሱ የሚፈጥር ስርዓት"""
-    
-    def __init__(self):
-        self.generated_tables = []
-        self.failed_tables = []
-        
-    def generate_missing_tables(self, inspection_report: Dict) -> Dict:
-        """የጎደሉትን ቴብሎች በ AI ያመነጫል"""
-        missing_tables = inspection_report.get('missing_tables', [])
-        
-        if not missing_tables:
-            logger.info("✅ No missing tables to generate")
-            return {'generated': [], 'failed': []}
-        
-        logger.info(f"🔨 Generating {len(missing_tables)} missing tables...")
-        
-        for table_name in missing_tables:
-            try:
-                # 1. የቴብሉን መረጃ ከ models.py ያግኙ
-                table_info = self._get_table_info_from_models(table_name)
-                
-                if table_info:
-                    # 2. ቀጥታ SQL ያመነጫል (AI ሳያስፈልግ)
-                    sql = self._generate_table_sql_from_model(table_info)
-                    
-                    if sql:
-                        # 3. SQL ን ያስፈጽማል
-                        success = self._execute_table_creation(sql)
-                        
-                        if success:
-                            self.generated_tables.append(table_name)
-                            logger.info(f"✅ Generated table: {table_name}")
-                        else:
-                            self.failed_tables.append(table_name)
-                            logger.error(f"❌ Failed to generate: {table_name}")
-                
-            except Exception as e:
-                logger.error(f"Error generating {table_name}: {e}")
-                self.failed_tables.append(table_name)
-        
-        return {
-            'generated': self.generated_tables,
-            'failed': self.failed_tables,
-            'total': len(missing_tables)
-        }
-    
-    def _get_table_info_from_models(self, table_name: str) -> Optional[Dict]:
-        """ከ models.py ውስጥ የቴብሉን መረጃ ያግኙ"""
-        try:
-            # የሞዴሉን ስም ያግኙ
-            model_name = table_name.replace('marketplace_', '').title()
-            
-            # ሞዴሉን ያግኙ
-            model = apps.get_model('marketplace', model_name)
-            
-            if model:
-                fields = []
-                for field in model._meta.get_fields():
-                    if not field.auto_created:
-                        field_info = {
-                            'name': field.name,
-                            'type': field.get_internal_type(),
-                            'null': field.null,
-                            'blank': field.blank,
-                            'max_length': getattr(field, 'max_length', None),
-                            'unique': field.unique,
-                            'default': getattr(field, 'default', None)
-                        }
-                        fields.append(field_info)
-                
-                return {
-                    'model_name': model_name,
-                    'fields': fields,
-                    'db_table': model._meta.db_table
-                }
-        except Exception as e:
-            logger.warning(f"Could not get model info for {table_name}: {e}")
-        
-        return None
-    
-    def _generate_table_sql_from_model(self, table_info: Dict) -> Optional[str]:
-        """ከ Django model መረጃ CREATE TABLE SQL ያመነጫል"""
-        try:
-            fields = table_info['fields']
-            table_name = table_info['db_table']
-            
-            field_defs = []
-            primary_key = None
-            
-            for field in fields:
-                field_name = field['name']
-                field_type = field['type']
-                null_str = "NULL" if field['null'] else "NOT NULL"
-                
-                # የመስክ አይነት ወደ SQL ይቀይሩ
-                sql_type = self._field_type_to_sql(field_type, field)
-                
-                if field_type in ['AutoField', 'BigAutoField']:
-                    primary_key = f"{field_name} {sql_type} PRIMARY KEY"
-                    continue
-                
-                def_str = ""
-                if field.get('default') is not None and field['default'] != '':
-                    default_val = field['default']
-                    if isinstance(default_val, str):
-                        def_str = f"DEFAULT '{default_val}'"
-                    elif isinstance(default_val, bool):
-                        def_str = f"DEFAULT {str(default_val).lower()}"
-                    elif default_val is not None:
-                        def_str = f"DEFAULT {default_val}"
-                
-                unique_str = "UNIQUE" if field.get('unique') else ""
-                
-                field_def = f"{field_name} {sql_type} {null_str} {def_str} {unique_str}".strip()
-                field_defs.append(field_def)
-            
-            # Primary key ከሌለ ያክሉ
-            if not primary_key:
-                field_defs.insert(0, "id SERIAL PRIMARY KEY")
-            
-            # Foreign keys ን ያክሉ
-            for field in fields:
-                if field['type'] in ['ForeignKey', 'OneToOneField']:
-                    # የ foreign key ትስስር ይፈጥራል
-                    ref_table = f"marketplace_{field['name'].replace('_id', '').title().lower()}"
-                    if field['null']:
-                        field_defs.append(f"CONSTRAINT fk_{field['name']} FOREIGN KEY ({field['name']}) REFERENCES {ref_table}(id) ON DELETE SET NULL")
-                    else:
-                        field_defs.append(f"CONSTRAINT fk_{field['name']} FOREIGN KEY ({field['name']}) REFERENCES {ref_table}(id) ON DELETE CASCADE")
-            
-            fields_sql = ",\n    ".join(field_defs)
-            
-            sql = f"""
-CREATE TABLE IF NOT EXISTS {table_name} (
-    {fields_sql}
-);
-"""
-            return sql
-            
-        except Exception as e:
-            logger.error(f"SQL generation failed: {e}")
-            return None
-    
-    def _field_type_to_sql(self, field_type: str, field_info: Dict = None) -> str:
-        """Django field type ን ወደ SQL type ይቀይራል"""
-        type_mapping = {
-            'AutoField': 'SERIAL',
-            'BigAutoField': 'BIGSERIAL',
-            'CharField': f"VARCHAR({field_info.get('max_length', 255) if field_info else 255})",
-            'TextField': 'TEXT',
-            'IntegerField': 'INTEGER',
-            'BigIntegerField': 'BIGINT',
-            'SmallIntegerField': 'SMALLINT',
-            'FloatField': 'FLOAT',
-            'DecimalField': 'DECIMAL(20,2)',
-            'BooleanField': 'BOOLEAN',
-            'DateField': 'DATE',
-            'DateTimeField': 'TIMESTAMP WITH TIME ZONE',
-            'TimeField': 'TIME',
-            'ForeignKey': 'INTEGER',
-            'OneToOneField': 'INTEGER',
-            'ManyToManyField': 'INTEGER',
-            'JSONField': 'JSONB',
-            'URLField': f"VARCHAR({field_info.get('max_length', 200) if field_info else 200})",
-            'EmailField': f"VARCHAR({field_info.get('max_length', 254) if field_info else 254})",
-            'SlugField': f"VARCHAR({field_info.get('max_length', 150) if field_info else 150})",
-            'FileField': f"VARCHAR({field_info.get('max_length', 100) if field_info else 100})",
-            'ImageField': f"VARCHAR({field_info.get('max_length', 100) if field_info else 100})",
-            'UUIDField': 'UUID',
-            'IPAddressField': 'INET',
-            'GenericIPAddressField': 'INET',
-        }
-        
-        sql_type = type_mapping.get(field_type, 'TEXT')
-        # ከመስክ መረጃ ጋር ተቀናጅቶ ካልሆነ በቀላሉ ይመልሳል
-        if isinstance(sql_type, str) and '{' in sql_type:
-            # እንደ VARCHAR(255) ያሉ ፎርማቶችን ይለውጣል
-            return sql_type
-        return sql_type
-    
-    def _execute_table_creation(self, sql: str) -> bool:
-        """SQL ን ያስፈጽማል"""
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute(sql)
-            return True
-        except Exception as e:
-            logger.error(f"SQL execution failed: {e}")
-            return False
-
-
-# ============================================================
-# 🛡️ SECURITY AUDITOR (AST + Regex SHIELD)
+# 🛡️ 1. SECURITY AUDITOR (የደህንነት ኦዲተር - AST SHIELD)
 # ============================================================
 class SecurityAuditor:
-    """ኮድ ከመጻፉ በፊት አደገኛ ጥሪዎችን፣ ሚስጥሮችን ይፈትሻል"""
+    """ኮድ ከመጻፉ በፊት አደገኛ የሼል እና የሲስተም ጥሪዎችን በ AST የሚመረምር የደህንነት ግግድግ"""
 
-    _DANGEROUS_BUILTINS = {"eval", "exec"}
-    _DANGEROUS_ATTRS = {"system", "popen", "spawn"}
-    _DANGEROUS_SUBPROCESS = {"run", "call", "popen", "check_output", "check_call"}
-
-    _SECRET_RE = [
-        (re.compile(r'SECRET_KEY\s*=\s*[\'"][^\'"]{8,}[\'"]', re.I), "Possible SECRET_KEY exposure"),
-        (re.compile(r'\bpassword\s*=\s*[\'"][^\'"]{4,}[\'"]', re.I), "Possible password exposure"),
-        (re.compile(r'\bAPI_KEY\s*=\s*[\'"][^\'"]{8,}[\'"]', re.I), "API key exposure"),
-        (re.compile(r'\bAWS_SECRET\s*=\s*[\'"][^\'"]{8,}[\'"]', re.I), "AWS secret exposure"),
-    ]
-
-    @classmethod
-    def scan_code_safety(cls, code: str, file_path: str = "", site=None) -> Tuple[bool, list]:
+    @staticmethod
+    def scan_code_safety(code, file_path="", site=None):
+        """የ SQL Injection, Secrets Exposure, እና የ Shell Execution (Subprocess) ፍተሻ"""
+        issues = []
         if not code or not isinstance(code, str):
             return True, []
 
-        issues = []
-        is_python = file_path.endswith(".py") if file_path else True
+        # የ HTML ቴምፕሌቶች ሲፈተሹ የ Python AST parse እንዳይካሄድ መከላከል (የሕግ 4 ጥበቃ)
+        is_python = file_path.endswith('.py') if file_path else True
+        if 'html' in file_path.lower() or not is_python:
+            # HTML ከሆነ AST ፍተሻ አያስፈልገውም
+            return True, []
 
-        if is_python:
-            try:
-                tree = ast.parse(code)
-                for node in ast.walk(tree):
-                    if not isinstance(node, ast.Call):
-                        continue
-                    func = node.func
-                    if isinstance(func, ast.Name) and func.id.lower() in cls._DANGEROUS_BUILTINS:
-                        issues.append(f"Critical: Dangerous built-in '{func.id}' detected.")
-                    elif isinstance(func, ast.Attribute):
-                        attr = func.attr.lower()
-                        if attr in cls._DANGEROUS_ATTRS:
-                            issues.append(f"Critical: Dangerous attribute call '.{attr}()' detected.")
-                        mod = getattr(func.value, "id", "").lower()
-                        if mod == "subprocess" and attr in cls._DANGEROUS_SUBPROCESS:
-                            issues.append(f"Critical: subprocess.{attr}() call detected.")
-            except SyntaxError as e:
-                issues.append(f"Syntax Error in {file_path}: {e}")
-            except Exception as e:
-                logger.warning(f"AST scan skipped ({file_path}): {e}")
+        try:
+            tree = ast.parse(code)
+            dangerous_builtins = {'eval', 'exec'}
+            dangerous_attributes = {'system', 'popen', 'spawn'}
 
-        for pattern, desc in cls._SECRET_RE:
-            if pattern.search(code):
-                issues.append(f"Warning: {desc} in {file_path or 'unknown'}")
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    func_name = ""
+                    module_name = ""
+                    
+                    if isinstance(node.func, ast.Name):
+                        func_name = node.func.id.lower()
+                        if func_name in dangerous_builtins:
+                            issues.append(f"Critical: Dangerous built-in call '{func_name}' detected.")
+                            
+                    elif isinstance(node.func, ast.Attribute):
+                        func_name = node.func.attr.lower()
+                        if func_name in dangerous_attributes:
+                            issues.append(f"Critical: Dangerous system attribute '{func_name}' detected.")
+                        
+                        if hasattr(node.func.value, 'id'):
+                            module_name = node.func.value.id.lower()
+                            if module_name == 'subprocess' and func_name in ['run', 'call', 'popen', 'check_output', 'check_call']:
+                                issues.append(f"Critical: Dangerous subprocess call 'subprocess.{func_name}' detected.")
+
+            secret_patterns = [
+                (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"][^\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
+                (r'(?<![\w"])password\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'Possible password exposure'),
+                (r'(?<![\w"])API_KEY\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'API key exposure')
+            ]
+            for pattern, desc in secret_patterns:
+                if re.search(pattern, code, re.IGNORECASE):
+                    issues.append(f"Warning: {desc}")
+
+        except SyntaxError as e:
+            issues.append(f"Syntax Error: {e}")
+        except Exception as e:
+            logger.warning(f"AST safety scanning warning: {e}")
 
         if issues:
-            cls._persist_issues(issues, file_path, site)
+            for issue in issues:
+                try:
+                    log_exists = SecurityLog.objects.filter(
+                        site=site,
+                        description=issue,
+                        file_path=file_path
+                    ).exists()
+                    
+                    if not log_exists:
+                        SecurityLog.objects.create(
+                            site=site,
+                            category='code_injection' if 'Dangerous' in issue or 'Error' in issue else 'data_leak',
+                            text_content=issue,
+                            severity='critical' if 'Critical' in issue else 'high',
+                            description=issue,
+                            file_path=file_path,
+                            is_fixed=False
+                        )
+                except Exception as log_err:
+                    logger.error(f"Failed to save SecurityLog: {log_err}")
             return False, issues
+
         return True, []
 
-    @staticmethod
-    def _persist_issues(issues, file_path, site):
-        for issue in issues:
-            try:
-                exists = SecurityLog.objects.filter(
-                    site=site, description=issue, file_path=file_path
-                ).exists()
-                if not exists:
-                    SecurityLog.objects.create(
-                        site=site,
-                        category="code_injection" if "Critical" in issue else "data_leak",
-                        text_content=issue,
-                        severity="critical" if "Critical" in issue else "high",
-                        description=issue,
-                        file_path=file_path,
-                        is_fixed=False,
-                    )
-            except Exception as e:
-                logger.error(f"SecurityLog save failed: {e}")
-
 
 # ============================================================
-# 🚑 UNIVERSAL HEALER (Complete Self-Healing System)
+# 🚑 2. UNIVERSAL HEALER (ሁለንተናዊ የሲስተም ፈዋሽ - SCHEMA AWARE)
 # ============================================================
 class UniversalHealer:
-    """ኤጀንቱን፣ ዳታቤዙን እና ድረ-ገጹን ስህተት የሚጠግን ማዕከል"""
-
-    _CIRCUIT_MAX_FAILURES = 3
-    _CIRCUIT_WINDOW_MINUTES = 60
+    """ኤጀንቱን፣ ዳታቤዙን እና የዌብሳይቱን ስህተት የሚጠግን ማዕከል"""
 
     def __init__(self, site: SiteRegistry):
         self.site = site
-        self.healed_count = 0
-        self.failed_count = 0
-        self.healing_history = []
 
-    # ── ዋና ጥገና ዑደት ──────────────────────────────────────────
     def perform_maintenance(self):
-        """ሙሉ ጥገና ያካሂድ"""
-        logger.info(f"🚑 Maintenance started for [{self.site.name}]")
-        self._reset_stuck_tasks()
+        """በየ ዑደቱ የሚደረግ የሲስተም ጥገና (የተሻሻለ)"""
+        logger.info(f"🚑 Running maintenance for {self.site.name}...")
+        
         self.heal_database_migrations_autonomously()
         connections.close_all()
+        
+        try:
+            stuck_tasks = AIProjectBacklog.objects.filter(
+                site=self.site, status='Running',
+                updated_at__lt=timezone.now() - timedelta(minutes=15)
+            )
+            if stuck_tasks.exists():
+                logger.warning(f"🔄 Resetting {stuck_tasks.count()} stuck tasks.")
+                stuck_tasks.update(status='Pending')
+        except Exception as e:
+            logger.error(f"Failed to reset stuck tasks: {e}")
+
+        # ዕለታዊ የፍጥነት ኦዲት ማካሄድ
         try:
             PerformanceAuditor.run_daily_performance_audit(self.site)
         except Exception as e:
-            logger.error(f"Performance audit error: {e}")
+            logger.error(f"Failed to run daily performance audit: {e}")
+
         self._heal_production_errors()
         self._heal_security_issues()
-        logger.info(f"✅ Maintenance complete for [{self.site.name}]")
 
-    # ── ሙሉ ራስ-ፈወስ ዑደት ────────────────────────────────────────
-    def full_self_heal(self) -> Dict[str, Any]:
-        """ሙሉ የራስ-ፈወስ ዑደት"""
-        logger.info(f"🔄 Starting full self-heal cycle for {self.site.name}")
+    def heal_database_migrations_autonomously(self, force=False):
+        """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል"""
         
-        results = {
-            'tables_checked': 0,
-            'tables_created': 0,
-            'errors_fixed': 0,
-            'security_fixes': 0,
-            'performance_fixes': 0,
-            'migrations_fixed': False,
-            'stuck_tasks_reset': 0,
-            'start_time': timezone.now().isoformat(),
-            'success': True
-        }
+        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ (ከፍተኛ አፈጻጸም ለማስገኘት)
+        last_check_key = f"LAST_SCHEMA_MIGRATION_CHECK_{self.site.name}"
+        last_check_cfg = SiteConfig.objects.filter(key=last_check_key).first()
         
-        try:
-            # 1. ዳታቤዝ ቁጥጥር እና ቴብሎችን መፍጠር
-            logger.info("🔍 Phase 1: Database Inspection...")
-            inspector = DatabaseInspector()
-            inspection = inspector.inspect_database()
-            results['tables_checked'] = len(inspection['existing_tables'])
-            
-            if inspection['has_missing_tables']:
-                logger.info(f"🔨 Phase 2: Generating {len(inspection['missing_tables'])} missing tables...")
-                generator = DynamicTableGenerator()
-                generation_result = generator.generate_missing_tables(inspection)
-                results['tables_created'] = len(generation_result.get('generated', []))
-                
-                if generation_result.get('failed'):
-                    results['success'] = False
-                    logger.error(f"❌ Failed to generate: {generation_result['failed']}")
-            
-            # 2. ማይግሬሽን ማስተካከያ
-            logger.info("🔄 Phase 3: Migration Healing...")
-            migration_result = self._heal_migrations()
-            results['migrations_fixed'] = migration_result
-            
-            # 3. የተጣበቁ ተግባራትን ማስተካከል
-            logger.info("🧹 Phase 4: Resetting Stuck Tasks...")
-            stuck_count = self._reset_stuck_tasks()
-            results['stuck_tasks_reset'] = stuck_count
-            
-            # 4. የስህተት ሎጎች ማጽዳት
-            logger.info("🧹 Phase 5: Error Log Cleanup...")
-            cleaned = self._clean_error_logs()
-            results['errors_fixed'] = cleaned
-            
-            # 5. የደህንነት ጉዳዮች መፍታት
-            logger.info("🛡️ Phase 6: Security Issue Resolution...")
-            security_fixed = self._heal_security_issues()
-            results['security_fixes'] = len(security_fixed)
-            
-            # 6. የአፈጻጸም ኦዲት
-            logger.info("⚡ Phase 7: Performance Optimization...")
-            try:
-                PerformanceAuditor.run_daily_performance_audit(self.site)
-            except Exception as e:
-                logger.error(f"Performance audit error: {e}")
-            
-            # 7. ሪፖርት ማዘጋጀት
-            SelfHealingLog.objects.create(
+        should_run = force
+        if not should_run:
+            if not last_check_cfg:
+                should_run = True
+            else:
+                try:
+                    last_time = datetime.fromisoformat(last_check_cfg.value.get('time'))
+                    if timezone.is_naive(last_time):
+                        last_time = timezone.make_aware(last_time)
+                    if timezone.now() - last_time >= timedelta(minutes=30):
+                        should_run = True
+                except Exception:
+                    should_run = True
+
+        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ ቶሎ እንዲጠግን ማድረግ
+        if not should_run:
+            recent_db_errors = AgentErrorLog.objects.filter(
                 site=self.site,
-                error_message="Full self-heal cycle completed",
-                solution_sql=json.dumps(results),
-                resolved=True
-            )
+                resolved=False,
+                created_at__gte=timezone.now() - timedelta(minutes=5)
+            ).filter(Q(error_message__icontains="OperationalError") | Q(error_message__icontains="relation") | Q(error_message__icontains="FieldError"))
             
-        except Exception as e:
-            logger.error(f"❌ Self-healing failed: {e}")
-            results['success'] = False
-            results['error'] = str(e)
-        
-        results['duration'] = (timezone.now() - timezone.datetime.fromisoformat(results['start_time'])).total_seconds()
-        
-        logger.info(f"✅ Full self-heal complete: {results}")
-        return results
+            if recent_db_errors.exists():
+                logger.warning("🚑 Schema Healer: Recent DB error detected — Bypassing throttling safety for recovery.")
+                should_run = True
 
-    # ── Stuck task resetter ───────────────────────────────────
-    def _reset_stuck_tasks(self) -> int:
-        cutoff = timezone.now() - timedelta(minutes=int(_cfg("STUCK_TASK_MINUTES", 15)))
-        try:
-            stuck = AIProjectBacklog.objects.filter(
-                site=self.site, status="Running", updated_at__lt=cutoff
-            )
-            count = stuck.count()
-            if count:
-                stuck.update(status="Pending")
-                logger.warning(f"🔄 Reset {count} stuck tasks.")
-            return count
-        except Exception as e:
-            logger.error(f"Stuck task reset failed: {e}")
-            return 0
+        if not should_run:
+            logger.info("🚑 Schema Healer: Skipping migration check (throttled for performance safety).")
+            return
 
-    # ── ማይግሬሽን ማስተካከያ ──────────────────────────────────────
-    def _heal_migrations(self) -> bool:
-        """ማይግሬሽኖችን ያስተካክላል"""
         try:
             call_command('migrate', interactive=False)
+            logger.info("🚑 Schema Healer: All database migrations are completely up to date.")
             
-            # Fake 0018 migration if needed
-            with connection.cursor() as cursor:
-                if connection.vendor == 'postgresql':
-                    cursor.execute("""
-                        SELECT EXISTS (
-                            SELECT FROM information_schema.tables 
-                            WHERE table_name = 'django_migrations'
-                        );
-                    """)
-                    mig_exists = cursor.fetchone()[0]
-                else:
-                    cursor.execute("""
-                        SELECT name FROM sqlite_master 
-                        WHERE type='table' AND name='django_migrations';
-                    """)
-                    mig_exists = cursor.fetchone() is not None
-                
-                if mig_exists:
-                    cursor.execute(
-                        "SELECT 1 FROM django_migrations WHERE app='marketplace' AND name='0018_translationqueue_delete_aisystemtask_and_more';"
-                    )
-                    if not cursor.fetchone():
-                        now_func = "CURRENT_TIMESTAMP" if connection.vendor == 'sqlite' else "NOW()"
-                        cursor.execute(
-                            f"INSERT INTO django_migrations (app, name, applied) "
-                            f"VALUES ('marketplace', '0018_translationqueue_delete_aisystemtask_and_more', {now_func});"
-                        )
-                        logger.info("✅ Migration 0018 faked.")
-            return True
-        except Exception as e:
-            logger.error(f"Migration healing failed: {e}")
-            return False
-
-    # ── የስህተት ሎጎች ማጽዳት ────────────────────────────────────
-    def _clean_error_logs(self) -> int:
-        try:
-            cutoff = timezone.now() - timedelta(days=30)
-            deleted, _ = AgentErrorLog.objects.filter(
-                resolved=True,
-                created_at__lt=cutoff
-            ).delete()
-            return deleted
-        except Exception as e:
-            logger.error(f"Error log cleanup failed: {e}")
-            return 0
-
-    # ── Circuit breaker check ─────────────────────────────────
-    def _circuit_open(self, action_key: str) -> bool:
-        window = timezone.now() - timedelta(minutes=self._CIRCUIT_WINDOW_MINUTES)
-        failures = SelfHealingLog.objects.filter(
-            error_message__icontains=action_key,
-            resolved=False,
-            created_at__gte=window,
-        ).count()
-        if failures >= self._CIRCUIT_MAX_FAILURES:
-            logger.critical(
-                f"🚨 Circuit OPEN for '{action_key}': {failures} failures in last "
-                f"{self._CIRCUIT_WINDOW_MINUTES} min. Skipping to prevent crash loop."
+            # ስኬታማ ከሆነ ሰዓቱን መመዝገብ
+            SiteConfig.objects.update_or_create(
+                key=last_check_key,
+                defaults={'value': {'time': timezone.now().isoformat()}}
             )
-            return True
-        return False
-
-    # ── Migration Healer ──────────────────────────────────────
-    def heal_database_migrations_autonomously(self, force: bool = False):
-        throttle_key = f"LAST_SCHEMA_CHECK_{self.site.name}"
-        if not force and not self._should_run_migration_check(throttle_key):
-            return
-
-        try:
-            call_command("migrate", interactive=False)
-            logger.info("✅ Schema Healer: Migrations up to date.")
-            self._update_throttle(throttle_key)
-            return
         except Exception as e:
-            err = str(e)
-            logger.error(f"🚑 Migration error: {err}")
-
-        # Try to find solution from learned patterns
-        solution = ErrorPatternLearner.find_solution_for_error(err, self.site)
-        if solution:
-            logger.info(f"💡 Found learned solution: {solution['solution'][:100]}...")
-            try:
-                # Execute the learned solution
-                with connection.cursor() as cursor:
-                    cursor.execute(solution['solution'])
-                self._update_throttle(throttle_key)
-                return
-            except Exception as e2:
-                logger.error(f"Learned solution failed: {e2}")
-
-        # 2a: missing relation/index
-        match_missing = re.search(r'relation "([^"]+)" does not exist', err)
-        if match_missing:
-            idx = match_missing.group(1)
-            if self._fix_missing_relation(idx):
-                self._update_throttle(throttle_key)
-                return
-            try:
-                call_command("migrate", interactive=False)
-                self._update_throttle(throttle_key)
-                return
-            except Exception as e2:
-                err = str(e2)
-
-        # 2b: already-exists index
-        match_exists = re.search(r'relation "([^"]+)" already exists', err)
-        if match_exists:
-            idx = match_exists.group(1)
-            if self._drop_conflicting_index(idx):
+            err_msg = str(e)
+            logger.error(f"🚑 Schema Healer: Migration blocked by error: {err_msg}")
+            
+            # 🟢 [የእርምጃ ቅደም ተከተል 1]፦ ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን በራስ-ሰር ፈልጎ ማጥፋት (DROP INDEX)
+            match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
+            if match_exists:
+                idx_name = match_exists.group(1)
+                logger.warning(f"🚑 Schema Healer: Conflicting index '{idx_name}' already exists. Auto-dropping from DB...")
                 try:
-                    call_command("migrate", interactive=False)
-                    self._update_throttle(throttle_key)
+                    with connection.cursor() as cursor:
+                        cursor.execute(f'DROP INDEX IF EXISTS "{idx_name}";')
+                    
+                    call_command('migrate', interactive=False)
+                    logger.info(f"🚑 Schema Healer: Migration succeeded after dropping conflicting index {idx_name}!")
+                    SiteConfig.objects.update_or_create(
+                        key=last_check_key,
+                        defaults={'value': {'time': timezone.now().isoformat()}}
+                    )
                     return
-                except Exception as e3:
-                    err = str(e3)
-
-        # 3: AI Generative SQL Healer
-        healed = self._ai_generative_heal(err)
-        if healed:
+                except Exception as retry_err:
+                    err_msg = str(retry_err)
+            
+            # 🟢 [የእርምጃ ቅደም ተከተል 2 - Generative Healer]፦ በ AI የሚመራውን ሁለንተናዊ የረድኤት ጠጋኝ ማነቃቃት [1, 2, 3.1.2]
             try:
-                call_command("migrate", interactive=False)
-                self._update_throttle(throttle_key)
-                return
-            except Exception as e4:
-                err = str(e4)
+                logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer to resolve database block...")
+                
+                # የድረ-ገጹን አጠቃላይ የሰንጠረዦች መዋቅር በዳይናሚክ መንገድ ሰብስቦ ለ AI መላክ [3.1.2]
+                all_tables = []
+                try:
+                    for model in apps.get_models():
+                        all_tables.append({
+                            "table": model._meta.db_table,
+                            "fields": [f.name for f in model._meta.fields]
+                        })
+                except Exception as schema_scan_err:
+                    logger.warning(f"🚑 Schema Healer: Failed to scan system model structures: {schema_scan_err}")
 
-        # 4: Emergency rebuild
-        logger.critical(
-            "🚨 Schema Healer exhausted all options. "
-            "Call hard_reset_database_schema(confirmed=True) manually to proceed."
-        )
-        SelfHealingLog.objects.create(
-            error_message=f"All healing steps failed. Manual reset needed. Last error: {err}",
-            solution_sql="",
-            resolved=False,
-        )
-
-    def _should_run_migration_check(self, key: str) -> bool:
-        interval = int(_cfg("SCHEMA_CHECK_INTERVAL_MIN", 30))
-        cfg = SiteConfig.objects.filter(key=key).first()
-        if not cfg:
-            return True
-        recent_errors = AgentErrorLog.objects.filter(
-            site=self.site, resolved=False,
-            created_at__gte=timezone.now() - timedelta(minutes=5),
-        ).filter(
-            Q(error_message__icontains="OperationalError")
-            | Q(error_message__icontains="relation")
-            | Q(error_message__icontains="FieldError")
-        )
-        if recent_errors.exists():
-            logger.warning("🚑 Schema Healer: Recent DB error → bypassing throttle.")
-            return True
-        try:
-            last = datetime.fromisoformat(cfg.value.get("time"))
-            if timezone.is_naive(last):
-                last = timezone.make_aware(last)
-            if timezone.now() - last >= timedelta(minutes=interval):
-                return True
-        except Exception:
-            return True
-        logger.info("🚑 Schema Healer: Throttled — skipping.")
-        return False
-
-    def _update_throttle(self, key: str):
-        SiteConfig.objects.update_or_create(
-            key=key, defaults={"value": {"time": timezone.now().isoformat()}}
-        )
-
-    def _fix_missing_relation(self, name: str) -> bool:
-        try:
-            logger.warning(f"🚑 Creating dummy for missing relation: {name}")
-            with connection.cursor() as c:
-                id_col = (
-                    "integer PRIMARY KEY AUTOINCREMENT"
-                    if connection.vendor == "sqlite"
-                    else "serial NOT NULL PRIMARY KEY"
+                prompt = (
+                    f"We encountered a database migration or schema error in our Django project: '{err_msg}'.\n"
+                    f"Here are the ACTUAL database tables and fields currently registered in our Django project schema:\n"
+                    f"{json.dumps(all_tables, ensure_ascii=False)}\n\n"
+                    f"Based on these actual tables, identify the exact database table and columns involved in this error.\n"
+                    f"Generate the exact, safe, raw SQL DDL statement to execute on PostgreSQL or SQLite to resolve this error "
+                    f"(e.g., 'CREATE INDEX IF NOT EXISTS ... ON ... (...)', 'DROP INDEX IF EXISTS ...', or 'ALTER TABLE ...').\n"
+                    f"Return strictly valid JSON with key 'sql' containing only the executable SQL query string, and 'explanation' explaining your reasoning."
                 )
-                safe_name = re.sub(r"[^\w]", "_", name)
-                c.execute(
-                    f'CREATE TABLE IF NOT EXISTS "{safe_name}" '
-                    f'("id" {id_col}, "name" varchar(255) NOT NULL);'
-                )
-                c.execute(
-                    f'CREATE INDEX IF NOT EXISTS "{safe_name}_idx" ON "{safe_name}" ("name");'
-                )
-            return True
-        except Exception as e:
-            logger.error(f"_fix_missing_relation failed: {e}")
-            return False
-
-    def _drop_conflicting_index(self, idx_name: str) -> bool:
-        try:
-            safe = re.sub(r"[^\w]", "_", idx_name)
-            logger.warning(f"🚑 Dropping conflicting index: {safe}")
-            with connection.cursor() as c:
-                c.execute(f'DROP INDEX IF EXISTS "{safe}";')
-            return True
-        except Exception as e:
-            logger.error(f"_drop_conflicting_index failed: {e}")
-            return False
-
-    def _ai_generative_heal(self, err_msg: str) -> bool:
-        if self._circuit_open("_ai_generative_heal"):
-            return False
-
-        logger.warning("🚑 Schema Healer: Invoking AI SQL Healer...")
-        try:
-            from .ai_utils import clean_and_parse_json, ask_master_ai_smart
-
-            prompt = (
-                f"A Django migration failed with: '{err_msg}'.\n"
-                f"Generate a SINGLE safe SQL DDL statement for PostgreSQL or SQLite "
-                f"(CREATE INDEX IF NOT EXISTS, DROP INDEX IF EXISTS, or ALTER TABLE only).\n"
-                f"Return strict JSON: {{\"sql\": \"<statement>\", \"explanation\": \"<why>\"}}"
-            )
-            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
-
-            if not (res and isinstance(res, dict) and res.get("sql")):
-                logger.error("❌ AI Healer: No valid SQL returned.")
-                return False
-
-            sql = res["sql"]
-            ok, reason = _validate_ai_sql(sql)
-            if not ok:
-                logger.error(f"❌ AI SQL rejected by validator: {reason} | SQL: {sql[:80]}")
-                SelfHealingLog.objects.create(
-                    error_message=f"AI SQL rejected: {reason}",
-                    solution_sql=sql,
-                    resolved=False,
-                )
-                return False
-
-            logger.warning(f"🚑 Executing validated AI SQL: {sql[:120]}")
-            with connection.cursor() as c:
-                c.execute(sql)
-
-            SelfHealingLog.objects.create(
-                error_message=err_msg,
-                solution_sql=sql,
-                resolved=True,
-            )
-            logger.info("✨ AI SQL healing succeeded.")
-            return True
-
-        except Exception as e:
-            logger.error(f"❌ AI Generative Heal failed: {e}")
-            SelfHealingLog.objects.create(
-                error_message=f"AI heal exception: {e}",
-                solution_sql="",
-                resolved=False,
-            )
-            return False
-
-    # ── Production Error Healer ───────────────────────────────
-    def _heal_production_errors(self):
-        errors = AgentErrorLog.objects.filter(
-            site=self.site, resolved=False
-        ).order_by("-created_at")[:5]
-
-        for err in errors:
-            if "FieldError" in err.error_message or "product_set" in err.error_message:
-                self.heal_model_field_errors()
-            else:
-                # Try to find solution from learned patterns
-                solution = ErrorPatternLearner.find_solution_for_error(err.error_message, self.site)
-                if solution:
-                    logger.info(f"💡 Found learned solution for error: {err.error_message[:50]}...")
-                    # Create task with the solution
-                    task_name = f"🚑 AUTO-FIX: {err.task_name[:30]}"
-                    AIProjectBacklog.objects.create(
-                        site=self.site,
-                        task_name=task_name,
-                        target_file="views",
-                        priority="Critical",
-                        description=f"Auto-heal with learned solution: {solution['solution'][:200]}",
-                        business_impact_score=10,
-                    )
+                
+                # dynamic import - circular dependency ለመከላከል [1, 2]
+                from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+                res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
+                
+                if res and isinstance(res, dict) and res.get('sql'):
+                    sql_query = res['sql']
+                    logger.warning(f"🚑 Schema Healer: Executing AI-generated healing SQL: {sql_query}")
+                    
+                    with connection.cursor() as cursor:
+                        cursor.execute(sql_query)
+                    
+                    logger.info("✨ Schema Healer: Successfully executed AI SQL to heal database schema.")
+                    
+                    try:
+                        SelfHealingLog.objects.create(
+                            error_message=err_msg,
+                            solution_sql=sql_query,
+                            resolved=True
+                        )
+                    except Exception as log_err:
+                        logger.error(f"Failed to save SelfHealingLog: {log_err}")
+                    
+                    # ጥገናው ከተጠናቀቀ በኋላ ፍልሰቶቹን ድጋሚ መሞከር
+                    try:
+                        call_command('migrate', interactive=False)
+                        SiteConfig.objects.update_or_create(
+                            key=last_check_key,
+                            defaults={'value': {'time': timezone.now().isoformat()}}
+                        )
+                        logger.info("🚑 Schema Healer: Database migration succeeded after applying AI SQL!")
+                        return
+                    except Exception as retry_err:
+                        logger.error(f"🚑 Schema Healer: Migration retry failed even after AI SQL: {retry_err}")
+                        return
                 else:
-                    task_name = f"🚑 EMERGENCY FIX: {err.task_name}"
-                    AIProjectBacklog.objects.create(
-                        site=self.site,
-                        task_name=task_name,
-                        target_file="views",
-                        priority="Critical",
-                        description=f"Auto-heal error: {err.error_message[:200]}",
-                        business_impact_score=10,
-                    )
-            err.resolved = True
-            err.save(update_fields=["resolved"])
+                    logger.error("❌ Schema Healer: AI did not return a valid SQL query payload.")
+            except Exception as ai_heal_err:
+                logger.error(f"❌ Schema Healer: Generative AI healing process failed: {ai_heal_err}")
 
     def heal_model_field_errors(self):
+        """የFieldError ሲከሰት ኤጀንቱ ራሱ ሞዴሉን ይቃኛል"""
+        logger.info("🚑 Model Healer: Scanning for FieldError in views...")
         from .ai_utils import broadcast_agent_log
-        broadcast_agent_log(self.site, "FieldError detected — creating refactor task.", "error")
+        broadcast_agent_log(self.site, "Model Healer: FieldError detected in views. Creating Refactor Task...", "error")
+        
         task_name = "🛡️ REFACTOR: Replace 'product_set' with 'product' in views"
-        if not AIProjectBacklog.objects.filter(
-            site=self.site, task_name=task_name, status__in=["Pending", "Running"]
-        ).exists():
+        
+        active_fix_exists = AIProjectBacklog.objects.filter(
+            site=self.site,
+            task_name=task_name,
+            status__in=['Pending', 'Running']
+        ).exists()
+        
+        if not active_fix_exists:
             AIProjectBacklog.objects.create(
                 site=self.site,
                 task_name=task_name,
                 target_file="views",
                 priority="Critical",
-                description=(
-                    "FieldError: Cannot resolve 'product_set'. "
-                    "Replace all occurrences with 'product' in views.py queries."
-                ),
-                business_impact_score=10,
+                description="FieldError found: Cannot resolve keyword 'product_set' into field. Replace all instances of 'product_set' with 'product' in views.py model queries to restore homepage.",
+                business_impact_score=10
             )
-            logger.info("🚑 Model Healer: Refactor task created.")
+            logger.info("manager Model Healer: Created REFACTOR task successfully.")
 
-    # ── Security Issue Healer ─────────────────────────────────
+    def _heal_production_errors(self):
+        """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
+        errors = AgentErrorLog.objects.filter(site=self.site, resolved=False).order_by('-created_at')[:3]
+        for err in errors:
+            if "FieldError" in err.error_message or "Cannot resolve keyword 'product_set'" in err.error_message:
+                self.heal_model_field_errors()
+                err.resolved = True
+                err.save()
+                continue
+
+            task_name = f"🚑 EMERGENCY FIX: {err.task_name}"
+            if not AIProjectBacklog.objects.filter(site=self.site, task_name=task_name, status__in=['Pending', 'Running']).exists():
+                AIProjectBacklog.objects.create(
+                    site=self.site,
+                    task_name=task_name,
+                    target_file='views',
+                    priority='Critical',
+                    description=f"Automated Healing for error: {err.error_message}. Fix this immediately to restore uptime.",
+                    business_impact_score=10
+                )
+                logger.info(f"🚑 Created healing task for: {err.task_name}")
+            
+            err.resolved = True
+            err.save()
+
     def _heal_security_issues(self):
-        fixed = []
+        """የደህንነት ስጋቶችን (Security Logs) ለይቶ የጥገና ስራዎችን ይፈጥራል"""
         try:
-            vulns = SecurityLog.objects.filter(
-                site=self.site, is_fixed=False
-            ).order_by("-severity")[:3]
-
+            vulns = SecurityLog.objects.filter(site=self.site, is_fixed=False).order_by('-severity')[:2]
+            
             for vuln in vulns:
-                task_name = f"🛡️ SECURITY FIX: {vuln.description[:80]}"
-                if not AIProjectBacklog.objects.filter(
-                    site=self.site, task_name=task_name, status__in=["Pending", "Running"]
-                ).exists():
-                    target = (
-                        vuln.file_path
-                        if vuln.file_path and not vuln.file_path.startswith("multiple")
-                        else "views"
-                    )
+                task_name = f"🛡️ SECURITY FIX: {vuln.description}"
+                
+                active_fix_exists = AIProjectBacklog.objects.filter(
+                    site=self.site,
+                    task_name=task_name,
+                    status__in=['Pending', 'Running']
+                ).exists()
+                
+                if not active_fix_exists:
+                    target = vuln.file_path if vuln.file_path and not vuln.file_path.startswith("multiple") else "views"
                     AIProjectBacklog.objects.create(
                         site=self.site,
                         task_name=task_name,
                         target_file=target,
-                        priority="Critical" if vuln.severity == "critical" else "High",
-                        description=f"Security fix needed: {vuln.description} in {vuln.file_path}",
-                        business_impact_score=9 if vuln.severity == "critical" else 8,
+                        priority='Critical' if vuln.severity == 'critical' else 'High',
+                        description=f"Secure code vulnerability: {vuln.description} in {vuln.file_path}. Ensure inputs are strictly validated.",
+                        business_impact_score=9 if vuln.severity == 'critical' else 8
                     )
+                    logger.info(f"🛡️ Created security healing task for: {vuln.description}")
+                
                 vuln.is_fixed = True
-                vuln.save(update_fields=["is_fixed"])
-                fixed.append(vuln.id)
+                vuln.save()
         except Exception as e:
-            logger.error(f"Security healing failed: {e}")
-        return fixed
-
-    # ── Emergency Schema Rebuild ─────────────────────────────
-    def hard_reset_database_schema(self, confirmed: bool = False) -> bool:
-        if not confirmed:
-            logger.critical(
-                "🚨 hard_reset_database_schema called WITHOUT confirmation. "
-                "Pass confirmed=True to proceed. Aborting."
-            )
-            return False
-
-        if self._circuit_open("hard_reset_database_schema"):
-            return False
-
-        logger.warning("🚨 EMERGENCY RESET: Backing up migration records before schema wipe...")
-
-        backup_path = os.path.join(
-            str(settings.BASE_DIR), "logs",
-            f"migration_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        )
-        try:
-            os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-            with connection.cursor() as cur:
-                cur.execute("SELECT app, name FROM django_migrations WHERE app='marketplace';")
-                rows = [{"app": r[0], "name": r[1]} for r in cur.fetchall()]
-            with open(backup_path, "w") as f:
-                json.dump(rows, f, indent=2)
-            logger.info(f"📦 Migration backup saved: {backup_path}")
-        except Exception as bk_err:
-            logger.error(f"Backup failed (continuing anyway): {bk_err}")
-
-        marketplace_tables = [
-            "marketplace_producttranslation", "marketplace_translationqueue",
-            "marketplace_product", "marketplace_sellerprofile", "marketplace_notificationqueue",
-            "marketplace_aiprojectbacklog", "marketplace_securitylog", "marketplace_agenterrorlog",
-            "marketplace_aievolutionlog", "marketplace_vectormemory", "marketplace_selfhealinglog",
-            "marketplace_category", "marketplace_siteregistry", "marketplace_usersearch",
-            "marketplace_agenttask", "marketplace_predictionlog", "marketplace_abtest",
-            "marketplace_externalapi", "marketplace_siteconfig",
-        ]
-
-        try:
-            with connection.cursor() as cursor:
-                for table in marketplace_tables:
-                    if connection.vendor == "sqlite":
-                        cursor.execute(f'DROP TABLE IF EXISTS "{table}";')
-                    else:
-                        cursor.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE;')
-                cursor.execute("DELETE FROM django_migrations WHERE app='marketplace';")
-
-            logger.info("✨ All marketplace tables dropped. Running fresh migrations...")
-            call_command("migrate", interactive=False)
-
-            SiteRegistry.objects.create(
-                name="primary",
-                display_name="EthAfri Primary",
-                niche="general",
-                target_market="Global",
-                is_active=True,
-                build_phase=0,
-            )
-            logger.info("✨ Emergency Reset complete — fresh 'primary' site registered.")
-
-            SelfHealingLog.objects.create(
-                error_message="hard_reset_database_schema executed (confirmed)",
-                solution_sql="CASCADE DROP + migrate",
-                resolved=True,
-            )
-            return True
-
-        except Exception as e:
-            logger.error(f"🚨 Emergency Reset failed: {e}")
-            SelfHealingLog.objects.create(
-                error_message=f"hard_reset_database_schema failed: {e}",
-                solution_sql="",
-                resolved=False,
-            )
-            return False
+            logger.error(f"Failed to run security healing check: {e}")
 
 
 # ============================================================
-# 🩺 PERFORMANCE AUDITOR
+# 🩺 3. DAILY PERFORMANCE AUDITOR (ዕለታዊ የፍጥነት ኦዲተር)
 # ============================================================
 class PerformanceAuditor:
-    """24 ሰዓታዊ ፍጥነት ኦዲት — N+1 queries, inline scripts"""
-
-    _N1_MODELS = ["Product", "Category", "SellerProfile", "Order"]
-    _N1_RE = re.compile(
-        r"\b(" + "|".join(_N1_MODELS) + r")\.objects\.(filter|all|get|exclude)\s*\(",
-        re.MULTILINE,
-    )
-    _SELECT_RELATED_RE = re.compile(r"\.(select_related|prefetch_related)\s*\(")
-    _INLINE_STYLE_RE = re.compile(r"<style[\s>]", re.IGNORECASE)
-    _INLINE_SCRIPT_RE = re.compile(r"<script[\s>]", re.IGNORECASE)
-
-    @classmethod
-    def run_daily_performance_audit(cls, site):
-        interval_h = int(_cfg("PERF_AUDIT_INTERVAL_H", 24))
-        cfg = SiteConfig.objects.filter(key=f"LAST_PERF_AUDIT_{site.name}").first()
-        if cfg:
+    """በየ 24 ሰዓቱ የድረ-ገጽ መጫኛ ፍጥነትን የሚቀንሱ የኮድ አወቃቀሮችን (N+1 queries, blocking scripts)
+    በመቃኘት ቅድሚያ የሚሰጣቸውን የጥገና ስራዎች በራሱ የሚፈጥርና የሚፈውስ ማዕከል [1, 2, 3.1.2]"""
+    
+    @staticmethod
+    def run_daily_performance_audit(site):
+        # 1. Throttling: በቀን አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ [1, 2]
+        last_perf_audit = SiteConfig.objects.filter(key=f"LAST_PERF_AUDIT_{site.name}").first()
+        if last_perf_audit:
             try:
-                last = datetime.fromisoformat(cfg.value.get("time"))
-                if timezone.is_naive(last):
-                    last = timezone.make_aware(last)
-                if timezone.now() - last < timedelta(hours=interval_h):
-                    return
+                last_time = datetime.fromisoformat(last_perf_audit.value.get('time'))
+                if timezone.is_naive(last_time):
+                    last_time = timezone.make_aware(last_time)
+                if timezone.now() - last_time < timedelta(hours=24):
+                    return # ከ24 ሰዓት በታች ከሆነ ይዘለላል (የአፈጻጸም ቆጣቢ)
             except Exception:
                 pass
-
-        logger.info(f"🩺 Performance Audit started for [{site.name}]")
-        issues = []
-
-        views_path = os.path.join(str(settings.BASE_DIR), "marketplace", "views.py")
+        
+        logger.info(f"🩺 Performance Auditor: Running daily page-load speed audit for {site.name}...")
+        issues_found = []
+        
+        # 2. የ views.py ፋይልን ለ N+1 queries እና unoptimized ሎጂኮች መቃኘት [1, 2, 3.1.2]
+        views_path = os.path.join(str(settings.BASE_DIR), 'marketplace', 'views.py')
         if os.path.exists(views_path):
             try:
-                with open(views_path, encoding="utf-8") as f:
-                    code = f.read()
-                queries = cls._N1_RE.findall(code)
-                has_optimization = bool(cls._SELECT_RELATED_RE.search(code))
-                if queries and not has_optimization:
-                    models_found = list(set(q[0] for q in queries))
-                    issues.append(
-                        f"Critical: N+1 risk — {', '.join(models_found)} queries in views.py "
-                        f"lack select_related() / prefetch_related()."
-                    )
+                with open(views_path, 'r', encoding='utf-8') as f:
+                    views_code = f.read()
+                
+                # .select_related() ወይም .prefetch_related() ሳይጠቀሙ የባዕድ ቁልፎችን መፈለግ
+                if "Product.objects." in views_code and "select_related" not in views_code:
+                    issues_found.append("Critical Performance Issue: Product queries in views.py do not use select_related(), causing N+1 database latency.")
+                
+                if "Category.objects." in views_code and "select_related" not in views_code and "prefetch_related" not in views_code:
+                    issues_found.append("Performance Issue: Category queries in views.py could be optimized with prefetch_related() / select_related().")
             except Exception as e:
-                logger.error(f"views.py scan error: {e}")
+                logger.error(f"Performance scanning error for views.py: {e}")
 
-        tpl_dir = os.path.join(str(settings.BASE_DIR), "marketplace", "templates", "marketplace")
-        if os.path.exists(tpl_dir):
+        # 3. የ templates ፋይሎችን ለ inline styles/scripts መቃኘት (ገጽ የሚቀረቅሩ) [3.1.2]
+        templates_dir = os.path.join(str(settings.BASE_DIR), 'marketplace', 'templates', 'marketplace')
+        if os.path.exists(templates_dir):
             try:
-                inline_files = []
-                for root, _, files in os.walk(tpl_dir):
-                    for fname in files:
-                        if not fname.endswith(".html"):
-                            continue
-                        fpath = os.path.join(root, fname)
-                        with open(fpath, encoding="utf-8") as f:
-                            html = f.read()
-                        has_inline = cls._INLINE_STYLE_RE.search(html) or cls._INLINE_SCRIPT_RE.search(html)
-                        if has_inline:
-                            inline_files.append(fname)
-                if inline_files:
-                    issues.append(
-                        f"Warning: Inline CSS/JS in {len(inline_files)} template(s) "
-                        f"({', '.join(inline_files[:3])}). Move to global.css/global.js."
-                    )
+                for root, dirs, files in os.walk(templates_dir):
+                    for file in files:
+                        if file.endswith('.html'):
+                            full_path = os.path.join(root, file)
+                            with open(full_path, 'r', encoding='utf-8') as f:
+                                html_content = f.read()
+                            if "<style>" in html_content or "<script>" in html_content:
+                                issues_found.append(f"Performance Warning: Inline CSS/JS blocks found in {file}. Move these to global.css or global.js to unblock page-rendering.")
+                                break # አንድ ማስጠንቀቂያ ይበቃል
             except Exception as e:
-                logger.error(f"Template scan error: {e}")
+                logger.error(f"Performance scanning error for templates: {e}")
 
-        for issue in issues:
-            task_name = f"⚡ PERF: {issue[:60]}..."
-            if not AIProjectBacklog.objects.filter(
-                site=site, task_name=task_name, status__in=["Pending", "Running"]
-            ).exists():
+        # 4. ያጋጠሙ ችግሮችን ቅድሚያ (Critical Priority) በመስጠት በራሱ እንዲያክም ባክሎግ ታስክ መፍጠር [1, 2]
+        for issue in issues_found:
+            task_name = f"⚡ PERFORMANCE OPTIMIZATION: {issue[:50]}..."
+            active_task = AIProjectBacklog.objects.filter(site=site, task_name=task_name, status__in=['Pending', 'Running']).exists()
+            if not active_task:
                 target = "views" if "views.py" in issue else "home_html"
                 AIProjectBacklog.objects.create(
                     site=site,
                     task_name=task_name,
                     target_file=target,
-                    priority="Critical",
-                    description=f"Performance bottleneck: {issue}",
-                    business_impact_score=10,
+                    priority="Critical", # ፕራዮሪቲ Critical ተደርጓል [1, 2]!
+                    description=f"Performance bottleneck detected during daily audit: {issue} Fix this immediately to drastically improve page load speed.",
+                    business_impact_score=10 # ከፍተኛው ውጤት [1, 2]
                 )
-                logger.warning(f"🩺 Perf task created: {issue[:80]}")
+                logger.warning(f"🩺 Performance Auditor: Created critical healing task for: {issue}")
 
+        # 5. የስካን ሰዓቱን መመዝገብ
         SiteConfig.objects.update_or_create(
             key=f"LAST_PERF_AUDIT_{site.name}",
-            defaults={"value": {"time": timezone.now().isoformat()}},
+            defaults={'value': {'time': timezone.now().isoformat()}}
         )
-        logger.info(f"🩺 Performance Audit done — {len(issues)} issue(s) found.")
 
 
 # ============================================================
-# ✂️ ANTI-BLOAT ENGINE
+# ✂️ 4. ANTI-BLOAT ENGINE (የኮድ ማሳጠሪያና ማጽጃ ሞተር)
 # ============================================================
 class AntiBloatEngine:
-    """ኮድ እንዳያብጥ ይከላከላል — threshold ከ SiteConfig ይነበባል"""
+    """ኤጀንቱ ለራሱም ሆነ ለድረ-ገጹ ኮድ ሲጽፍ እንዳያብጥ፣ አላስፈላጊ ኮድ እንዲቀንስና እንዲያጸዳ የሚከላከል መመሪያ [1, 2]"""
 
     @staticmethod
-    def prune_and_optimize(old_code: str, new_code: str, file_path: str) -> str:
-        max_chars = int(_cfg("ANTI_BLOAT_MAX_CHARS", 12000))
-        growth_pct = float(_cfg("ANTI_BLOAT_GROWTH_PCT", 1.20))
-
-        too_long = len(new_code) >= max_chars
-        too_bloated = old_code and len(new_code) >= len(old_code) * growth_pct
-
-        if not (too_long or too_bloated):
+    def prune_and_optimize(old_code, new_code, file_path):
+        """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከላል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል [1, 2]"""
+        # የፋይሉ መጠን ከ 12,000 ካራክተር በላይ ከሆነ ወይም ካለፈው ኮድ ከ 20% በላይ ካበጠ ብቻ ማሳጠርያውን ያነቃቃል [1, 2]
+        if len(new_code) < 12000 or (old_code and len(new_code) < len(old_code) * 1.20):
             return new_code
 
-        logger.warning(
-            f"⚠️ Anti-Bloat: {file_path} is bloating "
-            f"({len(new_code)} chars, {len(old_code or '')} before). Pruning..."
+        logger.warning(f"⚠️ Anti-Bloat Guard: Code for {file_path} is bloating ({len(new_code)} chars). Activating self-pruning...")
+
+        prompt = (
+            f"Optimize and shrink this Python code for '{file_path}'.\n"
+            f"1. Remove any dead code, unused helper functions, and redundant imports.\n"
+            f"2. Merge repetitive logics into compact, multi-functional, parameter-driven helpers.\n"
+            f"3. Strictly preserve all existing business logic, security guards, and core features, but write it with the minimum possible code lines.\n"
+            f"Return JSON with key 'code' containing only the compressed, highly-optimized code."
         )
-
-        try:
-            from .ai_utils import clean_and_parse_json, ask_master_ai_smart
-
-            prompt = (
-                f"Shrink this Python file '{file_path}' without losing any business logic.\n"
-                f"Remove dead code, merge repetitive helpers, drop unused imports.\n"
-                f"Return JSON: {{\"code\": \"<optimized code>\"}}"
-            )
-            res = clean_and_parse_json(
-                ask_master_ai_smart(prompt + f"\n\nCODE:\n{new_code}", task_type="coding")
-            )
-            if res and isinstance(res, dict) and res.get("code"):
-                pruned = res["code"]
-                logger.info(
-                    f"✨ Anti-Bloat: {file_path} {len(new_code)}→{len(pruned)} chars."
-                )
-                return pruned
-        except Exception as e:
-            logger.error(f"Anti-Bloat prune failed: {e}")
-
+        
+        # dynamic import - circular dependency ለመከላከል [1, 2]
+        from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+        res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
+        
+        if res and isinstance(res, dict) and 'code' in res:
+            pruned_code = res['code']
+            logger.info(f"✨ Anti-Bloat: Shrank {file_path} from {len(new_code)} to {len(pruned_code)} characters!")
+            return pruned_code
+            
         return new_code
 
 
 # ============================================================
-# ⚙️ DB CONNECTION GUARD
+# ⚙️ 5. LOG PROTECTOR & DB REFRESHER
 # ============================================================
-def refresh_db_connection_on_error(error_message: str) -> bool:
-    """OperationalError ሲኖር ግንኙነቱን ዘግቶ ያድሳል"""
+def refresh_db_connection_on_error(error_message):
+    """የዳታቤዝ ግንኙነት ሲመረዝ ወዲያውኑ አዲስ ግንኙነት የሚከፍት"""
     if "OperationalError" in error_message or "DatabaseError" in error_message:
-        try:
-            connection.close()
-            logger.info("🛡️ DB connection refreshed.")
-        except Exception as e:
-            logger.error(f"DB refresh failed: {e}")
+        connection.close()
+        logger.info("🛡️ Database connection refreshed due to error.")
         return True
     return False
-
-
-# ============================================================
-# 🚀 ዋና ገቢ ነጥብ - ለመጥራት
-# ============================================================
-def auto_heal(site_name: str = "primary", verbose: bool = True) -> Dict:
-    """
-    ሁሉንም ችግሮች በራሱ የሚፈታ ዋና ፈንክሽን
-    
-    Usage:
-        from marketplace.self_doctor import auto_heal
-        result = auto_heal()
-        print(result)
-    """
-    if verbose:
-        logger.setLevel(logging.INFO)
-    
-    try:
-        site = SiteRegistry.objects.filter(name=site_name, is_active=True).first()
-        if not site:
-            site = SiteRegistry.objects.create(
-                name=site_name,
-                display_name=f"{site_name.title()} Site",
-                niche="general",
-                target_market="Global",
-                is_active=True,
-                build_phase=0
-            )
-            if verbose:
-                logger.info(f"✅ Created site: {site_name}")
-    except Exception as e:
-        if verbose:
-            logger.error(f"Failed to get/create site: {e}")
-        return {'error': str(e), 'success': False}
-    
-    healer = UniversalHealer(site)
-    results = healer.full_self_heal()
-    
-    return results
-
-
-def check_database_health() -> Dict:
-    """የዳታቤዝ ጤንነት ያረጋግጣል"""
-    inspector = DatabaseInspector()
-    return inspector.inspect_database()
-
-
-def fix_specific_table(table_name: str) -> bool:
-    """አንድ የተወሰነ ቴብል ይፈጥራል"""
-    try:
-        inspector = DatabaseInspector()
-        inspection = inspector.inspect_database()
-        
-        missing = [t for t in inspection['missing_tables'] if t == table_name]
-        if missing:
-            generator = DynamicTableGenerator()
-            result = generator.generate_missing_tables(inspection)
-            return table_name in result.get('generated', [])
-        return True
-    except Exception as e:
-        logger.error(f"Failed to fix table {table_name}: {e}")
-        return False
-
-
-def get_healing_history(limit: int = 10) -> List[Dict]:
-    """የራስ-ፈወስ ታሪክ ያመጣል"""
-    try:
-        logs = SelfHealingLog.objects.filter(resolved=True).order_by('-created_at')[:limit]
-        return [
-            {
-                'timestamp': log.created_at.isoformat(),
-                'error': log.error_message[:100],
-                'solution': log.solution_sql[:100] if log.solution_sql else 'N/A'
-            }
-            for log in logs
-        ]
-    except Exception as e:
-        logger.error(f"Failed to get healing history: {e}")
-        return []
-
-
-def get_common_errors(site_name: str = "primary", limit: int = 10) -> List[Dict]:
-    """በተደጋጋሚ የሚከሰቱ ስህተቶችን ያመጣል"""
-    try:
-        site = SiteRegistry.objects.filter(name=site_name, is_active=True).first()
-        if not site:
-            return []
-        return ErrorPatternLearner.get_common_errors(site, limit)
-    except Exception as e:
-        logger.error(f"Failed to get common errors: {e}")
-        return []
-
-
-# ============================================================
-# 📝 የአጠቃቀም ምሳሌ
-# ============================================================
-if __name__ == "__main__":
-    """
-    ይህን ፋይል በቀጥታ ማስኬድ ይቻላል:
-    
-    python marketplace/self_doctor.py
-    """
-    import django
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
-    django.setup()
-    
-    # ሁሉንም ችግሮች በራሱ ይፈታል
-    result = auto_heal(verbose=True)
-    
-    # ሪፖርቱን ያሳያል
-    print(json.dumps(result, indent=2, default=str))
