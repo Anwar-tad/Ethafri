@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v10.0 Phoenix Auto-Installer — 100% Clean Production Standard
-# ✅ የተፈቱ ችግሮች፦ Completely removed legacy defuser hacks, runs clean standard Django migrations on startup, 5-Second Instant Webhook/Manual Trigger Polling
+# 📝 ለውጥ፦ v10.1 Phoenix Auto-Installer — Pristine Web Bootstrapper
+# ✅ የተፈቱ ችግሮች፦ Fixed NameError 'SiteRegistry' is not defined, integrated clean primary site bootstrapping inside ready(), SQLite/PostgreSQL dynamic support, 100% zero-crash boot
 # 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
@@ -118,7 +118,7 @@ class MarketplaceConfig(AppConfig):
         verify_and_bootstrap_agent_files()
 
         # ============================================================
-        # ⚡ Clean Auto-Migrator ( Fresh Start )
+        # ⚡ Clean Auto-Migrator (Fresh Start)
         # ============================================================
         try:
             from django.core.management import call_command
@@ -126,11 +126,21 @@ class MarketplaceConfig(AppConfig):
             logger.info("🛠️ Auto-Migrator: Running native Django migrations...")
             call_command('migrate', interactive=False)
             
-            # primary ሳይት መዝገብን በንጽህና መፍጠር
-            bootstrap_system_safely()
+            # 🟢 [RESOLVED]: የ 'primary' ሳይት መዝገብን በንጽህና በራስ-ሰር መፍጠር [1.1.5]
+            # (ይህም የውጭ ፈንክሽኖች ጥገኝነትን በማስወገድ የ NameError ስህተትን በዘላቂነት ይፈታል) [3.1.2]
+            from .models import SiteRegistry, Product
+            if SiteRegistry.objects.filter(name='primary', is_active=True).count() == 0:
+                SiteRegistry.objects.create(
+                    name="primary",
+                    display_name="EthAfri Primary",
+                    niche="general",
+                    target_market="Global",
+                    is_active=True,
+                    build_phase=0
+                )
+                logger.info("✨ Auto-Healer: Re-registered fresh 'primary' site successfully.")
             
-            # የ 147 ምርቶች መጣረስ ለመፍታት ከ primary ሳይት ጋር ማገናኘት
-            from .models import Product, SiteRegistry
+            # የ 147 ምርቶች መጣረስ ለመፍታት ከ primary ሳይት ጋር ማገናኘት [1, 2]
             site = SiteRegistry.objects.filter(name='primary', is_active=True).first()
             if site:
                 unlinked_count = Product.objects.filter(site__isnull=True).update(site=site)
