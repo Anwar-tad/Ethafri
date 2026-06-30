@@ -1,9 +1,11 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.12 - Lazy Import Circular-Free Edition)
-# ✅ የተፈቱ ችግሮች፦ Resolved NameError 'SiteRegistry' is not defined permanently by implementing 100% Lazy Imports inside functions, Mapped 10-Second Fail-Fast timeout, 24-Hour daily quota lock-out engine, 40% Token Saving prompt compressor, 1.0s Pacing speedups, Safe JSON type guards, Modern GitHub endpoint routing, Dynamic Progress Bar, database not-null constraint 'listing_type' fallback fixed
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.13 - Strictly Future-Annotated Circular-Free Edition)
+# ✅ የተፈቱ ችግሮች፦ Resolved NameError 'SiteRegistry' is not defined permanently by implementing from __future__ import annotations to defer type hint resolution [1, 2], Mapped 10-Second Fail-Fast timeout, 24-Hour daily quota lock-out engine, 40% Token Saving prompt compressor, 1.0s Pacing speedups, Safe JSON type guards, Modern GitHub endpoint routing, Dynamic Progress Bar, database not-null constraint 'listing_type' fallback fixed
 # 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
+
+from __future__ import annotations # 🟢 አዲስ የተጨመረ - የ NameError ስህተትን በዘላቂነት ለመከላከል [1, 2]
 
 import ast
 import json
@@ -41,7 +43,7 @@ _project_hashes = {}
 # በትይዩ በሚሰሩ threads መካከል የፋይል መጻፍ/ማረጋገጥ ግጭት እንዳይፈጠር መቆለፊያ
 _apply_lock = threading.Lock()
 
-# postseason Django app files
+# እነዚህ ፋይሎች ቀጥታ የ Django ድረ-ገጽ አካል ስለሆኑ ጥልቅ (subprocess) ፍተሻ ይገባቸዋል
 DJANGO_APP_FILES = {'models', 'views', 'urls', 'forms', 'admin'}
 
 
@@ -562,9 +564,6 @@ class MultiChannelHarvester:
 
     def discover_and_harvest_niche_sources(self, site):
         """የሚተዳደረውን ሳይት ኒች መሠረት በማድረግ ምርጥ የገበያ ምንጮችን ራሱ መርምሮ ያገኛል፣ በጅምላ ያስሳል [1, 2, 3.1.2]"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import SiteConfig
-
         # 1. AI-Driven Discovery (የምንጭ ጥናትና ቅድሚያ መስጫ - 100% አውቶኖመስ) [1, 2, 3.1.2]
         discovery_prompt = (
             f"Identify up to 3 active, high-traffic online marketplace channels, Telegram channels, Facebook public groups, "
@@ -585,6 +584,8 @@ class MultiChannelHarvester:
                 {"url_or_channel": f"https://www.engocha.com/search?q={site.niche or 'general'}", "platform_type": "Engocha"}
             ]
         
+        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        from .models import SiteConfig
         # የጥናቱን ውጤት በ SiteConfig መዝገብ ላይ በራስ-ሰር ማስቀመጥ [1, 2]
         SiteConfig.objects.update_or_create(
             key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}",
@@ -833,7 +834,7 @@ class CEOOperations:
                         message=(
                             f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት "
                             f"በ AI ማጣሪያችን አልፏል። ምክንያት፦ {result.get('reason', 'ያልተሟላ መረጃ')}። "
-                            f"እባክዎ መረጃውን አስተካክለው ድጋሚ ይጫኑ።"
+                            f"እእባክዎ መረጃውን አስተካክለው ድጋሚ ይጫኑ።"
                         )
                     )
                     logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
