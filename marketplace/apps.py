@@ -101,7 +101,7 @@ class MarketplaceConfig(AppConfig):
     name = 'marketplace'
 
     def ready(self):
-    """ሲስተሙ ሲነሳ ኤጀንቱን፣ ማይግሬሽኑን እና የዳታቤዝ ጥገናውን በራስ-ሰር ይቀሰቅሳል"""
+  
     
     # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል
     if 'manage.py' in sys.argv:
