@@ -1,14 +1,13 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/event_bus.py
-# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned & Thread-Safe Utility - v1.1)
-# ✅ የተፈቱ ችግሮች፦ close_old_connections ImportError Fixed, Thread-safe database connections
-# 📅 ቀን፦ Monday, June 29, 2026
+# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned, Thread-Safe & Circular-Free Utility - v1.2)
+# ✅ የተፈቱ ችግሮች፦ Implemented 100% Lazy Imports inside functions to prevent any circular dependency crashes, close_old_connections ImportError Fixed, Thread-safe database connections
+# 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
 import logging
 from django.utils import timezone
 from django.db import close_old_connections
-from .models import AIProjectBacklog, AgentErrorLog, VectorMemory, SiteRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +35,9 @@ def publish_event(event_type: str, data: dict, source: str = "system"):
     """
     logger.debug(f"📨 Event published: {event_type} from {source}")
     
+    # 🟢 [Lazy Import] - የክብ ጥገኝነትን በዘላቂነት ለመከላከል ሞዴሎችን በፈንክሽን ደረጃ ማስገባት [1, 2]
+    from .models import AIProjectBacklog, AgentErrorLog, VectorMemory, SiteRegistry
+
     # 1. አዲስ ምርት ሲፈጠር የ SEO ስራ መፍጠር
     if event_type == EventTypes.PRODUCT_CREATED:
         product_id = data.get('product_id')

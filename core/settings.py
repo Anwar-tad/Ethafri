@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/core/settings.py
-# 📝 ለውጥ፦ Advanced Agent Features — pgvector, WebSocket, Cache (v1.1)
-# ✅ የተፈቱ ችግሮች፦ Daphne InstalledApps ASGI Crash Fixed, WhiteNoise CompressedManifest Storage Optimized
-# 📅 ቀን፦ 2026-06-25
+# 📝 ለውጥ፦ Advanced Agent Features — pgvector, WebSocket, Cache (v1.2 - STORAGES Optimized)
+# ✅ የተፈቱ ችግሮች፦ Deprecated STATICFILES_STORAGE migrated to Django 4.2+ STORAGES dictionary [1.1.2], Daphne InstalledApps ASGI Crash Fixed, WhiteNoise CompressedManifest Storage Optimized
+# 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
 import os
@@ -46,7 +46,7 @@ CSRF_TRUSTED_ORIGINS = [
 # 3. Application Definition
 # =====================================================================
 INSTALLED_APPS = [
-    # 🆕 Daphne for Django Channels ASGI (WebSocket እንዲሰራ ከሁሉም በላይ መሆን አለበት - የሕግ 3 ጥበቃ)
+    # 🆕 Daphne for Django Channels ASGI (Daphne must be at the top)
     'daphne',
     'cloudinary_storage',
     'django.contrib.admin',
@@ -58,7 +58,6 @@ INSTALLED_APPS = [
     'marketplace',
     'cloudinary',
     'channels',
-    # 'pgvector', # pgvector for RAG (ከተጫነ በኋላ ለማንቃት)
 ]
 
 MIDDLEWARE = [
@@ -107,7 +106,7 @@ if database_url:
         'default': dj_database_url.config(
             default=database_url,
             conn_max_age=600,
-            ssl_require=True if not DEBUG else False # ሎካል ማሽን ላይ SSL በስህተት እንዳይጠይቅ ጥበቃ
+            ssl_require=True if not DEBUG else False
         )
     }
 else:
@@ -142,7 +141,7 @@ LOCALE_PATHS = [
 ]
 
 # =====================================================================
-# 6. Static & Media Files (Whitenoise & Cloudinary Storage)
+# 6. Static & Media Files (Django 4.2+ Centralized Storages)
 # =====================================================================
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
@@ -151,32 +150,34 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
 
-# settings.py staticfiles_storage ክፍል ላይ የሚተካ (የሕግ 4 ኦፕቲማይዜሽን)
-# ✅ FIXED: በምርት ላይ ድረ-ገጹ በማንኛውም የፋይል መጥፋት እንዳይዘጋ (Zero-Crash) CompressedStaticFilesStorage ተተክቷል
-if not DEBUG:
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
-else:
-    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+# Cloudinary Configuration
+CLOUDINARY_CLOUD_NAME = env('CLOUDINARY_CLOUD_NAME', default='')
+CLOUDINARY_API_KEY = env('CLOUDINARY_API_KEY', default='')
+CLOUDINARY_API_SECRET = env('CLOUDINARY_API_SECRET', default='')
+
+# 🟢 Django 4.2/5.0 ጽኑ የ Storages መዝገብ (የቀደሙትን deprecated settings ሙሉ በሙሉ ይተካል)
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage" if CLOUDINARY_CLOUD_NAME else "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage" if not DEBUG else "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 WHITENOISE_USE_FINDERS = True
 WHITENOISE_AUTOREFRESH = True
 WHITENOISE_MAX_AGE = 31536000
 WHITENOISE_ALLOW_ALL_ORIGINS = True
 WHITENOISE_MANIFEST_STRICT = False
 
-# Cloudinary Configuration
-CLOUDINARY_CLOUD_NAME = env('CLOUDINARY_CLOUD_NAME', default='')
-CLOUDINARY_API_KEY = env('CLOUDINARY_API_KEY', default='')
-CLOUDINARY_API_SECRET = env('CLOUDINARY_API_SECRET', default='')
-
 if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
     CLOUDINARY_STORAGE = {
         'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
         'API_KEY': CLOUDINARY_API_KEY,
         'API_SECRET': CLOUDINARY_API_SECRET,
     }
 else:
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
     print("⚠️ Cloudinary not configured. Using local file storage.")
 
 # =====================================================================

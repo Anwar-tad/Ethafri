@@ -1,9 +1,9 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ v2.1 Lightning Build Script — 100% Clean (Zero DB Logic)
-# ✅ የተፈቱ ችግሮች፦ Omitted redundant Python diagnostics for 5x faster deployment
-# 📅 ቀን፦ 2026-06-26
+# 📝 ለውጥ፦ v2.2 Lightning Build Script — 100% Clean & Thread Synced (Zero DB Logic)
+# ✅ የተፈቱ ችግሮች፦ Omitted redundant Python diagnostics for 5x faster deployment, secure compilation checks
+# 📅 ቀን፦ Tuesday, June 30, 2026
 # ============================================================
 
 # ስህተት ሲያጋጥም ወዲያውኑ እንዲቆም ማድረግ
@@ -23,7 +23,7 @@ pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
 # 2. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ (WhiteNoise መጨመቂያውን በአግባቡ ያጠናቅራል)
 echo ""
 echo "📂 Collecting static files..."
-python manage.py collectstatic --no-input || true
+python manage.py collectstatic --no-input --clear || true
 
 # 3. የቋንቋ ፋይሎችን ማጠናቀር (msgfmt በሰርቨሩ ላይ ከተገኘ ብቻ)
 echo ""
