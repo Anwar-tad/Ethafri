@@ -1310,3 +1310,262 @@ def start_autonomous_ceo():
         except Exception as e:
             logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
             time.sleep(60)
+            
+            
+# ============================================================
+# 🧬 LAW 0 — SELF-READINESS GATE (የኤጀንቱ የራሱ ጤና መመርመሪያ)
+# ============================================================
+class SelfBootstrapManager:
+    CORE_MODULES = {
+        'growth_agent': 'marketplace/growth_agent.py',
+        'ai_utils': 'marketplace/ai_utils.py',
+        'code_apply': 'marketplace/code_apply.py',
+        'self_doctor': 'marketplace/self_doctor.py',
+    }
+    RUNNING_PROCESS_MODULES = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
+    READY_KEY = "SELF_BOOTSTRAP_STATUS"
+    REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
+    MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
+    MAX_TOTAL_ATTEMPTS_PER_MODULE = 15
+
+    @classmethod
+    def _scan_core_files(cls):
+        broken = {}
+        base_dir = str(settings.BASE_DIR)
+        for key, rel_path in cls.CORE_MODULES.items():
+            full_path = os.path.join(base_dir, rel_path)
+            if not os.path.exists(full_path):
+                broken[key] = {"issue": "MISSING_FILE", "path": rel_path}
+                continue
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                if not content.strip():
+                    broken[key] = {"issue": "EMPTY_FILE", "path": rel_path}
+                    continue
+                ast.parse(content)
+            except SyntaxError as e:
+                broken[key] = {"issue": f"SYNTAX_ERROR: {e}", "path": rel_path}
+            except Exception as e:
+                broken[key] = {"issue": f"READ_ERROR: {e}", "path": rel_path}
+        return broken
+
+    @classmethod
+    def _get_total_attempts(cls, module_key):
+        from .models import SiteConfig
+        try:
+            cfg = SiteConfig.objects.filter(key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}").first()
+            return cfg.value.get('count', 0) if cfg and isinstance(cfg.value, dict) else 0
+        except Exception as e:
+            logger.debug("Failed to read total repair attempts: %s", e)
+            return 0
+
+    @classmethod
+    def _increment_total_attempts(cls, module_key):
+        from .models import SiteConfig
+        try:
+            cfg, _ = SiteConfig.objects.get_or_create(
+                key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}", defaults={'value': {'count': 0}}
+            )
+            count = (cfg.value.get('count', 0) if isinstance(cfg.value, dict) else 0) + 1
+            cfg.value = {'count': count, 'last_attempt': timezone.now().isoformat()}
+            cfg.save()
+            return count
+        except Exception as e:
+            logger.error("Failed to increment repair attempts: %s", e)
+            return 1
+
+    @classmethod
+    def ensure_self_ready(cls):
+        from .models import SiteConfig, SiteRegistry
+
+        broken = cls._scan_core_files()
+
+        if not broken:
+            try:
+                SiteConfig.objects.update_or_create(
+                    key=cls.READY_KEY,
+                    defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
+                )
+            except Exception as e:
+                logger.debug("Failed to update readiness status in DB: %s", e)
+            return True
+
+        logger.critical(f"🚨 SELF-BOOTSTRAP GATE: {len(broken)} core module(s) unhealthy: {list(broken.keys())}")
+        try:
+            SiteConfig.objects.update_or_create(
+                key=cls.READY_KEY,
+                defaults={'value': {
+                    'status': 'self_repairing',
+                    'broken': {k: v['issue'] for k, v in broken.items()},
+                    'checked_at': timezone.now().isoformat()
+                }}
+            )
+        except Exception as e:
+            logger.debug("Failed to write self-repairing state: %s", e)
+
+        primary_site = SiteRegistry.objects.filter(name='primary').first()
+        if not primary_site:
+            logger.critical("🚨 SELF-BOOTSTRAP: No 'primary' site registered yet — cannot self-repair this cycle.")
+            return False
+
+        attempts = 0
+        repaired_any_running_module = False
+        while broken and attempts < cls.MAX_REPAIR_ATTEMPTS_PER_CYCLE:
+            attempts += 1
+            for module_key, info in list(broken.items()):
+                total_attempts = cls._get_total_attempts(module_key)
+                if total_attempts >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE:
+                    logger.critical(
+                        f"🚨 SELF-REPAIR: '{module_key}' exceeded {cls.MAX_TOTAL_ATTEMPTS_PER_MODULE} "
+                        f"repair attempts. Halting auto-repair — manual review required."
+                    )
+                    continue
+                cls._increment_total_attempts(module_key)
+                success = cls._repair_module(primary_site, module_key, info)
+                if success and module_key in cls.RUNNING_PROCESS_MODULES:
+                    repaired_any_running_module = True
+            broken = cls._scan_core_files()
+
+        is_ready = len(broken) == 0
+
+        if not is_ready:
+            all_exhausted = all(
+                cls._get_total_attempts(k) >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE for k in broken.keys()
+            )
+            if all_exhausted:
+                logger.critical(
+                    f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted for {list(broken.keys())}. "
+                    f"Proceeding in DEGRADED mode — MANUAL REQUIRED before next restart."
+                )
+                try:
+                    SiteConfig.objects.update_or_create(
+                        key=cls.READY_KEY,
+                        defaults={'value': {
+                            'status': 'degraded_proceeding',
+                            'broken': {k: v['issue'] for k, v in broken.items()},
+                            'checked_at': timezone.now().isoformat()
+                        }}
+                    )
+                except Exception as e:
+                    logger.debug("Failed to update degraded state: %s", e)
+                return True
+
+            try:
+                SiteConfig.objects.update_or_create(
+                    key=cls.READY_KEY,
+                    defaults={'value': {
+                        'status': 'repair_failed',
+                        'broken': {k: v['issue'] for k, v in broken.items()},
+                        'checked_at': timezone.now().isoformat()
+                    }}
+                )
+            except Exception as e:
+                logger.debug("Failed to record repair failure: %s", e)
+                
+            logger.critical(f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted this cycle. Still broken: {list(broken.keys())}. Will retry next cycle.")
+            return False
+
+        try:
+            SiteConfig.objects.update_or_create(
+                key=cls.READY_KEY,
+                defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
+            )
+        except Exception as e:
+            logger.debug("Failed to save ready state: %s", e)
+            
+        logger.info("✅ SELF-BOOTSTRAP: All core modules verified healthy.")
+
+        if repaired_any_running_module and os.getenv('SELF_HEAL_AUTO_RESTART', 'false').lower() == 'true':
+            logger.critical("🧬 SELF-REPAIR: Core agent files were rewritten. Forcing controlled restart to load healed code...")
+            try:
+                broadcast_agent_log(primary_site, "Self-repair complete — restarting process to load fixes.", "success")
+            except Exception as e:
+                logger.debug("Log broadcast failed on reboot: %s", e)
+            os._exit(1)
+
+        return True
+
+    @classmethod
+    def _repair_module(cls, site, module_key, info):
+        from .models import VectorMemory
+
+        logger.warning(f"🧬 SELF-REPAIR: Attempting to fix '{module_key}' ({info['issue']})")
+        try:
+            past_memories = VectorMemory.objects.filter(site=site).order_by('-id')[:3]
+            memory_context = [m.content for m in past_memories]
+        except Exception as e:
+            logger.debug("Failed to retrieve memories for self-repair context: %s", e)
+            memory_context = []
+
+        prompt = (
+            f"CRITICAL SELF-REPAIR TASK: The core autonomous-agent module '{module_key}' "
+            f"(file: {info['path']}) is currently broken — Issue: {info['issue']}. "
+            f"Write a COMPLETE, clean, syntactically valid replacement for this entire file "
+            f"using 2026 Django/Python standards, preserving all functionality implied by its "
+            f"role inside an autonomous e-commerce CEO agent system (EthAfri).\n"
+            f"FEATURE CONSOLIDATION RULE: Consolidate helper logics, remove duplicate utility imports, "
+            f"and write highly compact, parameter-driven functions that handle multiple agent operations at once.\n"
+            f"Avoid repeating these past failures: {json.dumps(memory_context, ensure_ascii=False)}.\n"
+            f"Return JSON with key 'code' containing the full file content."
+        )
+        try:
+            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
+        except Exception as e:
+            logger.error(f"🧬 SELF-REPAIR: AI call failed for '{module_key}': {e}")
+            return False
+
+        if not (res and isinstance(res, dict) and 'code' in res):
+            logger.error(f"🧬 SELF-REPAIR: No valid code returned for '{module_key}'")
+            return False
+
+        new_code = res['code']
+        try:
+            ast.parse(new_code)
+        except SyntaxError as e:
+            logger.error(f"🧬 SELF-REPAIR: AI-generated fix for '{module_key}' still has a syntax error: {e}")
+            return False
+
+        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=info['path'], site=site)
+        if not is_safe:
+            logger.error(f"🛡️ SELF-REPAIR: Security gate blocked fix for '{module_key}': {msg}")
+            return False
+
+        # [Anti-Bloat Guard]: ለራሱ የሚጽፈው ኮድ እንዳያብጥ ማጽዳት
+        new_code = AntiBloatEngine.prune_and_optimize("", new_code, module_key)
+
+        base_dir = str(settings.BASE_DIR)
+        full_path = os.path.join(base_dir, info['path'])
+        old_code = ""
+        if os.path.exists(full_path):
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    old_code = f.read()
+            except Exception as e:
+                logger.warning(f"Could not read old file for backup: {e}")
+
+        result = apply_code_change(site, module_key, new_code, reason=f"🧬 Self-Bootstrap Repair: {info['issue']}")
+        if not result.get('success'):
+            logger.error(f"❌ SELF-REPAIR: Failed to apply fix for '{module_key}': {result.get('message')}")
+            return False
+
+        applied_path = result.get('path', full_path)
+        verified, vmsg = verify_disk_write(applied_path)
+        if not verified:
+            logger.error(f"❌ SELF-REPAIR: Disk verification failed for '{module_key}': {vmsg}. Rolling back...")
+            rollback_file(applied_path, old_code)
+            return False
+
+        if module_key in DJANGO_APP_FILES:
+            deep_ok, dmsg = deep_verify_django_app()
+            if not deep_ok:
+                logger.error(f"❌ SELF-REPAIR: Deep Django check failed for '{module_key}': {dmsg}. Rolling back...")
+                rollback_file(applied_path, old_code)
+                return False
+
+        logger.info(f"✅ SELF-REPAIR: '{module_key}' rewritten and verified successfully.")
+        try:
+            VectorMemory.objects.create(site=site, memory_type='solution', content=f"Self-repaired core module: {module_key}")
+        except Exception as e:
+            logger.debug("Failed to record success memory: %s", e)
+        return True
