@@ -62,4 +62,3 @@ urlpatterns = [
     # 🧠 የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator)
     path('backlog/', views.manage_backlog_view, name='manage_backlog'),
 ]
-
