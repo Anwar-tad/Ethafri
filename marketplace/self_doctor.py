@@ -18,8 +18,18 @@ from django.core.management import call_command
 from django.db.models import Q
 from django.conf import settings
 from django.apps import apps
-
+# ... የተቀሩት ኢምፖርቶች እንዳሉ ሆነው ...
+from decimal import Decimal
+import json
 logger = logging.getLogger(__name__)
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super(DecimalEncoder, self).default(obj)
+
+# ከዚያ በ AutonomousBackupManager ውስጥ ሲጠቀሙ፦
+# json.dumps(..., cls=DecimalEncoder)
 
 # ============================================================
 # 🛡️ 1. SECURITY AUDITOR & SERVER PATROL
@@ -407,14 +417,21 @@ class UniversalHealer:
 # ============================================================
 # 💾 3. AUTONOMOUS DATABASE BACKUP & CLOUD ARCHIVER
 # ============================================================
+from decimal import Decimal
+import json
+
+# 1. Decimal-ን ወደ float የሚቀይር Helper Function
+def json_serial(obj):
+    if isinstance(obj, Decimal):
+        return float(obj)
+    raise TypeError(f"Type {type(obj)} not serializable")
+
 class AutonomousBackupManager:
-    """Saves all critical SASS metrics, product tables, and configs into a compressed JSON backup [1, 2]"""
-    
     @staticmethod
     def backup_database_to_cache(site):
-        """🔴 8ኛ አዲስ ፊቸር ውህደት፦ የዳታቤዝ አውቶማቲክ መጠባበቂያ (SaaS Backup Archiver) [1, 2]"""
         from .models import Product, Category, SiteConfig
         try:
+            # .values() ሲጠቀሙ Decimal ሊኖር ይችላል
             products = list(Product.objects.filter(site=site).values('title', 'price', 'description', 'location'))
             categories = list(Category.objects.values('name', 'slug'))
             
@@ -424,14 +441,18 @@ class AutonomousBackupManager:
                 "timestamp": timezone.now().isoformat()
             }
             
-            # Store backup in SiteConfig under MASTER_BACKUP_DATA
+            # 2. የ Decimal ስህተትን ለመከላከል json.dumps መጠቀም
+            # ከማስቀመጥዎ በፊት ወደ ንፁህ JSON String መቀየር ወይም በ JSONField ውስጥ ሲጠቀሙት
+            # የ Django JSONEncoder ማረጋገጥ ያስፈልጋል።
+            
             SiteConfig.objects.update_or_create(
                 key=f"MASTER_BACKUP_DATA_{site.name}",
-                defaults={'value': backup_payload}
+                defaults={'value': json.loads(json.dumps(backup_payload, default=json_serial))}
             )
-            logger.info("💾 Backup Manager: Successfully saved compressed JSON database backup to SiteConfig.")
+            logger.info("💾 Backup Manager: Successfully saved compressed JSON database backup.")
         except Exception as e:
-            logger.error("Failed to archive database: %s", e)
+            logger.error(f"Failed to archive database: {e}")
+
 
 
 # ============================================================
