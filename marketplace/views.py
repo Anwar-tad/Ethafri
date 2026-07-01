@@ -145,7 +145,6 @@ def product_detail(request, pk):
         'contact_links': contact_links,
         'image_gallery': image_gallery
     })
-
 @login_required
 def post_product(request):
     """ምርት መለጠፊያ — ከባለብዙ-ጣቢያና ከምድቦች ውህደት ጋር"""
@@ -173,7 +172,6 @@ def post_product(request):
             price = 0.0
 
         gallery_list = [url.strip() for url in gallery_urls_raw.split(',') if url.strip()]
-        image_gallery_json = json.dumps(gallery_list)
 
         category = get_object_or_404(Category, id=category_id)
         site = None
@@ -192,7 +190,8 @@ def post_product(request):
             image_url=image_url,
             listing_type=listing_type, 
             contact_info=contact_info, 
-            specifications=json.dumps({"image_gallery": gallery_list}),
+            image_gallery=gallery_list, # 🔴 አዲሱን የ JSONField ፎርማት በቀጥታ መመገብ
+            specifications=json.dumps({"image_gallery": gallery_list}), # ለኋላ ተኳኋኝነት (backward compatibility) መተው
             is_active=True
         )
         
@@ -213,7 +212,8 @@ def post_product(request):
         ('service', 'አገልግሎት / ስራ (Service)'),
     ])
 
-    return render(request, 'request/post_product.html', {
+    # 🔴 አድራሻው ከተበላሸው 'request/post_product.html' ወደ ትክክለኛው 'marketplace/post_product.html' ተስተካክሏል
+    return render(request, 'marketplace/post_product.html', {
         'categories': Category.objects.all(),
         'sites': SiteRegistry.objects.filter(is_active=True),
         'listing_types': listing_choices

@@ -46,6 +46,13 @@ class Category(models.Model):
 # models.py ውስጥ በ Product ሞዴል ውስጥ የሚተካ የኢንዴክስ እና የአሰላለፍ ማሻሻያ (የሕግ 3 ጥበቃ)
 class Product(models.Model):
     """የማርኬት ፕሌሱ ዋና የምርት መረጃ መያዣ"""
+    
+    LISTING_TYPES = [
+        ('sale', 'ለሽያጭ (For Sale)'),
+        ('rent', 'ለኪራይ (For Rent)'),
+        ('service', 'አገልግሎት / ስራ (Service)'),
+    ]
+
     seller = models.ForeignKey(User, on_delete=models.CASCADE)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
     title = models.CharField(max_length=255)
@@ -56,6 +63,11 @@ class Product(models.Model):
     location = models.CharField(max_length=255, default='Global / ኢትዮጵያ')
     specifications = models.TextField(default='{}', blank=True)
     market_value_status = models.CharField(max_length=50, blank=True, default='Unknown')
+    
+    # 🔴 አዲስ የተጨመሩ የመገናኛ እና የገበያ አይነት ፊልዶች (views.py እና growth_agent.py Alignment)
+    listing_type = models.CharField(max_length=50, choices=LISTING_TYPES, default='sale', db_index=True)
+    contact_info = models.CharField(max_length=255, blank=True, default='')
+    image_gallery = models.JSONField(default=list, blank=True)
     
     # የዋናውን ገጽ የምርት ፍለጋ ፍጥነት በ 10x ለማሳደግ db_index ተጨምሯል
     is_active = models.BooleanField(default=True, db_index=True)
@@ -80,7 +92,7 @@ class Product(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # ✅ FIXED: የጃንጎን የአሰላለፍ ሕግ ለመጠበቅ በእያንዳንዱ ፈንክሽን መግቢያ ላይ 4 spaces ብቻ ጥቅም ላይ ውለዋል
+    # ✅ የጃንጎን የአሰላለፍ ሕግ ለመጠበቅ በእያንዳንዱ ፈንክሽን መግቢያ ላይ 4 spaces ብቻ ጥቅም ላይ ውለዋል
     def get_translated_title(self):
         lang = get_language()
         if lang == 'en':
