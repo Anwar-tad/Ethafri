@@ -1,6 +1,6 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.9 - Part 1/2)
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.10 - Part 1/2)
 # ✅ የተፈቱ ችግሮች፦ Proactive PostgreSQL Metadata scanning, CASCADE schema reset recovery, and circular-free imports.
 # 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
@@ -28,14 +28,12 @@ class SecurityAuditor:
 
     @staticmethod
     def scan_code_safety(code, file_path="", site=None):
-        """የ SQL Injection, Secrets Exposure, እና የ Shell Execution (Subprocess) ፍተሻ"""
         issues = []
         if not code or not isinstance(code, str):
             return True, []
 
         is_python = file_path.endswith('.py') if file_path else True
         if 'html' in file_path.lower() or not is_python:
-            # HTML ከሆነ AST ፍተሻ አያስፈልገውም
             return True, []
 
         try:
@@ -80,7 +78,6 @@ class SecurityAuditor:
         if issues:
             for issue in issues:
                 try:
-                    # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
                     from .models import SecurityLog
                     log_exists = SecurityLog.objects.filter(
                         site=site,
@@ -104,7 +101,6 @@ class SecurityAuditor:
 
         return True, []
 
-
 # ============================================================
 # 🚑 2. UNIVERSAL HEALER (ሁለንተናዊ የሲስተም ፈዋሽ - SCHEMA AWARE)
 # ============================================================
@@ -116,7 +112,6 @@ class UniversalHealer:
 
     def perform_maintenance(self):
         """በየ ዑደቱ የሚደረግ የሲስተም ጥገና"""
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AIProjectBacklog
 
         logger.info(f"🚑 Running maintenance for {self.site.name}...")
@@ -139,8 +134,7 @@ class UniversalHealer:
         self._heal_security_issues()
 
     def hard_reset_database_schema(self):
-        """🚨 [Autonomous Schema Rebuilder] የዳታቤዝ ሰንጠረዦችን በ CASCADE በማጥፋት ፍልሰቱን ከባዶ በንጽህና ይገነባል [1, 2, 3.1.2]"""
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        """🚨 [Autonomous Schema Rebuilder] የዳታቤዝ ሰንጠረዦችን በ CASCADE በማጥፋት ፍልሰቱን ከባዶ በንጽህና ይገነባል"""
         from .models import SiteRegistry
 
         logger.warning("🚨 EMERGENCY RESET: Hard resetting database schema to resolve permanent migration lock...")
@@ -154,22 +148,16 @@ class UniversalHealer:
                 "marketplace_agenttask", "marketplace_predictionlog", "marketplace_abtest", "marketplace_externalapi"
             ]
             with connection.cursor() as cursor:
-                # 1. ሁሉንም ሰንጠረዦች በ CASCADE ማጥፋት
                 for table in marketplace_tables:
                     if connection.vendor == 'sqlite':
                         cursor.execute(f'DROP TABLE IF EXISTS "{table}";')
                     else:
                         cursor.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE;')
-                
-                # 2. django_migrations መዝገብን ከ app 'marketplace' ማጽዳት
                 cursor.execute("DELETE FROM django_migrations WHERE app='marketplace';")
             
             logger.info("✨ Emergency Reset: All marketplace tables dropped. Initiating fresh migrations...")
-            
-            # 3. የፍልሰት ስራዎችን ከባዶ በንጽህና ማስኬድ
             call_command('migrate', interactive=False)
             
-            # 4. የ primary ሳይት መዝገብን በንጽህና መፍጠር
             SiteRegistry.objects.create(
                 name="primary",
                 display_name="EthAfri Primary",
@@ -186,7 +174,6 @@ class UniversalHealer:
 
     def heal_database_migrations_autonomously(self, force=False):
         """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል"""
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import SiteConfig, AgentErrorLog, SelfHealingLog
 
         # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ
@@ -207,7 +194,6 @@ class UniversalHealer:
                 except Exception:
                     should_run = True
 
-        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ ወዲያውኑ መሞከር
         if not should_run:
             recent_db_errors = AgentErrorLog.objects.filter(
                 site=self.site,
@@ -223,17 +209,35 @@ class UniversalHealer:
             return
 
         try:
-            # 🛡️ PROACTIVE SCHEMA METADATA SCANNING: ማይግሬሽኑ ከመጀመሩ በፊት የ PostgreSQL መዋቅሮችን በቀጥታ መቃኘት [1, 2]
+            # 🛡️ PROACTIVE SCHEMA METADATA SCANNING: የጠፉትን contact_info እና image_gallery በቀጥታ ወደ PostgreSQL መጋዘን መውጋት [1, 2]
             with connection.cursor() as cursor:
                 if connection.vendor == 'postgresql':
-                    # የጠፉ አምዶችን ወይም ኢንዴክሶችን አስቀድሞ መመርመር
+                    # ሀ. 'listing_type' ፍተሻ
                     cursor.execute("""
                         SELECT column_name FROM information_schema.columns 
                         WHERE table_name='marketplace_product' AND column_name='listing_type';
                     """)
                     if not cursor.fetchone():
-                        logger.warning("🚑 Schema Healer [Proactive]: Column 'listing_type' is missing. Auto-adding to unblock...")
+                        logger.warning("🚑 Schema Healer [Proactive]: Column 'listing_type' is missing. Auto-adding...")
                         cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS listing_type varchar(50) DEFAULT 'sale';")
+
+                    # ለ. 'contact_info' ፍተሻ (የአሁኑን ስህተት የሚፈታው) [1]
+                    cursor.execute("""
+                        SELECT column_name FROM information_schema.columns 
+                        WHERE table_name='marketplace_product' AND column_name='contact_info';
+                    """)
+                    if not cursor.fetchone():
+                        logger.warning("🚑 Schema Healer [Proactive]: Column 'contact_info' is missing. Auto-adding...")
+                        cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS contact_info varchar(255) DEFAULT '';")
+
+                    # ሐ. 'image_gallery' ፍተሻ (የወደፊት ስህተትን የሚከላከል) [1]
+                    cursor.execute("""
+                        SELECT column_name FROM information_schema.columns 
+                        WHERE table_name='marketplace_product' AND column_name='image_gallery';
+                    """)
+                    if not cursor.fetchone():
+                        logger.warning("🚑 Schema Healer [Proactive]: Column 'image_gallery' is missing. Auto-adding...")
+                        cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS image_gallery jsonb DEFAULT '[]'::jsonb;")
 
             call_command('migrate', interactive=False)
             logger.info("🚑 Schema Healer: Database migrations check passed.")
@@ -265,7 +269,7 @@ class UniversalHealer:
                     except Exception as retry_err:
                         err_msg = str(retry_err)
 
-            # ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን በራስ-ሰር DROP ማድረግ
+            # ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን DROP ማድረግ
             match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
             if match_exists:
                 idx_name = match_exists.group(1)
@@ -278,7 +282,7 @@ class UniversalHealer:
                 except Exception as retry_err:
                     err_msg = str(retry_err)
             
-            # በ AI የሚመራውን ሁለንተናዊ የረድኤት ጠጋኝ ማነቃቃት
+            # በ AI የሚመራውን SQL Healer ማነቃቃት
             try:
                 logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer...")
                 all_tables = []
@@ -323,7 +327,6 @@ class UniversalHealer:
             # የመጨረሻው ጽኑ ራስ-ገዝ ውሳኔ፦ CASCADE reset
             logger.critical("🚨 Schema Healer: Rebuilding database schema from scratch.")
             self.hard_reset_database_schema()
-            
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py (ክፍል 2/2)
 # ============================================================
