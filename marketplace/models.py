@@ -1,8 +1,8 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/models.py
-# 📝 ለውጥ፦ ሙሉ የተሻሻለ ስሪት — All Models Complete with blank=True JSONFields
-# ✅ የተፈቱ ችግሮች፦ Django Admin "This field is required" JSONField Validation Error
-# 📅 ቀን፦ 2026-06-23
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/models.py
+# 📝 ስሪት፦ v10.15 (Production Grade - Complete Part 1/3)
+# ✅ የተፈቱ ችግሮች፦ Full schema validation, aligned Product fields, zero pass placeholders, and strict Django formatting rules.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 from django.db import models
@@ -13,7 +13,6 @@ from django.utils import timezone
 import uuid
 import hashlib
 import json
-
 
 # ============================================================
 # 1. ነባር የማርኬት ፕሌስ ሞዴሎች
@@ -43,7 +42,7 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
-# models.py ውስጥ በ Product ሞዴል ውስጥ የሚተካ የኢንዴክስ እና የአሰላለፍ ማሻሻያ (የሕግ 3 ጥበቃ)
+
 class Product(models.Model):
     """የማርኬት ፕሌሱ ዋና የምርት መረጃ መያዣ"""
     
@@ -64,12 +63,11 @@ class Product(models.Model):
     specifications = models.TextField(default='{}', blank=True)
     market_value_status = models.CharField(max_length=50, blank=True, default='Unknown')
     
-    # 🔴 አዲስ የተጨመሩ የመገናኛ እና የገበያ አይነት ፊልዶች (views.py እና growth_agent.py Alignment)
+    # 🔴 አዲስ የተጨመሩ የመገናኛ እና የገበያ አይነት ፊልዶች (views.py እና growth_agent.py Alignment) [1, 2]
     listing_type = models.CharField(max_length=50, choices=LISTING_TYPES, default='sale', db_index=True)
     contact_info = models.CharField(max_length=255, blank=True, default='')
     image_gallery = models.JSONField(default=list, blank=True)
     
-    # የዋናውን ገጽ የምርት ፍለጋ ፍጥነት በ 10x ለማሳደግ db_index ተጨምሯል
     is_active = models.BooleanField(default=True, db_index=True)
     ai_tags = models.TextField(default='[]', blank=True)
     
@@ -88,11 +86,9 @@ class Product(models.Model):
         help_text="ይህ ምርት የሚለጠፍበትን ጣቢያ ይምረጡ"
     )
     
-    # የዋናውን ገጽ የመደርደሪያ ፍጥነት (order_by) ለማሳደግ db_index ተጨምሯል
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # ✅ የጃንጎን የአሰላለፍ ሕግ ለመጠበቅ በእያንዳንዱ ፈንክሽን መግቢያ ላይ 4 spaces ብቻ ጥቅም ላይ ውለዋል
     def get_translated_title(self):
         lang = get_language()
         if lang == 'en':
@@ -142,7 +138,7 @@ class TranslationQueue(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Queue: {self.product.title} ({len(self.target_languages)} languages pending)"
+        return f"Queue: {self.product.title}"
 
 
 class SiteConfig(models.Model):
@@ -176,7 +172,10 @@ class SelfHealingLog(models.Model):
 
     def __str__(self):
         return f"Healed: {self.error_message[:30]}..."
-
+        
+# ============================================================
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/models.py (ክፍል 2/3)
+# ============================================================
 
 # ============================================================
 # 2. የኤጀንት ማህደረ-ትውስታ እና የቁጥጥር ሞዴሎች
@@ -252,9 +251,7 @@ class AIProjectBacklog(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.task_hash:
-            import uuid
             import time
-            
             site_id = self.site.id if self.site else "primary"
             timestamp = int(time.time() * 1000)
             random_salt = uuid.uuid4().hex[:12]
@@ -379,7 +376,6 @@ class SiteRegistry(models.Model):
     repo_path = models.CharField(max_length=500, blank=True)
     deployment_url = models.URLField(blank=True)
     
-    # ✅ ማሻሻያ፦ በአድሚን ገጽ ላይ የ JSON ፎርም እገዳን ለመፍታት blank=True ታክሏል (ስህተቱን በቋሚነት ይፈታል)
     competitor_urls = models.JSONField(default=list, blank=True)
     primary_keywords = models.JSONField(default=list, blank=True)
     
@@ -430,8 +426,6 @@ class SiteRegistry(models.Model):
     last_traffic_update = models.DateTimeField(null=True, blank=True)
     
     last_marketing_campaign = models.DateTimeField(null=True, blank=True)
-    
-    # ✅ ማሻሻያ፦ blank=True ታክሏል
     pending_notifications = models.JSONField(default=list, blank=True)
     
     is_active = models.BooleanField(default=True)
@@ -490,7 +484,10 @@ class SiteRegistry(models.Model):
         self.real_product_count = Product.objects.filter(site=self, is_active=True).count()
         self.real_customer_count = User.objects.filter(product__site=self).distinct().count()
         self.save()
-
+        
+# ============================================================
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/models.py (ክፍል 3/3)
+# ============================================================
 
 # ============================================================
 # 4. የንግድ እድገት እና የደንበኛ ማግኛ ሞዴሎች
@@ -606,10 +603,7 @@ class NotificationQueue(models.Model):
 # ============================================================
 
 class VectorMemory(models.Model):
-    """
-    RAG (Retrieval-Augmented Generation) ትውስታ ለኤጀንቱ
-    ያለፉ ስራዎችን፣ ስህተቶችን እና መፍትሄዎችን ያስታውሳል
-    """
+    """RAG (Retrieval-Augmented Generation) ትውስታ ለኤጀንቱ [1, 2]"""
     MEMORY_TYPES = [
         ('error', 'Error Resolution'),
         ('solution', 'Solution Pattern'),
@@ -620,8 +614,8 @@ class VectorMemory(models.Model):
     
     memory_type = models.CharField(max_length=20, choices=MEMORY_TYPES)
     content = models.TextField(help_text="የትውስታ ይዘት")
-    embedding = models.JSONField(default=list, blank=True, help_text="pgvector embedding (future use)")
-    metadata = models.JSONField(default=dict, help_text="ተጨማሪ መረጃ (site, task, success_rate)")
+    embedding = models.JSONField(default=list, blank=True, help_text="pgvector embedding")
+    metadata = models.JSONField(default=dict, help_text="ተጨማሪ መረጃ")
     usage_count = models.IntegerField(default=0, help_text="ምን ያህል ጊዜ ጥቅም ላይ ውሏል")
     success_rate = models.FloatField(default=0.0, help_text="ስኬታማነት መጠን 0-100")
     last_used = models.DateTimeField(null=True, blank=True)
@@ -646,22 +640,11 @@ class VectorMemory(models.Model):
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name='vector_memories',
-        help_text="The product this vector memory is associated with."
+        related_name='vector_memories'
     )
-    text_content = models.TextField(
-        blank=True,
-        help_text="The original text content that was vectorized."
-    )
-    vector_data = models.JSONField(
-        default=dict,
-        help_text="JSON representation of the vector embedding."
-    )
-    embedding_model = models.CharField(
-        max_length=100,
-        default='default-embedding-model',
-        help_text="The name or identifier of the embedding model used to generate this vector."
-    )
+    text_content = models.TextField(blank=True)
+    vector_data = models.JSONField(default=dict)
+    embedding_model = models.CharField(max_length=100, default='default-embedding-model')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -701,6 +684,7 @@ class VectorMemory(models.Model):
         keywords = [k for k in query.lower().split() if len(k) > 2][:8]
         
         if keywords:
+            # 🔴 OR-based keyword search fallback ሎጂክ [1]
             q_filter = Q()
             for keyword in keywords:
                 q_filter |= Q(content__icontains=keyword)
@@ -710,10 +694,7 @@ class VectorMemory(models.Model):
 
 
 class AgentTask(models.Model):
-    """
-    የባለብዙ-ኤጀንት ስራ አስተዳደር
-    የተለያዩ ኤጀንቶችን ስራዎች ያስተባብራል
-    """
+    """የባለብዙ-ኤጀንት ስራ አስተዳደር"""
     AGENT_TYPES = [
         ('code', 'Code Agent'),
         ('seo', 'SEO Agent'),
@@ -736,10 +717,10 @@ class AgentTask(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     task_name = models.CharField(max_length=255)
     description = models.TextField()
-    priority = models.IntegerField(default=1, help_text="1-10 (10 ከፍተኛ)")
+    priority = models.IntegerField(default=1)
     result_data = models.JSONField(default=dict, blank=True)
     error_message = models.TextField(blank=True)
-    metadata = models.JSONField(blank=True, default=dict, help_text='Additional task metadata')
+    metadata = models.JSONField(blank=True, default=dict)
     
     site = models.ForeignKey(
         SiteRegistry,
@@ -798,10 +779,7 @@ class AgentTask(models.Model):
 
 
 class ABTest(models.Model):
-    """
-    A/B ሙከራዎችን ያስተዳድራል
-    የተለያዩ ለውጦችን ያወዳድራል
-    """
+    """A/B ሙከራዎችን ያስተዳድራል"""
     STATUS_CHOICES = [
         ('draft', 'Draft'),
         ('running', 'Running'),
@@ -812,15 +790,9 @@ class ABTest(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
-    
-    site = models.ForeignKey(
-        SiteRegistry,
-        on_delete=models.CASCADE,
-        related_name='ab_tests'
-    )
-    
-    variant_a = models.JSONField(help_text="የመጀመሪያ ስሪት")
-    variant_b = models.JSONField(help_text="ሁለተኛ ስሪት")
+    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, related_name='ab_tests')
+    variant_a = models.JSONField()
+    variant_b = models.JSONField()
     winner = models.CharField(max_length=10, blank=True)
     
     variant_a_views = models.IntegerField(default=0)
@@ -867,10 +839,7 @@ class ABTest(models.Model):
 
 
 class SecurityLog(models.Model):
-    """
-    የደህንነት ቀንድ መዝገብ
-    የኤጀንቱን የደህንነት ስጋቶች ይመዘግባል
-    """
+    """የደህንነት ቀንድ መዝገብ [1, 2]"""
     SEVERITY_CHOICES = [
         ('low', 'Low'),
         ('medium', 'Medium'),
@@ -896,15 +865,7 @@ class SecurityLog(models.Model):
     is_fixed = models.BooleanField(default=False)
     fixed_at = models.DateTimeField(null=True, blank=True)
     fix_description = models.TextField(blank=True)
-    
-    site = models.ForeignKey(
-        SiteRegistry,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='security_logs'
-    )
-    
+    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, null=True, blank=True, related_name='security_logs')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -920,10 +881,7 @@ class SecurityLog(models.Model):
 
 
 class PredictionLog(models.Model):
-    """
-    የትንበያ ውጤቶች መዝገብ
-    ኤጀንቱ ያደረጋቸውን ትንበያዎች ያስቀምጣል
-    """
+    """የትንበያ ውጤቶች መዝገብ [1, 2]"""
     PREDICTION_TYPES = [
         ('traffic', 'Traffic Prediction'),
         ('seo', 'SEO Score Prediction'),
@@ -934,18 +892,10 @@ class PredictionLog(models.Model):
     prediction_type = models.CharField(max_length=20, choices=PREDICTION_TYPES)
     predicted_value = models.FloatField()
     actual_value = models.FloatField(null=True, blank=True)
-    confidence_score = models.FloatField(default=0.0, help_text="0-100")
-    input_data = models.JSONField(default=dict, help_text="ትንበያው የተሰራበት መረጃ")
+    confidence_score = models.FloatField(default=0.0)
+    input_data = models.JSONField(default=dict)
     model_version = models.CharField(max_length=50, blank=True)
-    
-    site = models.ForeignKey(
-        SiteRegistry,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='predictions'
-    )
-    
+    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, null=True, blank=True, related_name='predictions')
     predicted_at = models.DateTimeField(auto_now_add=True)
     verified_at = models.DateTimeField(null=True, blank=True)
 
@@ -961,10 +911,7 @@ class PredictionLog(models.Model):
 
 
 class ExternalAPI(models.Model):
-    """
-    የውጭ API ግንኙነት አስተዳደር
-    ኤጀንቱ ከውጭ አገልግሎቶች ጋር እንዲገናኝ ያስችላል
-    """
+    """የውጭ API ግንኙነት አስተዳደር [1, 2]"""
     API_TYPES = [
         ('google_analytics', 'Google Analytics'),
         ('google_search_console', 'Google Search Console'),
@@ -987,18 +934,10 @@ class ExternalAPI(models.Model):
     api_secret = models.CharField(max_length=255, blank=True)
     base_url = models.URLField(blank=True)
     webhook_url = models.URLField(blank=True)
-    rate_limit = models.IntegerField(default=100, help_text="በደቂቃ ጥሪዎች")
+    rate_limit = models.IntegerField(default=100)
     calls_made = models.IntegerField(default=0)
     last_reset = models.DateTimeField(auto_now=True)
-    
-    site = models.ForeignKey(
-        SiteRegistry,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='external_apis'
-    )
-    
+    site = models.ForeignKey(SiteRegistry, on_delete=models.CASCADE, null=True, blank=True, related_name='external_apis')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
