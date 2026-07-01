@@ -4,7 +4,6 @@
 # ✅ የተፈቱ ችግሮች፦ Standard production WSGI boot integration
 # 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
-
 import os
 from django.core.wsgi import get_wsgi_application
 

@@ -4,9 +4,7 @@
 # ✅ የተፈቱ ችግሮች፦ Dynamic NameError deferring, 100% complete helpers with ZERO pass statements, safe multi-threaded lock-outs.
 # 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
-
 from __future__ import annotations # የ NameError ስህተትን በዘላቂነት ለመከላከል [1, 2]
-
 import ast
 import json
 import os
