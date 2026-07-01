@@ -59,5 +59,7 @@ urlpatterns = [
     # 🟢 አዲስ የተጨመሩ የዳሽቦርድ Purge እና Autopilot ኤፒአይዎች
     path('api/agent/purge-db/', views.purge_database_view, name='api_purge_database'),
     path('api/agent/toggle-autopilot/', views.toggle_autopilot_view, name='api_toggle_autopilot'),
+    # 🧠 የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator)
+    path('backlog/', views.manage_backlog_view, name='manage_backlog'),
 ]
 

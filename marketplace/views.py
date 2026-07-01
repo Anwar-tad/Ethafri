@@ -528,3 +528,86 @@ def toggle_autopilot_view(request):
     except Exception as e:
         logger.error(f"Toggle autopilot view failed: {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+@staff_member_required
+def manage_backlog_view(request):
+    """
+    የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator)
+    ሁሉንም የኤጀንት ስራዎች መተንተኛ፣ መቆጣጠሪያ፣ እንደገና መመዝገቢያ እና በእጅ ወደ GitHub መግፊያ ገጽ
+    """
+    if request.method == "POST":
+        action = request.POST.get('action')
+        task_id = request.POST.get('task_id')
+        task = get_object_or_404(AIProjectBacklog, id=task_id)
+
+        # 🔄 1. ስራን እንደገና ወደ Pending ወረፋ መመለስ (Requeue / Retry)
+        if action == "requeue":
+            task.status = 'Pending'
+            task.save()
+            messages.success(request, f"🔄 '{task.task_name}' successfully returned to Pending queue for next cycle.")
+
+        # ❌ 2. ስራን በቋሚነት መሰረዝ (Delete)
+        elif action == "delete":
+            task_name = task.task_name
+            task.delete()
+            messages.success(request, f"❌ Task '{task_name}' permanently deleted from backlog.")
+
+        # ✏️ 3. የስራ መረጃዎችን ማሻሻል (Edit)
+        elif action == "edit":
+            task.task_name = request.POST.get('task_name', task.task_name).strip()
+            task.target_file = request.POST.get('target_file', task.target_file).strip()
+            task.priority = request.POST.get('priority', task.priority)
+            try:
+                task.business_impact_score = int(request.POST.get('business_impact_score', task.business_impact_score))
+            except ValueError:
+                pass
+            task.description = request.POST.get('description', task.description).strip()
+            task.save()
+            messages.success(request, f"✏️ Task '{task.task_name}' updated successfully.")
+
+        # 🚀 4. ሰርቨሩ ላይ ያለውን ፋይል በ 1 ጠቅታ በእጅ ወደ GitHub መግፋት (Manual Sync to GitHub)
+        elif action == "push_github":
+            from .growth_agent import resolve_local_file_path
+            from .code_apply import push_to_github_raw
+            
+            local_path = resolve_local_file_path(task.site, task.target_file)
+            
+            if os.path.exists(local_path):
+                try:
+                    with open(local_path, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+                    
+                    # ሪፖዚተሪ-አንጻራዊ አቅጣጫን በሳይቱ ማህደር መሰረት በትክክል ማስላት
+                    rel_path = os.path.relpath(local_path, settings.BASE_DIR).replace('\\', '/')
+                    
+                    status = push_to_github_raw(
+                        file_path=rel_path,
+                        content=file_content,
+                        message=f"Manual Sync: {task.task_name}",
+                        site=task.site
+                    )
+                    
+                    if status == "Success" or "Sync OK" in status:
+                        messages.success(request, f"🚀 Code for '{task.target_file}' successfully pushed to GitHub repository!")
+                    else:
+                        messages.error(request, f"❌ GitHub Push Failed: {status}")
+                except Exception as e:
+                    messages.error(request, f"❌ Error reading local file: {e}")
+            else:
+                messages.error(request, f"❌ Error: Local file for '{task.target_file}' does not exist on server disk.")
+
+        return redirect('manage_backlog')
+
+    # GET ጥያቄዎችን ማስተናገድ (ሁሉንም ስራዎች በምድብ ከፍሎ ማሳያ)
+    all_tasks = AIProjectBacklog.objects.select_related('site').all().order_by('-created_at')
+    
+    # ስራዎችን በምድባቸው መለየት (Group by status and types)
+    context = {
+        'planned_by_agent': all_tasks.filter(status='Pending').exclude(task_name__startswith='👑 OWNER'),
+        'royal_decrees': all_tasks.filter(status='Pending', task_name__startswith='👑 OWNER'),
+        'running_tasks': all_tasks.filter(status='Running'),
+        'completed_tasks': all_tasks.filter(status='Completed'),
+        'blocked_tasks': all_tasks.filter(status='Blocked'),
+        'sites': SiteRegistry.objects.filter(is_active=True)
+    }
+    return render(request, 'marketplace/manage_backlog.html', context)

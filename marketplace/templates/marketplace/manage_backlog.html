@@ -1,0 +1,279 @@
+{% extends 'marketplace/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Autonomous Backlog Orchestrator" %} - EthAfri{% endblock %}
+
+{% block content %}
+<div class="ceo-container py-4 fade-in" data-agent-monitor>
+    
+    <!-- ============================================================
+    🧭 1. ORCHESTRATOR HEADER
+    ============================================================ -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div>
+            <h2 class="fw-bold m-0 text-dark"><i class="fa-solid fa-rectangle-list text-primary me-2"></i> {% translate "Strategic Backlog Orchestrator" %}</h2>
+            <p class="text-muted m-0 small">{% translate "Granular diagnostic control and manual override of autonomous tasks." %}</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-ceo text-decoration-none">
+                <i class="fa-solid fa-arrow-left me-1"></i> {% translate "CEO Dashboard" %}
+            </a>
+            <a href="{% url 'owner_directive' %}" class="btn btn-primary-ceo text-decoration-none">
+                <i class="fa-solid fa-crown me-1 text-warning"></i> {% translate "Issue Decree" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    📊 2. TASK MATRIX COUNTS
+    ============================================================ -->
+    <div class="row g-3 mb-4 text-center">
+        <div class="col-6 col-md-2.4 col-lg">
+            <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                <div class="small text-muted fw-bold">{% translate "Royal Decrees" %}</div>
+                <div class="h3 fw-bold text-warning mt-1">{{ royal_decrees.count }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2.4 col-lg">
+            <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                <div class="small text-muted fw-bold">{% translate "Planned Tasks" %}</div>
+                <div class="h3 fw-bold text-primary mt-1">{{ planned_by_agent.count }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2.4 col-lg">
+            <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                <div class="small text-muted fw-bold">{% translate "In Progress" %}</div>
+                <div class="h3 fw-bold text-info mt-1">{{ running_tasks.count }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2.4 col-lg">
+            <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                <div class="small text-muted fw-bold">{% translate "Completed" %}</div>
+                <div class="h3 fw-bold text-success mt-1">{{ completed_tasks.count }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2.4 col-lg">
+            <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                <div class="small text-muted fw-bold">{% translate "Blocked / Failed" %}</div>
+                <div class="h3 fw-bold text-danger mt-1">{{ blocked_tasks.count }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    🧭 3. TAB NAVIGATION CONTROL
+    ============================================================ -->
+    <ul class="nav nav-pills mb-4 bg-white p-2 rounded-4 shadow-sm d-flex gap-2" id="backlogTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="decrees-tab" data-bs-toggle="pill" data-bs-target="#decrees" type="button" role="tab">
+                <i class="fa-solid fa-crown me-1 text-warning"></i> {% translate "Decrees" %} ({{ royal_decrees.count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="planned-tab" data-bs-toggle="pill" data-bs-target="#planned" type="button" role="tab">
+                <i class="fa-solid fa-robot me-1 text-primary"></i> {% translate "Planned" %} ({{ planned_by_agent.count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="running-tab" data-bs-toggle="pill" data-bs-target="#running" type="button" role="tab">
+                <i class="fa-solid fa-spinner fa-spin me-1 text-info"></i> {% translate "Active" %} ({{ running_tasks.count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="completed-tab" data-bs-toggle="pill" data-bs-target="#completed" type="button" role="tab">
+                <i class="fa-solid fa-circle-check me-1 text-success"></i> {% translate "Completed" %} ({{ completed_tasks.count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="blocked-tab" data-bs-toggle="pill" data-bs-target="#blocked" type="button" role="tab">
+                <i class="fa-solid fa-ban me-1 text-danger"></i> {% translate "Blocked" %} ({{ blocked_tasks.count }})
+            </button>
+        </li>
+    </ul>
+
+    <!-- ============================================================
+    🧱 4. TAB CONTENTS PANES
+    ============================================================ -->
+    <div class="tab-content" id="backlogTabsContent">
+        
+        <!-- 👑 Tab 1: Royal Decrees (በአድሚኑ የታዘዙ) -->
+        <div class="tab-pane fade show active" id="decrees" role="tabpanel">
+            <div class="glass-card">
+                <h5 class="fw-bold mb-3 text-warning"><i class="fa-solid fa-crown me-2"></i> {% translate "Active Royal Decrees" %}</h5>
+                {% for task in royal_decrees %}
+                    {% include "marketplace/partials/backlog_card.html" with task=task show_requeue=False show_push=False %}
+                {% empty %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-crown fa-3x mb-3 opacity-25"></i>
+                        <p class="m-0">{% translate "No custom directives currently in queue." %}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 🤖 Tab 2: Planned by Agent (በኤጀንቱ የታቀዱ) -->
+        <div class="tab-pane fade" id="planned" role="tabpanel">
+            <div class="glass-card">
+                <h5 class="fw-bold mb-3 text-primary"><i class="fa-solid fa-robot me-2"></i> {% translate "Agent-Planned Feature Backlog" %}</h5>
+                {% for task in planned_by_agent %}
+                    {% include "marketplace/partials/backlog_card.html" with task=task show_requeue=False show_push=False %}
+                {% empty %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-robot fa-3x mb-3 opacity-25"></i>
+                        <p class="m-0">{% translate "Strategic backlog is clear." %}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ⚙️ Tab 3: Active / Running (እየተሠሩ ያሉ) -->
+        <div class="tab-pane fade" id="running" role="tabpanel">
+            <div class="glass-card">
+                <h5 class="fw-bold mb-3 text-info"><i class="fa-solid fa-gears me-2"></i> {% translate "Active Execution Tasks" %}</h5>
+                {% for task in running_tasks %}
+                    {% include "marketplace/partials/backlog_card.html" with task=task show_requeue=False show_push=False %}
+                {% empty %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-circle-notch fa-spin fa-3x mb-3 opacity-25"></i>
+                        <p class="m-0">{% translate "No tasks currently undergoing active compilation." %}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ✅ Tab 4: Completed (ያለቁ ስራዎች - Manual Push ተካቷል) -->
+        <div class="tab-pane fade" id="completed" role="tabpanel">
+            <div class="glass-card">
+                <h5 class="fw-bold mb-3 text-success"><i class="fa-solid fa-circle-check me-2"></i> {% translate "Successfully Compiled Features" %}</h5>
+                {% for task in completed_tasks %}
+                    {% include "marketplace/partials/backlog_card.html" with task=task show_requeue=True show_push=True %}
+                {% empty %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-circle-check fa-3x mb-3 opacity-25"></i>
+                        <p class="m-0">{% translate "No completed tasks recorded in database." %}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ❌ Tab 5: Blocked / Failed (የተሳሳቱ/ወረፋ የያዙ) -->
+        <div class="tab-pane fade" id="blocked" role="tabpanel">
+            <div class="glass-card">
+                <h5 class="fw-bold mb-3 text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i> {% translate "Blocked / Failed Compilations" %}</h5>
+                {% for task in blocked_tasks %}
+                    {% include "marketplace/partials/backlog_card.html" with task=task show_requeue=True show_push=False %}
+                {% empty %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-shield-heart fa-3x mb-3 opacity-25"></i>
+                        <p class="m-0">{% translate "Zero blocked tasks. AST Compiler is happy." %}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ============================================================
+✏️ 5. INTERACTIVE EDIT TASK MODAL (ማሻሻያ ፎርም)
+============================================================ -->
+<div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white rounded-top-4 border-0 p-4">
+                <h5 class="modal-title fw-bold" id="editTaskModalLabel"><i class="fa-solid fa-pen-to-square text-warning me-2"></i> {% translate "Edit Task Strategic Metrics" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{% url 'manage_backlog' %}" id="editTaskForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="task_id" id="edit_task_id">
+
+                <div class="modal-body p-4 bg-light">
+                    <!-- Task Name -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">{% translate "Task Name" %}</label>
+                        <input type="text" name="task_name" id="edit_task_name" class="form-control ceo-input" required>
+                    </div>
+                    
+                    <!-- Target File -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">{% translate "Target File" %}</label>
+                        <input type="text" name="target_file" id="edit_target_file" class="form-control ceo-input" required>
+                    </div>
+
+                    <div class="row">
+                        <!-- Priority -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small fw-bold text-muted text-uppercase">{% translate "Priority" %}</label>
+                            <select name="priority" id="edit_priority" class="form-select ceo-input">
+                                <option value="Critical">Critical</option>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <!-- Business Impact -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label small fw-bold text-muted text-uppercase">{% translate "Business Impact (1-10)" %}</label>
+                            <input type="number" name="business_impact_score" id="edit_business_impact" class="form-control ceo-input" min="1" max="10" required>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold text-muted text-uppercase">{% translate "Task Description" %}</label>
+                        <textarea name="description" id="edit_description" class="form-control ceo-input" rows="4" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer rounded-bottom-4 border-0 p-4 bg-white">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-dark rounded-pill px-4 fw-bold">{% translate "Save Modifications" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- 🟢 Dashboard Task Control Handlers (Zero Pass) -->
+<script>
+    // 1. የሞዳል መቆጣጠሪያ እና የመሙያ ሎጂክ
+    function openEditModal(id, name, file, priority, impact, desc) {
+        const idField = document.getElementById('edit_task_id');
+        const nameField = document.getElementById('edit_task_name');
+        const fileField = document.getElementById('edit_target_file');
+        const priorityField = document.getElementById('edit_priority');
+        const impactField = document.getElementById('edit_business_impact');
+        const descField = document.getElementById('edit_description');
+
+        if (idField && nameField && fileField && priorityField && impactField && descField) {
+            idField.value = id;
+            nameField.value = name;
+            fileField.value = file;
+            priorityField.value = priority;
+            impactField.value = impact;
+            descField.value = desc;
+            
+            const editModal = new bootstrap.Modal(document.getElementById('editTaskModal'));
+            editModal.show();
+        }
+    }
+
+    // 2. የድመት ወይም የሰረዛ ማረጋገጫ (Delete and Actions Guard)
+    document.addEventListener("DOMContentLoaded", function() {
+        const editForm = document.getElementById('editTaskForm');
+        if (editForm) {
+            editForm.addEventListener('submit', function() {
+                const saveBtn = editForm.querySelector('button[type="submit"]');
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i> {% translate "Saving..." %}';
+                }
+            });
+        }
+    });
+</script>

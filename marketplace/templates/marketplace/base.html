@@ -1,8 +1,8 @@
 <!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/base.html
-📝 ለውጥ፦ v1.3 Optimized Skeleton — Floating Sell FAB & Load Speed Optimized
-✅ የተፈቱ ችግሮች፦ Dynamic floating red Sell button added, DNS preconnecting integrated
-📅 ቀን፦ 2026-06-27
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/base.html
+📝 ለውጥ፦ v1.4 Master CEO Unified Base — Backlog Orchestrator Integrated & Centered Sell FAB
+✅ የተፈቱ ችግሮች፦ Dynamic Backlog link added to Navbar and Dropup, centered Sell FAB layout for all screen widths
+📅 ቀን፦ Wednesday, July 01, 2026
 ============================================================ -->
 
 {% load i18n %}
@@ -50,7 +50,7 @@
     <!-- ለአንድ ፔጅ ብቻ የሚያገልግል CSS -->
     {% block extra_css %}{% endblock %}
     
-    <!-- Dynamic Theme Variables & Floating Sell CSS -->
+    <!-- Dynamic Theme Variables & Centered Floating Sell CSS -->
     <style>
         :root {
             --primary-color: {{ theme.primary_color|default:"#1a2a6c" }};
@@ -62,11 +62,11 @@
             {{ theme.custom_css|safe }}
         {% endif %}
 
-        /* 🔴 Floating Red Sell Button Style (በትልቁ በቀይ) */
+        /* 🔴 Floating Red Sell Button Style (በትልቁ በቀይ እና በማእከል) */
         .btn-sell-floating {
-            background-color: #dc3545 !important; /* ቀይ ቀለም */
+            background-color: #dc3545 !important;
             color: white !important;
-            border-radius: 50% !important; /* ክብ ቅርፅ */
+            border-radius: 50% !important;
             width: 58px;
             height: 58px;
             display: flex !important;
@@ -74,13 +74,14 @@
             align-items: center;
             justify-content: center;
             box-shadow: 0 4px 10px rgba(220, 53, 69, 0.4);
-            transform: translateY(-14px); /* ወደ ላይ ከፍ እንዲል (Floating FAB) */
+            transform: translateY(-16px); /* ፍጹም ማዕከላዊ የከፍታ አሰላለፍ */
             transition: all 0.2s ease-in-out;
             z-index: 1050;
             text-decoration: none !important;
+            flex-shrink: 0;
         }
         .btn-sell-floating:hover {
-            transform: translateY(-17px) scale(1.05);
+            transform: translateY(-19px) scale(1.05);
             box-shadow: 0 6px 15px rgba(220, 53, 69, 0.5);
             background-color: #bd2130 !important;
         }
@@ -94,6 +95,22 @@
             font-weight: bold !important;
             color: white !important;
             text-transform: uppercase;
+        }
+
+        /* 📱 የግርጌ ማውጫውን አሰላለፍ ፍጹም የተመጣጠነ እና ማእከላዊ የማድረጊያ ሎጂክ */
+        .bottom-nav-custom {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0.3rem 0;
+        }
+        .bottom-nav-custom a, .bottom-nav-custom .dropup {
+            flex: 1;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
     </style>
 </head>
@@ -160,13 +177,21 @@
                         </a>
                     </li>
                     {% endif %}
+                    
                     {% if user.is_staff %}
+                    <!-- 🔴 አዲስ የተጨመረ፦ የBacklog ማኔጀር ቁልፍ በNavbar ላይ -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'backlog' in request.path %}active{% endif %}" href="{% url 'manage_backlog' %}">
+                            <i class="fa-solid fa-rectangle-list"></i> {% trans "Orchestrator" %}
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <span class="admin-badge ms-1">
                             <i class="fas fa-user-shield me-1"></i> {% trans "Admin" %}
                         </span>
                     </li>
                     {% endif %}
+                    
                     <li class="nav-item">
                         <form action="{% url 'set_language' %}" method="post" class="d-inline">
                             {% csrf_token %}
@@ -237,7 +262,7 @@
             {% endif %}
         </a>
         
-        <!-- 🔴 Floating Red Action Button (በትልቁ በቀይ - ✅ v1.3 Status እና AI መካከል እንዲሆን ተደርጓል) -->
+        <!-- 🔴 Floating Red Action Button (በትልቁ በቀይ - ✅ v1.4 በStatus እና AI/Logout መሃከል ፍጹም ማዕከላዊ ሆኗል) -->
         <a href="{% url 'post_product' %}" class="btn-sell-floating {% if 'post_product' in request.path %}active{% endif %}">
             <i class="fas fa-plus-circle"></i>
             <span>{% trans "Sell" %}</span>
@@ -255,6 +280,12 @@
                 <li>
                     <a class="dropdown-item" href="{% url 'growth_dashboard' %}">
                         <i class="fas fa-chart-line text-primary"></i> {% trans "Dashboard" %}
+                    </a>
+                </li>
+                <!-- 🔴 አዲስ የተጨመረ፦ የBacklog ማኔጀር ሊንክ በታችኛው AI Dropdown ላይ -->
+                <li>
+                    <a class="dropdown-item" href="{% url 'manage_backlog' %}">
+                        <i class="fa-solid fa-rectangle-list text-warning"></i> {% trans "Orchestrator" %}
                     </a>
                 </li>
                 <li>

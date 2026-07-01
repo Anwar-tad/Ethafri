@@ -417,18 +417,21 @@ class StrategicCEO:
 # ============================================================
 # 🛠️ RECURSIVE BUILDER (AI-Driven Code Writer + Sandbox Verification)
 # ============================================================
+# ============================================================
+# 🛠️ RECURSIVE BUILDER (AI-Driven Code Writer + Sandbox Verification + Auto-Push)
+# ============================================================
 class RecursiveBuilder:
     def __init__(self, site: SiteRegistry):
         self.site = site
 
     @staticmethod
     def _get_cooldown_hours(target_file):
-        # High-Throughput Cooldown፦ HTML 1 ደቂቃ (0.016 ሰዓት)፣ Backend 3 ደቂቃ (0.05 ሰዓት) [1, 2]
+        # ✅ High-Throughput Cooldown፦ HTML 1 ደቂቃ (0.016 ሰዓት)፣ Backend 3 ደቂቃ (0.05 ሰዓት) [1, 2]
         return 0.016 if is_html_target(target_file) else 0.05
 
     @classmethod
     def is_on_cooldown(cls, site, target_file):
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AIEvolutionLog
 
         cooldown_hours = cls._get_cooldown_hours(target_file)
@@ -438,7 +441,10 @@ class RecursiveBuilder:
         ).exists()
 
     def build_next_feature(self, task):
-        from .ai_utils import SandboxedCodeValidator # 🟢 አዲሱን የ Sandbox Validator ማስገባት [1, 2]
+        from .ai_utils import SandboxedCodeValidator, compress_code_for_prompt, ask_master_ai_smart, clean_and_parse_json
+        from .code_apply import apply_code_change
+        from .self_doctor import SecurityAuditor, AntiBloatEngine
+        from .models import VectorMemory
 
         if self.is_on_cooldown(self.site, task.target_file):
             return "Cooldown"
@@ -450,11 +456,10 @@ class RecursiveBuilder:
             task.save()
             return "Halted for Seeding"
 
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import VectorMemory
+        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         past_memories = VectorMemory.objects.filter(site=self.site).order_by('-id')[:3]
         
-        # የ AI ቶከን ፍጆታን ለመቀነስ የማስታወሻዎችን መጠን ማሳጠር [1, 2]
+        # 🟢 የ AI ቶከን ፍጆታን ለመቀነስ የማስታወሻዎችን መጠን ማሳጠር [1, 2]
         memory_context = [compress_code_for_prompt(m.content) for m in past_memories]
 
         task.status = 'Running'
@@ -463,14 +468,11 @@ class RecursiveBuilder:
         prompt = (
             f"Task: {task.task_name}. Write full clean Python/HTML code for {task.target_file} using 2026 standards. "
             f"CRITICAL: Avoid repeating these past failures/issues: {json.dumps(memory_context, ensure_ascii=False)}. "
-            # 📌 የጃንጎ 4/5 ጥብቅ መመሪያ (Flask/FastAPI ግጭትን ሙሉ በሙሉ መከላከያ) [3.1.2]
             f"CRITICAL FRAMEWORK RULE: We are using Django 4/5. Never generate code for Flask, FastAPI, or any other frameworks. Write strictly Django-compliant Python.\n"
-            # 📌 የፊቸር ውህደት መመሪያ (Feature Merging Directive) [1, 2]
             f"FEATURE CONSOLIDATION RULE: Before appending new functions or classes, examine the existing code of the file. "
             f"If the new feature overlaps with existing functions, you MUST refactor and extend the existing functions (merge them) "
             f"to avoid any code duplication. If merging is not possible, design the new code to be highly reusable, compact, "
             f"and multi-purpose (supporting multiple features inside a single clean, parameter-driven function).\n"
-            # 📌 የገጽ መጫኛ ፍጥነት ማሳደጊያ የንብረቶች መለያ መመሪያ (Performance separation for fast browser caching) [3.1.2]
             f"PERFORMANCE & ASSET OPTIMIZATION RULE: To ensure extremely fast page loading, never write inline CSS or inline javascript blocks inside HTML. "
             f"Instead, use only the clean Tailwind/global CSS variables and standard modular structures. "
             f"Move any custom styles or scripts to external global.css or global.js respectively to unblock page rendering.\n"
@@ -515,13 +517,21 @@ class RecursiveBuilder:
                 try:
                     with open(local_path, 'r', encoding='utf-8') as f:
                         old_code = f.read()
-                except Exception:
-                    pass
+                except Exception as read_err:
+                    logger.debug("Failed to read old code for backup: %s", read_err)
 
-            # [Anti-Bloat Guard]: አዲሱ ኮድ ወደ ዲስክ ከመጻፉ በፊት አላስፈላጊ ክፍሎቹ በራስ-ሰር እንዲቀነሱ ማድረግ [1, 2]
+            # 🟢 [Anti-Bloat Guard]: አዲሱ ኮድ ወደ ዲስክ ከመጻፉ በፊት አላስፈላጊ ክፍሎቹ በራስ-ሰር እንዲቀነሱ ማድረግ [1, 2]
             new_code = AntiBloatEngine.prune_and_optimize(old_code, new_code, task.target_file)
 
-            apply_result = apply_code_change(self.site, task.target_file, new_code, task.task_name, backlog_task=task)
+            # 🔴 2ኛ አማራጭ ውህደት፦ የ 6 ደረጃ ፍተሻዎችን ካለፈ በኋላ አውቶማቲክ በሆነ መንገድ ወደ GitHub ፑሽ እንዲያደርግ push_to_github=True ተደርጓል [1, 2]
+            apply_result = apply_code_change(
+                self.site, 
+                task.target_file, 
+                new_code, 
+                reason=task.task_name, 
+                backlog_task=task,
+                push_to_github=True # 🚀 Auto-Push በራስ-ሰር አግብሯል!
+            )
 
             if not apply_result.get('success'):
                 logger.error(f"❌ apply_code_change failed for {task.target_file}: {apply_result.get('message')}")
@@ -552,8 +562,8 @@ class RecursiveBuilder:
 
         try:
             VectorMemory.objects.create(site=self.site, memory_type='solution', content=f"Success: {task.task_name}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to record success vector memory: %s", e)
         return "Success"
 
 
