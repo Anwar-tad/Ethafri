@@ -1,0 +1,62 @@
+{% load i18n %}
+<div class="backlog-item-new priority-{{ task.priority }} hover-lift p-4 mb-3 rounded-4 bg-white border border-light shadow-sm">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <span class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning text-dark{% else %}info{% endif %} rounded-pill small">{{ task.priority }}</span>
+                <span class="badge bg-light text-muted border rounded-pill small">📁 {{ task.target_file }}</span>
+                {% if task.site %}
+                    <span class="badge bg-primary-soft text-primary rounded-pill small"><i class="fa-solid fa-globe me-1"></i> {{ task.site.display_name }}</span>
+                {% endif %}
+            </div>
+            <h5 class="fw-bold text-dark mb-2">{{ task.task_name }}</h5>
+            <p class="text-muted small m-0">{{ task.description }}</p>
+            <div class="mt-3 small text-muted">
+                <i class="fa-solid fa-chart-line me-1 text-info"></i> Impact Score: <strong class="text-dark">{{ task.business_impact_score }}/10</strong> | 
+                <i class="fa-solid fa-calendar-day me-1"></i> Logged: {{ task.created_at|date:"Y-m-d H:i" }}
+            </div>
+        </div>
+
+        <!-- 🕹️ የትዕዛዝ መቆጣጠሪያ በተኖች (Edit, Delete, Requeue, Sync to GitHub) -->
+        <div class="col-md-4 text-md-end mt-3 mt-md-0 d-flex flex-wrap gap-2 justify-content-md-end">
+            <!-- ✏️ ማሻሻያ (Edit) -->
+            <button type="button" class="btn btn-sm btn-light border rounded-pill px-3" onclick="openEditModal('{{ task.id }}', '{{ task.task_name|escapejs }}', '{{ task.target_file|escapejs }}', '{{ task.priority|escapejs }}', '{{ task.business_impact_score }}', '{{ task.description|escapejs }}')">
+                <i class="fa-solid fa-pen-to-square me-1"></i> {% translate "Edit" %}
+            </button>
+
+            <!-- 🔄 ድጋሚ ወረፋ አስገባ (Requeue) -->
+            {% if show_requeue %}
+            <form method="POST" action="{% url 'manage_backlog' %}" style="margin: 0;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="requeue">
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3" onclick="this.disabled=true; this.form.submit();">
+                    <i class="fa-solid fa-arrows-rotate me-1"></i> {% translate "Requeue" %}
+                </button>
+            </form>
+            {% endif %}
+
+            <!-- 🚀 በእጅ ጊትሃብ ፑሽ (Manual Sync to GitHub) -->
+            {% if show_push %}
+            <form method="POST" action="{% url 'manage_backlog' %}" style="margin: 0;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="push_github">
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <button type="submit" class="btn btn-sm btn-success rounded-pill px-3" onclick="this.disabled=true; this.innerHTML='Syncing...'; this.form.submit();">
+                    <i class="fa-brands fa-github me-1"></i> {% translate "Sync Code" %}
+                </button>
+            </form>
+            {% endif %}
+
+            <!-- ❌ መሰረዣ (Delete) -->
+            <form method="POST" action="{% url 'manage_backlog' %}" style="margin: 0;" onsubmit="return confirm('{% translate 'Are you sure you want to permanently delete this task from backlog?' %}');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
