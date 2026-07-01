@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.10 - Part 1/2)
-# ✅ የተፈቱ ችግሮች፦ Proactive PostgreSQL Metadata scanning, CASCADE schema reset recovery, and circular-free imports.
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.10 - Complete Part 1/2)
+# ✅ የተፈቱ ችግሮች፦ Dynamic PostgreSQL Proactive Schema metadata scanning (listing_type, contact_info, image_gallery), CASCADE reset recovery, and circular-free imports.
 # 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
@@ -28,6 +28,7 @@ class SecurityAuditor:
 
     @staticmethod
     def scan_code_safety(code, file_path="", site=None):
+        """የ SQL Injection, Secrets Exposure, እና የ Shell Execution (Subprocess) ፍተሻ"""
         issues = []
         if not code or not isinstance(code, str):
             return True, []
@@ -100,6 +101,7 @@ class SecurityAuditor:
             return False, issues
 
         return True, []
+
 
 # ============================================================
 # 🚑 2. UNIVERSAL HEALER (ሁለንተናዊ የሲስተም ፈዋሽ - SCHEMA AWARE)
@@ -194,12 +196,13 @@ class UniversalHealer:
                 except Exception:
                     should_run = True
 
+        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ ወዲያውኑ መሞከር
         if not should_run:
             recent_db_errors = AgentErrorLog.objects.filter(
                 site=self.site,
                 resolved=False,
                 created_at__gte=timezone.now() - timedelta(minutes=5)
-            ).filter(Q(error_message__icontains="OperationalError") | Q(error_message__icontains="relation") | Q(error_message__icontains="FieldError"))
+            ).filter(Q(error_message__icontains="OperationalError") | Q(error_message__icontains="relation") | Q(error_message__icontains="FieldError") | Q(error_message__icontains="column"))
             
             if recent_db_errors.exists():
                 logger.warning("🚑 Schema Healer: Recent DB error detected — Bypassing throttling safety.")
@@ -209,10 +212,10 @@ class UniversalHealer:
             return
 
         try:
-            # 🛡️ PROACTIVE SCHEMA METADATA SCANNING: የጠፉትን contact_info እና image_gallery በቀጥታ ወደ PostgreSQL መጋዘን መውጋት [1, 2]
+            # 🛡️ PROACTIVE SCHEMA METADATA SCANNING: የጠፉትን (listing_type, contact_info, image_gallery) አምዶች መቃኘት እና በራስ-ሰር መፍጠር
             with connection.cursor() as cursor:
                 if connection.vendor == 'postgresql':
-                    # ሀ. 'listing_type' ፍተሻ
+                    # ሀ. 'listing_type' ፊልድ መፈተሽ
                     cursor.execute("""
                         SELECT column_name FROM information_schema.columns 
                         WHERE table_name='marketplace_product' AND column_name='listing_type';
@@ -220,17 +223,17 @@ class UniversalHealer:
                     if not cursor.fetchone():
                         logger.warning("🚑 Schema Healer [Proactive]: Column 'listing_type' is missing. Auto-adding...")
                         cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS listing_type varchar(50) DEFAULT 'sale';")
-
-                    # ለ. 'contact_info' ፍተሻ (የአሁኑን ስህተት የሚፈታው) [1]
+                        
+                    # ለ. 'contact_info' ፊልድ መፈተሽ (🔴 እዚህ ጋ ነው የ UndefinedColumn ስህተት የተፈታው!)
                     cursor.execute("""
                         SELECT column_name FROM information_schema.columns 
                         WHERE table_name='marketplace_product' AND column_name='contact_info';
                     """)
                     if not cursor.fetchone():
-                        logger.warning("🚑 Schema Healer [Proactive]: Column 'contact_info' is missing. Auto-adding...")
+                        logger.warning("🚑 Schema Healer [Proactive]: Column 'contact_info' is missing. Auto-adding to unblock database queries...")
                         cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS contact_info varchar(255) DEFAULT '';")
-
-                    # ሐ. 'image_gallery' ፍተሻ (የወደፊት ስህተትን የሚከላከል) [1]
+                        
+                    # ሐ. 'image_gallery' ፊልድ መፈተሽ (models.JSONField ን የሚደግፍ)
                     cursor.execute("""
                         SELECT column_name FROM information_schema.columns 
                         WHERE table_name='marketplace_product' AND column_name='image_gallery';
@@ -242,12 +245,12 @@ class UniversalHealer:
             call_command('migrate', interactive=False)
             logger.info("🚑 Schema Healer: Database migrations check passed.")
             
-            # ስኬታማ ከሆነ ሰዓቱን መመዝገብ
             SiteConfig.objects.update_or_create(
                 key=last_check_key,
                 defaults={'value': {'time': timezone.now().isoformat()}}
             )
         except Exception as e:
+
             err_msg = str(e)
             logger.error(f"🚑 Schema Healer: Migration blocked by error: {err_msg}")
             
@@ -269,7 +272,7 @@ class UniversalHealer:
                     except Exception as retry_err:
                         err_msg = str(retry_err)
 
-            # ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን DROP ማድረግ
+            # ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን በራስ-ሰር DROP ማድረግ
             match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
             if match_exists:
                 idx_name = match_exists.group(1)
@@ -282,7 +285,7 @@ class UniversalHealer:
                 except Exception as retry_err:
                     err_msg = str(retry_err)
             
-            # በ AI የሚመራውን SQL Healer ማነቃቃት
+            # በ AI የሚመራውን ሁለንተናዊ የረድኤት ጠጋኝ ማነቃቃት
             try:
                 logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer...")
                 all_tables = []
@@ -314,7 +317,8 @@ class UniversalHealer:
                             solution_sql=sql_query,
                             resolved=True
                         )
-                    except: pass
+                    except Exception as log_err:
+                        logger.debug("Failed to record SelfHealingLog: %s", log_err)
                     
                     try:
                         call_command('migrate', interactive=False)
@@ -327,9 +331,6 @@ class UniversalHealer:
             # የመጨረሻው ጽኑ ራስ-ገዝ ውሳኔ፦ CASCADE reset
             logger.critical("🚨 Schema Healer: Rebuilding database schema from scratch.")
             self.hard_reset_database_schema()
-# ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py (ክፍል 2/2)
-# ============================================================
 
     def heal_model_field_errors(self):
         """የFieldError ሲከሰት ኤጀንቱ ራሱ ሞዴሉን ይቃኛል"""
@@ -337,9 +338,7 @@ class UniversalHealer:
         from .ai_utils import broadcast_agent_log
         broadcast_agent_log(self.site, "Model Healer: FieldError detected in views. Creating Refactor Task...", "error")
         
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AIProjectBacklog
-
         task_name = "🛡️ REFACTOR: Replace 'product_set' with 'product' in views"
         
         active_fix_exists = AIProjectBacklog.objects.filter(
@@ -349,47 +348,51 @@ class UniversalHealer:
         ).exists()
         
         if not active_fix_exists:
-            AIProjectBacklog.objects.create(
-                site=self.site,
-                task_name=task_name,
-                target_file="views",
-                priority="Critical",
-                description="FieldError found: Cannot resolve keyword 'product_set' into field. Replace all instances of 'product_set' with 'product' in views.py model queries to restore homepage.",
-                business_impact_score=10
-            )
-            logger.info("Model Healer: Created REFACTOR task successfully.")
-
-    def _heal_production_errors(self):
-        """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import AgentErrorLog, AIProjectBacklog
-
-        errors = AgentErrorLog.objects.filter(site=self.site, resolved=False).order_by('-created_at')[:3]
-        for err in errors:
-            if "FieldError" in err.error_message or "Cannot resolve keyword 'product_set'" in err.error_message:
-                self.heal_model_field_errors()
-                err.resolved = True
-                err.save()
-                continue
-
-            task_name = f"🚑 EMERGENCY FIX: {err.task_name}"
-            if not AIProjectBacklog.objects.filter(site=self.site, task_name=task_name, status__in=['Pending', 'Running']).exists():
+            try:
                 AIProjectBacklog.objects.create(
                     site=self.site,
                     task_name=task_name,
-                    target_file='views',
-                    priority='Critical',
-                    description=f"Automated Healing for error: {err.error_message}. Fix this immediately to restore uptime.",
+                    target_file="views",
+                    priority="Critical",
+                    description="FieldError found: Cannot resolve keyword 'product_set' into field. Replace all instances of 'product_set' with 'product' in views.py model queries to restore homepage.",
                     business_impact_score=10
                 )
-                logger.info(f"🚑 Created healing task for: {err.task_name}")
-            
-            err.resolved = True
-            err.save()
+                logger.info("Model Healer: Created REFACTOR task successfully.")
+            except Exception as db_err:
+                logger.error("Failed to create FieldError refactor task: %s", db_err)
+
+    def _heal_production_errors(self):
+        """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
+        from .models import AgentErrorLog, AIProjectBacklog
+
+        try:
+            errors = AgentErrorLog.objects.filter(site=self.site, resolved=False).order_by('-created_at')[:3]
+            for err in errors:
+                if "FieldError" in err.error_message or "Cannot resolve keyword 'product_set'" in err.error_message:
+                    self.heal_model_field_errors()
+                    err.resolved = True
+                    err.save()
+                    continue
+
+                task_name = f"🚑 EMERGENCY FIX: {err.task_name}"
+                if not AIProjectBacklog.objects.filter(site=self.site, task_name=task_name, status__in=['Pending', 'Running']).exists():
+                    AIProjectBacklog.objects.create(
+                        site=self.site,
+                        task_name=task_name,
+                        target_file='views',
+                        priority='Critical',
+                        description=f"Automated Healing for error: {err.error_message}. Fix this immediately to restore uptime.",
+                        business_impact_score=10
+                    )
+                    logger.info(f"🚑 Created healing task for: {err.task_name}")
+                
+                err.resolved = True
+                err.save()
+        except Exception as e:
+            logger.error("Failed to check production errors: %s", e)
 
     def _heal_security_issues(self):
         """የደህንነት ስጋቶችን (Security Logs) ለይቶ የጥገና ስራዎችን ይፈጥራል"""
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import SecurityLog, AIProjectBacklog
         try:
             vulns = SecurityLog.objects.filter(site=self.site, is_fixed=False).order_by('-severity')[:2]
@@ -425,12 +428,10 @@ class UniversalHealer:
 # 🩺 3. DAILY PERFORMANCE AUDITOR (ዕለታዊ የፍጥነት ኦዲተር)
 # ============================================================
 class PerformanceAuditor:
-    """በየ 24 ሰዓቱ የድረ-ገጽ መጫኛ ፍጥነትን የሚቀንሱ የኮድ አወቃቀሮችን (N+1 queries, blocking scripts)
-    በመቃኘት ቅድሚያ የሚሰጣቸውን የጥገና ስራዎች በራሱ የሚፈጥርና የሚፈውስ ማዕከል [1, 2, 3.1.2]"""
+    """በየ 24 ሰዓቱ የድረ-ገጽ መጫኛ ፍጥነትን የሚቀንሱ የኮድ አወቃቀሮችን በመቃኘት የጥገና ስራዎችን በራሱ የሚፈጥርና የሚፈውስ ማዕከል [1, 2, 3.1.2]"""
     
     @staticmethod
     def run_daily_performance_audit(site):
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import SiteConfig, AIProjectBacklog
 
         # 1. Throttling: በቀን አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ [1, 2]
@@ -441,21 +442,20 @@ class PerformanceAuditor:
                 if timezone.is_naive(last_time):
                     last_time = timezone.make_aware(last_time)
                 if timezone.now() - last_time < timedelta(hours=24):
-                    return # ከ24 ሰዓት በታች ከሆነ ይዘለላል (የአፈጻጸም ቆጣቢ)
-            except Exception:
-                pass
+                    return
+            except Exception as e:
+                logger.debug("Failed to parse performance audit timestamp: %s", e)
         
         logger.info(f"🩺 Performance Auditor: Running daily page-load speed audit for {site.name}...")
         issues_found = []
         
-        # 2. የ views.py ፋይልን ለ N+1 queries እና unoptimized ሎጂኮች መቃኘት [1, 2, 3.1.2]
+        # 2. የ views.py ፋይልን ለ N+1 queries መቃኘት [1, 2, 3.1.2]
         views_path = os.path.join(str(settings.BASE_DIR), 'marketplace', 'views.py')
         if os.path.exists(views_path):
             try:
                 with open(views_path, 'r', encoding='utf-8') as f:
                     views_code = f.read()
                 
-                # .select_related() ወይም .prefetch_related() ሳይጠቀሙ የባዕድ ቁልፎችን መፈለግ
                 if "Product.objects." in views_code and "select_related" not in views_code:
                     issues_found.append("Critical Performance Issue: Product queries in views.py do not use select_related(), causing N+1 database latency.")
                 
@@ -476,7 +476,7 @@ class PerformanceAuditor:
                                 html_content = f.read()
                             if "<style>" in html_content or "<script>" in html_content:
                                 issues_found.append(f"Performance Warning: Inline CSS/JS blocks found in {file}. Move these to global.css or global.js to unblock page-rendering.")
-                                break # አንድ ማስጠንቀቂያ ይበቃል
+                                break
             except Exception as e:
                 logger.error(f"Performance scanning error for templates: {e}")
 
@@ -490,9 +490,9 @@ class PerformanceAuditor:
                     site=site,
                     task_name=task_name,
                     target_file=target,
-                    priority="Critical", # ፕራዮሪቲ Critical ተደርጓል!
+                    priority="Critical",
                     description=f"Performance bottleneck detected during daily audit: {issue} Fix this immediately to drastically improve page load speed.",
-                    business_impact_score=10 # ከፍተኛው ውጤት [1, 2]
+                    business_impact_score=10
                 )
                 logger.warning(f"🩺 Performance Auditor: Created critical healing task for: {issue}")
 
@@ -512,7 +512,6 @@ class AntiBloatEngine:
     @staticmethod
     def prune_and_optimize(old_code, new_code, file_path):
         """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከላል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል [1, 2]"""
-        # የፋይሉ መጠን ከ 12,000 ካራክተር በላይ ከሆነ ወይም ካለፈው ኮድ ከ 20% በላይ ካበጠ ብቻ ማሳጠርያውን ያነቃቃል [1, 2]
         if len(new_code) < 12000 or (old_code and len(new_code) < len(old_code) * 1.20):
             return new_code
 
@@ -526,7 +525,6 @@ class AntiBloatEngine:
             f"Return JSON with key 'code' containing only the compressed, highly-optimized code."
         )
         
-        # dynamic import - circular dependency ለመከላከል [1, 2]
         from .ai_utils import clean_and_parse_json, ask_master_ai_smart
         res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
         
@@ -544,7 +542,10 @@ class AntiBloatEngine:
 def refresh_db_connection_on_error(error_message):
     """የዳታቤዝ ግንኙነት ሲመረዝ ወዲኑኑ አዲስ ግንኙነት የሚከፍት"""
     if "OperationalError" in error_message or "DatabaseError" in error_message:
-        connection.close()
-        logger.info("🛡️ Database connection refreshed due to error.")
-        return True
+        try:
+            connection.close()
+            logger.info("🛡️ Database connection refreshed due to error.")
+            return True
+        except Exception as e:
+            logger.error("Failed to safely close database connection: %s", e)
     return False
