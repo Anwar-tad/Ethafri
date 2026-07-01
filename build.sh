@@ -21,7 +21,6 @@ echo "📦 Installing Python packages with cache-enabled..."
 pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
 echo "🌐 Installing Playwright Browser..."
 playwright install chromium
-playwright install-deps chromium
 # 2. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ (WhiteNoise መጨመቂያውን በአግባቡ ያጠናቅራል)
 echo ""
 echo "📂 Collecting static files..."
