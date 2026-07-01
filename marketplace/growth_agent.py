@@ -27,7 +27,7 @@ from django.db.models import Q
 from concurrent.futures import ThreadPoolExecutor
 
 # የረዳት አስፈጸሚዎች ግንኙነት
-from .code_apply import apply_code_change
+#from .code_apply import apply_code_change
 from .ai_utils import (
     clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log,
     translate_text_incremental, compress_code_for_prompt
