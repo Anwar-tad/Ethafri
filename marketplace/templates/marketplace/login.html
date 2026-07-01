@@ -1,8 +1,6 @@
 <!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/login.html
-📝 ለውጥ፦ v1.1 Master CEO Login Page — DRY & Clean UI (No Style Bloat)
-✅ የተፈቱ ችግሮች፦ Model Form Alignment, Unified User Experience
-📅 ቀን፦ 2026-06-25
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/login.html
+📝 ስሪት፦ v1.2 (Complete Login - Double-Submit Protected)
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,7 +8,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -32,7 +30,7 @@
             <form method="POST" id="loginForm">
                 {% csrf_token %}
                 
-                <!-- የዲጃንጎ ፎርም (AuthenticationForm) -->
+                <!-- የዲጃንጎ ፎርም (AuthenticationForm) - በ .auth-body input CSS በራስ-ሰር ይዋባል። -->
                 {{ form.as_p }}
 
                 <button type="submit" class="btn-auth" id="loginBtn">
@@ -55,12 +53,13 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- 🟢 Double-Submit Guard (የመግቢያ ጥበቃ) -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('loginForm');
         const btn = document.getElementById('loginBtn');
 
-        if (form) {
+        if (form && btn) {
             form.addEventListener('submit', function() {
                 btn.disabled = true;
                 btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> {% trans "በማረጋገጥ ላይ..." %}`;

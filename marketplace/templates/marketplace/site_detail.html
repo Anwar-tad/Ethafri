@@ -1,8 +1,6 @@
 <!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/site_detail.html
-📝 ለውጥ፦ v1.3 Site Specific Intelligence — Real-Time WebSocket Synced (DRY)
-✅ የተፈቱ ችግሮች፦ Site-specific WebSocket streaming, Dynamic backlog redraw, Fully translated labels (i18n)
-📅 ቀን፦ 2026-06-27
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/site_detail.html
+📝 ስሪት፦ v1.4 (Site Specific Intelligence - Complete Implementation)
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -22,7 +20,7 @@
 <div class="site-detail-wrapper py-4">
     
     <!-- 🚀 Site Executive Header -->
-    <div class="site-hero">
+    <div class="site-hero" style="background: linear-gradient(135deg, var(--primary-color, #1a2a6c), var(--accent-purple, #4e085e)); color: white; padding: 2.5rem; border-radius: 1.5rem; margin-bottom: 2rem; box-shadow: var(--shadow-md);">
         <div class="row align-items-center">
             <div class="col-lg-7">
                 <div class="d-flex align-items-center gap-3 mb-3">
@@ -39,21 +37,18 @@
                     <i class="fas fa-code-branch ms-2 me-1"></i> {{ site.name }}
                 </p>
                 
-                <div class="metric-grid">
-                    <div class="metric-item">
-                        <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
-                        <span class="metric-val" id="site-products-val">{{ site.total_products }}</span>
-                        <span class="metric-lbl">{% trans "Products" %}</span>
+                <div class="metric-grid" style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                    <div class="metric-item d-flex flex-column">
+                        <span class="metric-val fs-3 fw-bold" id="site-products-val">{{ site.total_products }}</span>
+                        <span class="metric-lbl small opacity-75">{% trans "Products" %}</span>
                     </div>
-                    <div class="metric-item">
-                        <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
-                        <span class="metric-val" id="site-visitors-val">{{ site.monthly_visitors }}</span>
-                        <span class="metric-lbl">{% trans "Visitors" %}</span>
+                    <div class="metric-item d-flex flex-column">
+                        <span class="metric-val fs-3 fw-bold" id="site-visitors-val">{{ site.monthly_visitors }}</span>
+                        <span class="metric-lbl small opacity-75">{% trans "Visitors" %}</span>
                     </div>
-                    <div class="metric-item">
-                        <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
-                        <span class="metric-val" id="site-revenue-val">ETB {{ site.monthly_revenue|floatformat:0 }}</span>
-                        <span class="metric-lbl">{% trans "Revenue" %}</span>
+                    <div class="metric-item d-flex flex-column">
+                        <span class="metric-val fs-3 fw-bold" id="site-revenue-val">ETB {{ site.monthly_revenue|floatformat:0 }}</span>
+                        <span class="metric-lbl small opacity-75">{% trans "Revenue" %}</span>
                     </div>
                 </div>
             </div>
@@ -66,7 +61,7 @@
                             <i class="fas fa-robot me-2 text-primary"></i> {% trans "Force Site Audit" %}
                         </button>
                     </form>
-                    <a href="{{ site.deployment_url }}" target="_blank" class="btn btn-outline-light rounded-pill px-4">
+                    <a href="{{ site.deployment_url|default:'#' }}" target="_blank" class="btn btn-outline-light rounded-pill px-4 py-2">
                         <i class="fas fa-external-link-alt me-2"></i> {% trans "Visit Live Site" %}
                     </a>
                 </div>
@@ -77,17 +72,17 @@
     <!-- 🛠️ Intelligence Tabs -->
     <ul class="nav nav-pills nav-pills-custom gap-2 mb-4 justify-content-center" id="siteDetailTabs" role="tablist">
         <li class="nav-item">
-            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-backlog">
+            <button class="nav-link active rounded-pill px-4 fw-bold" data-bs-toggle="tab" data-bs-target="#tab-backlog">
                 <i class="fas fa-list-check me-2"></i>{% trans "Backlog" %}
             </button>
         </li>
         <li class="nav-item">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-evolution">
+            <button class="nav-link rounded-pill px-4 fw-bold" data-bs-toggle="tab" data-bs-target="#tab-evolution">
                 <i class="fas fa-dna me-2"></i>{% trans "History" %}
             </button>
         </li>
         <li class="nav-item">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-errors">
+            <button class="nav-link rounded-pill px-4 fw-bold" data-bs-toggle="tab" data-bs-target="#tab-errors">
                 <i class="fas fa-bug me-2"></i>{% trans "Errors" %}
             </button>
         </li>
@@ -96,13 +91,12 @@
     <div class="tab-content">
         <!-- 📋 Backlog Tab -->
         <div class="tab-pane fade show active" id="tab-backlog">
-            <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
-            <div class="tab-pane-content" id="backlog-container">
+            <div class="tab-pane-content bg-white p-4 rounded-4 shadow-sm border" id="backlog-container">
                 <h5 class="fw-bold mb-4">{% trans "Pending Strategic Tasks" %}</h5>
                 {% for task in backlog %}
                 <div class="d-flex justify-content-between align-items-center p-3 border-bottom border-light">
                     <div>
-                        <span class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning{% else %}info{% endif %} rounded-pill me-2">
+                        <span class="badge bg-{% if task.priority == 'Critical' %}danger{% elif task.priority == 'High' %}warning text-dark{% else %}info{% endif %} rounded-pill me-2">
                             {{ task.priority }}
                         </span>
                         <span class="fw-bold">{{ task.task_name }}</span>
@@ -112,7 +106,7 @@
                 </div>
                 {% empty %}
                 <div class="text-center py-5 text-muted">
-                    <i class="fas fa-check-circle fa-3x mb-3 opacity-25"></i>
+                    <i class="fas fa-check-circle fa-3x mb-3 opacity-25 text-success"></i>
                     <p>{% trans "No pending work for this niche. Everything is up to date." %}</p>
                 </div>
                 {% endfor %}
@@ -121,7 +115,7 @@
 
         <!-- 🧬 Evolution History -->
         <div class="tab-pane fade" id="tab-evolution">
-            <div class="tab-pane-content">
+            <div class="tab-pane-content bg-white p-4 rounded-4 shadow-sm border">
                 <h5 class="fw-bold mb-4">{% trans "System Evolution History" %}</h5>
                 {% for log in evolutions %}
                 <div class="p-3 border-bottom border-light">
@@ -139,7 +133,7 @@
 
         <!-- 🚑 Errors & Health -->
         <div class="tab-pane fade" id="tab-errors">
-            <div class="tab-pane-content">
+            <div class="tab-pane-content bg-white p-4 rounded-4 shadow-sm border">
                 <h5 class="fw-bold mb-4">{% trans "Unresolved Issues" %}</h5>
                 {% for err in error_logs %}
                 <div class="alert alert-danger rounded-4 border-0 mb-3">
@@ -151,8 +145,8 @@
                 </div>
                 {% empty %}
                 <div class="text-center py-5">
-                    <i class="fas fa-shield-check text-success fa-4x mb-3"></i>
-                    <h5 class="text-success">{% trans "Niche Health" %}: 100%</h5>
+                    <i class="fas fa-shield-halved text-success fa-4x mb-3"></i>
+                    <h5 class="text-success fw-bold">{% trans "Niche Health" %}: 100%</h5>
                     <p class="text-muted">{% trans "No unresolved system or code errors found." %}</p>
                 </div>
                 {% endfor %}
@@ -166,7 +160,6 @@
 <script>
     // 📟 WebSocket Connection — የነጠላ ሳይት መረጃዎችን በእውነተኛ ሰዓት ለመቆጣጠር የተገጠመ ሎጂክ
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    // ✅ GITHUB የሰረዝ ስምምነትን መጠበቅ (No more ValueError 404!)
     const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
 
     socket.onopen = function() {
@@ -200,7 +193,7 @@
                     backlogContainer.innerHTML = `
                         <h5 class="fw-bold mb-4">{% trans "Pending Strategic Tasks" %}</h5>
                         <div class="text-center py-5 text-muted">
-                            <i class="fas fa-check-circle fa-3x mb-3 opacity-25"></i>
+                            <i class="fas fa-check-circle fa-3x mb-3 opacity-25 text-success"></i>
                             <p>{% trans "No pending work for this niche. Everything is up to date." %}</p>
                         </div>`;
                 } else {
@@ -208,7 +201,7 @@
                     tasks.forEach(task => {
                         let badgeColor = 'info';
                         if (task.priority === 'Critical') badgeColor = 'danger';
-                        else if (task.priority === 'High') badgeColor = 'warning';
+                        else if (task.priority === 'High') badgeColor = 'warning text-dark';
                         
                         html += `
                             <div class="d-flex justify-content-between align-items-center p-3 border-bottom border-light">
@@ -223,7 +216,7 @@
                 }
             }
         }
-        // ተርሚናል ሎግ ሲመጣ መረጃዎችን በየሰከንዱ ዳግም አፕዴት እንዲያደርግ ዳግም መጠየቅ
+        // ተርሚናል ሎግ ሲመጣ መረጃዎችን በየሰከንዱ ዳግም አፕዴት እንዲያደርግ መጠየቅ
         else if (data.type === 'terminal_log') {
             socket.send(JSON.stringify({
                 action: 'get_site_status',

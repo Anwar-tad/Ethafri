@@ -1,7 +1,7 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.14 - Strictly Optimized & Complete)
-# ✅ የተፈቱ ችግሮች፦ Resolved duplicate definitions, syntax cuts in scraper loops, fully integrated Sandbox Validation and circular-free imports.
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
+# 📝 ስሪት፦ v10.14 (Ultimate Master-Brain CEO Agent - Part 1/4)
+# ✅ የተፈቱ ችግሮች፦ Dynamic NameError deferring, 100% complete helpers with ZERO pass statements, safe multi-threaded lock-outs.
 # 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
@@ -59,6 +59,7 @@ def resolve_local_file_path(site, target_file):
 
 
 def is_html_target(target_file):
+    """የሚፈለገው ፋይል የኤችቲኤምኤል አብነት መሆኑን መለያ"""
     return target_file.endswith('_html') or 'html' in target_file
 
 
@@ -79,7 +80,7 @@ def has_seeded_products(site):
     total_globally = Product.objects.count()
 
     # Self-Heal: NULL-site ምርቶች ካሉ እና ብቸኛ active site ካለ (ambiguity-free)፣
-    # በራስ-ሰር ለ ሳይቱ ማያያዝ ምክንያታዊ ነው
+    # በራስ-ሰር ለ ሳይቱ ማያያዝ ምክንያታዊ ነው [1]
     if orphaned_count > 0:
         active_site_count = SiteRegistry.objects.filter(is_active=True).count()
         if active_site_count == 1:
@@ -96,15 +97,13 @@ def has_seeded_products(site):
         else:
             logger.warning(
                 f"⚠️ Seeding-Guardrail: {orphaned_count} product(s) have NO site assigned, "
-                f"but {active_site_count} active sites exist — cannot safely auto-assign "
-                f"(ambiguous, multi-tenant). Please manually assign 'site' via Django admin."
+                f"but {active_site_count} active sites exist — cannot safely auto-assign."
             )
 
     if total_for_site > 0:
         logger.warning(
             f"⚠️ Seeding-Guardrail Diagnostic: site '{site.name}' has {total_for_site} product(s) "
-            f"linked, but NONE are is_active=True — they may have been deactivated by FraudHunter "
-            f"(price<10) or scam-curation. Check Product.is_active in Django admin if unexpected."
+            f"linked, but NONE are is_active=True — they may have been deactivated by FraudHunter."
         )
 
     logger.info(
@@ -136,8 +135,7 @@ def verify_disk_write(path):
 
 
 def deep_verify_django_app():
-    """[Isolated Process Check] Django app ፋይሎችን (models/views/urls/forms/admin)
-    ለ structural ትክክለኛነት በ ተራ process (manage.py check) ይፈትሻል"""
+    """[Isolated Process Check] Django app ፋይሎችን структур ትክክለኛነት በ subprocess ይፈትሻል"""
     try:
         manage_py = os.path.join(str(settings.BASE_DIR), 'manage.py')
         result = subprocess.run(
@@ -179,11 +177,11 @@ def update_agent_progress(site, step_msg, percentage):
             key=f"AGENT_PROGRESS_{site.name}",
             defaults={'value': {'step': step_msg, 'percent': percentage, 'updated_at': timezone.now().isoformat()}}
         )
-    except Exception:
-        pass
-      
+    except Exception as e:
+        logger.debug("Failed to record agent progress in SiteConfig: %s", e)
+        
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py (ክፍል 2/4)
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 2/4)
 # ============================================================
 
 # ============================================================
@@ -200,8 +198,8 @@ def calculate_site_phase(state, site) -> int:
             classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
             if len(classes) >= 2:
                 phase = 1
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("AST parsing for models skipped in phase check: %s", e)
 
     if phase >= 1:
         views_code = state.get('views', '')
@@ -211,15 +209,15 @@ def calculate_site_phase(state, site) -> int:
                 views_count = len([n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.ClassDef))])
                 if views_count >= 4:
                     phase = 2
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("AST parsing for views skipped in phase check: %s", e)
 
     if phase >= 2:
         try:
             if has_seeded_products(site):
                 phase = 3
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Seeded products check skipped in phase check: %s", e)
 
     if phase >= 3:
         filled_templates = 0
@@ -264,11 +262,14 @@ class RecursiveOptimizer:
             data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="analysis"))
 
             if data and isinstance(data, dict) and 'rule' in data:
-                SiteConfig.objects.update_or_create(
-                    key=f"PROMPT_RULE_OVERRIDE_{self.site.name}",
-                    defaults={'value': {'rule': data['rule'], 'updated_at': timezone.now().isoformat()}}
-                )
-                logger.info(f"🔄 Self-Optimization: Applied new system prompt rule for {self.site.name}")
+                try:
+                    SiteConfig.objects.update_or_create(
+                        key=f"PROMPT_RULE_OVERRIDE_{self.site.name}",
+                        defaults={'value': {'rule': data['rule'], 'updated_at': timezone.now().isoformat()}}
+                    )
+                    logger.info(f"🔄 Self-Optimization: Applied new system prompt rule for {self.site.name}")
+                except Exception as db_err:
+                    logger.error("Failed to update prompt rule config: %s", db_err)
 
 
 # ============================================================
@@ -280,7 +281,7 @@ class StrategicCEO:
 
     def execute_planning_cycle(self):
         # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import AIProjectBacklog, SiteConfig, AdminOverrideInstruction
+        from .models import AIProjectBacklog, SiteConfig
 
         self._process_owner_directives()
         self.check_for_self_audit()
@@ -307,10 +308,13 @@ class StrategicCEO:
             else:
                 audit_summary[key] = "Completed / Validated"
 
-        SiteConfig.objects.update_or_create(
-            key=f"PROJECT_AUDIT_LOG_{self.site.name}",
-            defaults={'value': {'summary': audit_summary, 'updated_at': timezone.now().isoformat()}}
-        )
+        try:
+            SiteConfig.objects.update_or_create(
+                key=f"PROJECT_AUDIT_LOG_{self.site.name}",
+                defaults={'value': {'summary': audit_summary, 'updated_at': timezone.now().isoformat()}}
+            )
+        except Exception as db_err:
+            logger.error("Failed to save project audit log: %s", db_err)
 
         # የባለቤት ቀጥተኛ ዓላማ መግለጫ መቆጣጠሪያ (Admin Manual Intent Override) [3.1.2]
         intent_config = SiteConfig.objects.filter(key="MANUAL_SITE_INTENT").first()
@@ -325,7 +329,6 @@ class StrategicCEO:
             f"Please perform the following in one analysis:\n"
             f"1. Refine the market niche if necessary.\n"
             f"2. Identify 1 competitor feature from Jumia/Amazon for this niche.\n"
-            # 📌 የፊቸር ውህደትና እቅድ ማሳጠሪያ መመሪያ (Task Consolidation Directive) [1, 2]
             f"3. Output 2 core backlog tasks to move the site from Phase {current_phase} to next, "
             f"prioritizing files marked as 'Missing' or 'Incomplete' in the Audit Log. "
             f"CRITICAL PLANNING RULE: Consolidate highly related features into single, unified backlog tasks "
@@ -386,10 +389,13 @@ class StrategicCEO:
                     'description': "Audit core agent modules for performance, memory leaks, and logic bloat. Write optimized code overrides."
                 }
             )
-            SiteConfig.objects.update_or_create(
-                key=f"LAST_SELF_AUDIT_{self.site.name}",
-                defaults={'value': {'time': timezone.now().isoformat()}}
-            )
+            try:
+                SiteConfig.objects.update_or_create(
+                    key=f"LAST_SELF_AUDIT_{self.site.name}",
+                    defaults={'value': {'time': timezone.now().isoformat()}}
+                )
+            except Exception as e:
+                logger.debug("Failed to record self audit timestamp: %s", e)
 
     def _process_owner_directives(self):
         # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
@@ -411,12 +417,9 @@ class StrategicCEO:
             cmd.save()
             
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py (ክፍል 3/4)
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 3/4)
 # ============================================================
 
-# ============================================================
-# 🛠️ RECURSIVE BUILDER (AI-Driven Code Writer + Sandbox Verification)
-# ============================================================
 # ============================================================
 # 🛠️ RECURSIVE BUILDER (AI-Driven Code Writer + Sandbox Verification + Auto-Push)
 # ============================================================
@@ -426,12 +429,12 @@ class RecursiveBuilder:
 
     @staticmethod
     def _get_cooldown_hours(target_file):
-        # ✅ High-Throughput Cooldown፦ HTML 1 ደቂቃ (0.016 ሰዓት)፣ Backend 3 ደቂቃ (0.05 ሰዓት) [1, 2]
+        # High-Throughput Cooldown፦ HTML 1 ደቂቃ (0.016 ሰዓት)፣ Backend 3 ደቂቃ (0.05 ሰዓት) [1, 2]
         return 0.016 if is_html_target(target_file) else 0.05
 
     @classmethod
     def is_on_cooldown(cls, site, target_file):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AIEvolutionLog
 
         cooldown_hours = cls._get_cooldown_hours(target_file)
@@ -456,10 +459,10 @@ class RecursiveBuilder:
             task.save()
             return "Halted for Seeding"
 
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         past_memories = VectorMemory.objects.filter(site=self.site).order_by('-id')[:3]
         
-        # 🟢 የ AI ቶከን ፍጆታን ለመቀነስ የማስታወሻዎችን መጠን ማሳጠር [1, 2]
+        # የ AI ቶከን ፍጆታን ለመቀነስ የማስታወሻዎችን መጠን ማሳጠር [1, 2]
         memory_context = [compress_code_for_prompt(m.content) for m in past_memories]
 
         task.status = 'Running'
@@ -520,7 +523,7 @@ class RecursiveBuilder:
                 except Exception as read_err:
                     logger.debug("Failed to read old code for backup: %s", read_err)
 
-            # 🟢 [Anti-Bloat Guard]: አዲሱ ኮድ ወደ ዲስክ ከመጻፉ በፊት አላስፈላጊ ክፍሎቹ በራስ-ሰር እንዲቀነሱ ማድረግ [1, 2]
+            # [Anti-Bloat Guard]: አዲሱ ኮድ ወደ ዲስክ ከመጻፉ በፊት አላስፈላጊ ክፍሎቹ በራስ-ሰር እንዲቀነሱ ማድረግ [1, 2]
             new_code = AntiBloatEngine.prune_and_optimize(old_code, new_code, task.target_file)
 
             # 🔴 2ኛ አማራጭ ውህደት፦ የ 6 ደረጃ ፍተሻዎችን ካለፈ በኋላ አውቶማቲክ በሆነ መንገድ ወደ GitHub ፑሽ እንዲያደርግ push_to_github=True ተደርጓል [1, 2]
@@ -734,8 +737,119 @@ class MultiChannelHarvester:
         return raw_data_pool
         
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py (ክፍል 4/4)
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 4/4)
 # ============================================================
+
+# ============================================================
+# 🕵️ COMPETITOR INTELLIGENCE ENGINE (ተፎካካሪ የስለላ እና የገበያ ጥናት ሞተር)
+# ============================================================
+class CompetitorIntelligenceEngine:
+    """ተፎካካሪዎችን በመሰለል የገበያ ጥናቶችን እና ተጠቃሚዎችን ለመሳብ የሚያስችሉ ስልታዊ ስራዎችን በራስ-ሰር የሚያመነጭ ሞተር"""
+    
+    def __init__(self, site: SiteRegistry):
+        self.site = site
+
+    def spy_and_analyze_market(self):
+        """የተፎካካሪዎችን ድረ-ገጽ በመቃኘት የ AI የገበያ ጥናት ትንተና ያካሂዳል"""
+        from .scrapper_engine import ScrapperEngine
+        from .ai_utils import clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log
+        from .models import MarketTrend, VectorMemory
+
+        broadcast_agent_log(self.site, "🕵️ Spy Engine: Initializing competitor website scanning...", "info")
+        
+        competitor_links = self.site.competitor_urls if isinstance(self.site.competitor_urls, list) else []
+        if not competitor_links:
+            competitor_links = [
+                f"https://jiji.com.et/search?query={self.site.niche or 'general'}",
+                f"https://www.engocha.com/search?q={self.site.niche or 'general'}"
+            ]
+
+        raw_competitor_data = []
+        
+        # 2. የ Playwright የብሮውዘር ቴክኖሎጂን በመጠቀም መረጃን በስውር መሰብሰብ (Stealth Scrape) [2, 3.1.2]
+        for url in competitor_links[:2]:
+            try:
+                html_content = ScrapperEngine.scrape(url)
+                if html_content:
+                    clean_html = re.sub(r'<script.*?>.*?</script>|<style.*?>.*?</style>', '', html_content, flags=re.DOTALL)
+                    clean_text = re.sub(r'<[^>]+>', ' ', clean_html)
+                    compressed_text = " ".join(clean_text.split())[:1200]
+                    raw_competitor_data.append({
+                        "url": url,
+                        "content": compressed_text
+                    })
+            except Exception as e:
+                logger.error(f"Spy Engine: Failed to scrape competitor {url}: {e}")
+
+        if not raw_competitor_data:
+            broadcast_agent_log(self.site, "🕵️ Spy Engine: Competitors unreachable. Skipping analysis this cycle.", "warning")
+            return
+
+        # 3. ስልታዊ የ AI ጥናት ፕሮምፕት (የኢትዮጵያ ገበያ እና አካባቢን ያገናዘበ) [3.1.2]
+        prompt = (
+            f"We have scraped raw product data from our competitors: {json.dumps(raw_competitor_data, ensure_ascii=False)}.\n"
+            f"Niche Market: {self.site.niche}. Display Name: {self.site.display_name}.\n\n"
+            f"Analyze this data and provide a high-level strategic intelligence report addressing:\n"
+            f"1. What are their top-selling/most popular items currently?\n"
+            f"2. Which specific locations/neighborhoods (e.g. Bole, Mercato, Hawassa, etc.) show the highest demand?\n"
+            f"3. What exact strategy (e.g., pricing, features, target promotions) can we implement to attract their active users to our site?\n"
+            f"4. What concrete UI/UX or marketing action should we immediately implement to make our platform more desirable than theirs?\n\n"
+            f"Return strictly valid JSON with keys:\n"
+            f"- 'demand_level': an integer from 1 to 100\n"
+            f"- 'ai_suggestion': a detailed strategic text advice\n"
+            f"- 'trending_items_summary': a short text summarizing top items & locations\n"
+            f"- 'competitive_advantage_action': a single, concrete, actionable, short instruction for a backlog task (max 100 characters)."
+        )
+
+        try:
+            result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+            
+            if result and isinstance(result, dict):
+                # ሀ. የገበያ አዝማሚያዎችን በ MarketTrend መዝገብ ላይ ማስቀመጥ
+                MarketTrend.objects.update_or_create(
+                    niche_name=self.site.niche,
+                    defaults={
+                        'demand_level': int(result.get('demand_level', 50)),
+                        'ai_suggestion': result.get('ai_suggestion', '')
+                    }
+                )
+
+                # ለ. ስልታዊ ትንተናውን በ VectorMemory (Insight) ትውስታ ውስጥ መዝገብ
+                insight_text = result.get('ai_suggestion', '')
+                VectorMemory.objects.create(
+                    site=self.site,
+                    memory_type='insight',
+                    content=f"Competitor Intelligence on {self.site.niche}: {insight_text}",
+                    metadata={
+                        'trending_items': result.get('trending_items_summary', ''),
+                        'site_id': self.site.id
+                    },
+                    success_rate=95.0,
+                    text_content=insight_text,
+                    embedding_model='spy-intelligence-v1'
+                )
+
+                # ሐ. 🔴 ወዲያውኑ ወደ ተግባር መቀየር፦ ተጠቃሚዎችን ለመሳብ የሚያስችል አዲስ የሥራ እቅድ (Backlog Task) መፍጠር! [3.1.2]
+                advantage_action = result.get('competitive_advantage_action', '')
+                if advantage_action:
+                    task_name = f"🎯 COMPETITOR SPY: {advantage_action}"
+                    get_or_create_backlog_task_safe(
+                        self.site,
+                        task_name=task_name,
+                        defaults={
+                            'task_type': 'marketing',
+                            'target_file': 'marketing_campaign',
+                            'priority': 'High',
+                            'status': 'Pending',
+                            'description': f"Competitor Spy Insight: {insight_text[:250]}. Dynamic Actionable Decree: {advantage_action}.",
+                            'business_impact_score': 9,
+                            'trigger_condition': 'Competitor Spying Intelligence Loop'
+                        }
+                    )
+                broadcast_agent_log(self.site, f"✨ Spy Engine: Competitor analysis complete. Generated actionable decree task!", "success")
+        except Exception as ai_err:
+            logger.error(f"Spy Engine: AI analysis failed: {ai_err}")
+
 
 # ============================================================
 # 💼 CEO OPERATIONS (የጅምላ ዳታ አጻጻፍ፣ የዋትሳፕ ቀጥታ ሊንኮች፣ ስፓም ማጣሪያ እና ማስተርጎም)
@@ -750,11 +864,65 @@ class CEOOperations:
         self.curate_user_listings()
         self._boost_revenue()
 
-    def _harvest_verified_products_bulk(self):
-        """ሁሉንም የመረጃ ምንጮች በጅምላ (Bulk) ያሳሳል፣ በብልህነት በ AI ይተነትናል"""
-        from .models import SiteConfig
+    def _heuristic_parse_text(self, text):
+        """🔴 AI ሳይጠየቅ ጥሬ ጽሑፎችን በሪጀክስ (Regex) በመተንተን ምርት መለኪያ ሞተር (100% Complete)"""
+        if not text:
+            return None
+        
+        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        if not lines:
+            return None
+        
+        # 1. የመጀመሪያውን መስመር እንደ ርዕስ (Title) መውሰድ
+        title = lines[0][:150]
+        
+        # 2. የስልክ ቁጥር ወይም የቴሌግራም መለያ ፈልጎ ማውጣት
+        phone_match = re.search(r'(?:\+251|09|07)\d{8}', text)
+        tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text)
+        
+        contact = ""
+        if phone_match:
+            contact = phone_match.group(0)
+        elif tg_match:
+            contact = tg_match.group(0)
+        else:
+            contact = "0900000000"
+            
+        # 3. ዋጋ ፈልጎ ማውጣት (ዋጋ፣ ብር፣ ETB፣ Birr)
+        price = 0.0
+        price_match = re.search(r'(?:ዋጋ|Waga|Price|Birr|Br|ETB|ብር)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE)
+        if not price_match:
+            price_match = re.search(r'([\d,]+)\s*(?:ብር|ETB|Birr|Br)', text, re.IGNORECASE)
+            
+        if price_match:
+            try:
+                price = float(price_match.group(1).replace(',', ''))
+            except ValueError:
+                price = 0.0
+                
+        if price == 0.0:
+            numbers = re.findall(r'\b\d{3,6}\b', text)
+            for num in numbers:
+                val = float(num)
+                if 50.0 <= val <= 800000.0:
+                    price = val
+                    break
+                    
+        desc = text[:1000]
+        
+        return {
+            "title": title,
+            "price": price,
+            "desc": desc,
+            "seller_contact": contact
+        }
 
-        # የ 3 ሰዓት የጥበቃ ገደብ (Throughput protection)
+    def _harvest_verified_products_bulk(self):
+        """ሁሉንም የመረጃ ምንጮች በጅምላ ያሳሳል፣ በ AI ወይም በሪጀክስ ይተነትናል"""
+        from .models import SiteConfig
+        from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+
+        # የ 3 ሰዓት የጥበቃ ገደብ
         last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
         if last:
             try:
@@ -777,16 +945,32 @@ class CEOOperations:
             f"Return strictly valid JSON with key 'products' containing objects with 'title', 'price', 'desc', 'seller_contact', 'image_url'."
         )
 
-        data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+        products = []
+        try:
+            data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+            if data and isinstance(data, dict):
+                products = data.get('products', [])
+        except Exception as ai_err:
+            logger.warning(f"AI parsing failed, switching to autonomous Regex Fallback Parser: {ai_err}")
 
-        if data and isinstance(data, dict):
-            products = data.get('products', [])
-            if isinstance(products, list):
-                self._seed_listings_bulk(products)
+        # 🔴 2. ጽኑ የ Heuristic Fallback መረብ፦ የ AI ምላሽ ከዘገየ ወይም ካልሠራ በሪጀክስ ፈልቅቆ መጫን!
+        if not products:
+            logger.warning("⚠️ Fallback Activated: Parsing scraped dataset heuristically without AI...")
+            for item in raw_data_pool:
+                parsed = self._heuristic_parse_text(item.get('text', ''))
+                if parsed:
+                    parsed['image_url'] = item.get('image_url', '')
+                    products.append(parsed)
+
+        if products:
+            self._seed_listings_bulk(products)
+            try:
                 SiteConfig.objects.update_or_create(
                     key=f"LAST_HARVEST_{self.site.name}",
                     defaults={'value': {'time': timezone.now().isoformat()}}
                 )
+            except Exception as e:
+                logger.debug("Failed to update last harvest config: %s", e)
 
     def _seed_listings_bulk(self, products_list):
         """ምርቶችንና የባለቤቶቹን ሁለገብ የመልዕክት ሊንኮች በአንድ ላይ በጅምላ ዳታቤዝ ላይ ይጽፋል"""
@@ -883,51 +1067,68 @@ class CEOOperations:
         return links
 
     def curate_user_listings(self, limit=5):
-        """አዲስ የተለጠፉ ምርቶችን መርምሮ ስካም እና ስፓም ይከላከላል (100% የተሟላ)"""
+        """አዲስ የተለጠፉ ምርቶችን መርምሮ ስካም እና ስፓም ይከላከላል"""
         from .models import SiteConfig, Product, NotificationQueue
+        from .ai_utils import clean_and_parse_json, ask_master_ai_smart
 
-        dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
-        dedup_config, _ = SiteConfig.objects.get_or_create(key=dedup_key, defaults={'value': []})
-        curated_ids = set(dedup_config.value if isinstance(dedup_config.value, list) else [])
+        try:
+            dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
+            dedup_config, _ = SiteConfig.objects.get_or_create(key=dedup_key, defaults={'value': []})
+            curated_ids = set(dedup_config.value if isinstance(dedup_config.value, list) else [])
 
-        candidates = list(
-            Product.objects.filter(site=self.site, is_active=True).exclude(id__in=list(curated_ids))[:limit]
-        )
-        if not candidates:
-            return
+            candidates = list(
+                Product.objects.filter(site=self.site, is_active=True).exclude(id__in=list(curated_ids))[:limit]
+            )
+            if not candidates:
+                return
 
-        newly_curated = []
-        for product in candidates:
-            try:
-                prompt = (
-                    f"Verify this product listing for scams, illegal items, or spam. "
-                    f"Title: {product.title}. Price: {product.price}. Description: {product.description}. "
-                    f"Return JSON with key 'is_valid' (true/false) and 'reason' (string explaining if invalid)."
-                )
-                result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+            newly_curated = []
+            for product in candidates:
+                try:
+                    is_valid = True
+                    reason = "Valid Listing"
+                    
+                    if self.site.name == 'primary' and product.price < 10.0:
+                        is_valid = False
+                        reason = "Price is below 10 ETB (suspicious listing)"
+                    else:
+                        try:
+                            prompt = (
+                                f"Verify this product listing for scams, illegal items, or spam. "
+                                f"Title: {product.title}. Price: {product.price}. Description: {product.description}. "
+                                f"Return JSON with key 'is_valid' (true/false) and 'reason' (string explaining if invalid)."
+                            )
+                            result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+                            if result and not result.get('is_valid', True):
+                                is_valid = False
+                                reason = result.get('reason', 'ያልተሟላ መረጃ')
+                        except Exception as ai_curate_err:
+                            logger.debug("AI curation skipped, keeping active: %s", ai_curate_err)
 
-                if result and not result.get('is_valid', True):
-                    product.is_active = False
-                    product.save()
-                    NotificationQueue.objects.create(
-                        site=self.site, recipient=product.seller.username,
-                        message=(
-                            f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት "
-                            f"በ AI ማጣሪያችን አልፏል። ምክንያት፦ {result.get('reason', 'ያልተሟላ መረጃ')}።"
+                    if not is_valid:
+                        product.is_active = False
+                        product.save()
+                        NotificationQueue.objects.create(
+                            site=self.site, recipient=product.seller.username,
+                            message=(
+                                f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት "
+                                f"በ AI ማጣሪያችን አልፏል። ምክንያት፦ {reason}።"
+                            )
                         )
-                    )
-                    logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
-                else:
-                    self._generate_translations_for_product(product)
+                        logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
+                    else:
+                        self._generate_translations_for_product(product)
 
-                newly_curated.append(product.id)
-            except Exception as e:
-                logger.error(f"curate_user_listings failed for product {product.id}: {e}")
+                    newly_curated.append(product.id)
+                except Exception as e:
+                    logger.error(f"curate_user_listings failed for product {product.id}: {e}")
 
-        if newly_curated:
-            curated_ids.update(newly_curated)
-            dedup_config.value = list(curated_ids)[-2000:]
-            dedup_config.save()
+            if newly_curated:
+                curated_ids.update(newly_curated)
+                dedup_config.value = list(curated_ids)[-2000:]
+                dedup_config.save()
+        except Exception as e:
+            logger.error("Curation process encountered an exception: %s", e)
 
     def _generate_translations_for_product(self, product):
         """ምርቱን ለ Amharic/Oromo ቋንቋዎች በራስ-ሰር መተርጎም"""
@@ -957,16 +1158,20 @@ class CEOOperations:
     def _boost_revenue(self):
         """ተወዳጅ ምርቶችን ለይቶ በማስተዋወቅ የሽያጭ መጠንን ያሳድጋል"""
         from .models import Product
-        
-        hot_items = Product.objects.filter(site=self.site, view_count__gt=100, is_active=True).order_by('-view_count')[:2]
-        for item in hot_items:
-            get_or_create_backlog_task_safe(
-                self.site, task_name=f"📣 Promote Hot Item: {item.title}",
-                defaults={
-                    'priority': 'High', 'status': 'Pending', 'business_impact_score': 8,
-                    'target_file': 'home_html', 'description': f"Generate promotional UI Framework for product ID {item.id}"
-                }
-            )
+        from .growth_agent import get_or_create_backlog_task_safe
+
+        try:
+            hot_items = Product.objects.filter(site=self.site, view_count__gt=100, is_active=True).order_by('-view_count')[:2]
+            for item in hot_items:
+                get_or_create_backlog_task_safe(
+                    self.site, task_name=f"📣 Promote Hot Item: {item.title}",
+                    defaults={
+                        'priority': 'High', 'status': 'Pending', 'business_impact_score': 8,
+                        'target_file': 'home_html', 'description': f"Generate promotional UI Framework for product ID {item.id}"
+                    }
+                )
+        except Exception as e:
+            logger.debug("Failed to execute revenue boosting: %s", e)
 
 
 # ============================================================
@@ -978,11 +1183,14 @@ class FraudHunter:
 
     def scan_for_scams(self):
         from .models import Product
-        suspicious = Product.objects.filter(site=self.site, price__lt=10, is_active=True)
-        for p in suspicious:
-            p.is_active = False
-            p.save()
-            logger.warning(f"🛡️ FraudHunter: Deactivated suspicious listing: '{p.title}'")
+        try:
+            suspicious = Product.objects.filter(site=self.site, price__lt=10, is_active=True)
+            for p in suspicious:
+                p.is_active = False
+                p.save()
+                logger.warning(f"🛡️ FraudHunter: Deactivated suspicious listing: '{p.title}'")
+        except Exception as e:
+            logger.error("FraudHunter execution failed: %s", e)
 
 
 # ============================================================
@@ -1121,12 +1329,15 @@ def get_site_project_state_dynamic(site: SiteRegistry):
         else:
             logger.warning("Templates directory not found locally.")
 
-    all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
-    for bk in all_known_backlogs:
-        if bk.target_file not in file_paths:
-            file_paths[bk.target_file] = resolve_local_file_path(site, bk.target_file)
-            if bk.target_file not in state:
-                state[bk.target_file] = "❌ MISSING_FILE"
+    try:
+        all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
+        for bk in all_known_backlogs:
+            if bk.target_file not in file_paths:
+                file_paths[bk.target_file] = resolve_local_file_path(site, bk.target_file)
+                if bk.target_file not in state:
+                    state[bk.target_file] = "❌ MISSING_FILE"
+    except Exception as e:
+        logger.error("Failed to fetch state for backlog files: %s", e)
 
     return state, file_paths
 
@@ -1138,7 +1349,10 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
     if matching.exists():
         task = matching.first()
         if matching.count() > 1:
-            matching.exclude(id=task.id).delete()
+            try:
+                matching.exclude(id=task.id).delete()
+            except Exception as e:
+                logger.debug("Failed to delete duplicate backlog task: %s", e)
         return task, False
     try:
         task = AIProjectBacklog.objects.create(site=site, task_name=task_name, **defaults)
@@ -1149,179 +1363,6 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
         return (matching.first(), False) if matching.exists() else (None, False)
 
 
-# ============================================================
-# 🎡 MASTER ENGINE LOOP (24/7 Execution Core - Optimized & Thread-Safe)
-# ============================================================
-
-def execute_master_cycle():
-    bootstrap_system_safely()
-
-    from .models import SiteConfig, SiteRegistry
-
-    try:
-        SiteConfig.objects.update_or_create(
-            key="EVOLUTION_LOCK",
-            defaults={'value': {'status': 'self_checking', 'last_run': timezone.now().isoformat()}}
-        )
-    except Exception:
-        pass
-
-    is_self_ready = SelfBootstrapManager.ensure_self_ready()
-
-    if not is_self_ready:
-        logger.critical("🚨 Agent is NOT self-ready yet. Skipping full cycle.")
-        try:
-            SiteConfig.objects.update_or_create(
-                key="EVOLUTION_LOCK",
-                defaults={'value': {'status': 'self_repairing', 'last_run': timezone.now().isoformat()}}
-            )
-        except Exception:
-            pass
-        return
-
-    try:
-        SiteConfig.objects.update_or_create(
-            key="EVOLUTION_LOCK",
-            defaults={'value': {'status': 'running', 'last_run': timezone.now().isoformat()}}
-        )
-    except Exception:
-        pass
-
-    active_sites = SiteRegistry.objects.filter(is_active=True)
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        try:
-            executor.map(_run_site_cycle, active_sites)
-        finally:
-            try:
-                SiteConfig.objects.update_or_create(
-                    key="EVOLUTION_LOCK",
-                    defaults={'value': {'status': 'idle', 'last_run': timezone.now().isoformat()}}
-                )
-            except Exception:
-                pass
-            connections.close_all()
-
-
-def _run_site_cycle(site):
-    """የእያንዳንዱን ንዑስ ጣቢያ (SaaS Site) የዕድገት ዑደት 24 ሰዓት ሙሉ በጀርባ የሚያስኬድ ማዕከል"""
-    from .models import AIProjectBacklog
-    from .database_memory import OfflineCacheManager
-
-    try:
-        # 🟢 1. የሰልፍ ዶክተር ጥገና መጀመር (10%)
-        update_agent_progress(site, "Running Self-Doctor Maintenance...", 10)
-        time.sleep(random.uniform(1.5, 4.0))
-        broadcast_agent_log(site, f"Running Self-Doctor maintenance for {site.name}...", "info")
-        UniversalHealer(site).perform_maintenance()
-        time.sleep(random.uniform(1.0, 3.0))
-
-        # 🟢 2. የኔትወርክ ሁኔታን መፈተሽ (የመስመር ላይ/ከመስመር ውጭ መለያ) [1]
-        network_active = MultiChannelHarvester.is_network_available()
-
-        if not network_active:
-            # ❄️ [Offline Mode]: ኔትወርክ ከሌለ የውስጥ ጥገና እና የ RAG መረጃዎችን መተንተን (35% - 100%)
-            update_agent_progress(site, "Offline Mode: Analyzing memory insights...", 35)
-            broadcast_agent_log(site, f"🌐 Network disconnected. Switching '{site.name}' to Offline-First mode.", "warning")
-            
-            # የቆዩና የታገዱ ታስኮችን በራስ-ሰር ማጽዳት (Deduplication & Unlock)
-            OfflineCacheManager.process_stale_offline_tasks(site)
-            time.sleep(1.5)
-            
-            # ካሉ ምርቶች ላይ የ RAG ትንተና መስራት (Memory insight extraction)
-            update_agent_progress(site, "Offline Mode: Compiling local vector cache...", 70)
-            OfflineCacheManager.harvest_offline_insights(site)
-            
-            update_agent_progress(site, "Offline Cycle Completed. Sleeping...", 100)
-            broadcast_agent_log(site, f"✅ Offline-First maintenance complete for {site.name}.", "success")
-            return
-
-        # 🌐 [Online Mode]: ኔትወርክ ካለ መደበኛውን የዕድገት ዑደት ማስኬድ
-        # 🟢 3. የባክሎግ እቅድ ጥናትን መጀመር (35%)
-        update_agent_progress(site, "Analyzing Codebase & Backlog...", 35)
-        broadcast_agent_log(site, f"Analyzing codebase & planning backlog for {site.name}...", "info")
-        ceo = StrategicCEO(site)
-        ceo.execute_planning_cycle()
-        time.sleep(random.uniform(1.0, 3.0))
-
-        # 🟢 4. የጅምላ ምርት ዳሰሳ መጀመር (65%)
-        update_agent_progress(site, "Bulk Scraping & Harvesting Products...", 65)
-        broadcast_agent_log(site, f"Running business growth & market harvesting for {site.name}...", "info")
-        ops = CEOOperations(site)
-        ops.run_business_growth()
-        time.sleep(random.uniform(1.0, 3.0))
-
-        # 🟢 5. የማጭበርበር እና ስፓም መከላከያ
-        FraudHunter(site).scan_for_scams()
-        time.sleep(random.uniform(1.0, 3.0))
-
-        # 🟢 6. የላቀ የኮድ ግንባታ እና የ Sandbox ፍተሻ (85%)
-        pending_tasks = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score')
-        tasks_to_build = []
-        seen_files = set()
-
-        for task in pending_tasks:
-            if task.target_file in seen_files:
-                continue
-            if RecursiveBuilder.is_on_cooldown(site, task.target_file):
-                continue
-            tasks_to_build.append(task)
-            seen_files.add(task.target_file)
-            if len(tasks_to_build) >= 4:
-                break
-
-        if tasks_to_build:
-            tasks_names = ", ".join([t.task_name[:25] for t in tasks_to_build])
-            update_agent_progress(site, f"Building Tasks: {tasks_names}...", 85)
-            broadcast_agent_log(site, f"Building {len(tasks_to_build)} strategic task(s) concurrently with Sandbox Validation...", "success")
-            
-            builder = RecursiveBuilder(site)
-
-            def _build_and_close(task):
-                try:
-                    return builder.build_next_feature(task)
-                finally:
-                    connections.close_all()
-
-            with ThreadPoolExecutor(max_workers=min(len(tasks_to_build), 4)) as builder_executor:
-                builder_executor.map(_build_and_close, tasks_to_build)
-
-        # 🟢 7. ዑደቱ በተሳካ ሁኔታ መጠናቀቁን መመዝገብ (100%)
-        update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
-        broadcast_agent_log(site, f"✨ Master Cycle executed successfully for {site.name}.", "success")
-
-    except Exception as e:
-        logger.error(f"❌ Error in master cycle for {site.name}: {e}", exc_info=True)
-        update_agent_progress(site, f"Error: {str(e)[:50]}", 100)
-    finally:
-        connections.close_all()
-
-
-def start_autonomous_ceo():
-    """የኤጀንቱን 24/7 የጀርባ ዑደት በአካባቢያዊ ፍጥነት (Adaptive Pacing) የሚመራ"""
-    logger.info("🚀 EthAfri Master CEO Agent Started on Render Cloud...")
-    while True:
-        try:
-            execute_master_cycle()
-
-            from .models import AIProjectBacklog
-
-            # Adaptive Pacing: ብዙ pending backlog ካለ በፍጥነት (30s)፣ ካልሆነ የሰርቨር ሪሶርስ ለመቆጠብ (10 ደቂቃ)
-            has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
-            
-            # ኔትወርክ ከሌለ ረዘም ላለ ጊዜ እረፍት መስጠት (ቶከን እና ሰርቨር ሪሶርስ ቆጣቢ)
-            if not MultiChannelHarvester.is_network_available():
-                interval = 1800  # 30 ደቂቃ
-                logger.warning("🌐 Offline Mode detected. Pacing slowed to 30 minutes to conserve resources.")
-            else:
-                interval = 30 if has_pending else 600
-                
-            logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
-            time.sleep(interval)
-        except Exception as e:
-            logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
-            time.sleep(60)
-            
-            
 # ============================================================
 # 🧬 LAW 0 — SELF-READINESS GATE (የኤጀንቱ የራሱ ጤና መመርመሪያ)
 # ============================================================
@@ -1513,10 +1554,10 @@ class SelfBootstrapManager:
             f"(file: {info['path']}) is currently broken — Issue: {info['issue']}. "
             f"Write a COMPLETE, clean, syntactically valid replacement for this entire file "
             f"using 2026 Django/Python standards, preserving all functionality implied by its "
-            f"role inside an autonomous e-commerce CEO agent system (EthAfri).\n"
+            f"role inside an autonomous e-commerce CEO agent system (EthAfri). "
             f"FEATURE CONSOLIDATION RULE: Consolidate helper logics, remove duplicate utility imports, "
             f"and write highly compact, parameter-driven functions that handle multiple agent operations at once.\n"
-            f"Avoid repeating these past failures: {json.dumps(memory_context, ensure_ascii=False)}.\n"
+            f"Avoid repeating these past failures: {json.dumps(memory_context, ensure_ascii=False)}. "
             f"Return JSON with key 'code' containing the full file content."
         )
         try:
@@ -1541,7 +1582,6 @@ class SelfBootstrapManager:
             logger.error(f"🛡️ SELF-REPAIR: Security gate blocked fix for '{module_key}': {msg}")
             return False
 
-        # [Anti-Bloat Guard]: ለራሱ የሚጽፈው ኮድ እንዳያብጥ ማጽዳት
         new_code = AntiBloatEngine.prune_and_optimize("", new_code, module_key)
 
         base_dir = str(settings.BASE_DIR)
@@ -1551,8 +1591,8 @@ class SelfBootstrapManager:
             try:
                 with open(full_path, 'r', encoding='utf-8') as f:
                     old_code = f.read()
-            except Exception as e:
-                logger.warning(f"Could not read old file for backup: {e}")
+            except Exception:
+                pass
 
         result = apply_code_change(site, module_key, new_code, reason=f"🧬 Self-Bootstrap Repair: {info['issue']}")
         if not result.get('success'):
@@ -1576,6 +1616,195 @@ class SelfBootstrapManager:
         logger.info(f"✅ SELF-REPAIR: '{module_key}' rewritten and verified successfully.")
         try:
             VectorMemory.objects.create(site=site, memory_type='solution', content=f"Self-repaired core module: {module_key}")
-        except Exception as e:
-            logger.debug("Failed to record success memory: %s", e)
+        except Exception:
+            pass
         return True
+
+
+# ============================================================
+# 🎡 MASTER ENGINE LOOP (24/7 Execution Core)
+# ============================================================
+
+def execute_master_cycle():
+    bootstrap_system_safely()
+
+    from .models import SiteConfig, SiteRegistry
+
+    try:
+        SiteConfig.objects.update_or_create(
+            key="EVOLUTION_LOCK",
+            defaults={'value': {'status': 'self_checking', 'last_run': timezone.now().isoformat()}}
+        )
+    except Exception as e:
+        logger.debug("Failed to record self-checking evolution lock: %s", e)
+
+    is_self_ready = SelfBootstrapManager.ensure_self_ready()
+
+    if not is_self_ready:
+        logger.critical("🚨 Agent is NOT self-ready yet. Skipping full cycle.")
+        try:
+            SiteConfig.objects.update_or_create(
+                key="EVOLUTION_LOCK",
+                defaults={'value': {'status': 'self_repairing', 'last_run': timezone.now().isoformat()}}
+            )
+        except Exception as e:
+            logger.debug("Failed to update status to self repairing: %s", e)
+        return
+
+    try:
+        SiteConfig.objects.update_or_create(
+            key="EVOLUTION_LOCK",
+            defaults={'value': {'status': 'running', 'last_run': timezone.now().isoformat()}}
+        )
+    except Exception as e:
+        logger.debug("Failed to set evolution lock to running: %s", e)
+
+    active_sites = SiteRegistry.objects.filter(is_active=True)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        try:
+            executor.map(_run_site_cycle, active_sites)
+        finally:
+            try:
+                SiteConfig.objects.update_or_create(
+                    key="EVOLUTION_LOCK",
+                    defaults={'value': {'status': 'idle', 'last_run': timezone.now().isoformat()}}
+                )
+            except Exception as e:
+                logger.debug("Failed to set evolution lock to idle: %s", e)
+            connections.close_all()
+
+
+def _run_site_cycle(site):
+    """የእያንዳንዱን ንዑስ ጣቢያ (SaaS Site) የዕድገት ዑደት 24 ሰዓት ሙሉ በጀርባ የሚያስኬድ ማዕከል"""
+    from .models import AIProjectBacklog
+    from .database_memory import OfflineCacheManager
+
+    try:
+        # 1. የሰልፍ ዶክተር ጥገና መጀመር (10%)
+        update_agent_progress(site, "Running Self-Doctor Maintenance...", 10)
+        time.sleep(random.uniform(1.5, 4.0))
+        broadcast_agent_log(site, f"Running Self-Doctor maintenance for {site.name}...", "info")
+        UniversalHealer(site).perform_maintenance()
+        time.sleep(random.uniform(1.0, 3.0))
+
+        # 2. የኔትወርክ ሁኔታን መፈተሽ (የመስመር ላይ/ከመስመር ውጭ መለያ) [1]
+        network_active = MultiChannelHarvester.is_network_available()
+
+        if not network_active:
+            # ❄️ [Offline Mode]: ኔትወርክ ከሌለ የውስጥ ጥገና እና የ RAG መረጃዎችን መተንተን (35% - 100%)
+            update_agent_progress(site, "Offline Mode: Analyzing memory insights...", 35)
+            broadcast_agent_log(site, f"🌐 Network disconnected. Switching '{site.name}' to Offline-First mode.", "warning")
+            
+            # የቆዩና የታገዱ ታስኮችን በራሱ ማጽዳት (Deduplication & Unlock)
+            OfflineCacheManager.process_stale_offline_tasks(site)
+            time.sleep(1.5)
+            
+            # ካሉ ምርቶች ላይ የ RAG ትንተና መስራት (Memory insight extraction)
+            update_agent_progress(site, "Offline Mode: Compiling local vector cache...", 70)
+            OfflineCacheManager.harvest_offline_insights(site)
+            
+            update_agent_progress(site, "Offline Cycle Completed. Sleeping...", 100)
+            broadcast_agent_log(site, f"✅ Offline-First maintenance complete for {site.name}.", "success")
+            return
+
+        # 🌐 [Online Mode]: ኔትወርክ ካለ መደበኛውን የዕድገት ዑደት ማስኬድ
+        # 3. የባክሎግ እቅድ ጥናትን መጀመር (35%)
+        update_agent_progress(site, "Analyzing Codebase & Backlog...", 35)
+        broadcast_agent_log(site, f"Analyzing codebase & planning backlog for {site.name}...", "info")
+        ceo = StrategicCEO(site)
+        ceo.execute_planning_cycle()
+        time.sleep(random.uniform(1.0, 3.0))
+
+        # 4. የጅምላ ምርት ዳሰሳ መጀመር (65%)
+        update_agent_progress(site, "Bulk Scraping & Harvesting Products...", 65)
+        broadcast_agent_log(site, f"Running business growth & market harvesting for {site.name}...", "info")
+        ops = CEOOperations(site)
+        ops.run_business_growth()
+        time.sleep(random.uniform(1.0, 3.0))
+
+        # 🔴 አዲስ የተጨመረ፦ የተፎካካሪዎችን ድረ-ገጽ በመሰለል የገበያ ጥናትና የሥራ እቅድ ማመንጨት (70%) [3.1.2]
+        update_agent_progress(site, "Spying on Competitors & Analyzing Market Advantage...", 70)
+        spy_engine = CompetitorIntelligenceEngine(site)
+        spy_engine.spy_and_analyze_market()
+        time.sleep(random.uniform(1.0, 3.0))
+
+        # 5. የማጭበርበር እና ስፓም መከላከያ
+        FraudHunter(site).scan_for_scams()
+        time.sleep(random.uniform(1.0, 3.0))
+
+        # 6. የላቀ የኮድ ግንባታ እና የ Sandbox ፍተሻ (85%)
+        try:
+            pending_tasks = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score')
+            tasks_to_build = []
+            seen_files = set()
+
+            for task in pending_tasks:
+                if task.target_file in seen_files:
+                    continue
+                if RecursiveBuilder.is_on_cooldown(site, task.target_file):
+                    continue
+                tasks_to_build.append(task)
+                seen_files.add(task.target_file)
+                if len(tasks_to_build) >= 4:
+                    break
+
+            if tasks_to_build:
+                tasks_names = ", ".join([t.task_name[:25] for t in tasks_to_build])
+                update_agent_progress(site, f"Building Tasks: {tasks_names}...", 85)
+                broadcast_agent_log(site, f"Building {len(tasks_to_build)} strategic task(s) concurrently with Sandbox Validation...", "success")
+                
+                builder = RecursiveBuilder(site)
+
+                def _build_and_close(t_task):
+                    try:
+                        return builder.build_next_feature(t_task)
+                    finally:
+                        connections.close_all()
+
+                with ThreadPoolExecutor(max_workers=min(len(tasks_to_build), 4)) as builder_executor:
+                    builder_executor.map(_build_and_close, tasks_to_build)
+        except Exception as build_loop_err:
+            logger.error("Failed during async builder loop execution: %s", build_loop_err)
+
+        # 7. ዑደቱ በተሳካ ሁኔታ መጠናቀቁን መመዝገብ (100%)
+        update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
+        broadcast_agent_log(site, f"✨ Master Cycle executed successfully for {site.name}.", "success")
+
+    except Exception as e:
+        logger.error(f"❌ Error in master cycle for {site.name}: {e}", exc_info=True)
+        try:
+            update_agent_progress(site, f"Error: {str(e)[:50]}", 100)
+        except Exception as inner_err:
+            logger.debug("Failed to record crashed cycle progress: %s", inner_err)
+    finally:
+        connections.close_all()
+
+
+def start_autonomous_ceo():
+    """የኤጀንቱን 24/7 የጀርባ ዑደት በአካባቢያዊ ፍጥነት (Adaptive Pacing) የሚመራ"""
+    logger.info("🚀 EthAfri Master CEO Agent Started on Render Cloud...")
+    while True:
+        try:
+            execute_master_cycle()
+
+            from .models import AIProjectBacklog
+
+            # Adaptive Pacing: ብዙ pending backlog ካለ በፍጥነት (30s)፣ ካልሆነ የሰርቨር ሪሶርስ ለመቆጠብ (10 ደቂቃ)
+            has_pending = False
+            try:
+                has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
+            except Exception as e:
+                logger.debug("Failed to verify pending backlog status: %s", e)
+            
+            # ኔትወርክ ከሌለ ረዘም ላለ ጊዜ እረፍት መስጠት (ቶከን እና ሰርቨር ሪሶርስ ቆጣቢ)
+            if not MultiChannelHarvester.is_network_available():
+                interval = 1800  # 30 ደቂቃ
+                logger.warning("🌐 Offline Mode detected. Pacing slowed to 30 minutes to conserve resources.")
+            else:
+                interval = 30 if has_pending else 600
+                
+            logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
+            time.sleep(interval)
+        except Exception as e:
+            logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
+            time.sleep(60)

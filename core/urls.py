@@ -1,7 +1,8 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/core/urls.py
-# 📝 ለውጥ፦ ምንም ለውጥ አያስፈልግም (አስቀድሞ በትክክል ተዘጋጅቷል)
-# 📅 ቀን፦ 2026-06-20
+# 📁 የፋይል አቅጣጫ፦ EthAfri/core/urls.py
+# 📝 ዓላማ፦ Main URL Routing for the Core Project (v1.2 - Complete)
+# ✅ የተፈቱ ችግሮች፦ Dynamic i18n switching routing, admin and app inclusion
+# 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
 from django.contrib import admin

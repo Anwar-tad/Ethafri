@@ -332,10 +332,15 @@ def marketing_dashboard(request):
     """የግብይት እና የደንበኛ ማግኛ ውጤቶች መከታተያ"""
     total_s = MarketingCampaign.objects.aggregate(total_sent=Sum('total_sent'))['total_sent']
     total_c = MarketingCampaign.objects.aggregate(total_conv=Sum('total_converted'))['total_converted']
+    
+    # 🔴 አዲስ የተጨመረ፦ በ AI እና በስለላ ሞተሩ የተፈጠሩ የገበያ ጥናትና አዝማሚያዎችን ማምጣት [1, 3.1.2]
+    market_trends = MarketTrend.objects.all().order_by('-last_updated')
+    
     context = {
         'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
         'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
         'total_sent': total_s or 0,
+        'market_trends': market_trends, # 🔴 የገበያ ጥናት መረጃዎችን ለዳሽቦርዱ ማሳለፍ
         'campaign_stats': {
             'total': MarketingCampaign.objects.count(),
             'running': MarketingCampaign.objects.filter(status='running').count() if hasattr(MarketingCampaign, 'status') else 0,

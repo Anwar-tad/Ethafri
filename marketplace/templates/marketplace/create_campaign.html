@@ -1,9 +1,3 @@
-<!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/create_campaign.html
-📝 ለውጥ፦ Create Campaign — አዲስ የግብይት ካምፔን መፍጠሪያ
-📅 ቀን፦ 2026-06-20
-============================================================ -->
-
 {% extends "marketplace/base.html" %}
 {% load i18n %}
 
@@ -18,23 +12,23 @@
 {% endblock %}
 
 {% block content %}
-<div class="container py-4">
+<div class="container py-4 fade-in">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="fw-bold mb-1"><i class="fas fa-plus-circle text-primary me-2"></i>{% trans "Create Marketing Campaign" %}</h2>
             <p class="text-muted">{% trans "Launch a new marketing campaign for your niche sites" %}</p>
         </div>
-        <a href="{% url 'marketing_dashboard' %}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>{% trans "Back" %}</a>
+        <a href="{% url 'marketing_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 text-decoration-none"><i class="fas fa-arrow-left me-1"></i>{% trans "Back" %}</a>
     </div>
 
-    <div class="card form-card shadow-sm">
-        <div class="card-header"><i class="fas fa-bullhorn me-2"></i>{% trans "Campaign Details" %}</div>
+    <div class="card form-card shadow-sm bg-white">
+        <div class="card-header rounded-top-4"><i class="fas fa-bullhorn me-2"></i>{% trans "Campaign Details" %}</div>
         <div class="card-body p-4">
-            <form method="POST" action="{% url 'create_marketing_campaign' %}">
+            <form method="POST" action="{% url 'create_marketing_campaign' %}" id="createCampaignForm">
                 {% csrf_token %}
                 
                 <div class="mb-3">
-                    <label for="site_id" class="form-label"><i class="fas fa-globe me-1 text-primary"></i>{% trans "Target Site" %} <span class="text-danger">*</span></label>
+                    <label for="site_id" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-globe me-1 text-primary"></i>{% trans "Target Site" %} <span class="text-danger">*</span></label>
                     <select name="site_id" id="site_id" class="form-select" required>
                         <option value="">{% trans "Select a site..." %}</option>
                         {% for site in sites %}
@@ -44,7 +38,7 @@
                 </div>
 
                 <div class="mb-3">
-                    <label for="campaign_type" class="form-label"><i class="fas fa-tag me-1 text-primary"></i>{% trans "Campaign Type" %} <span class="text-danger">*</span></label>
+                    <label for="campaign_type" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-tag me-1 text-primary"></i>{% trans "Campaign Type" %} <span class="text-danger">*</span></label>
                     <select name="campaign_type" id="campaign_type" class="form-select" required>
                         <option value="">{% trans "Select type..." %}</option>
                         <option value="email_blast">📧 {% trans "Email Blast" %}</option>
@@ -56,26 +50,44 @@
                 </div>
 
                 <div class="mb-3">
-                    <label for="name" class="form-label"><i class="fas fa-font me-1 text-primary"></i>{% trans "Campaign Name" %} <span class="text-danger">*</span></label>
+                    <label for="name" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-font me-1 text-primary"></i>{% trans "Campaign Name" %} <span class="text-danger">*</span></label>
                     <input type="text" name="name" id="name" class="form-control" placeholder="e.g. Summer Sale 2026" required>
                 </div>
 
                 <div class="mb-3">
-                    <label for="subject" class="form-label"><i class="fas fa-heading me-1 text-primary"></i>{% trans "Subject (Email only)" %}</label>
+                    <label for="subject" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-heading me-1 text-primary"></i>{% trans "Subject (Email only)" %}</label>
                     <input type="text" name="subject" id="subject" class="form-control" placeholder="e.g. Special Offer for You!">
                 </div>
 
                 <div class="mb-3">
-                    <label for="message" class="form-label"><i class="fas fa-comment me-1 text-primary"></i>{% trans "Message" %} <span class="text-danger">*</span></label>
+                    <label for="message" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-comment me-1 text-primary"></i>{% trans "Message" %} <span class="text-danger">*</span></label>
                     <textarea name="message" id="message" class="form-control" rows="6" placeholder="Enter your campaign message..." required></textarea>
                 </div>
 
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                     <button type="reset" class="btn btn-outline-secondary rounded-pill px-4">{% trans "Reset" %}</button>
-                    <button type="submit" class="btn btn-primary rounded-pill px-5"><i class="fas fa-paper-plane me-2"></i>{% trans "Create Campaign" %}</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-5" id="submitBtn"><i class="fas fa-paper-plane me-2"></i>{% trans "Create Campaign" %}</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- 🟢 Double-Submit Guard Handler (የደህንነት ጥበቃ) [1.1.2] -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const campaignForm = document.getElementById('createCampaignForm');
+        if (campaignForm) {
+            campaignForm.addEventListener('submit', function() {
+                const submitBtn = document.getElementById('submitBtn');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> {% trans "Launching Campaign..." %}';
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}

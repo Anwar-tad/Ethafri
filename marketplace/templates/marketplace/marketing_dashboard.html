@@ -1,10 +1,3 @@
-<!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/marketing_dashboard.html
-📝 ለውጥ፦ v1.3 Master CEO Marketing Dashboard — Fully Translated & i18n Swapped (DRY)
-✅ የተፈቱ ችግሮች፦ Multi-lingual translation tags added, Campaign status uppercase, Zero-bloat DRY
-📅 ቀን፦ 2026-06-27
-============================================================ -->
-
 {% extends "marketplace/base.html" %}
 {% load i18n %}
 {% load static %}
@@ -19,30 +12,28 @@
 {% endblock %}
 
 {% block content %}
-<div class="marketing-wrapper">
+<div class="marketing-wrapper" data-agent-monitor>
     <div class="container-fluid">
 
         <!-- 🚀 Revenue & Growth Header -->
-        <div class="revenue-growth-card">
+        <div class="revenue-growth-card" style="background: linear-gradient(135deg, #065f46, #059669); color: white; border-radius: 1.5rem; padding: 2rem; box-shadow: var(--shadow-lg, 0 10px 15px rgba(0,0,0,0.1)); margin-bottom: 2rem;">
             <div class="row align-items-center">
                 <div class="col-md-8">
                     <h2 class="fw-bold mb-2"><i class="fas fa-coins me-2 text-warning"></i> {% trans "Growth & Revenue Intelligence" %}</h2>
                     <p class="opacity-75">{% trans "The CEO Agent is currently optimizing your market reach and conversion rates." %}</p>
                     <div class="d-flex gap-4 mt-3">
                         <div>
-                            <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                             <small class="d-block opacity-75 text-uppercase">{% trans "Total Sent" %}</small>
                             <span class="fs-4 fw-bold">{{ total_sent }}</span>
                         </div>
                         <div class="border-start border-white border-opacity-25 ps-4">
-                            <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                             <small class="d-block opacity-75 text-uppercase">{% trans "Conversions" %}</small>
                             <span class="fs-4 fw-bold">{{ campaign_stats.total_converted|default:0 }}</span>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4 text-md-end">
-                    <a href="{% url 'create_marketing_campaign' %}" class="btn btn-light btn-lg rounded-pill px-4 fw-bold shadow">
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                    <a href="{% url 'create_marketing_campaign' %}" class="btn btn-light btn-lg rounded-pill px-4 fw-bold shadow text-decoration-none">
                         <i class="fas fa-plus-circle me-2"></i> {% trans "New Campaign" %}
                     </a>
                 </div>
@@ -50,33 +41,29 @@
         </div>
 
         <!-- 📊 Quick Metrics -->
-        <div class="row g-4 mb-4">
-            <div class="col-md-3">
-                <div class="stat-card-modern">
-                    <div class="stat-number text-primary">{{ campaign_stats.total }}</div>
-                    <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
-                    <div class="text-muted small fw-bold">{% trans "CAMPAIGNS" %}</div>
+        <div class="row g-4 mb-4 text-center">
+            <div class="col-md-3 col-6">
+                <div class="stat-card-modern bg-white p-4 rounded-4 border" style="border: 1px solid #e2e8f0;">
+                    <div class="stat-number text-primary" style="font-size: 2rem; font-weight: 800;">{{ campaign_stats.total }}</div>
+                    <div class="text-muted small fw-bold text-uppercase">{% trans "CAMPAIGNS" %}</div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card-modern">
-                    <div class="stat-number text-success">{{ total_sent }}</div>
-                    <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
-                    <div class="text-muted small fw-bold">{% trans "TOTAL REACH" %}</div>
+            <div class="col-md-3 col-6">
+                <div class="stat-card-modern bg-white p-4 rounded-4 border" style="border: 1px solid #e2e8f0;">
+                    <div class="stat-number text-success" style="font-size: 2rem; font-weight: 800;">{{ total_sent }}</div>
+                    <div class="text-muted small fw-bold text-uppercase">{% trans "TOTAL REACH" %}</div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card-modern">
-                    <div class="stat-number text-warning">{{ campaign_stats.running }}</div>
-                    <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
-                    <div class="text-muted small fw-bold">{% trans "ACTIVE NOW" %}</div>
+            <div class="col-md-3 col-6">
+                <div class="stat-card-modern bg-white p-4 rounded-4 border" style="border: 1px solid #e2e8f0;">
+                    <div class="stat-number text-warning" style="font-size: 2rem; font-weight: 800;">{{ campaign_stats.running }}</div>
+                    <div class="text-muted small fw-bold text-uppercase">{% trans "ACTIVE NOW" %}</div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card-modern">
-                    <div class="stat-number text-info">{{ acquisition.count }}</div>
-                    <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
-                    <div class="text-muted small fw-bold">{% trans "NEW LEADS" %}</div>
+            <div class="col-md-3 col-6">
+                <div class="stat-card-modern bg-white p-4 rounded-4 border" style="border: 1px solid #e2e8f0;">
+                    <div class="stat-number text-info" style="font-size: 2rem; font-weight: 800;">{{ acquisition.count }}</div>
+                    <div class="text-muted small fw-bold text-uppercase">{% trans "NEW LEADS" %}</div>
                 </div>
             </div>
         </div>
@@ -85,14 +72,13 @@
             <!-- 📨 Recent Campaigns & Auto-Notifications -->
             <div class="col-lg-8">
                 <div class="card border-0 shadow-sm rounded-4">
-                    <div class="card-header bg-white py-3 border-0 d-flex justify-content-between">
-                        <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
+                    <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold"><i class="fas fa-bullhorn me-2 text-primary"></i> {% trans "Live Campaigns" %}</h5>
-                        <span class="badge bg-light text-dark border">{% trans "CEO Managed" %}</span>
+                        <span class="badge bg-light text-dark border rounded-pill px-3">{% trans "CEO Managed" %}</span>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body" style="max-height: 500px; overflow-y: auto;">
                         {% for campaign in campaigns %}
-                        <div class="campaign-item">
+                        <div class="campaign-item bg-white border p-3 rounded-4 mb-2 d-flex justify-content-between align-items-center" style="border: 1px solid #f1f5f9;">
                             <div class="d-flex align-items-center gap-3">
                                 <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary">
                                     <i class="fas fa-{% if 'email' in campaign.campaign_type %}envelope{% else %}sms{% endif %} fs-4"></i>
@@ -103,10 +89,9 @@
                                 </div>
                             </div>
                             <div class="text-end">
-                                <span class="badge rounded-pill {% if campaign.status == 'running' %}bg-warning{% else %}bg-success{% endif %} mb-1">
-                                    {{ campaign.status|upper }}
+                                <span class="badge rounded-pill {% if campaign.status == 'running' %}bg-warning{% else %}bg-success{% endif %} mb-1 text-uppercase">
+                                    {{ campaign.status }}
                                 </span>
-                                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                                 <div class="small fw-bold">{{ campaign.total_sent }} {% trans "Sent" %}</div>
                             </div>
                         </div>
@@ -120,48 +105,56 @@
                 </div>
             </div>
 
-            <!-- 🎯 Real-time Acquisition Feed -->
+            <!-- 🎯 Real-time Acquisition Feed & Competitor Spying -->
             <div class="col-lg-4">
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
                     <div class="card-header bg-white py-3 border-0">
-                        <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                         <h5 class="mb-0 fw-bold"><i class="fas fa-user-plus me-2 text-success"></i> {% trans "Acquisition Feed" %}</h5>
                     </div>
-                    <div class="card-body p-0">
+                    <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
                         {% for log in acquisition %}
                         <div class="p-3 border-bottom border-light d-flex justify-content-between align-items-center">
                             <div>
-                                <div class="acq-dot acq-active"></div>
+                                <span class="badge bg-success rounded-circle me-1" style="width: 8px; height: 8px; display: inline-block;"></span>
                                 <span class="small fw-bold">{{ log.contact_info|truncatechars:15 }}</span>
                                 <div class="text-muted" style="font-size: 0.7rem;">{% trans "via" %} {{ log.channel|title }}</div>
                             </div>
                             {% if log.converted_to_seller %}
-                            <span class="badge bg-success-light text-success rounded-pill small">{% trans "Seller Joined" %}</span>
+                            <span class="badge bg-success text-white rounded-pill small">{% trans "Seller Joined" %}</span>
                             {% endif %}
                         </div>
                         {% empty %}
-                        <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                         <p class="text-center py-4 text-muted small">{% trans "Listening for new leads..." %}</p>
                         {% endfor %}
                     </div>
                 </div>
 
-                <!-- 🕵️ Competitor Intelligence (Spy Results) -->
-                <div class="card border-0 shadow-sm rounded-4" style="background: #1e293b; color: white;">
+                <!-- 🕵️ Competitor Intelligence (🔴 አዲስ የተጨመረ፦ በእውነተኛ ሰዓት ከተፎካካሪ የስለላ ሞተር የሚመጣ የ AI ገበያ ጥናት) [3.1.2] -->
+                <div class="card border-0 shadow-sm rounded-4 text-white" style="background: #0f172a; border: 1px solid rgba(255,255,255,0.1);">
                     <div class="card-header bg-transparent py-3 border-0">
-                        <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
-                        <h5 class="mb-0 fw-bold text-info"><i class="fas fa-user-secret me-2"></i> {% trans "Market Intel" %}</h5>
+                        <h5 class="mb-0 fw-bold text-info"><i class="fas fa-user-secret me-2"></i> {% trans "Market Spying Intelligence" %}</h5>
                     </div>
-                    <div class="card-body">
-                        <p class="small opacity-75">{% trans "The AI is analyzing competitor price trends and high-demand products." %}</p>
-                        <hr class="bg-white opacity-25">
-                        <div class="d-flex align-items-center gap-3">
-                            <i class="fas fa-chart-line text-warning fs-3"></i>
-                            <div>
-                                <div class="small fw-bold">{% trans "Demand Alert" %}</div>
-                                <small class="opacity-75">{% trans "Electronics niche showing 25% growth in Ethiopia this week." %}</small>
+                    <div class="card-body" style="max-height: 380px; overflow-y: auto;">
+                        <p class="small opacity-75">{% trans "Dynamic analysis of competitor pricing, trending products, and hot locations." %}</p>
+                        
+                        {% for trend in market_trends %}
+                        <div class="mb-3 p-3 rounded-4" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge bg-info text-uppercase" style="font-size: 0.6rem;">{{ trend.niche_name }}</span>
+                                <small class="text-warning fw-bold">{{ trend.demand_level }}% {% trans "Demand" %}</small>
                             </div>
+                            <!-- የፍላጎት መጠን መግለጫ (Demand Bar) -->
+                            <div class="progress rounded-pill bg-white bg-opacity-10 mb-2" style="height: 6px;">
+                                <div class="progress-bar bg-warning" role="progressbar" style="width: {{ trend.demand_level }}%"></div>
+                            </div>
+                            <p class="small text-white-50 m-0" style="font-size: 0.8rem; line-height: 1.6;">{{ trend.ai_suggestion }}</p>
                         </div>
+                        {% empty %}
+                        <div class="text-center py-4 opacity-50">
+                            <i class="fas fa-user-secret fa-2x mb-2 text-muted"></i>
+                            <p class="small m-0">{% trans "Gathering competitor coordinates..." %}</p>
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>

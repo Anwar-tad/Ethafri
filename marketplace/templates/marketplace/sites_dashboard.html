@@ -137,8 +137,8 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- 🟢 WebSocket Connection — global.js በጋራ የከፈተውን ዌብ-ሶኬት በእውነተኛ ሰዓት ማዳመጫ [3.1.2] -->
 <script>
-    // 📟 WebSocket Connection — የጣቢያዎቹን የዕድገት ደረጃ በ global.js በተከፈተው ሶኬት በኩል ማዘመኛ
     document.addEventListener('agent_update', function(event) {
         const data = event.detail;
         

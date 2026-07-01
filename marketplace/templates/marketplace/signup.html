@@ -1,8 +1,6 @@
 <!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/signup.html
-📝 ለውጥ፦ v1.1 Master CEO Registration Page — Static CSS Migrated (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Clean Django Model Form Sync, Login redirect URL validated
-📅 ቀን፦ 2026-06-25
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/signup.html
+📝 ስሪት፦ v1.2 (Complete Registration - Double-Submit Protected)
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,7 +8,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- ✅ OPTIMIZED: የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -32,7 +30,7 @@
             <form method="POST" id="signupForm">
                 {% csrf_token %}
                 
-                <!-- የዲጃንጎ ፎርም (UserCreationForm) -->
+                <!-- የዲጃንጎ ፎርም (UserCreationForm) - በ .auth-body input CSS በራስ-ሰር ይዋባል። -->
                 {{ form.as_p }}
 
                 <button type="submit" class="btn-auth" id="signupBtn">
@@ -55,15 +53,18 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- 🟢 Double-Submit Guard (የምዝገባ ጥበቃ) -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('signupForm');
         const btn = document.getElementById('signupBtn');
 
-        form.addEventListener('submit', function() {
-            btn.disabled = true;
-            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> {% trans "በማከናወን ላይ..." %}`;
-        });
+        if (form && btn) {
+            form.addEventListener('submit', function() {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> {% trans "በማከናወን ላይ..." %}`;
+            });
+        }
     });
 </script>
 {% endblock %}
