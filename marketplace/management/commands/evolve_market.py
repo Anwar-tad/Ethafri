@@ -1,8 +1,8 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ዓላማ፦ Robust Growth Engine + Fixed Naming & Import Sync (v1.2 - Complete)
-# ✅ የተፈቱ ችግሮች፦ Full dynamic site analysis, clean import fallbacks, and 100% zero pass placeholders.
-# 📅 ቀን፦ Wednesday, July 01, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/evolve_market.py
+# 📝 ዓላማ፦ Robust Growth Engine + Fixed Naming & Import Sync (v1.3 - Optimized Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic multi-site analysis, clean import fallbacks, safe close_old_connections integration, and zero pass placeholders.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
@@ -165,5 +165,9 @@ class Command(BaseCommand):
             except Exception as config_err:
                 logger.debug("Failed to record LAST_CRON_ERROR: %s", config_err)
         finally:
-            connection.close()
+            # 🧹 ጀርባውን በደህንነት ማጽዳት (Daphne / Render Optimized) [1]
+            try:
+                close_old_connections()
+            except Exception as conn_err:
+                logger.debug("Failed to close old connections safely during command shutdown: %s", conn_err)
             gc.collect()

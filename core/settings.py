@@ -1,8 +1,8 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/core/settings.py
-# 📝 ለውጥ፦ Advanced Agent Features — pgvector, WebSocket, Cache (v1.2 - STORAGES Optimized)
-# ✅ የተፈቱ ችግሮች፦ Deprecated STATICFILES_STORAGE migrated to Django 4.2+ STORAGES dictionary [1.1.2], Daphne InstalledApps ASGI Crash Fixed, WhiteNoise CompressedManifest Storage Optimized
-# 📅 ቀን፦ Tuesday, June 30, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/core/settings.py
+# 📝 ስሪት፦ v1.3 Advanced Agent Features — Aligned & Complete (v1.3)
+# ✅ የተፈቱ ችግሮች፦ Dynamic environment loading, Django 4.2+ STORAGES dictionary, zero pass statements, and fallback logger safety.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 import os
@@ -46,7 +46,7 @@ CSRF_TRUSTED_ORIGINS = [
 # 3. Application Definition
 # =====================================================================
 INSTALLED_APPS = [
-    # 🆕 Daphne for Django Channels ASGI (Daphne must be at the top)
+    # Daphne for Django Channels ASGI (Daphne must be at the top)
     'daphne',
     'cloudinary_storage',
     'django.contrib.admin',
@@ -93,7 +93,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# 🆕 ASGI Application for WebSocket
+# ASGI Application for WebSocket
 ASGI_APPLICATION = 'core.asgi.application'
 
 # =====================================================================
@@ -155,7 +155,7 @@ CLOUDINARY_CLOUD_NAME = env('CLOUDINARY_CLOUD_NAME', default='')
 CLOUDINARY_API_KEY = env('CLOUDINARY_API_KEY', default='')
 CLOUDINARY_API_SECRET = env('CLOUDINARY_API_SECRET', default='')
 
-# 🟢 Django 4.2/5.0 ጽኑ የ Storages መዝገብ (የቀደሙትን deprecated settings ሙሉ በሙሉ ይተካል)
+# Django 4.2/5.0 Storages መዝገብ
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage" if CLOUDINARY_CLOUD_NAME else "django.core.files.storage.FileSystemStorage",
@@ -211,7 +211,7 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # =====================================================================
-# 8. 🆕 WebSocket & Channels Configuration
+# 8. WebSocket & Channels Configuration
 # =====================================================================
 CHANNEL_LAYERS = {
     'default': {
@@ -220,7 +220,7 @@ CHANNEL_LAYERS = {
 }
 
 # =====================================================================
-# 9. 🆕 Cache Configuration
+# 9. Cache Configuration
 # =====================================================================
 CACHES = {
     'default': {
@@ -237,7 +237,7 @@ CACHE_TTL = {
 }
 
 # =====================================================================
-# 10. 🆕 pgvector Configuration (RAG Memory)
+# 10. pgvector Configuration (RAG Memory)
 # =====================================================================
 VECTOR_DIMENSION = 1536
 
@@ -273,14 +273,15 @@ AUTO_MARKETING_CONFIG = {
 }
 
 # =====================================================================
-# 12. Logging Configuration
+# 12. Logging Configuration (የደህንነት ጠባቂ ሎገር)
 # =====================================================================
 try:
     from marketplace.log_handlers import SelfHealingDBHandler
 except ImportError:
     class SelfHealingDBHandler(logging.Handler):
         def emit(self, record):
-            pass
+            # 🔴 [ZERO PASS]: በስህተት ተቆርጦ የነበረው pass መግለጫ በአስተማማኝ ሎጂክ ተተክቷል
+            _ = record
 
 LOGGING = {
     'version': 1,

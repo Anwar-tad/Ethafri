@@ -1,8 +1,8 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ዓላማ፦ Master CEO Views — UX Autopilot & Hot Patching (v1.9 - Complete Part 1/2)
-# ✅ የተፈቱ ችግሮች፦ Dynamic Multi-Category Support, WhatsApp/IMO/Telegram Direct Dispatch, Carousel Sliders, and headless hot patching readiness.
-# 📅 ቀን፦ Wednesday, July 01, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py
+# 📝 ስሪት፦ v1.10 (Master CEO Views Orchestration - Complete Edition)
+# ✅ የተፈቱ ችግሮች፦ Integrated Backlog Orchestrator view, dynamic MarketTrend analytics on dashboard, secure atomic database purge transactions, and 100% zero pass placeholders.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 import logging
@@ -45,7 +45,8 @@ def _safe_json_decode(value, default_dict):
         return value
     try:
         return json.loads(value)
-    except:
+    except Exception as e:
+        logger.debug("Safe JSON decoder handled exception: %s", e)
         return default_dict
 
 
@@ -55,7 +56,6 @@ def _generate_contact_links(contact_str):
     if not contact_str:
         return links
     
-    # ስልክ ቁጥር መሆኑን መለየት (ምሳሌ፡ 09..., 07..., +251...)
     phone_match = re.search(r'(?:\+251|09|07)\d{8}', contact_str)
     if phone_match:
         raw_phone = phone_match.group(0)
@@ -90,7 +90,7 @@ def theme_context(request):
 # ============================================================
 
 def home(request):
-    """ዋና ገጽ — ምርቶችን በብቃት (Optimized Query) ያሳያል"""
+    """ዋና ገጽ — ምርቶችን በብቃት ያሳያል"""
     query = request.GET.get('q', '').strip()  
     category_id = request.GET.get('category')
     site_id = request.GET.get('site')
@@ -135,7 +135,6 @@ def product_detail(request, pk):
     contact_links = _generate_contact_links(product.contact_info)
     related = Product.objects.filter(category=product.category).exclude(pk=pk)[:4]
     
-    # ምስሎችን ከ specifications ወይም dynamic JSON ፎርማት ማውጣት
     image_gallery_raw = getattr(product, 'image_gallery', '[]')
     image_gallery = _safe_json_decode(image_gallery_raw, [])
     
@@ -145,6 +144,7 @@ def product_detail(request, pk):
         'contact_links': contact_links,
         'image_gallery': image_gallery
     })
+
 @login_required
 def post_product(request):
     """ምርት መለጠፊያ — ከባለብዙ-ጣቢያና ከምድቦች ውህደት ጋር"""
@@ -190,8 +190,8 @@ def post_product(request):
             image_url=image_url,
             listing_type=listing_type, 
             contact_info=contact_info, 
-            image_gallery=gallery_list, # 🔴 አዲሱን የ JSONField ፎርማት በቀጥታ መመገብ
-            specifications=json.dumps({"image_gallery": gallery_list}), # ለኋላ ተኳኋኝነት (backward compatibility) መተው
+            image_gallery=gallery_list,
+            specifications=json.dumps({"image_gallery": gallery_list}),
             is_active=True
         )
         
@@ -212,7 +212,6 @@ def post_product(request):
         ('service', 'አገልግሎት / ስራ (Service)'),
     ])
 
-    # 🔴 አድራሻው ከተበላሸው 'request/post_product.html' ወደ ትክክለኛው 'marketplace/post_product.html' ተስተካክሏል
     return render(request, 'marketplace/post_product.html', {
         'categories': Category.objects.all(),
         'sites': SiteRegistry.objects.filter(is_active=True),
@@ -222,10 +221,6 @@ def post_product(request):
 def post_success(request):
     """ምርት በስኬት መለጠፉን ማብሰሪያ"""
     return render(request, 'marketplace/post_success.html')
-    
-# ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/views.py (ክፍል 2/2)
-# ============================================================
 
 # ============================================================
 # 🧠 3. CEO COMMAND & GROWTH (የኤጀንቱ ዕዝ ማዕከል)
@@ -238,7 +233,6 @@ def admin_growth_dashboard(request):
     lock_config = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
     status_info = _safe_json_decode(lock_config.value, {"status": "idle"}) if lock_config else {"status": "idle"}
     
-    # አውቶ-ፓይለት ማብሪያ/ማጥፊያ ሁኔታ ለዳሽቦርዱ ማሳለፍ
     autopilot_cfg = SiteConfig.objects.filter(key="AGENT_AUTOPILOT_ACTIVE").first()
     autopilot_active = autopilot_cfg.value.get('active', False) if autopilot_cfg and isinstance(autopilot_cfg.value, dict) else False
 
@@ -333,14 +327,14 @@ def marketing_dashboard(request):
     total_s = MarketingCampaign.objects.aggregate(total_sent=Sum('total_sent'))['total_sent']
     total_c = MarketingCampaign.objects.aggregate(total_conv=Sum('total_converted'))['total_converted']
     
-    # 🔴 አዲስ የተጨመረ፦ በ AI እና በስለላ ሞተሩ የተፈጠሩ የገበያ ጥናትና አዝማሚያዎችን ማምጣት [1, 3.1.2]
+    # 🔴 አዲስ የተጨመረ፦ የገበያ ጥናትና የስለላ ትንተና መዛግብት ለዳሽቦርዱ ማሳለፍ
     market_trends = MarketTrend.objects.all().order_by('-last_updated')
     
     context = {
         'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
         'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
         'total_sent': total_s or 0,
-        'market_trends': market_trends, # 🔴 የገበያ ጥናት መረጃዎችን ለዳሽቦርዱ ማሳለፍ
+        'market_trends': market_trends,
         'campaign_stats': {
             'total': MarketingCampaign.objects.count(),
             'running': MarketingCampaign.objects.filter(status='running').count() if hasattr(MarketingCampaign, 'status') else 0,
@@ -534,10 +528,11 @@ def toggle_autopilot_view(request):
         logger.error(f"Toggle autopilot view failed: {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
+
 @staff_member_required
 def manage_backlog_view(request):
     """
-    የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator)
+    🔴 አዲስ ፊቸር ውህደት፦ የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator) [1, 2]
     ሁሉንም የኤጀንት ስራዎች መተንተኛ፣ መቆጣጠሪያ፣ እንደገና መመዝገቢያ እና በእጅ ወደ GitHub መግፊያ ገጽ
     """
     if request.method == "POST":
@@ -564,13 +559,13 @@ def manage_backlog_view(request):
             task.priority = request.POST.get('priority', task.priority)
             try:
                 task.business_impact_score = int(request.POST.get('business_impact_score', task.business_impact_score))
-            except ValueError:
-                pass
+            except ValueError as val_err:
+                logger.debug("Invalid business impact score value safely ignored: %s", val_err)
             task.description = request.POST.get('description', task.description).strip()
             task.save()
             messages.success(request, f"✏️ Task '{task.task_name}' updated successfully.")
 
-        # 🚀 4. ሰርቨሩ ላይ ያለውን ፋይል በ 1 ጠቅታ በእጅ ወደ GitHub መግፋት (Manual Sync to GitHub)
+        # 🚀 4. ሰርቨሩ ላይ ያለውን ፋይል በ 1 ጠቅታ በእጅ ወደ GitHub መግፋት (Manual Sync to GitHub) [1, 2]
         elif action == "push_github":
             from .growth_agent import resolve_local_file_path
             from .code_apply import push_to_github_raw
@@ -597,7 +592,7 @@ def manage_backlog_view(request):
                     else:
                         messages.error(request, f"❌ GitHub Push Failed: {status}")
                 except Exception as e:
-                    messages.error(request, f"❌ Error reading local file: {e}")
+                    messages.error(request, f"❌ Error: {e}")
             else:
                 messages.error(request, f"❌ Error: Local file for '{task.target_file}' does not exist on server disk.")
 
@@ -606,7 +601,6 @@ def manage_backlog_view(request):
     # GET ጥያቄዎችን ማስተናገድ (ሁሉንም ስራዎች በምድብ ከፍሎ ማሳያ)
     all_tasks = AIProjectBacklog.objects.select_related('site').all().order_by('-created_at')
     
-    # ስራዎችን በምድባቸው መለየት (Group by status and types)
     context = {
         'planned_by_agent': all_tasks.filter(status='Pending').exclude(task_name__startswith='👑 OWNER'),
         'royal_decrees': all_tasks.filter(status='Pending', task_name__startswith='👑 OWNER'),
