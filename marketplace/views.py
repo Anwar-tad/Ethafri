@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/views.py
-# 📝 ለውጥ፦ 100% Complete Master CEO Views — WSGI & Thread Safe (v1.8 - Clean Production Standard)
-# ✅ የተፈቱ ችግሮች፦ Isolated atomic purge transactions, listing_type AttributeError safe fallback, Dynamic Multi-Category Support, WhatsApp/IMO/Telegram Direct Dispatch, Carousel Sliders, SaaS Metrics Live Sync
-# 📅 ቀን፦ Tuesday, June 30, 2026
+# 📝 ዓላማ፦ Master CEO Views — UX Autopilot & Hot Patching (v1.9 - Complete Part 1/2)
+# ✅ የተፈቱ ችግሮች፦ Dynamic Multi-Category Support, WhatsApp/IMO/Telegram Direct Dispatch, Carousel Sliders, and headless hot patching readiness.
+# 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
 import logging
@@ -70,7 +70,6 @@ def _generate_contact_links(contact_str):
         links['imo'] = f"imo://chat?phone={clean_phone}"
         links['call'] = f"tel:+{clean_phone}"
     else:
-        # ዩዘርኔም ከሆነ (ለምሳሌ @username)
         clean_username = contact_str.replace('@', '').strip()
         if clean_username:
             links['telegram'] = f"https://t.me/{clean_username}"
@@ -95,7 +94,7 @@ def home(request):
     query = request.GET.get('q', '').strip()  
     category_id = request.GET.get('category')
     site_id = request.GET.get('site')
-    listing_type = request.GET.get('listing_type') # 🟢 አዲስ የተጨመረ የገበያ አይነት ማጣሪያ
+    listing_type = request.GET.get('listing_type')
 
     products = Product.objects.select_related('seller', 'category', 'site').filter(is_active=True)
     
@@ -109,7 +108,6 @@ def home(request):
     if listing_type:
         products = products.filter(listing_type=listing_type)
 
-    # የጃንጎን ሪቨርስ ሉክአፕ ከ 'product_set' ወደ 'product' በመቀየር የ FieldError ስህተት በቋሚነት ተፈትቷል
     categories = Category.objects.annotate(
         active_count=Sum(Case(When(product__is_active=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
     ).all()
@@ -134,15 +132,18 @@ def product_detail(request, pk):
     product.view_count += 1
     product.save(update_fields=['view_count'])
     
-    # 🟢 አዲስ የተጨመረ፦ የሻጩን ስልክ ወደ ቀጥታ ዋትሳፕ/ቴሌግራም/ኢሞ ሊንኮች መቀየር
     contact_links = _generate_contact_links(product.contact_info)
-    
     related = Product.objects.filter(category=product.category).exclude(pk=pk)[:4]
+    
+    # ምስሎችን ከ specifications ወይም dynamic JSON ፎርማት ማውጣት
+    image_gallery_raw = getattr(product, 'image_gallery', '[]')
+    image_gallery = _safe_json_decode(image_gallery_raw, [])
+    
     return render(request, 'marketplace/product_detail.html', {
         'product': product, 
         'related_products': related,
-        'contact_links': contact_links, # 🟢 በቀጥታ ለቴምፕሌቱ ማሳለፍ
-        'image_gallery': product.get_image_gallery_list() # 🟢 ለስላይደሩ የሚሆን ፎቶዎች
+        'contact_links': contact_links,
+        'image_gallery': image_gallery
     })
 
 @login_required
@@ -158,7 +159,6 @@ def post_product(request):
         image = request.FILES.get('image')
         image_url = request.POST.get('image_url', '').strip()
         
-        # አዲስ የተጨመሩ እሴቶችን ከፎርሙ መቀበል
         listing_type = request.POST.get('listing_type', 'sale').strip()
         contact_info = request.POST.get('contact_info', '').strip()
         gallery_urls_raw = request.POST.get('image_gallery', '').strip()
@@ -172,7 +172,6 @@ def post_product(request):
         except ValueError:
             price = 0.0
 
-        # የፎቶዎችን ሊስት ወደ JSON መቀየር
         gallery_list = [url.strip() for url in gallery_urls_raw.split(',') if url.strip()]
         image_gallery_json = json.dumps(gallery_list)
 
@@ -193,9 +192,8 @@ def post_product(request):
             image_url=image_url,
             listing_type=listing_type, 
             contact_info=contact_info, 
-            image_gallery=image_gallery_json, 
-            is_active=True,
-            translations=None
+            specifications=json.dumps({"image_gallery": gallery_list}),
+            is_active=True
         )
         
         if site:
@@ -209,22 +207,25 @@ def post_product(request):
         messages.success(request, _("ምርትዎ በተሳካ ሁኔታ ተለጥፏል! ኤጀንቱ በጀርባ እያቀነባበረው ነው።"))
         return redirect('post_success')
     
-    # 🟢 [Optimized - Safe Fallback]: የ Product.LISTING_TYPES በሞዴሉ ላይ ባይኖር እንኳ ሰርቨሩ ጨርሶ እንዳይበላሽ getattr መጠቀም [1, 2, 3.1.2]
     listing_choices = getattr(Product, 'LISTING_TYPES', [
         ('sale', 'ለሽያጭ (For Sale)'),
         ('rent', 'ለኪራይ (For Rent)'),
         ('service', 'አገልግሎት / ስራ (Service)'),
     ])
 
-    return render(request, 'marketplace/post_product.html', {
+    return render(request, 'request/post_product.html', {
         'categories': Category.objects.all(),
         'sites': SiteRegistry.objects.filter(is_active=True),
-        'listing_types': listing_choices # 🟢 የካቴጎሪ ምርጫዎችን ለፎርሙ ማሳለፍ
+        'listing_types': listing_choices
     })
 
 def post_success(request):
     """ምርት በስኬት መለጠፉን ማብሰሪያ"""
     return render(request, 'marketplace/post_success.html')
+    
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/views.py (ክፍል 2/2)
+# ============================================================
 
 # ============================================================
 # 🧠 3. CEO COMMAND & GROWTH (የኤጀንቱ ዕዝ ማዕከል)
@@ -237,7 +238,7 @@ def admin_growth_dashboard(request):
     lock_config = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
     status_info = _safe_json_decode(lock_config.value, {"status": "idle"}) if lock_config else {"status": "idle"}
     
-    # 🟢 አውቶ-ፓይለት ማብሪያ/ማጥፊያ ሁኔታ ለዳሽቦርዱ ማሳለፍ
+    # አውቶ-ፓይለት ማብሪያ/ማጥፊያ ሁኔታ ለዳሽቦርዱ ማሳለፍ
     autopilot_cfg = SiteConfig.objects.filter(key="AGENT_AUTOPILOT_ACTIVE").first()
     autopilot_active = autopilot_cfg.value.get('active', False) if autopilot_cfg and isinstance(autopilot_cfg.value, dict) else False
 
@@ -249,7 +250,7 @@ def admin_growth_dashboard(request):
         'recent_backlog': AIProjectBacklog.objects.all().order_by('-created_at')[:8],
         'status_info': status_info,
         'evolution_logs': AIEvolutionLog.objects.all().order_by('-created_at')[:5],
-        'autopilot_active': autopilot_active, # 🟢
+        'autopilot_active': autopilot_active,
     }
     return render(request, 'marketplace/growth_dashboard.html', context)
 
@@ -264,7 +265,7 @@ def owner_directive_view(request):
                 instruction=instruction, 
                 site_id=site_id if site_id and site_id.isdigit() else None
             )
-            messages.success(request, "👑 ትዕዛዝዎ በኤጀንቱ ተመዝგቧል። በቀጣይ ዑደት ይፈጸማል።")
+            messages.success(request, "👑 ትዕዛዝዎ በኤጀንቱ ተመዝግቧል። በቀጣይ ዑደት ይፈጸማል።")
         return redirect("growth_dashboard")
     
     return render(request, 'marketplace/owner_directive.html', {
@@ -330,7 +331,7 @@ def site_detail(request, site_id):
 def marketing_dashboard(request):
     """የግብይት እና የደንበኛ ማግኛ ውጤቶች መከታተያ"""
     total_s = MarketingCampaign.objects.aggregate(total_sent=Sum('total_sent'))['total_sent']
-    total_c = MarketingCampaign.objects.aggregate(total_conv=Sum('total_converted'))['total_conv']
+    total_c = MarketingCampaign.objects.aggregate(total_conv=Sum('total_converted'))['total_converted']
     context = {
         'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
         'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
@@ -455,7 +456,7 @@ def logout_view(request):
 def trigger_autonomous_evolution(request):
     """ከውጭ ክሮን (External Webhook) ኤጀንቱን ለመቀስቀስ"""
     config, created = SiteConfig.objects.get_or_create(key="LAST_SUCCESSFUL_CRON_PING")
-    config.value = json.dumps({"time": timezone.now().isoformat(), "source": "webhook"})
+    config.value = {"time": timezone.now().isoformat(), "source": "webhook"}
     config.save()
     
     return JsonResponse({"status": "flagged_for_execution", "message": "apps.py will pick this up"}, status=200)
@@ -463,11 +464,10 @@ def trigger_autonomous_evolution(request):
 @staff_member_required
 @csrf_exempt
 def purge_database_view(request):
-    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን በ 1 ጠቅታ ከአድሚን ዳሽቦርድ ላይ የሚያጸዳ (Isolated & Transaction Safe) [1.1.2, 1.1.5]"""
+    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን በ 1 ጠቅታ ከአድሚን ዳሽቦርድ ላይ የሚያጸዳ"""
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=400)
     
-    # 🟢 [Optimized]: የ PostgreSQL ግንኙነት እንዳይመረዝ የ transaction.atomic() አጥርን ለየብቻ ማድረግ [1, 2, 1.1.2]
     models_to_purge = [
         Product, SellerProfile, NotificationQueue, AIProjectBacklog,
         SecurityLog, AgentErrorLog, AIEvolutionLog, VectorMemory,
@@ -476,13 +476,11 @@ def purge_database_view(request):
     
     for model in models_to_purge:
         try:
-            # ለእያንዳንዱ ሰንጠረዥ የራሱን ራሱን የቻለ ገለልተኛ atomic block መስጠት
             with transaction.atomic():
                 model.objects.all().delete()
         except Exception as model_err:
-            logger.warning(f"🧹 Purge DB Warning: Skipped {model.__name__} table deletion (might not exist yet): {model_err}")
+            logger.warning(f"🧹 Purge DB Warning: Skipped {model.__name__} table deletion: {model_err}")
     
-    # primary ሳይት መዝገብን በንጽህና እንደገና መፍጠር
     try:
         with transaction.atomic():
             SiteRegistry.objects.all().delete()
@@ -504,7 +502,7 @@ def purge_database_view(request):
 @staff_member_required
 @csrf_exempt
 def toggle_autopilot_view(request):
-    """🤖 የኤጀንቱን 24/7 የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል መከታተያ [1, 1.1.2]"""
+    """🤖 የኤጀንቱን 24/7 የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል መከታተያ"""
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=400)
         
@@ -518,7 +516,6 @@ def toggle_autopilot_view(request):
             defaults={'value': {'active': active, 'updated_at': timezone.now().isoformat()}}
         )
         
-        # ቶግሉ ON ሲሆን የጥገና ታስኮችን በፍጥነት እንዲጀምር ቀስቃሽ ባንዲራ መስጠት [1, 1.1.2]
         if active:
             SiteConfig.objects.update_or_create(
                 key="EVOLVE_TRIGGER_PENDING",

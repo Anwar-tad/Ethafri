@@ -1,16 +1,9 @@
-<!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/product_detail.html
-📝 ለውጥ፦ v1.3 Master CEO Optimized Detail Page — Telegram, WhatsApp & Call (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Dynamic WhatsApp & Direct Call hooks, Multilingual button labels, Clipboard fallback preserved
-📅 ቀን፦ 2026-06-27
-============================================================ -->
-
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- ኤጀንቱ የሚቀይረው ልዩ የ CSS ኮድ ካለ ብቻ እዚህ ይፈቀዳል -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -21,7 +14,7 @@
 {% block content %}
 <div class="container py-5">
     
-    <!-- ⬅️ Back Hook -->
+    <!-- ⬅️ Back Hook (ወደ መነሻ ገጽ መመለሻ) -->
     <div class="mb-4">
         <a href="{% url 'home' %}" class="text-decoration-none text-muted fw-bold small">
             <i class="fas fa-arrow-left me-2"></i> {% trans "BACK TO MARKETPLACE" %}
@@ -30,22 +23,24 @@
 
     <div class="product-detail-wrapper">
         <div class="row g-0">
-            <!-- 📸 ምስል (ግራ) -->
+            <!-- 📸 የምርት ምስል (ግራ) -->
             <div class="col-lg-6">
-                <div class="main-img-container">
+                <div class="main-img-container" style="background: #f8fafc; min-height: 400px; position: relative;">
                     {% if product.market_value_status == 'Verified' %}
-                        <div class="verified-badge"><i class="fas fa-check-circle me-1"></i> CEO VERIFIED</div>
+                        <div class="verified-badge" style="position: absolute; top: 20px; left: 20px; background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 50px; font-weight: 800; font-size: 0.75rem; box-shadow: 0 4px 10px rgba(16,185,129,0.3);"><i class="fas fa-check-circle me-1"></i> CEO VERIFIED</div>
                     {% endif %}
                     
                     {% if product.image %}
-                        <img src="{{ product.image.url }}" alt="{{ product.get_translated_title }}">
+                        <img src="{{ product.image.url }}" alt="{{ product.get_translated_title }}" style="width: 100%; height: 100%; object-fit: contain;">
+                    {% elif product.image_url %}
+                        <img src="{{ product.image_url }}" alt="{{ product.get_translated_title }}" style="width: 100%; height: 100%; object-fit: contain;">
                     {% else %}
-                        <img src="https://loremflickr.com/800/800/{{ product.category.name|slugify|default:'item' }}?lock={{ product.id }}" alt="{{ product.title }}">
+                        <img src="https://loremflickr.com/800/800/{{ product.category.name|slugify|default:'item' }}?lock={{ product.id }}" alt="{{ product.title }}" style="width: 100%; height: 100%; object-fit: contain;">
                     {% endif %}
                 </div>
             </div>
 
-            <!-- 📝 መረጃ (ቀኝ) -->
+            <!-- 📝 የምርት መረጃዎች (ቀኝ) -->
             <div class="col-lg-6 p-4 p-md-5">
                 <div class="d-flex align-items-center gap-2 mb-3">
                     <span class="badge bg-light text-primary border rounded-pill px-3">{{ product.category.name }}</span>
@@ -55,7 +50,7 @@
                 </div>
 
                 <h1 class="fw-bold display-6 mb-2">{{ product.get_translated_title }}</h1>
-                <div class="price-hero mb-4">
+                <div class="price-hero mb-4" style="font-size: 2.5rem; font-weight: 900; color: var(--primary-color, #1a2a6c); letter-spacing: -1px;">
                     {% if product.price > 0 %}
                         {{ product.price|floatformat:0 }} <span class="fs-4">ETB</span>
                     {% else %}
@@ -73,7 +68,7 @@
                     {{ product.get_translated_desc }}
                 </p>
 
-                <!-- 👤 Seller & Contact Hook -->
+                <!-- 👤 ሻጭ እና የመገኛ መረጃ -->
                 <div class="p-4 rounded-4 border bg-light mb-4">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
@@ -87,27 +82,46 @@
                     </div>
                 </div>
 
-                <!-- 📞 የሶሻል ሚዲያ መገናኛዎች (Dynamic Action Group) -->
+                <!-- 📞 የሶሻል ሚዲያ መገናኛዎች (Dynamic Contact Router Integration) -->
                 <div class="action-group d-flex flex-wrap gap-2">
                     
                     <!-- 📨 ቴሌግራም መገናኛ (Telegram) -->
-                    {% if product.seller.username %}
-                    <a href="https://t.me/{{ product.seller.username }}" target="_blank" class="btn-contact">
-                        <i class="fab fa-telegram-plane me-2"></i> {% trans "Telegram" %}
+                    {% if contact_links.telegram %}
+                    <a href="{{ contact_links.telegram }}" target="_blank" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="background-color: #0088cc; border-color: #0088cc; color: white;">
+                        <i class="fab fa-telegram-plane me-2 fs-5"></i> {% trans "Telegram" %}
+                    </a>
+                    {% elif product.seller.username %}
+                    <a href="https://t.me/{{ product.seller.username }}" target="_blank" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="background-color: #0088cc; border-color: #0088cc; color: white;">
+                        <i class="fab fa-telegram-plane me-2 fs-5"></i> {% trans "Telegram" %}
                     </a>
                     {% endif %}
 
-                    <!-- 🟢 ዋትሳፕ መገናኛ (WhatsApp - ✅ v1.3 የተጨመረ) -->
-                    {% if product.seller.seller_profile.whatsapp %}
+                    <!-- 🟢 ዋትሳፕ መገናኛ (WhatsApp) -->
+                    {% if contact_links.whatsapp %}
+                    <a href="{{ contact_links.whatsapp }}" target="_blank" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="background-color: #25D366; border-color: #25D366; color: white;">
+                        <i class="fab fa-whatsapp me-2 fs-5"></i> {% trans "WhatsApp" %}
+                    </a>
+                    {% elif product.seller.seller_profile.whatsapp %}
                     <a href="https://wa.me/{{ product.seller.seller_profile.whatsapp }}" target="_blank" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="background-color: #25D366; border-color: #25D366; color: white;">
                         <i class="fab fa-whatsapp me-2 fs-5"></i> {% trans "WhatsApp" %}
                     </a>
                     {% endif %}
 
-                    <!-- 📞 የቀጥታ ስልክ መገናኛ (Direct Phone Call - ✅ v1.3 የተጨመረ) -->
-                    {% if product.seller.seller_profile.phone %}
-                    <a href="tel:{{ product.seller.seller_profile.phone }}" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="color: white;">
+                    <!-- 📞 የቀጥታ ስልክ መገናኛ (Direct Phone Call) -->
+                    {% if contact_links.call %}
+                    <a href="{{ contact_links.call }}" class="btn btn-dark rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="color: white;">
                         <i class="fas fa-phone me-2"></i> {% trans "Call" %}
+                    </a>
+                    {% elif product.seller.seller_profile.phone %}
+                    <a href="tel:{{ product.seller.seller_profile.phone }}" class="btn btn-dark rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="color: white;">
+                        <i class="fas fa-phone me-2"></i> {% trans "Call" %}
+                    </a>
+                    {% endif %}
+
+                    <!-- 🟣 ኢሞ መገናኛ (IMO) -->
+                    {% if contact_links.imo %}
+                    <a href="{{ contact_links.imo }}" class="btn btn-info rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="background-color: #1a73e8; border-color: #1a73e8; color: white;">
+                        <i class="fas fa-comments me-2"></i> {% trans "IMO" %}
                     </a>
                     {% endif %}
 
@@ -138,19 +152,19 @@
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fr">Français</button></li>
         </ul>
         
-        <div class="tab-content">
-            <div class="tab-pane fade show active translation-pane shadow-inner" id="en">{{ product.translations.en|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="am">{{ product.translations.am|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="om">{{ product.translations.om|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="ti">{{ product.translations.ti|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="so">{{ product.translations.so|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="ar" dir="rtl">{{ product.translations.ar|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade translation-pane shadow-inner" id="fr">{{ product.translations.fr|default:_("Translation in progress...") }}</div>
+        <div class="tab-content mt-3">
+            <div class="tab-pane fade show active p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="en">{{ product.translations.en|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="am">{{ product.translations.am|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="om">{{ product.translations.om|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="ti">{{ product.translations.ti|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="so">{{ product.translations.so|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="ar" dir="rtl">{{ product.translations.ar|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="fr">{{ product.translations.fr|default:_("Translation in progress...") }}</div>
         </div>
     </div>
     {% endif %}
 
-    <!-- 📦 Related Assets (ከ CEO Agent የተሰጡ ምክሮች) -->
+    <!-- 📦 Related Assets (ተዛማጅ ምርቶች) -->
     {% if related_products %}
     <div class="mt-5 pt-5">
         <h4 class="fw-bold mb-4">{% trans "Suggested for You" %}</h4>
@@ -162,8 +176,10 @@
                         <div class="img-wrapper" style="padding-top: 100%;">
                             {% if related.image %}
                                 <img src="{{ related.image.url }}" alt="{{ related.title }}">
+                            {% elif related.image_url %}
+                                <img src="{{ related.image_url }}" alt="{{ related.title }}">
                             {% else %}
-                                <img src="https://loremflickr.com/400/400/{{ related.category.name|slugify }}?lock={{ related.id }}" alt="{{ related.title }}">
+                                <img src="https://loremflickr.com/400/400/{{ related.category.name|slugify|default:'product' }}?lock={{ related.id }}" alt="{{ related.title }}">
                             {% endif %}
                         </div>
                         <div class="p-2">

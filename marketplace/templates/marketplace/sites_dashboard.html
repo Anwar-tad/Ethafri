@@ -1,10 +1,3 @@
-<!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/sites_dashboard.html
-📝 ለውጥ፦ v1.3 Master CEO Multi-Site Dashboard — Real-Time Phase Animation (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Dynamic Phase Progress rendering, Fully translated label placeholders (i18n)
-📅 ቀን፦ 2026-06-27
-============================================================ -->
-
 {% extends "marketplace/base.html" %}
 {% load i18n %}
 {% load static %}
@@ -19,7 +12,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="sites-wrapper">
+<!-- 🤖 data-agent-monitor መለያ የ global.js የጋራ ዌብ-ሶኬት ግንኙነቱን ይቀሰቅሳል -->
+<div class="sites-wrapper" data-agent-monitor>
     <div class="container-fluid">
 
         <!-- 🏢 Dashboard Header -->
@@ -29,36 +23,31 @@
                     <i class="fas fa-layer-group text-primary me-2"></i>
                     {% trans "Portfolio Overview" %}
                 </h1>
-                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                 <p class="text-muted mb-0">{% trans "Managing" %} <b>{{ total_sites|default:0 }}</b> {% trans "unique niche marketplaces." %}</p>
             </div>
-            <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-dark rounded-pill px-4">
+            <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-dark rounded-pill px-4 text-decoration-none">
                 <i class="fas fa-arrow-left me-2"></i> {% trans "Executive Command" %}
             </a>
         </div>
 
         <!-- 📊 Global Aggregated Stats -->
-        <div class="global-stats-bar d-flex justify-content-around align-items-center text-center">
+        <div class="global-stats-bar d-flex justify-content-around align-items-center text-center p-3 rounded-4 bg-white shadow-sm mb-4">
             <div>
-                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                 <small class="text-muted d-block text-uppercase fw-bold mb-1">{% trans "Total Reach" %}</small>
                 <span class="fs-4 fw-bold text-primary">{{ total_visitors|default:0 }}</span>
             </div>
-            <div class="stat-divider"></div>
+            <div class="stat-divider" style="width: 1px; height: 35px; background: #e2e8f0;"></div>
             <div>
-                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                 <small class="text-muted d-block text-uppercase fw-bold mb-1">{% trans "Sellers" %}</small>
                 <span class="fs-4 fw-bold text-success">{{ total_sellers|default:0 }}</span>
             </div>
-            <div class="stat-divider d-none d-md-block"></div>
+            <div class="stat-divider d-none d-md-block" style="width: 1px; height: 35px; background: #e2e8f0;"></div>
             <div class="d-none d-md-block text-center">
-                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                 <small class="text-muted d-block text-uppercase fw-bold mb-1">{% trans "Listings" %}</small>
                 <span class="fs-4 fw-bold text-info">{{ total_products|default:0 }}</span>
             </div>
-            <div class="stat-divider"></div>
+            <div class="stat-divider" style="width: 1px; height: 35px; background: #e2e8f0;"></div>
             <div>
-                <!-- ✅ FIXED: የባለብዙ ቋንቋ ትርጉም መለያ ተዋቅሯል -->
                 <small class="text-muted d-block text-uppercase fw-bold mb-1">{% trans "Revenue" %}</small>
                 <span class="fs-4 fw-bold text-dark">ETB {{ total_revenue|floatformat:0 }}</span>
             </div>
@@ -68,7 +57,7 @@
         <div class="row g-4">
             {% for item in site_stats %}
             <div class="col-md-6 col-xl-4">
-                <div class="niche-card shadow-sm">
+                <div class="niche-card shadow-sm bg-white p-4 rounded-4" style="border: 1px solid #e2e8f0;">
                     <div class="niche-header">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
@@ -77,27 +66,26 @@
                                     {{ item.niche|upper }}
                                 </span>
                             </div>
-                            <span class="growth-level-badge level-{% if item.growth_level == 1 %}local{% elif item.growth_level == 2 %}city{% elif item.growth_level == 3 %}country{% elif item.growth_level == 4 %}continent{% else %}global{% endif %}">
+                            <span class="badge bg-primary rounded-pill">
                                 {{ item.get_growth_level_display }}
                             </span>
                         </div>
                         
                         <div class="small text-muted mt-3">
-                            <i class="fas fa-map-marker-alt me-1"></i> {{ item.target_market }}
+                            <i class="fas fa-map-marker-alt me-1 text-danger"></i> {{ item.target_market }}
                         </div>
 
-                        <!-- Phase Progress (✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል) -->
-                        <div class="phase-bar-mini">
-                            <div class="phase-fill" id="site-phase-fill-{{ item.id }}" style="width: {% widthratio item.build_phase 5 100 %}%"></div>
+                        <!-- Phase Progress -->
+                        <div class="progress rounded-pill bg-light mt-3" style="height: 8px; overflow: hidden;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" id="site-phase-fill-{{ item.id }}" role="progressbar" style="width: {% widthratio item.build_phase 5 100 %}%"></div>
                         </div>
                         <div class="d-flex justify-content-between mt-1">
-                            <!-- ✅ FIXED: በ WebSocket እንዲታደስ id ተሰጥቶታል -->
                             <small class="text-muted" id="site-phase-text-{{ item.id }}" style="font-size: 0.65rem;">Phase {{ item.build_phase }}/5</small>
                             <small class="fw-bold text-primary" style="font-size: 0.65rem;">{{ item.get_build_phase_display }}</small>
                         </div>
                     </div>
 
-                    <div class="card-body">
+                    <div class="card-body p-0 mt-3">
                         <!-- Task Summary -->
                         <div class="bg-light rounded-4 p-3 mb-3">
                             <div class="row text-center g-0">
@@ -125,7 +113,7 @@
                         {% endif %}
 
                         <div class="d-grid mt-auto">
-                            <a href="{% url 'site_detail' item.id %}" class="btn btn-primary rounded-pill fw-bold py-2 shadow-sm">
+                            <a href="{% url 'site_detail' item.id %}" class="btn btn-primary rounded-pill fw-bold py-2 shadow-sm text-decoration-none">
                                 <i class="fas fa-chart-pie me-2"></i> {% trans "Analyze Site" %}
                             </a>
                         </div>
@@ -150,12 +138,9 @@
 
 {% block extra_js %}
 <script>
-    // 📟 WebSocket Connection — የጣቢያዎቹን የዕድገት ደረጃ በእውነተኛ ሰዓት ለማሳየት የተገጠመ ሎጂክ
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
-
-    socket.onmessage = function(event) {
-        const data = JSON.parse(event.data);
+    // 📟 WebSocket Connection — የጣቢያዎቹን የዕድገት ደረጃ በ global.js በተከፈተው ሶኬት በኩል ማዘመኛ
+    document.addEventListener('agent_update', function(event) {
+        const data = event.detail;
         
         if (data.type === 'status_update') {
             const sites = data.sites || [];
@@ -175,6 +160,6 @@
                 }
             });
         }
-    };
+    });
 </script>
 {% endblock %}

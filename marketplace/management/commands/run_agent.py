@@ -1,12 +1,13 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/run_agent.py
-# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with Adaptive Pacing (v1.2)
-# ✅ የተፈቱ ችግሮች፦ Dynamic interval adjustment, memory leak prevention, DB load reduction
-# 📅 ቀን፦ 2026-06-27
+# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with Adaptive Pacing (v1.3 - Complete)
+# ✅ የተፈቱ ችግሮች፦ Eradicated raw 'pass' statements, integrated offline pacing safety, synced live logs with dashboard ws.
+# 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections, connection
+from django.utils import timezone
 import logging
 import gc
 import sys
@@ -15,6 +16,7 @@ import time
 # የባክሎግ ሁኔታን ለመፈተሽ ሞዴሉን ማስገባት
 from marketplace.models import AIProjectBacklog
 from marketplace.growth_agent import execute_master_cycle
+from marketplace.ai_utils import broadcast_agent_log
 
 # 🛡️ Logger setup
 logger = logging.getLogger(__name__)
@@ -53,6 +55,7 @@ class Command(BaseCommand):
                 
                 # 2. Execute Business Logic (የሥራ ዑደቱን መጥራት)
                 self.stdout.write("⚙️ Running Master Cycle...")
+                broadcast_agent_log(None, "Command: Master Pacing cycle triggered manually or dynamically.", "info")
                 execute_master_cycle()
                 
                 # 3. Memory Cleanup (ራም ለመቆጠብ)
@@ -63,13 +66,21 @@ class Command(BaseCommand):
                     sleep_duration = interval
                 else:
                     try:
-                        has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
-                        if has_pending:
-                            sleep_duration = 30  # የሚሰሩ ስራዎች ካሉ በፍጥነት በየ30 ሰከንዱ ይነሳል
-                            self.stdout.write(self.style.NOTICE("⚡ Backlog has pending tasks. Fast-pacing active (30s sleep)..."))
+                        from marketplace.growth_agent import MultiChannelHarvester
+                        
+                        # 🌐 ኔትወርክ ከሌለ ቶከን ለመቆጠብ Pacing ን በከፍተኛ ሁኔታ ማቀዝቀዝ
+                        if not MultiChannelHarvester.is_network_available():
+                            sleep_duration = 1800  # 30 ደቂቃ
+                            self.stdout.write(self.style.WARNING("🌐 Network is offline. Slow-pacing active (1800s sleep to save tokens)..."))
+                            broadcast_agent_log(None, "Pacing Alert: Server is offline. Sleeping for 30 minutes.", "warning")
                         else:
-                            sleep_duration = interval  # ባዶ ከሆነ ረዘም ላለ ጊዜ ይተኛል
-                            self.stdout.write(f"💤 No pending tasks. Concluding cycle. Sleeping {sleep_duration}s to save resources...")
+                            has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
+                            if has_pending:
+                                sleep_duration = 30  # የሚሰሩ ስራዎች ካሉ በፍጥነት በየ30 ሰከንዱ ይነሳል
+                                self.stdout.write(self.style.NOTICE("⚡ Backlog has pending tasks. Fast-pacing active (30s sleep)..."))
+                            else:
+                                sleep_duration = interval  # ባዶ ከሆነ ረዘም ላለ ጊዜ ይተኛል
+                                self.stdout.write(f"💤 No pending tasks. Concluding cycle. Sleeping {sleep_duration}s to save resources...")
                     except Exception as db_err:
                         logger.warning(f"Failed to query backlog status for pacing: {db_err}")
                         sleep_duration = 60  # ዳታቤዝ ላይ ችግር ካለ በዲፎልት 1 ደቂቃ መጠበቅ
@@ -90,13 +101,14 @@ class Command(BaseCommand):
                 # 🧹 የዳታቤዝ ግንኙነቶችን መልቀቅ
                 try:
                     connection.close()
-                except:
-                    pass
+                except Exception as close_err:
+                    logger.debug("Database connection close safely ignored: %s", close_err)
 
     def cleanup(self):
         """Clean resource release method."""
         try:
             connection.close()
             gc.collect()
-        except:
-            pass
+            logger.info("🧹 Cleaned up DB connections and garbage collector successfully.")
+        except Exception as cleanup_err:
+            logger.debug("Cleanup exception safely ignored: %s", cleanup_err)

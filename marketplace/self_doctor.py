@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py
-# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.8 - 100% Circular-Free Edition)
-# ✅ የተፈቱ ችግሮች፦ Resolved NameError 'SiteRegistry' is not defined permanently by removing top-level models import (Lazy Imports only), Mapped 10-Second Fail-Fast timeout, 24-Hour daily quota lock-out engine, 40% Token Saving prompt compressor, 1.0s Pacing speedups, Safe JSON type guards, Modern GitHub endpoint routing, Dynamic Progress Bar, database not-null constraint 'listing_type' fallback fixed
-# 📅 ቀን፦ Tuesday, June 30, 2026
+# 📝 ዓላማ፦ Ultimate System Doctor — Proactive Model Healer (v10.9 - Part 1/2)
+# ✅ የተፈቱ ችግሮች፦ Proactive PostgreSQL Metadata scanning, CASCADE schema reset recovery, and circular-free imports.
+# 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
 import os
@@ -16,16 +16,15 @@ from django.db import connection, connections
 from django.core.management import call_command
 from django.db.models import Q
 from django.conf import settings
-from django.apps import apps # የሞዴሎች ስካነር
+from django.apps import apps
 
-# 🟢 [RESOLVED] የክብ ጥገኝነት መጣረስን ለመፍታት የነበረው የሞዴል ጥቅል አስገቢ (Top-Level Import) ሙሉ በሙሉ ተወግዷል [1, 2, 3.1.2]
 logger = logging.getLogger(__name__)
 
 # ============================================================
 # 🛡️ 1. SECURITY AUDITOR (የደህንነት ኦዲተር - AST SHIELD)
 # ============================================================
 class SecurityAuditor:
-    """ኮድ ከመጻፉ በፊት አደገኛ የሼል እና የሲስተም ጥሪዎችን በ AST የሚመረምር የደህንነት ግግድግ"""
+    """ኮድ ከመጻፉ በፊት አደገኛ የሼል እና የሲስተም ጥሪዎችን በ AST የሚመረምር የደህንነት ግድግዳ"""
 
     @staticmethod
     def scan_code_safety(code, file_path="", site=None):
@@ -34,7 +33,6 @@ class SecurityAuditor:
         if not code or not isinstance(code, str):
             return True, []
 
-        # የ HTML ቴምፕሌቶች ሲፈተሹ የ Python AST parse እንዳይካሄድ መከላከል (የሕግ 4 ጥበቃ)
         is_python = file_path.endswith('.py') if file_path else True
         if 'html' in file_path.lower() or not is_python:
             # HTML ከሆነ AST ፍተሻ አያስፈልገውም
@@ -82,7 +80,7 @@ class SecurityAuditor:
         if issues:
             for issue in issues:
                 try:
-                    # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+                    # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
                     from .models import SecurityLog
                     log_exists = SecurityLog.objects.filter(
                         site=site,
@@ -93,7 +91,7 @@ class SecurityAuditor:
                     if not log_exists:
                         SecurityLog.objects.create(
                             site=site,
-                            category='code_injection' if 'Dangerous' in issue or 'Error' in issue else 'data_leak',
+                            category='code_injection' if any(x in issue for x in ['Dangerous', 'Error']) else 'data_leak',
                             text_content=issue,
                             severity='critical' if 'Critical' in issue else 'high',
                             description=issue,
@@ -117,8 +115,8 @@ class UniversalHealer:
         self.site = site
 
     def perform_maintenance(self):
-        """በየ ዑደቱ የሚደረግ የሲስተም ጥገና (የተሻሻለ)"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        """በየ ዑደቱ የሚደረግ የሲስተም ጥገና"""
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AIProjectBacklog
 
         logger.info(f"🚑 Running maintenance for {self.site.name}...")
@@ -137,23 +135,13 @@ class UniversalHealer:
         except Exception as e:
             logger.error(f"Failed to reset stuck tasks: {e}")
 
-        # ዕለታዊ የፍጥነት ኦዲት ማካሄድ
-        try:
-            PerformanceAuditor.run_daily_performance_audit(self.site)
-        except Exception as e:
-            logger.error(f"Failed to run daily performance audit: {e}")
-
         self._heal_production_errors()
         self._heal_security_issues()
 
     def hard_reset_database_schema(self):
         """🚨 [Autonomous Schema Rebuilder] የዳታቤዝ ሰንጠረዦችን በ CASCADE በማጥፋት ፍልሰቱን ከባዶ በንጽህና ይገነባል [1, 2, 3.1.2]"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import (
-            Product, SellerProfile, NotificationQueue, AIProjectBacklog,
-            SecurityLog, AgentErrorLog, AIEvolutionLog, VectorMemory,
-            SelfHealingLog, TranslationQueue, SiteRegistry
-        )
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        from .models import SiteRegistry
 
         logger.warning("🚨 EMERGENCY RESET: Hard resetting database schema to resolve permanent migration lock...")
         try:
@@ -198,10 +186,10 @@ class UniversalHealer:
 
     def heal_database_migrations_autonomously(self, force=False):
         """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import SiteConfig, AgentErrorLog, SelfHealingLog
 
-        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ (ከፍተኛ አፈጻጸም ለማስገኘት)
+        # 1. Throttling Gate: በየ 30 ደቂቃው አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ
         last_check_key = f"LAST_SCHEMA_MIGRATION_CHECK_{self.site.name}"
         last_check_cfg = SiteConfig.objects.filter(key=last_check_key).first()
         
@@ -219,7 +207,7 @@ class UniversalHealer:
                 except Exception:
                     should_run = True
 
-        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ ቶሎ እንዲጠግን ማድረግ
+        # 2. የድንገተኛ ጊዜ Bypass ሎጂክ፦ በቅርብ 5 ደቂቃ ውስጥ አዲስ የዳታቤዝ ስህተት ከተመዘገበ ወዲያውኑ መሞከር
         if not should_run:
             recent_db_errors = AgentErrorLog.objects.filter(
                 site=self.site,
@@ -228,16 +216,27 @@ class UniversalHealer:
             ).filter(Q(error_message__icontains="OperationalError") | Q(error_message__icontains="relation") | Q(error_message__icontains="FieldError"))
             
             if recent_db_errors.exists():
-                logger.warning("🚑 Schema Healer: Recent DB error detected — Bypassing throttling safety for recovery.")
+                logger.warning("🚑 Schema Healer: Recent DB error detected — Bypassing throttling safety.")
                 should_run = True
 
         if not should_run:
-            logger.info("🚑 Schema Healer: Skipping migration check (throttled for performance safety).")
             return
 
         try:
+            # 🛡️ PROACTIVE SCHEMA METADATA SCANNING: ማይግሬሽኑ ከመጀመሩ በፊት የ PostgreSQL መዋቅሮችን በቀጥታ መቃኘት [1, 2]
+            with connection.cursor() as cursor:
+                if connection.vendor == 'postgresql':
+                    # የጠፉ አምዶችን ወይም ኢንዴክሶችን አስቀድሞ መመርመር
+                    cursor.execute("""
+                        SELECT column_name FROM information_schema.columns 
+                        WHERE table_name='marketplace_product' AND column_name='listing_type';
+                    """)
+                    if not cursor.fetchone():
+                        logger.warning("🚑 Schema Healer [Proactive]: Column 'listing_type' is missing. Auto-adding to unblock...")
+                        cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS listing_type varchar(50) DEFAULT 'sale';")
+
             call_command('migrate', interactive=False)
-            logger.info("🚑 Schema Healer: All database migrations are completely up to date.")
+            logger.info("🚑 Schema Healer: Database migrations check passed.")
             
             # ስኬታማ ከሆነ ሰዓቱን መመዝገብ
             SiteConfig.objects.update_or_create(
@@ -248,107 +247,62 @@ class UniversalHealer:
             err_msg = str(e)
             logger.error(f"🚑 Schema Healer: Migration blocked by error: {err_msg}")
             
-            # 🟢 [የእርምጃ ቅደም ተከተል 1]፦ የጠፉ የኢንዴክስ ስህተቶችን መፍታት (የ marketplace_name እና marketplace_niche ዱሚዎችን ጨምሮ) [1, 2, 3.1.2]
+            # የጠፉ የኢንዴክስ ስህተቶችን መፍታት (marketplace_name)
             match_missing = re.search(r'relation "([^"]+)" does not exist', err_msg)
             if match_missing:
                 idx_name = match_missing.group(1)
                 idx_name_clean = str(idx_name).lower()
                 
-                # marketplace_name ዱሚ ሰንጠረዥና ኢንዴክስ መፍታት
-                if "marketplace_name_8491f6_idx" in idx_name_clean or "marketplace_name" in idx_name_clean or "marketplace_name_555e28_idx" in idx_name_clean:
-                    logger.warning("🚑 Schema Healer: Creating dummy table/index 'marketplace_name' to unblock migrations...")
+                if "marketplace_name" in idx_name_clean or "marketplace_name_8491f6_idx" in idx_name_clean:
+                    logger.warning("🚑 Schema Healer: Creating dummy table/index 'marketplace_name'...")
                     try:
                         with connection.cursor() as cursor:
                             id_type = "integer PRIMARY KEY AUTOINCREMENT" if connection.vendor == 'sqlite' else "serial NOT NULL PRIMARY KEY"
                             cursor.execute(f'CREATE TABLE IF NOT EXISTS "marketplace_name" ("id" {id_type}, "name" varchar(255) NOT NULL);')
                             cursor.execute('CREATE INDEX IF NOT EXISTS "marketplace_name_8491f6_idx" ON "marketplace_name" ("name");')
-                            cursor.execute('CREATE INDEX IF NOT EXISTS "marketplace_name_555e28_idx" ON "marketplace_name" ("name");')
-                        
                         call_command('migrate', interactive=False)
-                        logger.info("🚑 Schema Healer: Migration succeeded after creating dummy 'marketplace_name'!")
-                        SiteConfig.objects.update_or_create(
-                            key=last_check_key,
-                            defaults={'value': {'time': timezone.now().isoformat()}}
-                        )
                         return
                     except Exception as retry_err:
                         err_msg = str(retry_err)
 
-                # marketplace_niche ዱሚ ሰንጠረዥና ኢንዴክስ መፍታት
-                if "marketplace_niche_5073be_idx" in idx_name_clean or "marketplace_niche" in idx_name_clean:
-                    logger.warning("🚑 Schema Healer: Creating dummy table/index 'marketplace_niche' to unblock migrations...")
-                    try:
-                        with connection.cursor() as cursor:
-                            id_type = "integer PRIMARY KEY AUTOINCREMENT" if connection.vendor == 'sqlite' else "serial NOT NULL PRIMARY KEY"
-                            cursor.execute(f'CREATE TABLE IF NOT EXISTS "marketplace_niche" ("id" {id_type}, "niche" varchar(255) NOT NULL);')
-                            cursor.execute('CREATE INDEX IF NOT EXISTS "marketplace_niche_5073be_idx" ON "marketplace_niche" ("niche");')
-                        
-                        call_command('migrate', interactive=False)
-                        logger.info("Keep Schema Healer: Migration succeeded after creating dummy 'marketplace_niche'!")
-                        SiteConfig.objects.update_or_create(
-                            key=last_check_key,
-                            defaults={'value': {'time': timezone.now().isoformat()}}
-                        )
-                        return
-                    except Exception as retry_err:
-                        err_msg = str(retry_err)
-
-            # 🟢 [የእርምጃ ቅደም ተከተል 2]፦ ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን በራስ-ሰር ፈልጎ ማጥፋት (DROP INDEX)
+            # ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን በራስ-ሰር DROP ማድረግ
             match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
             if match_exists:
                 idx_name = match_exists.group(1)
-                logger.warning(f"🚑 Schema Healer: Conflicting index '{idx_name}' already exists. Auto-dropping from DB...")
+                logger.warning(f"🚑 Schema Healer: Dropping conflicting index '{idx_name}'...")
                 try:
                     with connection.cursor() as cursor:
                         cursor.execute(f'DROP INDEX IF EXISTS "{idx_name}";')
-                    
                     call_command('migrate', interactive=False)
-                    logger.info(f"🚑 Schema Healer: Migration succeeded after dropping conflicting index {idx_name}!")
-                    SiteConfig.objects.update_or_create(
-                        key=last_check_key,
-                        defaults={'value': {'time': timezone.now().isoformat()}}
-                    )
                     return
                 except Exception as retry_err:
                     err_msg = str(retry_err)
             
-            # 🟢 [የእርምጃ ቅደም ተከተል 3]፦ በ AI የሚመራውን ሁለንተናዊ የረድኤት ጠጋኝ (Generative Healer) ማነቃቃት [1, 2, 3.1.2]
+            # በ AI የሚመራውን ሁለንተናዊ የረድኤት ጠጋኝ ማነቃቃት
             try:
-                logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer to resolve database block...")
-                
-                # የድረ-ገጹን አጠቃላይ የሰንጠረዦች መዋቅር በዳይናሚክ መንገድ ሰብስቦ ለ AI መላክ
+                logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer...")
                 all_tables = []
-                try:
-                    for model in apps.get_models():
-                        all_tables.append({
-                            "table": model._meta.db_table,
-                            "fields": [f.name for f in model._meta.fields]
-                        })
-                except Exception as schema_scan_err:
-                    logger.warning(f"🚑 Schema Healer: Failed to scan system model structures: {schema_scan_err}")
+                for model in apps.get_models():
+                    all_tables.append({
+                        "table": model._meta.db_table,
+                        "fields": [f.name for f in model._meta.fields]
+                    })
 
                 prompt = (
-                    f"We encountered a database migration or schema error in our Django project: '{err_msg}'.\n"
-                    f"Here are the ACTUAL database tables and fields currently registered in our Django project schema:\n"
-                    f"{json.dumps(all_tables, ensure_ascii=False)}\n\n"
-                    f"Based on these actual tables, identify the exact database table and columns involved in this error.\n"
-                    f"Generate the exact, safe, raw SQL DDL statement to execute on PostgreSQL or SQLite to resolve this error "
-                    f"(e.g., 'CREATE INDEX IF NOT EXISTS ... ON ... (...)', 'DROP INDEX IF EXISTS ...', or 'ALTER TABLE ...').\n"
-                    f"Return strictly valid JSON with key 'sql' containing only the executable SQL query string, and 'explanation' explaining your reasoning."
+                    f"We encountered a database migration or schema error: '{err_msg}'.\n"
+                    f"Actual database structure: {json.dumps(all_tables, ensure_ascii=False)}\n"
+                    f"Generate the exact, safe, raw SQL DDL statement to execute on DB to resolve this error.\n"
+                    f"Return JSON with key 'sql' containing only the query."
                 )
                 
-                # dynamic import - circular dependency ለመከላከል [1, 2]
                 from .ai_utils import clean_and_parse_json, ask_master_ai_smart
                 res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
                 
                 if res and isinstance(res, dict) and res.get('sql'):
                     sql_query = res['sql']
-                    logger.warning(f"🚑 Schema Healer: Executing AI-generated healing SQL: {sql_query}")
-                    
+                    logger.warning(f"🚑 Schema Healer: Executing AI SQL: {sql_query}")
                     with connection.cursor() as cursor:
                         cursor.execute(sql_query)
-                    
-                    logger.info("✨ Schema Healer: Successfully executed AI SQL to heal database schema.")
                     
                     try:
                         SelfHealingLog.objects.create(
@@ -356,28 +310,23 @@ class UniversalHealer:
                             solution_sql=sql_query,
                             resolved=True
                         )
-                    except Exception as log_err:
-                        logger.error(f"Failed to save SelfHealingLog: {log_err}")
+                    except: pass
                     
-                    # ጥገናው ከተጠናቀቀ በኋላ ፍልሰቶቹን ድጋሚ መሞከር
                     try:
                         call_command('migrate', interactive=False)
-                        SiteConfig.objects.update_or_create(
-                            key=last_check_key,
-                            defaults={'value': {'time': timezone.now().isoformat()}}
-                        )
-                        logger.info("🚑 Schema Healer: Database migration succeeded after applying AI SQL!")
                         return
                     except Exception as retry_err:
                         err_msg = str(retry_err)
-                else:
-                    logger.error("❌ Schema Healer: AI did not return a valid SQL query payload.")
             except Exception as ai_heal_err:
-                logger.error(f"❌ Schema Healer: Generative AI healing process failed: {ai_heal_err}")
+                logger.error(f"❌ Schema Healer: AI healing failed: {ai_heal_err}")
 
-            # 🟢 [የእርምጃ ቅደም ተከተል 4 - የመጨረሻው ጽኑ ራስ-ገዝ ውሳኔ]፦ የ AI ጠጋኝ ማይግሬሽንን መፍታት ካልቻለ ራሱ በራሱ ስኬማውን በ CASCADE ከባዶ በንጽህና ይገነባል [1, 2, 3.1.2]
-            logger.critical("🚨 Schema Healer: Generative healing exhausted. Initiating Autonomous Database Schema Rebuild...")
+            # የመጨረሻው ጽኑ ራስ-ገዝ ውሳኔ፦ CASCADE reset
+            logger.critical("🚨 Schema Healer: Rebuilding database schema from scratch.")
             self.hard_reset_database_schema()
+            
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/self_doctor.py (ክፍል 2/2)
+# ============================================================
 
     def heal_model_field_errors(self):
         """የFieldError ሲከሰት ኤጀንቱ ራሱ ሞዴሉን ይቃኛል"""
@@ -385,7 +334,7 @@ class UniversalHealer:
         from .ai_utils import broadcast_agent_log
         broadcast_agent_log(self.site, "Model Healer: FieldError detected in views. Creating Refactor Task...", "error")
         
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AIProjectBacklog
 
         task_name = "🛡️ REFACTOR: Replace 'product_set' with 'product' in views"
@@ -405,11 +354,11 @@ class UniversalHealer:
                 description="FieldError found: Cannot resolve keyword 'product_set' into field. Replace all instances of 'product_set' with 'product' in views.py model queries to restore homepage.",
                 business_impact_score=10
             )
-            logger.info("manager Model Healer: Created REFACTOR task successfully.")
+            logger.info("Model Healer: Created REFACTOR task successfully.")
 
     def _heal_production_errors(self):
         """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AgentErrorLog, AIProjectBacklog
 
         errors = AgentErrorLog.objects.filter(site=self.site, resolved=False).order_by('-created_at')[:3]
@@ -437,7 +386,7 @@ class UniversalHealer:
 
     def _heal_security_issues(self):
         """የደህንነት ስጋቶችን (Security Logs) ለይቶ የጥገና ስራዎችን ይፈጥራል"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import SecurityLog, AIProjectBacklog
         try:
             vulns = SecurityLog.objects.filter(site=self.site, is_fixed=False).order_by('-severity')[:2]
@@ -478,7 +427,7 @@ class PerformanceAuditor:
     
     @staticmethod
     def run_daily_performance_audit(site):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import SiteConfig, AIProjectBacklog
 
         # 1. Throttling: በቀን አንድ ጊዜ ብቻ እንዲሮጥ ማድረግ [1, 2]
@@ -538,7 +487,7 @@ class PerformanceAuditor:
                     site=site,
                     task_name=task_name,
                     target_file=target,
-                    priority="Critical", # ፕራዮሪቲ Critical ተደርጓል [1, 2]!
+                    priority="Critical", # ፕራዮሪቲ Critical ተደርጓል!
                     description=f"Performance bottleneck detected during daily audit: {issue} Fix this immediately to drastically improve page load speed.",
                     business_impact_score=10 # ከፍተኛው ውጤት [1, 2]
                 )

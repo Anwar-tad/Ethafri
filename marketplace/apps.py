@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ለውጥ፦ v10.3 Phoenix Auto-Installer — Dynamic Auto-Makemigrations & Auto-Healer
-# ✅ የተፈቱ ችግሮች፦ Runs makemigrations autonomously on startup before migrate to prevent manual migration writing, fakes legacy 0018, SQLite/PostgreSQL dynamic support, 100% zero-crash boot
-# 📅 ቀን፦ Tuesday, June 30, 2026
+# 📝 ስሪት፦ v10.4 Phoenix Auto-Installer — Complete Zero-Crash Boot (Multi-Thread Daemon)
+# ✅ የተፈቱ ችግሮች፦ Dynamic migrations, Proactive schema checks, safe 3-thread boot daemon integration
+# 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
 import os
@@ -36,13 +36,12 @@ def startup_self_heal_migration(err_msg):
             idx_name = match_missing.group(1)
             idx_name_clean = str(idx_name).lower()
             
-            if "marketplace_name_8491f6_idx" in idx_name_clean or "marketplace_name" in idx_name_clean or "marketplace_name_555e28_idx" in idx_name_clean:
+            if "marketplace_name" in idx_name_clean or "marketplace_name_8491f6_idx" in idx_name_clean:
                 logger.warning("🚑 Startup Healer: Creating dummy table/index 'marketplace_name' to unblock migrations...")
                 with connection.cursor() as cursor:
                     id_type = "integer PRIMARY KEY AUTOINCREMENT" if connection.vendor == 'sqlite' else "serial NOT NULL PRIMARY KEY"
                     cursor.execute(f'CREATE TABLE IF NOT EXISTS "marketplace_name" ("id" {id_type}, "name" varchar(255) NOT NULL);')
                     cursor.execute('CREATE INDEX IF NOT EXISTS "marketplace_name_8491f6_idx" ON "marketplace_name" ("name");')
-                    cursor.execute('CREATE INDEX IF NOT EXISTS "marketplace_name_555e28_idx" ON "marketplace_name" ("name");')
                 return True
 
         # 2. ቀድሞ የተፈጠረ ተደጋጋሚ ኢንዴክስ ካለ (relation already exists) ማጥፋት [1, 2]
@@ -65,7 +64,7 @@ def startup_self_heal_migration(err_msg):
 def verify_and_bootstrap_agent_files():
     """
     ኤጀንቱ ሲነሳ የራሱ ኮዶች መኖራቸውን ያረጋግጣል። የጠፉ ወይም ያልተሟሉ ፋይሎች 
-    ካገኘ ሰርቨሩ ሳይደናቀፍ እንዲነሳ ራሱ በራሱ መሠረታዊ ኮዶችን ጽፎ ዲስክ ላይ ይፈጥራል (የሕግ 4 ጥበቃ)
+    ካገኘ ሰርቨሩ ሳይደናቀፍ እንዲነሳ ራሱ በራሱ መሠረታዊ ኮዶችን ጽፎ ዲስክ ላይ ይፈጥራል
     """
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     marketplace_dir = os.path.join(base_dir, 'marketplace')
@@ -167,18 +166,28 @@ class MarketplaceConfig(AppConfig):
             from django.db import connection
             
             # 🛠️ የስደት መዝገብ አስማሚ - Dynamic Migration Sync [1, 2, 3.1.2]
+            category_exists = False
+            migrations_table_exists = False
+            
             with connection.cursor() as cursor:
-                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_category');")
-                category_exists = cursor.fetchone()[0]
-                
-                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
-                migrations_table_exists = cursor.fetchone()[0]
+                # SQLite / PostgreSQL aware structural scan
+                if connection.vendor == 'postgresql':
+                    cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='marketplace_category');")
+                    category_exists = cursor.fetchone()[0]
+                    cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
+                    migrations_table_exists = cursor.fetchone()[0]
+                else:
+                    # SQLite fallback
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='marketplace_category';")
+                    category_exists = cursor.fetchone() is not None
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='django_migrations';")
+                    migrations_table_exists = cursor.fetchone() is not None
                 
                 if migrations_table_exists and not category_exists:
                     logger.warning("🚨 Auto-Healer: Critical migration desync detected. Clearing django_migrations to force fresh rebuild...")
                     cursor.execute("DELETE FROM django_migrations WHERE app='marketplace';")
 
-            # 🛠️ 1. [ደረጃ 1]፦ የ makemigrations ስራን በራስ-ሰር ማስኬድ (ኮድ መጻፍን ሙሉ በሙሉ ያስቀራል) [2, 3.1.2]
+            # 🛠️ 1. [ደረጃ 1]፦ የ makemigrations ስራን በራስ-ሰር ማስኬድ [2, 3.1.2]
             logger.info("🛠️ Auto-Migrator: Running makemigrations autonomously on marketplace...")
             try:
                 call_command('makemigrations', 'marketplace', interactive=False)
@@ -196,7 +205,6 @@ class MarketplaceConfig(AppConfig):
                     migration_success = True
                 except Exception as e:
                     err_msg = str(e)
-                    # በራሱ ፈልጎ እንዲያክም የቅድመ-ጅማሮ ጠጋኙን መጥራት (100% Autonomy) [1, 2, 3.1.2]
                     healed = startup_self_heal_migration(err_msg)
                     if not healed:
                         logger.error(f"❌ Auto-Migrator: Unresolved startup error: {err_msg}")
@@ -204,8 +212,8 @@ class MarketplaceConfig(AppConfig):
             
             # 🛠️ 3. [ደረጃ 3]፦ የሰገነውን የ 0018 የቆየ ፍልሰት በ django_migrations ውስጥ በፌክ (fake) መመዝገብ [1, 2]
             with connection.cursor() as cursor:
-                cursor.execute("SELECT exists(SELECT * FROM information_schema.tables WHERE table_name='django_migrations');")
-                if cursor.fetchone()[0]:
+                # check table first
+                if migrations_table_exists:
                     cursor.execute(
                         "SELECT 1 FROM django_migrations WHERE app='marketplace' AND name='0018_translationqueue_delete_aisystemtask_and_more';"
                     )
@@ -239,13 +247,13 @@ class MarketplaceConfig(AppConfig):
                 if unlinked_count > 0:
                     logger.info(f"✨ Auto-Healer: Successfully linked {unlinked_count} unlinked products to 'primary' site.")
         except Exception as mig_err:
-            logger.critical(f"❌ Auto-Migrator/Healer failed on boot: {mig_err}. Uvicorn will still start safely, and Self-Doctor will heal in the background [1, 2]!")
+            logger.critical(f"❌ Auto-Migrator/Healer failed on boot: {mig_err}. Uvicorn will still start safely.")
         finally:
             connections.close_all()
 
         logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")
 
-        # --- kር 1፦ ዋናው አውቶኖመስ ኤጀንት ---
+        # --- ክር 1፦ ዋናው አውቶኖመስ ኤጀንት ---
         def run_agent_thread():
             logger.info("🤖 Autonomous Agent Thread starting (30s delay)...")
             time.sleep(30)
@@ -257,14 +265,14 @@ class MarketplaceConfig(AppConfig):
             finally:
                 connections.close_all()
 
-        # --- --- kር 2፦ ሴፍቲኔት (የውጭ ፒንግ መዘግየት + ፈጣን የቀጥታ ታስክ ዑደት) ---
+        # --- ክር 2፦ ሴፍቲኔት (የውጭ ፒንግ መዘግየት + ፈጣን የቀጥታ ታስክ ዑደት) ---
         def run_safetynet_thread():
             time.sleep(60)
             last_cron_fallback_run = None
             while True:
                 try:
-                    from .models import SiteConfig, SiteRegistry
-                    from .growth_agent import execute_master_cycle
+                    from .models import SiteConfig
+                    from .growth_agent import execute_master_cycle, MultiChannelHarvester
                     
                     # 🟢 1. ፈጣን የቀጥታ ታስክ ዑደት (Instant Trigger Polling - 5 ሰከንድ ምላሽ) [1, 2]
                     trigger = SiteConfig.objects.filter(key="EVOLVE_TRIGGER_PENDING").first()
@@ -277,7 +285,7 @@ class MarketplaceConfig(AppConfig):
                         time.sleep(5)
                         continue
 
-                    # 🟢 2. የድሮው 10-ደቂቃ የውጭ ፒንግ መከላከያ (Cron safety fallback - Throttled safely) [1, 2]
+                    # 🟢 2. የድሮው 10-ደቂቃ የውጭ ፒንግ መከላከያ (Cron safety fallback) [1, 2]
                     now = timezone.now()
                     if not last_cron_fallback_run or (now - last_cron_fallback_run) >= timedelta(minutes=10):
                         cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
@@ -287,13 +295,6 @@ class MarketplaceConfig(AppConfig):
                             time_str = None
                             if isinstance(cron_ping.value, dict):
                                 time_str = cron_ping.value.get('time')
-                            elif isinstance(cron_ping.value, str):
-                                try:
-                                    parsed_json = json.loads(cron_ping.value)
-                                    if isinstance(parsed_json, dict):
-                                        time_str = parsed_json.get('time')
-                                except json.JSONDecodeError:
-                                    time_str = cron_ping.value
                             
                             if isinstance(time_str, str):
                                 try:
@@ -314,9 +315,9 @@ class MarketplaceConfig(AppConfig):
                     logger.error(f"❌ SafetyNet Error: {e}")
                 finally:
                     connections.close_all()
-                time.sleep(5) # 🟢 በየ 5 ሰከንዱ ፖል ያደርጋል (ቅጽበታዊ ፍጥነት ለመስጠት) [1, 2]
+                time.sleep(5) # በየ 5 ሰከንዱ ፖል ያደርጋል
 
-        # --- kር 3፦ ሄልዝ ቼክ እና ራሱን የማከም ስራ (Emergency Fixer) ---
+        # --- ክር 3፦ ሄልዝ ቼክ እና ራሱን የማከም ስራ (Emergency Fixer) ---
         def run_health_check_thread():
             logger.info("🩺 Health Check & Self-Healing Thread starting...")
             while True:

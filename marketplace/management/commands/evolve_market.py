@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ለውጥ፦ Robust Growth Engine + Fixed Naming & Import Sync (v1.1)
-# ✅ የተፈቱ ችግሮች፦ Growth Agent Import Error Fixed (Mapped to execute_master_cycle & _run_site_cycle)
-# 📅 ቀን፦ 2026-06-25
+# 📝 ዓላማ፦ Robust Growth Engine + Fixed Naming & Import Sync (v1.2 - Complete)
+# ✅ የተፈቱ ችግሮች፦ Full dynamic site analysis, clean import fallbacks, and 100% zero pass placeholders.
+# 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
@@ -14,7 +14,7 @@ from marketplace.models import SiteConfig, SiteRegistry
 
 logger = logging.getLogger(__name__)
 
-# ✅ FIXED: የ growth_agent v9.4 አስገቢዎችን የዲፔንደንሲ ግጭት ለማስቀረት የተሰሩ የሥራ መጋጠሚያዎች (የሕግ 3 ጥበቃ)
+# ✅ የ growth_agent አስገቢዎችን የዲፔንደንሲ ግጭት ለማስቀረት የተሰሩ የሥራ መጋጠሚያዎች
 def run_single_site_analysis(site):
     """የአንድን ንዑስ ጣቢያ የዕድገት ዑደት ከዋናው _run_site_cycle ጋር ያገናኛል"""
     from marketplace.growth_agent import _run_site_cycle
@@ -63,7 +63,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"🚀 [{timezone.now()}] EthAfri Autonomous Growth Engine Triggered."))
         
         try:
-            # 🛡️ ላለፈው የ "Growth Agent module missing" ስህተት መከላከያ (የሕግ 3 ጥበቃ)
+            # 🛡️ ላለፈው የ "Growth Agent module missing" ስህተት መከላከያ
             try:
                 # የውህደት ፍተሻ (ኮዱ በትክክል መኖሩን ያረጋግጣል)
                 from marketplace.growth_agent import execute_master_cycle
@@ -162,8 +162,8 @@ class Command(BaseCommand):
                         'error': str(e)[:200]
                     }}
                 )
-            except:
-                pass
+            except Exception as config_err:
+                logger.debug("Failed to record LAST_CRON_ERROR: %s", config_err)
         finally:
             connection.close()
             gc.collect()

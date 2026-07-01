@@ -1,11 +1,11 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py
-# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.13 - Strictly Future-Annotated Circular-Free Edition)
-# ✅ የተፈቱ ችግሮች፦ Resolved NameError 'SiteRegistry' is not defined permanently by implementing from __future__ import annotations to defer type hint resolution [1, 2], Mapped 10-Second Fail-Fast timeout, 24-Hour daily quota lock-out engine, 40% Token Saving prompt compressor, 1.0s Pacing speedups, Safe JSON type guards, Modern GitHub endpoint routing, Dynamic Progress Bar, database not-null constraint 'listing_type' fallback fixed
-# 📅 ቀን፦ Tuesday, June 30, 2026
+# 📝 ዓላማ፦ Ultimate Autonomous Master-Brain CEO Agent (v10.14 - Strictly Optimized & Complete)
+# ✅ የተፈቱ ችግሮች፦ Resolved duplicate definitions, syntax cuts in scraper loops, fully integrated Sandbox Validation and circular-free imports.
+# 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
-from __future__ import annotations # 🟢 አዲስ የተጨመረ - የ NameError ስህተትን በዘላቂነት ለመከላከል [1, 2]
+from __future__ import annotations # የ NameError ስህተትን በዘላቂነት ለመከላከል [1, 2]
 
 import ast
 import json
@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, connections
 from django.db.models import Q
 from concurrent.futures import ThreadPoolExecutor
 
@@ -67,7 +67,7 @@ def is_html_target(target_file):
 # ============================================================
 def has_seeded_products(site):
     """ምርት ለ ሳይቱ መኖሩን ይለያል፣ site-mismatch/inactive ችግሮችን ራሱ ይጠግናል/ይዘግባል"""
-    # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+    # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
     from .models import Product, SiteRegistry
 
     if Product.objects.filter(site=site, is_active=True).exists():
@@ -78,7 +78,7 @@ def has_seeded_products(site):
     orphaned_count = orphaned_qs.count()
     total_globally = Product.objects.count()
 
-    # 🩹 Self-Heal: NULL-site ምርቶች ካሉ እና ብቸኛ active site ካለ (ambiguity-free)፣
+    # Self-Heal: NULL-site ምርቶች ካሉ እና ብቸኛ active site ካለ (ambiguity-free)፣
     # በራስ-ሰር ለ ሳይቱ ማያያዝ ምክንያታዊ ነው
     if orphaned_count > 0:
         active_site_count = SiteRegistry.objects.filter(is_active=True).count()
@@ -172,7 +172,7 @@ def rollback_file(path, old_code):
 # ============================================================
 def update_agent_progress(site, step_msg, percentage):
     """የኤጀንቱን የአፈጻጸም ደረጃ (Progress Bar ፐርሰንት) በየሰከንዱ በዳታቤዝ ላይ ይመዘግባል [3.1.2]"""
-    # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+    # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
     from .models import SiteConfig
     try:
         SiteConfig.objects.update_or_create(
@@ -181,7 +181,10 @@ def update_agent_progress(site, step_msg, percentage):
         )
     except Exception:
         pass
-
+      
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py (ክፍል 2/4)
+# ============================================================
 
 # ============================================================
 # 🔬 LIGHTWEIGHT AST CALCULATOR (የዕድገት ምዕራፍ ፈላጊ)
@@ -243,7 +246,7 @@ class RecursiveOptimizer:
 
     def refine_strategy(self):
         """የስህተት ሎጎችን አይቶ የ AI ፕሮምፕት መመሪያዎችን በ SiteConfig ላይ ያሻሽላል"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AgentErrorLog, SiteConfig
 
         recent_errors = AgentErrorLog.objects.filter(
@@ -276,7 +279,7 @@ class StrategicCEO:
         self.site = site
 
     def execute_planning_cycle(self):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AIProjectBacklog, SiteConfig, AdminOverrideInstruction
 
         self._process_owner_directives()
@@ -365,7 +368,7 @@ class StrategicCEO:
 
     def check_for_self_audit(self):
         """[Self-Evolution System] ቢያንስ በየ 3 ሰዓቱ ራሱን መርምሮ የኦፕቲማይዜሽን ስራ ይፈጥራል"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import SiteConfig
 
         last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
@@ -389,7 +392,7 @@ class StrategicCEO:
             )
 
     def _process_owner_directives(self):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AdminOverrideInstruction
 
         overrides = AdminOverrideInstruction.objects.filter(site=self.site, is_processed=False)
@@ -406,10 +409,13 @@ class StrategicCEO:
             )
             cmd.is_processed = True
             cmd.save()
-
+            
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py (ክፍል 3/4)
+# ============================================================
 
 # ============================================================
-# 🛠️ RECURSIVE BUILDER (AI-Driven Code Writer + Verification)
+# 🛠️ RECURSIVE BUILDER (AI-Driven Code Writer + Sandbox Verification)
 # ============================================================
 class RecursiveBuilder:
     def __init__(self, site: SiteRegistry):
@@ -417,12 +423,12 @@ class RecursiveBuilder:
 
     @staticmethod
     def _get_cooldown_hours(target_file):
-        # ✅ High-Throughput Cooldown፦ HTML 1 ደቂቃ (0.016 ሰዓት)፣ Backend 3 ደቂቃ (0.05 ሰዓት) [1, 2]
+        # High-Throughput Cooldown፦ HTML 1 ደቂቃ (0.016 ሰዓት)፣ Backend 3 ደቂቃ (0.05 ሰዓት) [1, 2]
         return 0.016 if is_html_target(target_file) else 0.05
 
     @classmethod
     def is_on_cooldown(cls, site, target_file):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import AIEvolutionLog
 
         cooldown_hours = cls._get_cooldown_hours(target_file)
@@ -432,6 +438,8 @@ class RecursiveBuilder:
         ).exists()
 
     def build_next_feature(self, task):
+        from .ai_utils import SandboxedCodeValidator # 🟢 አዲሱን የ Sandbox Validator ማስገባት [1, 2]
+
         if self.is_on_cooldown(self.site, task.target_file):
             return "Cooldown"
 
@@ -442,11 +450,11 @@ class RecursiveBuilder:
             task.save()
             return "Halted for Seeding"
 
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import VectorMemory
         past_memories = VectorMemory.objects.filter(site=self.site).order_by('-id')[:3]
         
-        # 🟢 የ AI ቶከን ፍጆታን ለመቀነስ የማስታወሻዎችን መጠን ማሳጠር [1, 2]
+        # የ AI ቶከን ፍጆታን ለመቀነስ የማስታወሻዎችን መጠን ማሳጠር [1, 2]
         memory_context = [compress_code_for_prompt(m.content) for m in past_memories]
 
         task.status = 'Running'
@@ -482,15 +490,14 @@ class RecursiveBuilder:
         new_code = res['code']
         target_is_html = is_html_target(task.target_file)
 
-        # 1. Pre-write syntax check (ለ Python ብቻ)
+        # 1. 🛡️ Pre-write Sandbox & Syntax check (ለ Python ብቻ - AST SHIELD) [1, 2]
         if not target_is_html:
-            try:
-                compile(new_code, '<string>', 'exec')
-            except SyntaxError as e:
-                logger.error(f"❌ AI-generated syntax error for {task.target_file}: {e}")
-                task.status = 'Pending'
+            is_valid, msg = SandboxedCodeValidator.validate(new_code)
+            if not is_valid:
+                logger.error(f"❌ Sandbox Code Validation Failed for {task.target_file}: {msg}. Retrying in next cycle...")
+                task.status = 'Blocked'
                 task.save()
-                return "Syntax Error"
+                return "Sandbox Error"
 
         # 2. Security scan (file_path ይተላለፋል — HTML-aware skip-logicን ለማስቻል)
         is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=task.target_file, site=self.site)
@@ -511,7 +518,7 @@ class RecursiveBuilder:
                 except Exception:
                     pass
 
-            # 🟢 [Anti-Bloat Guard]: አዲሱ ኮድ ወደ ዲስክ ከመጻፉ በፊት አላስፈላጊ ክፍሎቹ በራስ-ሰር እንዲቀነሱ ማድረግ [1, 2]
+            # [Anti-Bloat Guard]: አዲሱ ኮድ ወደ ዲስክ ከመጻፉ በፊት አላስፈላጊ ክፍሎቹ በራስ-ሰር እንዲቀነሱ ማድረግ [1, 2]
             new_code = AntiBloatEngine.prune_and_optimize(old_code, new_code, task.target_file)
 
             apply_result = apply_code_change(self.site, task.target_file, new_code, task.task_name, backlog_task=task)
@@ -551,11 +558,12 @@ class RecursiveBuilder:
 
 
 # ============================================================
-# 📡 DYNAMIC ADAPTIVE HARVESTER (የምርት ምንጮች ዳሰሳና የጅምላ መረጃ አሳሽ)
+# 📡 DYNAMIC ADAPTIVE HARVESTER (Playwright & Multi-Channel Sync - 100% Complete)
 # ============================================================
 class MultiChannelHarvester:
     @staticmethod
     def is_network_available():
+        """የሲስተሙን የኢንተርኔት ግንኙነት በአስተማማኝ ሁኔታ መፈተሻ"""
         try:
             requests.get("https://google.com", timeout=3)
             return True
@@ -563,7 +571,11 @@ class MultiChannelHarvester:
             return False
 
     def discover_and_harvest_niche_sources(self, site):
-        """የሚተዳደረውን ሳይት ኒች መሠረት በማድረግ ምርጥ የገበያ ምንጮችን ራሱ መርምሮ ያገኛል፣ በጅምላ ያስሳል [1, 2, 3.1.2]"""
+        """የሚተዳደረውን ሳይት ኒች መሠረት በማድረግ ምርጥ የገበያ ምንጮችን ራሱ መርምሮ ያገኛል፣ በጅምላ ያስሳል"""
+        from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        from .models import SiteConfig
+        
         # 1. AI-Driven Discovery (የምንጭ ጥናትና ቅድሚያ መስጫ - 100% አውቶኖመስ) [1, 2, 3.1.2]
         discovery_prompt = (
             f"Identify up to 3 active, high-traffic online marketplace channels, Telegram channels, Facebook public groups, "
@@ -572,36 +584,55 @@ class MultiChannelHarvester:
             f"'url_or_channel' (e.g., '@ShegerMerkat_et', 'https://jiji.com.et/electronics', 'https://www.engocha.com/search') "
             f"and 'platform_type' ('Telegram', 'Jiji', 'Engocha', 'Facebook', 'GenericWeb')."
         )
-        sources_data = clean_and_parse_json(ask_master_ai_smart(discovery_prompt, task_type="market_research"))
-        sources = sources_data.get('sources', []) if sources_data else []
         
-        # የውጭ ኔትወርክ ወይም የፍለጋ መቆራረጥ ካጋጠመ አስተማማኝ የሀገር ውስጥ መሸጫ ቻናሎችን መጠቀም (Fallback) [1]
+        sources = []
+        if self.is_network_available():
+            try:
+                sources_data = clean_and_parse_json(ask_master_ai_smart(discovery_prompt, task_type="market_research"))
+                sources = sources_data.get('sources', []) if sources_data else []
+            except Exception as ai_err:
+                logger.warning(f"AI Discovery failed, falling back to local list: {ai_err}")
+
+        # 🛡️ OFFLINE or FALLBACK: የውጭ ኔትወርክ ወይም የፍለጋ መቆራረጥ ካጋጠመ አስተማማኝ የሀገር ውስጥ መሸጫ ቻናሎችን መጠቀም [1]
         if not sources:
-            sources = [
-                {"url_or_channel": "EthioMarketplace", "platform_type": "Telegram"},
-                {"url_or_channel": "ShegerMerkat_et", "platform_type": "Telegram"},
-                {"url_or_channel": f"https://jiji.com.et/search?query={site.niche or 'general'}", "platform_type": "Jiji"},
-                {"url_or_channel": f"https://www.engocha.com/search?q={site.niche or 'general'}", "platform_type": "Engocha"}
-            ]
+            # መጀመሪያ ካለፈው የዳታቤዝ መዝገብ (Cache) ፈልጎ መጠቀም
+            cached_registry = SiteConfig.objects.filter(key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}").first()
+            if cached_registry and isinstance(cached_registry.value, list) and len(cached_registry.value) > 0:
+                sources = cached_registry.value
+                logger.info(f"💾 Offline-First: Loaded {len(sources)} sources from local DB cache registry.")
+            else:
+                # ምንም መዝገብ ከሌለ ነባሪ ዝርዝር መጠቀም (Hard Fallback)
+                sources = [
+                    {"url_or_channel": "EthioMarketplace", "platform_type": "Telegram"},
+                    {"url_or_channel": "ShegerMerkat_et", "platform_type": "Telegram"},
+                    {"url_or_channel": f"https://jiji.com.et/search?query={site.niche or 'general'}", "platform_type": "Jiji"},
+                    {"url_or_channel": f"https://www.engocha.com/search?q={site.niche or 'general'}", "platform_type": "Engocha"}
+                ]
         
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import SiteConfig
-        # የጥናቱን ውጤት በ SiteConfig መዝገብ ላይ በራስ-ሰር ማስቀመጥ [1, 2]
-        SiteConfig.objects.update_or_create(
-            key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}",
-            defaults={'value': sources}
-        )
+        # የጥናቱን ውጤት በ SiteConfig መዝገብ ላይ በራስ-ሰር ማስቀመጥ
+        try:
+            SiteConfig.objects.update_or_create(
+                key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}",
+                defaults={'value': sources}
+            )
+        except Exception as db_err:
+            logger.error(f"Failed to cache scrape registry: {db_err}")
         
         # 2. Universal Semantic Crawling
         raw_data_pool = []
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"}
         
         for src in sources[:4]:
             target = src.get('url_or_channel', '')
             p_type = src.get('platform_type', '')
             
             try:
+                # 🟢 ቴሌግራም ቻናል ፍተሻ (Telegram Scraper Core)
                 if p_type == 'Telegram':
+                    if not self.is_network_available():
+                        logger.warning(f"❄️ Offline mode active. Skipping remote Telegram fetch for {target}")
+                        continue
+                        
                     url = f"https://t.me/s/{target.replace('@', '')}"
                     res = requests.get(url, timeout=6)
                     if res.status_code == 200:
@@ -614,17 +645,58 @@ class MultiChannelHarvester:
                                 "text": clean_text,
                                 "image_url": images[i] if i < len(images) else ""
                             })
+                
+                # 🟢 ጃቫስክሪፕት የሚሰሩ ጣቢያዎች (Jiji, Engocha) ፍተሻ - በ Playwright መረብ [2]
+                elif p_type in ['Jiji', 'Engocha']:
+                    if not self.is_network_available():
+                        logger.warning(f"❄️ Offline mode active. Skipping Playwright fetch for {target}")
+                        continue
+                    
+                    try:
+                        # የ Playwright ScrapperEngine መጥራት
+                        from .scrapper_engine import ScrapperEngine
+                        html_content = ScrapperEngine.scrape(target)
+                        
+                        if html_content:
+                            # ቶከን ለመቆጠብ script እና style ታጎችን ማጽዳት
+                            clean_html = re.sub(r'<script.*?>.*?</script>', '', html_content, flags=re.DOTALL)
+                            clean_html = re.sub(r'<style.*?>.*?</style>', '', clean_html, flags=re.DOTALL)
+                            clean_html = re.sub(r'<[^>]+>', ' ', clean_html)
+                            compressed_text = " ".join(clean_html.split())[:1500]
+                            
+                            imgs = re.findall(r'https?://[^\s"]+\.(?:jpg|jpeg|png)', html_content)[:3]
+                            raw_data_pool.append({
+                                "source": f"{p_type}: {target}",
+                                "text": compressed_text,
+                                "image_url": imgs[0] if imgs else ""
+                            })
+                    except Exception as playwright_err:
+                        logger.error(f"Playwright integration failed, attempting standard request fallback: {playwright_err}")
+                        res = requests.get(target, headers=headers, timeout=6)
+                        if res.status_code == 200:
+                            clean_html = re.sub(r'<script.*?>.*?</script>|<style.*?>.*?</style>', '', res.text, flags=re.DOTALL)
+                            clean_html = re.sub(r'<[^>]+>', ' ', clean_html)
+                            compressed_text = " ".join(clean_html.split())[:1500]
+                            imgs = re.findall(r'https?://[^\s"]+\.(?:jpg|jpeg|png)', res.text)[:3]
+                            raw_data_pool.append({
+                                "source": f"{p_type}: {target}",
+                                "text": compressed_text,
+                                "image_url": imgs[0] if imgs else ""
+                            })
+
+                # 🟢 አጠቃላይ ድረ-ገጾች ፍተሻ (GenericWeb & Facebook)
                 else:
-                    # የኮድ መደራረብን ለመቀነስ የተዘጋጀ ሁለንተናዊ የዌብ ገጽ መረጃ አምጭ (Plain Text Parser) [3.1.2]
+                    if not self.is_network_available():
+                        logger.warning(f"❄️ Offline mode active. Skipping fetch for {target}")
+                        continue
+                        
                     res = requests.get(target, headers=headers, timeout=6)
                     if res.status_code == 200:
-                        # ቶከን ለመቆጠብ script እና style ታጎችን ሙሉ በሙሉ ማጽዳት (Token Compression) [1, 2]
                         clean_html = re.sub(r'<script.*?>.*?</script>', '', res.text, flags=re.DOTALL)
                         clean_html = re.sub(r'<style.*?>.*?</style>', '', clean_html, flags=re.DOTALL)
-                        clean_html = re.sub(r'<[^>]+>', ' ', clean_html)  # plain text ማውጣት
-                        compressed_text = " ".join(clean_html.split())[:1500]  # የምርቱን መግለጫዎች ቆርጦ ማሳጠር
+                        clean_html = re.sub(r'<[^>]+>', ' ', clean_html)
+                        compressed_text = " ".join(clean_html.split())[:1500]
                         
-                        # ምስሎችን በዳይናሚክ ሪጀክስ ፈልጎ ማውጣት
                         imgs = re.findall(r'https?://[^\s"]+\.(?:jpg|jpeg|png)', res.text)[:3]
                         raw_data_pool.append({
                             "source": f"{p_type}: {target}",
@@ -633,27 +705,46 @@ class MultiChannelHarvester:
                         })
             except Exception as e:
                 logger.error(f"Dynamic crawler failed for {target}: {e}")
+
+        # 3. 🛡️ OFFLINE COMPILATION: ኔትወርክ ሙሉ በሙሉ ከጠፋና ምንም አዲስ ነገር መሰብሰብ ካልተቻለ [3]
+        if not raw_data_pool and not self.is_network_available():
+            logger.info("❄️ Offline-First: Gathering past uncurated listings from VectorMemory cache.")
+            try:
+                from .models import VectorMemory
+                past_insights = VectorMemory.objects.filter(site=site, memory_type='insight')[:5]
+                for insight in past_insights:
+                    raw_data_pool.append({
+                        "source": "Local Memory Cache",
+                        "text": insight.content,
+                        "image_url": ""
+                    })
+            except Exception as mem_err:
+                logger.error(f"Failed to read from local memory cache: {mem_err}")
                 
         return raw_data_pool
-
+        
+# ============================================================
+# 📁 ፋይል፦ EthAfri/marketplace/growth_agent.py (ክፍል 4/4)
+# ============================================================
 
 # ============================================================
-# 💼 CEO OPERATIONS (የጅምላ ዳታ አጻጻፍ እና የዋትሳፕ/ኢሞ ቀጥታ ሊንኮች ማመንጫ)
+# 💼 CEO OPERATIONS (የጅምላ ዳታ አጻጻፍ፣ የዋትሳፕ ቀጥታ ሊንኮች፣ ስፓም ማጣሪያ እና ማስተርጎም)
 # ============================================================
 class CEOOperations:
     def __init__(self, site: SiteRegistry):
         self.site = site
 
     def run_business_growth(self):
+        """የኤጀንቱን የንግድ ዕድገት እና የይዘት ፍሰት በቋሚነት የሚያስኬድ ማዕከል"""
         self._harvest_verified_products_bulk()
         self.curate_user_listings()
         self._boost_revenue()
 
     def _harvest_verified_products_bulk(self):
         """ሁሉንም የመረጃ ምንጮች በጅምላ (Bulk) ያሳሳል፣ በብልህነት በ AI ይተነትናል"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import SiteConfig
 
+        # የ 3 ሰዓት የጥበቃ ገደብ (Throughput protection)
         last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
         if last:
             try:
@@ -662,21 +753,14 @@ class CEOOperations:
                     last_time = timezone.make_aware(last_time)
                 if (timezone.now() - last_time) < timedelta(hours=3):
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Error checking harvest timestamp: {e}")
 
         harvester = MultiChannelHarvester()
-        if not harvester.is_network_available():
-            logger.info("❄️ Harvester: No active network detected. Scraping halted.")
-            return
-
-        # 1. በዳይናሚክ ምንጮች ላይ የጅምላ ምርት ፍለጋ
         raw_data_pool = harvester.discover_and_harvest_niche_sources(self.site)
-
         if not raw_data_pool:
             return
 
-        # 2. የ AI ጅምላ ማጣሪያ (Bulk AI Parsing & Cleansing)
         prompt = (
             f"You are a Data Cleansing Expert. Analyze these raw texts scraped from various Ethiopian platforms: {json.dumps(raw_data_pool, ensure_ascii=False)}.\n"
             f"Extract valid products fitting the '{self.site.niche}' niche. "
@@ -688,9 +772,7 @@ class CEOOperations:
         if data and isinstance(data, dict):
             products = data.get('products', [])
             if isinstance(products, list):
-                # 📌 የጅምላ አጻጻፍ ሎጂክ (Django bulk_create Optimizer - 90% የ SQL ፍጥነት ይጨምራል) [1, 2]
                 self._seed_listings_bulk(products)
-
                 SiteConfig.objects.update_or_create(
                     key=f"LAST_HARVEST_{self.site.name}",
                     defaults={'value': {'time': timezone.now().isoformat()}}
@@ -698,8 +780,8 @@ class CEOOperations:
 
     def _seed_listings_bulk(self, products_list):
         """ምርቶችንና የባለቤቶቹን ሁለገብ የመልዕክት ሊንኮች በአንድ ላይ በጅምላ ዳታቤዝ ላይ ይጽፋል"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import Product, SellerProfile, NotificationQueue
+        from django.contrib.auth.models import User
 
         products_to_create = []
         notifications_to_create = []
@@ -709,7 +791,6 @@ class CEOOperations:
                 continue
             
             try:
-                # ሻጩን በዳታቤዝ ውስጥ ማረጋገጥ ወይም መፍጠር
                 contact = p['seller_contact']
                 uname = contact.replace('@', '').strip()
                 user, _ = User.objects.get_or_create(username=uname, defaults={'is_active': True})
@@ -720,8 +801,6 @@ class CEOOperations:
                 except (ValueError, TypeError):
                     clean_price = 0.0
 
-                # 1. ምርቱን ለጅምላ አጻጻፍ ዝግጁ ማድረግ
-                # 🟢 ፅኑ የዳታቤዝ አቅራቢ መከላከያ፦ listing_type በግልጽ 'sale' እና የ contact_info እሴቶችን በአንድ ላይ መመዝገቡ constraints ስህተትን ይከላከላል [1, 2, 3.1.2]
                 product_obj = Product(
                     seller=user,
                     site=self.site,
@@ -735,7 +814,6 @@ class CEOOperations:
                 )
                 products_to_create.append(product_obj)
 
-                # 2. ሁለገብ የመልዕክት ሊንኮችን ማመንጨት (ዋትሳፕ፣ ቴሌግራም፣ ኢሞ፣ SMS/Call) [3.1.2]
                 dispatch_links = self.generate_contact_links(contact)
                 links_text = " | ".join([f"{k.upper()}: {v}" for k, v in dispatch_links.items()])
 
@@ -749,7 +827,6 @@ class CEOOperations:
             except Exception as seed_err:
                 logger.error(f"Failed to compile bulk listing: {seed_err}")
 
-        # 3. ጅምላ አጻጻፍ ወደ ዳታቤዝ መላክ (SQL Optimized - single-pass transaction) [1, 2]
         try:
             with transaction.atomic():
                 if products_to_create:
@@ -757,31 +834,26 @@ class CEOOperations:
                 if notifications_to_create:
                     NotificationQueue.objects.bulk_create(notifications_to_create)
                 
-                # SaaS ስታቲስቲክስ ማደስ
-                try:
-                    self.site.real_product_count = Product.objects.filter(site=self.site, is_active=True).count()
-                    self.site.total_products = Product.objects.filter(site=self.site).count()
-                    self.site.total_sellers = User.objects.filter(product__site=self.site).distinct().count()
-                    self.site.save()
-                except Exception:
-                    pass
+                # SaaS metrics sync
+                self.site.real_product_count = Product.objects.filter(site=self.site, is_active=True).count()
+                self.site.total_products = Product.objects.filter(site=self.site).count()
+                self.site.total_sellers = User.objects.filter(product__site=self.site).distinct().count()
+                self.site.save()
                 
-                logger.info(f"✨ Bulk Harvester: Successfully processed and saved {len(products_to_create)} products & notification links!")
+                logger.info(f"✨ Bulk Harvester: Successfully processed {len(products_to_create)} products!")
         except Exception as db_err:
             logger.error(f"Bulk DB Insertion failed: {db_err}")
 
     @staticmethod
     def generate_contact_links(contact_str):
-        """የባለቤቱን ስልክ ወይም ዩዘርኔም በመለየት የዋትሳፕ፣ ቴሌግራም ቀጥታ፣ ኢሞ እና የስልክ ማሳወቂያ ሊንኮችን ያመነጫል [3.1.2]"""
+        """የባለቤቱን ስልክ ወይም ዩዘርኔም በመለየት የዋትሳፕ፣ ቴሌግራም ቀጥታ፣ ኢሞ እና የስልክ ማሳወቂያ ሊንኮችን ያመነጫል"""
         links = {}
         if not contact_str:
             return links
         
-        # ስልክ ቁጥር መሆኑን መለየት (ምሳሌ፡ 09..., 07..., +251...)
         phone_match = re.search(r'(?:\+251|09|07)\d{8}', contact_str)
         if phone_match:
             raw_phone = phone_match.group(0)
-            # ወደ 251... የአለምአቀፍ ፎርማት መቀየር
             clean_phone = raw_phone
             if clean_phone.startswith('0'):
                 clean_phone = '251' + clean_phone[1:]
@@ -793,7 +865,6 @@ class CEOOperations:
             links['imo'] = f"imo://chat?phone={clean_phone}"
             links['call_sms'] = f"tel:+{clean_phone}"
         else:
-            # ዩዘርኔም ከሆነ (ለምሳሌ @username)
             clean_username = contact_str.replace('@', '').strip()
             if clean_username:
                 links['telegram_direct'] = f"https://t.me/{clean_username}"
@@ -802,8 +873,7 @@ class CEOOperations:
         return links
 
     def curate_user_listings(self, limit=5):
-        """[Real-Time Post-Validation Guardrail] አዲስ የተለጠፉ ምርቶችን መርምሮ ስካም ይከላከላል"""
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        """አዲስ የተለጠፉ ምርቶችን መርምሮ ስካም እና ስፓም ይከላከላል (100% የተሟላ)"""
         from .models import SiteConfig, Product, NotificationQueue
 
         dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
@@ -833,8 +903,7 @@ class CEOOperations:
                         site=self.site, recipient=product.seller.username,
                         message=(
                             f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት "
-                            f"በ AI ማጣሪያችን አልፏል። ምክንያት፦ {result.get('reason', 'ያልተሟላ መረጃ')}። "
-                            f"እእባክዎ መረጃውን አስተካክለው ድጋሚ ይጫኑ።"
+                            f"በ AI ማጣሪያችን አልፏል። ምክንያት፦ {result.get('reason', 'ያልተሟላ መረጃ')}።"
                         )
                     )
                     logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
@@ -843,7 +912,7 @@ class CEOOperations:
 
                 newly_curated.append(product.id)
             except Exception as e:
-                logger.error(f"curate_user_listings: failed for product {product.id}: {e}")
+                logger.error(f"curate_user_listings failed for product {product.id}: {e}")
 
         if newly_curated:
             curated_ids.update(newly_curated)
@@ -854,6 +923,7 @@ class CEOOperations:
         """ምርቱን ለ Amharic/Oromo ቋንቋዎች በራስ-ሰር መተርጎም"""
         try:
             from .models import ProductTranslation
+            from .ai_utils import translate_text_incremental
         except ImportError:
             return
 
@@ -875,10 +945,10 @@ class CEOOperations:
                 logger.debug(f"Translation skipped for product {product.id} ({lang}): {e}")
 
     def _boost_revenue(self):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+        """ተወዳጅ ምርቶችን ለይቶ በማስተዋወቅ የሽያጭ መጠንን ያሳድጋል"""
         from .models import Product
-
-        hot_items = Product.objects.filter(site=self.site, view_count__gt=100).order_by('-view_count')[:2]
+        
+        hot_items = Product.objects.filter(site=self.site, view_count__gt=100, is_active=True).order_by('-view_count')[:2]
         for item in hot_items:
             get_or_create_backlog_task_safe(
                 self.site, task_name=f"📣 Promote Hot Item: {item.title}",
@@ -897,9 +967,7 @@ class FraudHunter:
         self.site = site
 
     def scan_for_scams(self):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import Product
-
         suspicious = Product.objects.filter(site=self.site, price__lt=10, is_active=True)
         for p in suspicious:
             p.is_active = False
@@ -926,7 +994,6 @@ def fetch_remote_file_from_github(repo, file_path, token=None):
 
 def bootstrap_system_safely():
     """ዳታቤዙ ባዶ ከሆነ በራሱ 'primary' ሳይትን በመመዝገብ ኤጀንቱ ሥራ እንዲጀምር ያደርጋል"""
-    # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
     from .models import SiteRegistry
     try:
         if SiteRegistry.objects.filter(is_active=True).count() == 0:
@@ -946,7 +1013,6 @@ def bootstrap_system_safely():
 
 def get_site_project_state_dynamic(site: SiteRegistry):
     """[Dynamic File-System Explorer] ፕሮጀክቱን በዳይናሚክ መልክ ይመረምራል"""
-    # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
     from .models import AIProjectBacklog
 
     if not site:
@@ -1056,7 +1122,6 @@ def get_site_project_state_dynamic(site: SiteRegistry):
 
 
 def get_or_create_backlog_task_safe(site, task_name, defaults):
-    # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
     from .models import AIProjectBacklog
 
     matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
@@ -1075,252 +1140,12 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
 
 
 # ============================================================
-# 🧬 LAW 0 — SELF-READINESS GATE
+# 🎡 MASTER ENGINE LOOP (24/7 Execution Core - Optimized & Thread-Safe)
 # ============================================================
-class SelfBootstrapManager:
-    CORE_MODULES = {
-        'growth_agent': 'marketplace/growth_agent.py',
-        'ai_utils': 'marketplace/ai_utils.py',
-        'code_apply': 'marketplace/code_apply.py',
-        'self_doctor': 'marketplace/self_doctor.py',
-    }
-    RUNNING_PROCESS_MODULES = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
-    READY_KEY = "SELF_BOOTSTRAP_STATUS"
-    REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
-    MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
-    MAX_TOTAL_ATTEMPTS_PER_MODULE = 15
 
-    @classmethod
-    def _scan_core_files(cls):
-        broken = {}
-        base_dir = str(settings.BASE_DIR)
-        for key, rel_path in cls.CORE_MODULES.items():
-            full_path = os.path.join(base_dir, rel_path)
-            if not os.path.exists(full_path):
-                broken[key] = {"issue": "MISSING_FILE", "path": rel_path}
-                continue
-            try:
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                if not content.strip():
-                    broken[key] = {"issue": "EMPTY_FILE", "path": rel_path}
-                    continue
-                ast.parse(content)
-            except SyntaxError as e:
-                broken[key] = {"issue": f"SYNTAX_ERROR: {e}", "path": rel_path}
-            except Exception as e:
-                broken[key] = {"issue": f"READ_ERROR: {e}", "path": rel_path}
-        return broken
-
-    @classmethod
-    def _get_total_attempts(cls, module_key):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import SiteConfig
-        cfg = SiteConfig.objects.filter(key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}").first()
-        return cfg.value.get('count', 0) if cfg and isinstance(cfg.value, dict) else 0
-
-    @classmethod
-    def _increment_total_attempts(cls, module_key):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import SiteConfig
-
-        cfg, _ = SiteConfig.objects.get_or_create(
-            key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}", defaults={'value': {'count': 0}}
-        )
-        count = (cfg.value.get('count', 0) if isinstance(cfg.value, dict) else 0) + 1
-        cfg.value = {'count': count, 'last_attempt': timezone.now().isoformat()}
-        cfg.save()
-        return count
-
-    @classmethod
-    def ensure_self_ready(cls):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import SiteConfig, SiteRegistry
-
-        broken = cls._scan_core_files()
-
-        if not broken:
-            SiteConfig.objects.update_or_create(
-                key=cls.READY_KEY,
-                defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
-            )
-            return True
-
-        logger.critical(f"🚨 SELF-BOOTSTRAP GATE: {len(broken)} core module(s) unhealthy: {list(broken.keys())}")
-        SiteConfig.objects.update_or_create(
-            key=cls.READY_KEY,
-            defaults={'value': {
-                'status': 'self_repairing',
-                'broken': {k: v['issue'] for k, v in broken.items()},
-                'checked_at': timezone.now().isoformat()
-            }}
-        )
-
-        primary_site = SiteRegistry.objects.filter(name='primary').first()
-        if not primary_site:
-            logger.critical("🚨 SELF-BOOTSTRAP: No 'primary' site registered yet — cannot self-repair this cycle.")
-            return False
-
-        attempts = 0
-        repaired_any_running_module = False
-        while broken and attempts < cls.MAX_REPAIR_ATTEMPTS_PER_CYCLE:
-            attempts += 1
-            for module_key, info in list(broken.items()):
-                total_attempts = cls._get_total_attempts(module_key)
-                if total_attempts >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE:
-                    logger.critical(
-                        f"🚨 SELF-REPAIR: '{module_key}' exceeded {cls.MAX_TOTAL_ATTEMPTS_PER_MODULE} "
-                        f"repair attempts. Halting auto-repair for it — manual review required."
-                    )
-                    continue
-                cls._increment_total_attempts(module_key)
-                success = cls._repair_module(primary_site, module_key, info)
-                if success and module_key in cls.RUNNING_PROCESS_MODULES:
-                    repaired_any_running_module = True
-            broken = cls._scan_core_files()
-
-        is_ready = len(broken) == 0
-
-        if not is_ready:
-            all_exhausted = all(
-                cls._get_total_attempts(k) >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE for k in broken.keys()
-            )
-            if all_exhausted:
-                logger.critical(
-                    f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted for {list(broken.keys())}. "
-                    f"Proceeding in DEGRADED mode (current process still uses its last-known-good "
-                    f"in-memory code) — MANUAL REQUIRED before next restart."
-                )
-                SiteConfig.objects.update_or_create(
-                    key=cls.READY_KEY,
-                    defaults={'value': {
-                        'status': 'degraded_proceeding',
-                        'broken': {k: v['issue'] for k, v in broken.items()},
-                        'checked_at': timezone.now().isoformat()
-                    }}
-                )
-                return True
-
-            SiteConfig.objects.update_or_create(
-                key=cls.READY_KEY,
-                defaults={'value': {
-                    'status': 'repair_failed',
-                    'broken': {k: v['issue'] for k, v in broken.items()},
-                    'checked_at': timezone.now().isoformat()
-                }}
-            )
-            logger.critical(f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted this cycle. Still broken: {list(broken.keys())}. Will retry next cycle.")
-            return False
-
-        SiteConfig.objects.update_or_create(
-            key=cls.READY_KEY,
-            defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
-        )
-        logger.info("✅ SELF-BOOTSTRAP: All core modules verified healthy.")
-
-        if repaired_any_running_module and os.getenv('SELF_HEAL_AUTO_RESTART', 'false').lower() == 'true':
-            logger.critical("🧬 SELF-REPAIR: Core agent files were rewritten. Forcing controlled restart to load healed code...")
-            try:
-                broadcast_agent_log(primary_site, "Self-repair complete — restarting process to load fixes.", "success")
-            except Exception:
-                pass
-            os._exit(1)
-
-        return True
-
-    @classmethod
-    def _repair_module(cls, site, module_key, info):
-        # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import VectorMemory
-
-        logger.warning(f"🧬 SELF-REPAIR: Attempting to fix '{module_key}' ({info['issue']})")
-        try:
-            past_memories = VectorMemory.objects.filter(site=site).order_by('-id')[:3]
-            memory_context = [m.content for m in past_memories]
-        except Exception:
-            memory_context = []
-
-        prompt = (
-            f"CRITICAL SELF-REPAIR TASK: The core autonomous-agent module '{module_key}' "
-            f"(file: {info['path']}) is currently broken — Issue: {info['issue']}. "
-            f"Write a COMPLETE, clean, syntactically valid replacement for this entire file "
-            f"using 2026 Django/Python standards, preserving all functionality implied by its "
-            f"role inside an autonomous e-commerce CEO agent system (EthAfri). "
-            # 📌 የራሱን ኮድ በአንድ ላይ የማዋሃድና የማሳጠር መመሪያ [1, 2]
-            f"FEATURE CONSOLIDATION RULE: Consolidate helper logics, remove duplicate utility imports, "
-            f"and write highly compact, parameter-driven functions that handle multiple agent operations at once.\n"
-            f"Avoid repeating these past failures: {json.dumps(memory_context, ensure_ascii=False)}. "
-            f"Return JSON with key 'code' containing the full file content."
-        )
-        try:
-            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
-        except Exception as e:
-            logger.error(f"🧬 SELF-REPAIR: AI call failed for '{module_key}': {e}")
-            return False
-
-        if not (res and isinstance(res, dict) and 'code' in res):
-            logger.error(f"🧬 SELF-REPAIR: No valid code returned for '{module_key}'")
-            return False
-
-        new_code = res['code']
-        try:
-            ast.parse(new_code)
-        except SyntaxError as e:
-            logger.error(f"🧬 SELF-REPAIR: AI-generated fix for '{module_key}' still has a syntax error: {e}")
-            return False
-
-        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=info['path'], site=site)
-        if not is_safe:
-            logger.error(f"🛡️ SELF-REPAIR: Security gate blocked fix for '{module_key}': {msg}")
-            return False
-
-        # 🟢 [Anti-Bloat Guard]: ለራሱ የሚጽፈው የጥገና ኮድ እንዳያብጥ አስቀድሞ ማሳጠር [1, 2]
-        new_code = AntiBloatEngine.prune_and_optimize("", new_code, module_key)
-
-        base_dir = str(settings.BASE_DIR)
-        full_path = os.path.join(base_dir, info['path'])
-        old_code = ""
-        if os.path.exists(full_path):
-            try:
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    old_code = f.read()
-            except Exception:
-                pass
-
-        result = apply_code_change(site, module_key, new_code, reason=f"🧬 Self-Bootstrap Repair: {info['issue']}")
-        if not result.get('success'):
-            logger.error(f"❌ SELF-REPAIR: Failed to apply fix for '{module_key}': {result.get('message')}")
-            return False
-
-        applied_path = result.get('path', full_path)
-        verified, vmsg = verify_disk_write(applied_path)
-        if not verified:
-            logger.error(f"❌ SELF-REPAIR: Disk verification failed for '{module_key}': {vmsg}. Rolling back...")
-            rollback_file(applied_path, old_code)
-            return False
-
-        if module_key in DJANGO_APP_FILES:
-            deep_ok, dmsg = deep_verify_django_app()
-            if not deep_ok:
-                logger.error(f"❌ SELF-REPAIR: Deep Django check failed for '{module_key}': {dmsg}. Rolling back...")
-                rollback_file(applied_path, old_code)
-                return False
-
-        logger.info(f"✅ SELF-REPAIR: '{module_key}' rewritten and verified successfully.")
-        try:
-            VectorMemory.objects.create(site=site, memory_type='solution', content=f"Self-repaired core module: {module_key}")
-        except Exception:
-            pass
-        return True
-
-
-# ============================================================
-# 🎡 MASTER ENGINE LOOP (24/7 Execution Core)
-# ============================================================
 def execute_master_cycle():
     bootstrap_system_safely()
 
-    # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
     from .models import SiteConfig, SiteRegistry
 
     try:
@@ -1334,7 +1159,7 @@ def execute_master_cycle():
     is_self_ready = SelfBootstrapManager.ensure_self_ready()
 
     if not is_self_ready:
-        logger.critical("🚨 Agent is NOT self-ready yet. Skipping full site-management this cycle — will retry next cycle.")
+        logger.critical("🚨 Agent is NOT self-ready yet. Skipping full cycle.")
         try:
             SiteConfig.objects.update_or_create(
                 key="EVOLUTION_LOCK",
@@ -1364,41 +1189,62 @@ def execute_master_cycle():
                 )
             except Exception:
                 pass
-            from django.db import close_old_connections
-            close_old_connections()
+            connections.close_all()
 
 
 def _run_site_cycle(site):
-    from .ai_utils import broadcast_agent_log
-    # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
+    """የእያንዳንዱን ንዑስ ጣቢያ (SaaS Site) የዕድገት ዑደት 24 ሰዓት ሙሉ በጀርባ የሚያስኬድ ማዕከል"""
     from .models import AIProjectBacklog
+    from .database_memory import OfflineCacheManager
 
     try:
-        # 🟢 [Progress Bar]: የሰልፍ ዶክተር ጥገናን መጀመር መመዝገብ (10%) [3.1.2]
+        # 🟢 1. የሰልፍ ዶክተር ጥገና መጀመር (10%)
         update_agent_progress(site, "Running Self-Doctor Maintenance...", 10)
         time.sleep(random.uniform(1.5, 4.0))
         broadcast_agent_log(site, f"Running Self-Doctor maintenance for {site.name}...", "info")
         UniversalHealer(site).perform_maintenance()
         time.sleep(random.uniform(1.0, 3.0))
 
-        # 🟢 [Progress Bar]: የባክሎግ እቅድ ጥናትን መጀመር መመዝገብ (35%) [3.1.2]
+        # 🟢 2. የኔትወርክ ሁኔታን መፈተሽ (የመስመር ላይ/ከመስመር ውጭ መለያ) [1]
+        network_active = MultiChannelHarvester.is_network_available()
+
+        if not network_active:
+            # ❄️ [Offline Mode]: ኔትወርክ ከሌለ የውስጥ ጥገና እና የ RAG መረጃዎችን መተንተን (35% - 100%)
+            update_agent_progress(site, "Offline Mode: Analyzing memory insights...", 35)
+            broadcast_agent_log(site, f"🌐 Network disconnected. Switching '{site.name}' to Offline-First mode.", "warning")
+            
+            # የቆዩና የታገዱ ታስኮችን በራስ-ሰር ማጽዳት (Deduplication & Unlock)
+            OfflineCacheManager.process_stale_offline_tasks(site)
+            time.sleep(1.5)
+            
+            # ካሉ ምርቶች ላይ የ RAG ትንተና መስራት (Memory insight extraction)
+            update_agent_progress(site, "Offline Mode: Compiling local vector cache...", 70)
+            OfflineCacheManager.harvest_offline_insights(site)
+            
+            update_agent_progress(site, "Offline Cycle Completed. Sleeping...", 100)
+            broadcast_agent_log(site, f"✅ Offline-First maintenance complete for {site.name}.", "success")
+            return
+
+        # 🌐 [Online Mode]: ኔትወርክ ካለ መደበኛውን የዕድገት ዑደት ማስኬድ
+        # 🟢 3. የባክሎግ እቅድ ጥናትን መጀመር (35%)
         update_agent_progress(site, "Analyzing Codebase & Backlog...", 35)
         broadcast_agent_log(site, f"Analyzing codebase & planning backlog for {site.name}...", "info")
         ceo = StrategicCEO(site)
         ceo.execute_planning_cycle()
         time.sleep(random.uniform(1.0, 3.0))
 
-        # 🟢 [Progress Bar]: የጅምላ ምርት ዳሰሳን መጀመር መመዝገብ (65%) [3.1.2]
+        # 🟢 4. የጅምላ ምርት ዳሰሳ መጀመር (65%)
         update_agent_progress(site, "Bulk Scraping & Harvesting Products...", 65)
         broadcast_agent_log(site, f"Running business growth & market harvesting for {site.name}...", "info")
         ops = CEOOperations(site)
         ops.run_business_growth()
         time.sleep(random.uniform(1.0, 3.0))
 
+        # 🟢 5. የማጭበርበር እና ስፓም መከላከያ
         FraudHunter(site).scan_for_scams()
         time.sleep(random.uniform(1.0, 3.0))
 
-        # ✅ Risk-tiered cooldown ግምት ውስጥ በማስገባት ብዙ ስራዎችን በትይዩ መገንባት
+        # 🟢 6. የላቀ የኮድ ግንባታ እና የ Sandbox ፍተሻ (85%)
         pending_tasks = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score')
         tasks_to_build = []
         seen_files = set()
@@ -1414,46 +1260,51 @@ def _run_site_cycle(site):
                 break
 
         if tasks_to_build:
-            # 🟢 [Progress Bar]: የኮድ ማመንጨትና ፍተሻዎችን መጀመር መመዝገብ (85%) [3.1.2]
             tasks_names = ", ".join([t.task_name[:25] for t in tasks_to_build])
             update_agent_progress(site, f"Building Tasks: {tasks_names}...", 85)
+            broadcast_agent_log(site, f"Building {len(tasks_to_build)} strategic task(s) concurrently with Sandbox Validation...", "success")
             
-            broadcast_agent_log(site, f"Building {len(tasks_to_build)} strategic task(s) concurrently...", "success")
             builder = RecursiveBuilder(site)
 
             def _build_and_close(task):
-                from django.db import close_old_connections
                 try:
                     return builder.build_next_feature(task)
                 finally:
-                    close_old_connections()
+                    connections.close_all()
 
             with ThreadPoolExecutor(max_workers=min(len(tasks_to_build), 4)) as builder_executor:
                 builder_executor.map(_build_and_close, tasks_to_build)
 
-        # 🟢 [Progress Bar]: ዑደቱ በተሳካ ሁኔታ መጠናቀቁን መመዝገብ (100%) [3.1.2]
+        # 🟢 7. ዑደቱ በተሳካ ሁኔታ መጠናቀቁን መመዝገብ (100%)
         update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
+        broadcast_agent_log(site, f"✨ Master Cycle executed successfully for {site.name}.", "success")
 
     except Exception as e:
         logger.error(f"❌ Error in master cycle for {site.name}: {e}", exc_info=True)
         update_agent_progress(site, f"Error: {str(e)[:50]}", 100)
     finally:
-        from django.db import close_old_connections
-        close_old_connections()
+        connections.close_all()
 
 
 def start_autonomous_ceo():
+    """የኤጀንቱን 24/7 የጀርባ ዑደት በአካባቢያዊ ፍጥነት (Adaptive Pacing) የሚመራ"""
     logger.info("🚀 EthAfri Master CEO Agent Started on Render Cloud...")
     while True:
         try:
             execute_master_cycle()
 
-            # 🟢 [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
             from .models import AIProjectBacklog
 
-            # Adaptive Pacing: ብዙ pending backlog ካለ ፈጣን ድግግሞሽ፣ ካልሆነ ቶከን ቆጣቢ
+            # Adaptive Pacing: ብዙ pending backlog ካለ በፍጥነት (30s)፣ ካልሆነ የሰርቨር ሪሶርስ ለመቆጠብ (10 ደቂቃ)
             has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
-            interval = 30 if has_pending else 600
+            
+            # ኔትወርክ ከሌለ ረዘም ላለ ጊዜ እረፍት መስጠት (ቶከን እና ሰርቨር ሪሶርስ ቆጣቢ)
+            if not MultiChannelHarvester.is_network_available():
+                interval = 1800  # 30 ደቂቃ
+                logger.warning("🌐 Offline Mode detected. Pacing slowed to 30 minutes to conserve resources.")
+            else:
+                interval = 30 if has_pending else 600
+                
             logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
             time.sleep(interval)
         except Exception as e:

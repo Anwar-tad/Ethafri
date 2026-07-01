@@ -1,14 +1,14 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/sync_translations.py
-# 📝 ለውጥ፦ Dynamic API Pacing Translation Guard + Naming Sync (v1.1)
-# ✅ የተፈቱ ችግሮች፦ ask_ai_with_failover ImportError Fixed, clean_and_parse_json DRY Sync, Safe Keyword Joining
-# 📅 ቀን፦ Thursday, June 25, 2026
+# 📝 ለውጥ፦ Dynamic API Pacing Translation Guard + Naming Sync (v1.2 - Complete)
+# ✅ የተፈቱ ችግሮች፦ Dynamic API pacing, 100% complete loop, and zero pass statements in error catch blocks.
+# 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
 from django.core.management import call_command
 from django.conf import settings
-# ✅ FIXED: የዲፔንደንሲ ክራሽን ለመከላከል ወደ smart_ai_router መፍቻ አቅጣጫ ተቀይሯል (የሕግ 3 ጥበቃ)
+# የዲፔንደንሲ ክራሽን ለመከላከል ወደ smart_ai_router መፍቻ አቅጣጫ ተቀይሯል
 from marketplace.ai_utils import ask_master_ai_smart, clean_and_parse_json
 from marketplace.models import SiteRegistry
 import polib
@@ -20,7 +20,7 @@ import re
 
 logger = logging.getLogger(__name__)
 
-# ✅ FIXED: ask_ai_with_failoverን በስማርት ሁኔታ ወደ ai_utils translation ሞተር ማዞር (የሕግ 4 ጥበቃ)
+# ask_ai_with_failoverን በስማርት ሁኔታ ወደ ai_utils translation ሞተር ማዞር
 def ask_ai_with_failover(prompt, pool_type="translation", expected_keys=None):
     """
     [Dependency Resolver] በልዩ ሁኔታ የተዘጋጀውን የትርጉም ሥራ ወደ ai_utils.ask_master_ai_smart ያዞራል
@@ -80,7 +80,6 @@ class Command(BaseCommand):
 
     def _clean_and_parse_json(self, raw_data):
         """AI የሚመልሰውን ጥሬ ምላሽ አጽድቶ ወደ ዲክሽነሪ ይቀይራል (KeyError መከላከያ)"""
-        # ✅ FIXED: የኮድ ድግግሞሽን ለማስቀረት የ ai_utils ንፁህ የ JSON ማጽጃ ሎጂክ ጥቅም ላይ ውሏል (ሕግ 4)
         return clean_and_parse_json(raw_data)
 
     def _process_system_translations(self):
@@ -114,8 +113,8 @@ class Command(BaseCommand):
                 self.stdout.write(f"✨ {lang_name} - ምንም ያልተተረጎመ ቃል የለም።")
                 try:
                     po.save_as_mofile(mo_file_path)
-                except:
-                    pass
+                except Exception as mo_err:
+                    logger.debug("Failed to compile MO file for empty untranslated entries: %s", mo_err)
                 continue
 
             self.stdout.write(self.style.WARNING(f"🧠 {len(untranslated)} የ {lang_name} ቃላት በ AI በባች (Batch) በመተርጎም ላይ..."))
@@ -179,9 +178,7 @@ class Command(BaseCommand):
         
         locales = {'am': 'Amharic', 'om': 'Oromo', 'ar': 'Arabic', 'so': 'Somali', 'ti': 'Tigrinya', 'fr': 'French'}
         
-        # ✅ ማሻሻያ፦ keywords ሊስት መሆኑን በጥንቃቄ ማረጋገጥ
         keywords_list = site.primary_keywords if isinstance(site.primary_keywords, list) else []
-        # ✅ FIXED: የ TypeError ስህተትን ለመከላከል እያንዳንዱ የቁልፍ ቃል ወደ String እንዲቀየር ተደርጓል
         site_context = f"""
         Site: {site.display_name}
         Niche: {site.niche}

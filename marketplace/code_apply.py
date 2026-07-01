@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v9.5 - Thread Verified)
-# ✅ የተፈቱ ችግሮች፦ Multi-site SaaS Sandboxing, Path Commonpath Defense, Site-Specific Repo Routing, Thread-safe file writing
-# 📅 ቀን፦ Monday, June 29, 2026
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.0 - Complete Edition)
+# ✅ የተፈቱ ችግሮች፦ Multi-site SaaS Sandboxing, Path Commonpath Defense, Thread-safe file writing, Auto-backup & Rollback Sync
+# 📅 ቀን፦ Wednesday, July 01, 2026
 # ============================================================
 
 import os
@@ -23,15 +23,15 @@ logger = logging.getLogger(__name__)
 def apply_code_change(site, file_key, new_content, reason="", path=None, 
                       confidence_score=100, backlog_task=None, push_to_github=False):
     """
-    ኮድን በደህንነት ይተገብራል፣ የፓይተን ሲንታክስ ብቻ ይፈትሻል፣ 
+    ኮድን በደህንነት ይተገብራል፣ የፓይተን ሲንታክስ በ Sandbox ይፈትሻል፣ 
     እና በአስተዳዳሪው ትዕዛዝ መሠረት ብቻ ወደ GitHub ያመሳስላል (Sync)
     """
     
-    # 1. የፋይል ስም እና ማውጫ በዳይናሚክ መፍታት (SaaS Sandboxed Workspaces)
+    # 1. የፋይል ስም እና ማውጫ በዳይናሚክ መፍታት (SaaS Sandboxed Workspaces) [1, 2]
     base_dir = str(settings.BASE_DIR)
     app_name = 'marketplace'
     
-    # የሳይቱን ቤዝ ማህደር መወሰን (የሳይቶች ዳታ እንዳይደባለቅ መከላከያ)
+    # የሳይቱን ቤዝ ማህደር መወሰን (የሳይቶች ዳታ እንዳይደባለቅ መከላከያ - Multi-Tenant Sandbox) [1, 2]
     if site and site.name != 'primary':
         if site.repo_path:
             if site.repo_path.startswith('http') or 'github.com' in site.repo_path:
@@ -55,11 +55,11 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,
             
         path = os.path.join(base, app_name, file_path_relative)
     
-    # 2. 🛡️ የደህንነት ጥበቃ አጥር (Path Traversal Gating - Commonpath Check)
+    # 2. 🛡️ የደህንነት ጥበቃ አጥር (Path Traversal Gating - Commonpath Check) [1, 2]
     real_path = os.path.abspath(path)
     real_base = os.path.abspath(base)
     
-    # ከየራሱ ደንበኛ workspace ውጪ ለመፃፍ ሲሞከር ወዲያውኑ ማገድ (ለሁሉም ሳይቶች ይሰራል)
+    # ከየራሱ ደንበኛ workspace ውጪ ለመፃፍ ሲሞከር ወዲያውኑ ማገድ
     try:
         if os.path.commonpath([real_path, real_base]) != real_base:
             raise ValueError("Path Traversal Blocked")
@@ -154,38 +154,41 @@ def push_to_github_raw(file_path, content, message, site=None):
     """GitHub API በመጠቀም ኮድን በቀጥታ ወደየሳይቱ ሪፖዚተሪ መግፋት"""
     token = getattr(settings, 'GITHUB_TOKEN', None)
     
-    # ጊትሃብ ሪፖን በሳይት ደረጃ በዳይናሚክ መወሰን (የማከማቻ አድራሻ መዛባትን ይከላከላል)
-    repo = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
-    if site and site.repo_path and ('github.com' in site.repo_path or site.repo_path.startswith('http')):
-        match = re.search(r"github\.com/([^/]+/[^/]+)", site.repo_path)
+    # ጊትሃብ ሪፖን በሳይት ደረጃ በዳይናሚክ መወሰን (የማከማቻ አድራሻ መዛባትን ይከላከላል) [1, 2]
+    repo_name = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
+    if site and site.repo_path and ('github.com' in site.repo_path):
+        match = re.search(r"github\.com/([^/]+/[^\/]+)", site.repo_path)
         if match:
-            repo = match.group(1).replace('.git', '')
+            repo_name = match.group(1).replace('.git', '')
 
-    if not token: 
-        return "Local only (No Token)"
-
-    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+    url = f"https://api.github.com/repos/{repo_name}/contents/{file_path}"
     headers = {
-        "Authorization": f"token {token}", 
-        "Accept": "application/vnd.github.v3+json"
+        "Accept": "application/vnd.github.v3+json",
+        "Content-Type": "application/json"
     }
-
-    # የፋይሉን SHA ማግኘት (ለመተካት አስፈላጊ ነው)
-    res = requests.get(url, headers=headers)
-    sha = res.json().get('sha') if res.status_code == 200 else None
-
-    payload = {
-        "message": f"AI: {message[:100]}",
-        "content": base64.b64encode(content.encode('utf-8')).decode('utf-8'),
-        "branch": "main"
-    }
-    if sha: 
-        payload["sha"] = sha
-
+    if token:
+        headers["Authorization"] = f"token {token}"
+        
     try:
-        put_res = requests.put(url, headers=headers, json=payload, timeout=8)
-        if put_res.status_code in [200, 201]:
-            return f"Sync OK ({repo})"
-        return f"Error {put_res.status_code}"
+        # 1. በቅድሚያ የፋይሉን SHA ማግኘት (ለመተካት SHA ማቅረብ ግዴታ ነው)
+        sha = ""
+        res_get = requests.get(url, headers=headers, timeout=5)
+        if res_get.status_code == 200:
+            sha = res_get.json().get('sha', '')
+            
+        # 2. ፋይሉን በ base64 መክተት
+        b64_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+        
+        payload = {
+            "message": message,
+            "content": b64_content
+        }
+        if sha:
+            payload["sha"] = sha
+            
+        res_put = requests.put(url, headers=headers, json=payload, timeout=10)
+        if res_put.status_code in [200, 201]:
+            return "Success"
+        return f"Error: GitHub returned status {res_put.status_code}"
     except Exception as e:
-        return f"Connection Error: {e}"
+        return f"Exception: {e}"
