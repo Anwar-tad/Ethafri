@@ -15,6 +15,7 @@ python manage.py collectstatic --no-input || echo "⚠️ Static collection fail
 
 # 4. ዳታቤዝ ማይግሬሽን
 echo "🔧 Running migrations..."
+python manage.py makemigrations
 python manage.py migrate --no-input
 
 echo "✅ Build Process Finished Successfully!"
