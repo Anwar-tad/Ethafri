@@ -1,8 +1,8 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/urls.py
-# 📝 ለውጥ፦ Master CEO Agent URL Mapping — 100% View Sync & API Refined
-# ✅ የተፈቱ ችግሮች፦ View API Return Mismatches, Clean Routing Hierarchy, Synced with v1.7 views
-# 📅 ቀን፦ Monday, June 29, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/urls.py
+# 📝 ስሪት፦ v10.0 (Master CEO Agent URL Mapping - Complete Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic URL namespaces, aligned backlog orchestrator routing, secure API endpoints, and zero-pass placeholders.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 from django.urls import path
@@ -20,7 +20,7 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     
-    # 🧠 3. የኤጀንቱ የሥራ መቆጣጠሪያ (Master CEO Dashboard)
+    # 🧠 3. የኤጀንቱ የሥራ መቆጣጠሪያ (Master CEO Command Center)
     # የባለቤቱ ዋና የዕድገት ዳሽቦርድ
     path('growth-dashboard/', views.admin_growth_dashboard, name='growth_dashboard'),
     
@@ -31,7 +31,6 @@ urlpatterns = [
     path('trigger-evolution/', views.trigger_evolution, name='trigger_evolution'),
     
     # 📊 4. የኤጀንት ሁኔታ እና ጤና (Agent Health & Status)
-    # የኤጀንቱን ዝርዝር ሁኔታ (Memory, Predictions, Logs)
     path('agent-status/', views.agent_status_dashboard, name='agent_status'),
     
     # 🌐 5. ባለብዙ-ጣቢያ አስተዳደር (Multi-Site Management)
@@ -42,8 +41,11 @@ urlpatterns = [
     path('marketing/', views.marketing_dashboard, name='marketing_dashboard'),
     path('marketing/create/', views.create_marketing_campaign, name='create_marketing_campaign'),
     
+    # 🧠 7. የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator)
+    path('backlog/', views.manage_backlog_view, name='manage_backlog'),
+    
     # ============================================================
-    # ⚡ 7. የኤጀንት ኤፒአይዎች እና ዌብሁኮች (Automation & Webhooks)
+    # ⚡ 8. የኤጀንት ኤፒአይዎች እና ዌብሁኮች (Automation & Webhooks)
     # ============================================================
     # ለሪል-ታይም ዳሽቦርድ የሚሆን ዳታ መመለሻ
     path('api/advanced-stats/', views.advanced_stats_api, name='advanced_stats_api'),
@@ -56,9 +58,8 @@ urlpatterns = [
     
     # የውጭ ክሮን (External Cron) Webhook Gateway
     path('evolve-now-secret-123/', views.trigger_autonomous_evolution, name='trigger_autonomous_evolution'),
+    
     # 🟢 አዲስ የተጨመሩ የዳሽቦርድ Purge እና Autopilot ኤፒአይዎች
     path('api/agent/purge-db/', views.purge_database_view, name='api_purge_database'),
     path('api/agent/toggle-autopilot/', views.toggle_autopilot_view, name='api_toggle_autopilot'),
-    # 🧠 የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator)
-    path('backlog/', views.manage_backlog_view, name='manage_backlog'),
 ]

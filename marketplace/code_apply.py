@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.1 - Optimized Edition)
-# ✅ የተፈቱ ችግሮች፦ Multi-site SaaS Sandboxing, Path Commonpath Defense, Thread-safe file writing, Auto-backup, Rollback, and early return token guard.
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.2 - Surgical Patch Edition)
+# ✅ የተፈቱ ችግሮች፦ Integrated Feature 30 (Surgical Code Patching) using Python AST, prevented IndentationError via indent matching, and secured path traversal protections.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
@@ -16,12 +16,78 @@ from .models import AIEvolutionLog
 
 logger = logging.getLogger(__name__)
 
+
 # ============================================================
-# 🛠️ ዋናው የኮድ መተግበሪያ ተግባር (apply_code_change)
+# 🩺 1. AST SURGICAL PATCH ENGINE (የቀዶ-ጥገና ኮድ ማያያዣ)
+# ============================================================
+
+def apply_surgical_patch(path, target_name, new_code_segment):
+    """
+    በ AST አማካኝነት በፓይተን ፋይል ውስጥ የሚገኝን አንድ የተወሰነ ፈንክሽን ወይም ክላስ
+    ሳይትሳሳት ለይቶ በአዲሱ ኮድ ብቻ ቆርጦ የሚተካ የቀዶ-ጥገና ሎጂክ [1, 2]
+    """
+    if not os.path.exists(path):
+        return False, "File not found"
+        
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            source_code = f.read()
+            
+        tree = ast.parse(source_code)
+        lines = source_code.splitlines()
+        
+        target_node = None
+        # በፋይሉ ውስጥ ያሉትን ሁሉንም ክላሶች እና ፈንክሽኖች መፈለግ
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name == target_name:
+                target_node = node
+                break
+        
+        if not target_node:
+            return False, f"Target '{target_name}' not found in AST of {path}"
+            
+        # የፈንክሽኑን መነሻ እና ማጠናቀቂያ መስመር ለይቶ ማውጣት (Python 3.8+ end_lineno)
+        start_line = target_node.lineno - 1
+        end_line = target_node.end_lineno
+        
+        # የእጅ ኢንዴንቴሽን (Indentation) ጥበቃ፦ የድሮውን spacing ለይቶ ማውጣት
+        match_indent = re.match(r'^\s*', lines[start_line])
+        indent_prefix = match_indent.group(0) if match_indent else ""
+        
+        # በእያንዳንዱ አዲስ የኮድ መስመር ላይ የአሰላለፍ spacing መጨመር
+        indented_lines = []
+        for i, line in enumerate(new_code_segment.splitlines()):
+            if i == 0:
+                indented_lines.append(indent_prefix + line.lstrip())
+            else:
+                indented_lines.append(indent_prefix + line)
+                
+        patched_segment = "\n".join(indented_lines)
+        
+        # የተመረጠውን መስመር ብቻ ቆርጦ በአዲሱ መተካት
+        lines[start_line:end_line] = [patched_segment]
+        
+        updated_code = "\n".join(lines)
+        
+        # ሲንታክስ ትክክል መሆኑን በ Sandbox መፈተሽ
+        ast.parse(updated_code)
+        
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(updated_code)
+            
+        return True, f"Successfully patched '{target_name}'"
+        
+    except Exception as e:
+        logger.error(f"Surgical patch execution failed: {e}")
+        return False, f"Surgical patch failed: {e}"
+
+
+# ============================================================
+# 🛠️ 2. MAIN CODE APPLICATION (apply_code_change)
 # ============================================================
 
 def apply_code_change(site, file_key, new_content, reason="", path=None, 
-                      confidence_score=100, backlog_task=None, push_to_github=False):
+                      confidence_score=100, backlog_task=None, push_to_github=False, target_name=None):
     """
     ኮድን በደህንነት ይተገብራል፣ የፓይተን ሲንታክስ በ Sandbox ይፈትሻል፣ 
     እና በአስተዳዳሪው ትዕዛዝ መሠረት ብቻ ወደ GitHub ያመሳስላል (Sync)
@@ -72,7 +138,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,
         }
 
     # 3. የሲንታክስ (Syntax) ፍተሻ - ለፓይተን ፋይሎች ብቻ!
-    if path.endswith('.py'):
+    if path.endswith('.py') and not target_name:
         try:
             ast.parse(new_content)
         except SyntaxError as e:
@@ -91,12 +157,20 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,
         except Exception as e:
             logger.warning(f"⚠️ Could not read old file for backup: {e}")
 
-    # 5. ወደ ፋይል ጻፍ (Local File Write)
+    # 5. ወደ ፋይል ጻፍ (Local File Write / Surgical Patch Fallback) [1, 2]
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-        logger.info(f"💾 Written successfully to: {path}")
+        if target_name:
+            # 🔴 የቀዶ-ጥገና ኮድ ማያያዣ (Surgical Code Patching)
+            success, msg = apply_surgical_patch(path, target_name, new_content)
+            if not success:
+                return {'success': False, 'applied': False, 'message': msg, 'path': path, 'file_key': file_key}
+            logger.info(f"💾 Surgically patched target '{target_name}' in: {path}")
+        else:
+            # Full File Override
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            logger.info(f"💾 Written successfully to: {path}")
     except Exception as e:
         error_msg = f"❌ File write error: {e}"
         logger.error(error_msg)
