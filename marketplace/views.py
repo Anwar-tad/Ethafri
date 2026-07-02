@@ -323,22 +323,26 @@ def site_detail(request, site_id):
 
 @staff_member_required
 def marketing_dashboard(request):
-    """የግብይት እና የደንበኛ ማግኛ ውጤቶች መከታተያ"""
-    total_s = MarketingCampaign.objects.aggregate(total_sent=Sum('total_sent'))['total_sent']
-    total_c = MarketingCampaign.objects.aggregate(total_conv=Sum('total_converted'))['total_converted']
+    # .aggregate() ውጤቱን በ .get() ደህንነቱ በተጠበቀ መንገድ ማግኘት
+    stats = MarketingCampaign.objects.aggregate(
+        total_sent=Sum('total_sent'), 
+        total_conv=Sum('total_converted')
+    )
+    # None ቢሆን እንኳን 0 እንዲሆን ማድረግ
+    total_s = stats.get('total_sent') or 0
+    total_c = stats.get('total_conv') or 0
     
-    # 🔴 አዲስ የተጨመረ፦ የገበያ ጥናትና የስለላ ትንተና መዛግብት ለዳሽቦርዱ ማሳለፍ
     market_trends = MarketTrend.objects.all().order_by('-last_updated')
     
     context = {
         'campaigns': MarketingCampaign.objects.all().order_by('-created_at'),
         'acquisition': CustomerAcquisitionLog.objects.all().order_by('-created_at')[:10],
-        'total_sent': total_s or 0,
+        'total_sent': total_s,
         'market_trends': market_trends,
         'campaign_stats': {
             'total': MarketingCampaign.objects.count(),
-            'running': MarketingCampaign.objects.filter(status='running').count() if hasattr(MarketingCampaign, 'status') else 0,
-            'total_converted': total_c or 0
+            'running': MarketingCampaign.objects.filter(status='running').count(),
+            'total_converted': total_c # አሁን KeyError አይኖርም
         }
     }
     return render(request, 'marketplace/marketing_dashboard.html', context)
