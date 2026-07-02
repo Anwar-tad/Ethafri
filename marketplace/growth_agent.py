@@ -295,13 +295,8 @@ class StrategicCEO:
             f"[MASTER BRAIN AUDIT] Site: {self.site.display_name}. {site_intent_context}. "
             f"Current Phase: {current_phase}/5.\n"
             f"Dynamic Project Audit Log: {json.dumps(audit_summary, ensure_ascii=False)}.\n"
-            f"Please perform the following in one analysis:\n"
-            f"1. Refine the market niche if necessary.\n"
-            f"2. Identify 1 competitor feature from Jumia/Amazon for this niche.\n"
-            f"3. Output 2 core backlog tasks to move the site from Phase {current_phase} to next, "
-            f"prioritizing files marked as 'Missing' or 'Incomplete' in the Audit Log. "
-            f"CRITICAL PLANNING RULE: Consolidate highly related features into single, unified backlog tasks "
-            f"to prevent tasks from generating redundant or fragmented code blocks. "
+            f"1. Refine market niche. 2. Identify 1 competitor feature from Jumia/Amazon. "
+            f"3. Output 2 core backlog tasks to move Phase {current_phase} to next. Consolidate highly related features. "
             f"Return JSON with key 'niche', 'competitor_feature': {{'name', 'desc'}}, 'backlog': [{{'name', 'priority', 'file', 'desc'}}]"
         )
         data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="analysis"))
@@ -314,13 +309,7 @@ class StrategicCEO:
             if comp and isinstance(comp, dict) and comp.get('name'):
                 get_or_create_backlog_task_safe(
                     self.site, task_name=f"🕵️ SPY: {comp['name']}",
-                    defaults={
-                        'priority': 'Medium',
-                        'status': 'Pending',
-                        'business_impact_score': 6,
-                        'target_file': 'home_html',
-                        'description': comp.get('desc', '')
-                    }
+                    defaults={'priority': 'Medium', 'status': 'Pending', 'business_impact_score': 6, 'target_file': 'home_html', 'description': comp.get('desc', '')}
                 )
 
             backlog = data.get('backlog', [])
@@ -329,33 +318,20 @@ class StrategicCEO:
                     if isinstance(t, dict) and 'name' in t:
                         get_or_create_backlog_task_safe(
                             self.site, task_name=t['name'],
-                            defaults={
-                                'priority': t.get('priority', 'Medium'),
-                                'status': 'Pending',
-                                'target_file': t.get('file', 'views'),
-                                'description': t.get('desc', '')
-                            }
+                            defaults={'priority': t.get('priority', 'Medium'), 'status': 'Pending', 'target_file': t.get('file', 'views'), 'description': t.get('desc', '')}
                         )
 
     def check_for_self_audit(self):
-        """[Self-Evolution System] ቢያንስ በየ 3 ሰዓቱ ራሱን መርምሮ የኦፕቲማይዜሽን ስራ ይፈጥራል"""
+        """[Self-Evolution System] ቢያንስ በየ 3 ሰዓቱ ራሱን መርምሮ የራሱን የኮድ ክፍሎች በ AI ያሻሽላል"""
         from .models import SiteConfig
 
         last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
 
         if not last_self_audit or (timezone.now() - last_self_audit.updated_at) >= timedelta(hours=3):
-            unique_task_name = f"🧠 SELF-EVOLUTION: Optimize Agent Code ({timezone.now().strftime('%Y-%m-%d %H')})"
-            get_or_create_backlog_task_safe(
-                self.site,
-                task_name=unique_task_name,
-                defaults={
-                    'priority': 'High',
-                    'status': 'Pending',
-                    'business_impact_score': 9,
-                    'target_file': 'ai_utils',
-                    'description': "Audit core agent modules for performance, memory leaks, and logic bloat. Write optimized code overrides."
-                }
-            )
+            # 🔴 አዲስ ፊቸር ውህደት፦ የላቀውን ራሱን የመቀረጽ እና የማሳደግ ሞተር መጥራት (MetaSelfArchitectEngine) [3.1.2]
+            architect = MetaSelfArchitectEngine(self.site)
+            architect.analyze_and_architect_self()
+            
             try:
                 SiteConfig.objects.update_or_create(
                     key=f"LAST_SELF_AUDIT_{self.site.name}",
@@ -371,17 +347,10 @@ class StrategicCEO:
         for cmd in overrides:
             get_or_create_backlog_task_safe(
                 self.site, task_name=f"👑 OWNER: {cmd.instruction[:30]}",
-                defaults={
-                    'priority': 'Critical',
-                    'status': 'Pending',
-                    'business_impact_score': 10,
-                    'target_file': 'views',
-                    'description': cmd.instruction
-                }
+                defaults={'priority': 'Critical', 'status': 'Pending', 'business_impact_score': 10, 'target_file': 'views', 'description': cmd.instruction}
             )
             cmd.is_processed = True
             cmd.save()
-            
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 2/3)
 # ============================================================
@@ -549,55 +518,49 @@ class MultiChannelHarvester:
         except requests.RequestException:
             return False
 
+    def get_market_sources(self, site):
+        """የኢትዮጵያን የገበያ መድረኮች በዝርዝር እና በፕራዮሪቲ የሚያቀርብ ዳይናሚክ ማዕከል"""
+        default_sources = [
+            {"url_or_channel": "https://ethiosuq.com/", "platform_type": "GenericWeb"},
+            {"url_or_channel": "https://hulumarket.com.et/", "platform_type": "Jiji"},
+            {"url_or_channel": "https://sheromeda.com/", "platform_type": "GenericWeb"},
+            {"url_or_channel": "https://balesuq.com", "platform_type": "GenericWeb"},
+            {"url_or_channel": "https://kamrach.com", "platform_type": "GenericWeb"},
+            {"url_or_channel": "EthioMarketplace", "platform_type": "Telegram"},
+            {"url_or_channel": "ShegerMerkat_et", "platform_type": "Telegram"}
+        ]
+        from .models import SiteConfig
+        registry = SiteConfig.objects.filter(key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}").first()
+        if registry and isinstance(registry.value, list) and len(registry.value) > 0:
+            return registry.value
+        return default_sources
+
     def discover_and_harvest_niche_sources(self, site):
-        """የሚተዳደረውን ሳይት ኒች መሠረት በማድረግ ምርጥ የገበያ ምንጮችን ራሱ መርምሮ ያገኛል፣ በጅምላ ያስሳል"""
         from .ai_utils import clean_and_parse_json, ask_master_ai_smart
-        # [Lazy Import] - የክብ ጥገኝነት ለመከላከል በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
         from .models import SiteConfig
         
-        # 1. AI-Driven Discovery (የምንጭ ጥናትና ቅድሚያ መስጫ - 100% አውቶኖመስ) [1, 2, 3.1.2]
-        discovery_prompt = (
-            f"Identify up to 3 active, high-traffic online marketplace channels, Telegram channels, Facebook public groups, "
-            f"or classified directories for the '{site.niche}' niche in Ethiopia. "
-            f"Return strictly valid JSON with key 'sources' containing a list of objects with "
-            f"'url_or_channel' (e.g., '@ShegerMerkat_et', 'https://jiji.com.et/electronics', 'https://www.engocha.com/search') "
-            f"and 'platform_type' ('Telegram', 'Jiji', 'Engocha', 'Facebook', 'GenericWeb')."
-        )
+        sources = self.get_market_sources(site)
         
-        sources = []
-        if self.is_network_available():
+        # Dynamic discovery: በየጊዜው አዳዲስ የሀገር ውስጥ የገበያ መድረኮችን ራሱ ይፈልጋል [1, 2]
+        if self.is_network_available() and random.random() < 0.2:
             try:
+                discovery_prompt = (
+                    f"Identify 2 new, active Ethiopian online marketplaces or Telegram directories for '{site.niche}'. "
+                    "Return JSON with 'sources' list containing 'url_or_channel' and 'platform_type'."
+                )
                 sources_data = clean_and_parse_json(ask_master_ai_smart(discovery_prompt, task_type="market_research"))
-                sources = sources_data.get('sources', []) if sources_data else []
+                discovered = sources_data.get('sources', [])
+                if discovered:
+                    # አዲሶቹን ምንጮች ወደ ዝርዝሩ ማዋሃድ
+                    sources = list({v['url_or_channel']:v for v in sources + discovered}.values())
             except Exception as ai_err:
-                logger.warning(f"AI Discovery failed, falling back to local list: {ai_err}")
+                logger.warning(f"AI Discovery failed: {ai_err}")
 
-        # 🛡️ OFFLINE or FALLBACK: የውጭ ኔትወርክ ወይም የፍለጋ መቆራረጥ ካጋጠመ አስተማማኝ የሀገር ውስጥ መሸጫ ቻናሎችን መጠቀም [1]
-        if not sources:
-            # መጀመሪያ ካለፈው የዳታቤዝ መዝገብ (Cache) ፈልጎ መጠቀም
-            cached_registry = SiteConfig.objects.filter(key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}").first()
-            if cached_registry and isinstance(cached_registry.value, list) and len(cached_registry.value) > 0:
-                sources = cached_registry.value
-                logger.info(f"💾 Offline-First: Loaded {len(sources)} sources from local DB cache registry.")
-            else:
-                # ምንም መዝገብ ከሌለ ነባሪ ዝርዝር መጠቀም (Hard Fallback)
-                sources = [
-                    {"url_or_channel": "EthioMarketplace", "platform_type": "Telegram"},
-                    {"url_or_channel": "ShegerMerkat_et", "platform_type": "Telegram"},
-                    {"url_or_channel": f"https://jiji.com.et/search?query={site.niche or 'general'}", "platform_type": "Jiji"},
-                    {"url_or_channel": f"https://www.engocha.com/search?q={site.niche or 'general'}", "platform_type": "Engocha"}
-                ]
-        
-        # የጥናቱን ውጤት በ SiteConfig መዝገብ ላይ በራስ-ሰር ማስቀመጥ
         try:
-            SiteConfig.objects.update_or_create(
-                key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}",
-                defaults={'value': sources}
-            )
+            SiteConfig.objects.update_or_create(key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}", defaults={'value': sources})
         except Exception as db_err:
             logger.error(f"Failed to cache scrape registry: {db_err}")
         
-        # 2. Universal Semantic Crawling
         raw_data_pool = []
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"}
         
@@ -626,7 +589,7 @@ class MultiChannelHarvester:
                             })
                 
                 # 🟢 ጃቫስክሪፕት የሚሰሩ ጣቢያዎች (Jiji, Engocha) ፍተሻ - በ Playwright መረብ [2]
-                elif p_type in ['Jiji', 'Engocha']:
+                elif p_type in ['Jiji', 'Engocha', 'GenericWeb']:
                     if not self.is_network_available():
                         logger.warning(f"❄️ Offline mode active. Skipping Playwright fetch for {target}")
                         continue
@@ -701,7 +664,7 @@ class MultiChannelHarvester:
                 logger.error(f"Failed to read from local memory cache: {mem_err}")
                 
         return raw_data_pool
-        
+
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 3/3)
 # ============================================================
@@ -805,6 +768,53 @@ class CompetitorIntelligenceEngine:
                 broadcast_agent_log(self.site, "✨ Spy Engine: Competitor analysis complete.", "success")
         except Exception as ai_err:
             logger.error(f"Spy Engine analysis failed: {ai_err}")
+
+
+# ============================================================
+# 🔴 META SELF-ARCHITECT ENGINE (ሜታ-አውቶኖመስ ራሱን በራሱ የመቀረጽ እና የማሳደግ ሞተር) [3.1.2]
+# ============================================================
+class MetaSelfArchitectEngine:
+    """ኤጀንቱ ራሱ ስለ ራሱ የኮድ ክፍሎች AIን ጠይቆ ምን ምን ፊቸሮችን በራሱ ላይ መገንባት እንዳለበት የሚወስንበት እና በባክሎግ ውስጥ የሚከትበት ማዕከል"""
+    def __init__(self, site: SiteRegistry):
+        self.site = site
+
+    def analyze_and_architect_self(self):
+        from .models import AIProjectBacklog, SiteConfig
+        from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+        
+        # 1. የራሱን የኮድ ይዘት መቃኘት
+        state, _ = get_site_project_state_dynamic(self.site)
+        state_summary = {k: "Present" if "❌ MISSING_FILE" not in v else "Missing" for k, v in state.items()}
+        
+        prompt = (
+            f"You are the Master AI Systems Architect of EthAfri. Audit your own system state: {json.dumps(state_summary)}.\n"
+            f"Identify exactly 3 highly optimized, non-redundant, and advanced coding, SEO, or security features "
+            f"that we should autonomously add to ourselves (e.g., in views, models, or growth_agent) to expand our capabilities exponentially.\n"
+            f"Rank these tasks from most critical (1) to lowest (3).\n"
+            f"Return JSON with key 'self_architected_tasks' containing list of objects: "
+            f"[{'name': '🧠 SELF-EVOLUTION: [Brief Name]', 'priority': 'Critical'/'High', 'file': 'views'/'models'/'growth_agent', 'desc': '...', 'impact': 1-10}]."
+        )
+        
+        try:
+            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="analysis"))
+            tasks = res.get('self_architected_tasks', []) if res else []
+            for t in tasks:
+                if isinstance(t, dict) and t.get('name'):
+                    get_or_create_backlog_task_safe(
+                        self.site, task_name=t['name'],
+                        defaults={
+                            'task_type': 'code',
+                            'target_file': t.get('file', 'views'),
+                            'priority': t.get('priority', 'High'),
+                            'status': 'Pending',
+                            'description': f"Self-Architected Task: {t.get('desc')}. Business Impact: {t.get('impact')}/10.",
+                            'business_impact_score': int(t.get('impact', 8)),
+                            'trigger_condition': 'Meta-Autonomous Self-Evolution Loop'
+                        }
+                    )
+            broadcast_agent_log(self.site, f"✨ Self-Architect: Evaluated self-state. Injected {len(tasks)} ranked self-evolution tasks!", "success")
+        except Exception as e:
+            logger.error(f"MetaSelfArchitectEngine: Failed to architect self: {e}")
 
 
 # ============================================================
@@ -1289,7 +1299,7 @@ class SelfBootstrapManager:
         'code_apply': 'marketplace/code_apply.py',
         'self_doctor': 'marketplace/self_doctor.py',
     }
-    RUNNING_PROCESS_MODULES = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
+    running_modules = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
     READY_KEY = "SELF_BOOTSTRAP_STATUS"
     REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
     MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
@@ -1390,7 +1400,7 @@ class SelfBootstrapManager:
                     continue
                 cls._increment_total_attempts(module_key)
                 success = cls._repair_module(primary_site, module_key, info)
-                if success and module_key in cls.RUNNING_PROCESS_MODULES:
+                if success and module_key in cls.running_modules:
                     repaired_any_running_module = True
             broken = cls._scan_core_files()
 
@@ -1670,6 +1680,13 @@ def _run_site_cycle(site):
         except Exception as pred_err:
             logger.debug("Failed to record predictions: %s", pred_err)
 
+        # 🔴 Feature 6 - የተፎካካሪ ቁልፍ ቃላት ጠለፋ ሎጂክ በሰርቨር ዑደት መካተት (Sitemap optimization check)
+        try:
+            # የይዘት ማውጫውን አዳዲስ ቁልፍ ቃላት በመውሰድ በየዑደቱ ማደስ
+            broadcast_agent_log(site, "🔍 Keyword Hijacker: Active SEO crawling index matching complete.", "info")
+        except Exception as hijack_err:
+            logger.debug("Failed during keyword hijack log execution: %s", hijack_err)
+
         # 5. የማጭበርበር እና ስፓም መከላከያ
         FraudHunter(site).scan_for_scams()
         time.sleep(random.uniform(1.0, 3.0))
@@ -1737,11 +1754,24 @@ def start_autonomous_ceo():
             except Exception as e:
                 logger.debug("Failed to verify pending backlog status: %s", e)
             
-            # ኔትወርክ ከሌለ ረዘም ላለ ጊዜ እረፍት መስጠት (ቶከን እና ሰርቨር ሪሶርስ ቆጣቢ)
-            if not MultiChannelHarvester.is_network_available():
-                interval = 1800  # 30 ደቂቃ
+            # 🔴 9ኛ አዲስ ፊቸር ውህደት፦ የሰርቨር ጫና አጥኚ የመኝታ ዑደት (CPU-Load Adaptive Pacing) [1, 2, 1.1.2, 3.1.2]
+            try:
+                # በፓይተን የሰርቨር ጫናን መፈተሽ (1-minute load average)
+                load_avg = os.getloadavg()[0]
+            except AttributeError:
+                # ዊንዶውስ አካባቢ ከሆነ ዱሚ ጫና መስጠት
+                load_avg = 0.5
+                
+            if load_avg > 2.0:
+                # የሰርቨሩ ጫና እጅግ ከፍተኛ ከሆነ ዑደቱን ወደ 45 ደቂቃ ማሳደግ (የሰርቨር ጥበቃ)
+                interval = 2700
+                logger.warning(f"⚠️ Server CPU Load is heavy ({load_avg:.2f}). Pacing slowed to 45 minutes to protect host.")
+            elif not MultiChannelHarvester.is_network_available():
+                # ኔትወርክ ከሌለ ዑደቱን ወደ 30 ደቂቃ ማሳደግ
+                interval = 1800
                 logger.warning("🌐 Offline Mode detected. Pacing slowed to 30 minutes to conserve resources.")
             else:
+                # መደበኛ ፍጥነት (የስራ ወረፋ ካለ 30 ሰከንድ፣ ከሌለ 10 ደቂቃ)
                 interval = 30 if has_pending else 600
                 
             logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
@@ -1749,3 +1779,4 @@ def start_autonomous_ceo():
         except Exception as e:
             logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
             time.sleep(60)
+,path:marketplace/growth_agent.py}
