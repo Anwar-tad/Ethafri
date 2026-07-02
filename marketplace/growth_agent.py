@@ -1812,18 +1812,19 @@ def execute_master_cycle():
         logger.debug("Failed to set evolution lock to running: %s", e)
 
     active_sites = SiteRegistry.objects.filter(is_active=True)
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    try:
+        # 🔄 Changed to sequential execution to prevent CPU spikes
+        for site in active_sites:
+            _run_site_cycle(site)
+    finally:
         try:
-            executor.map(_run_site_cycle, active_sites)
-        finally:
-            try:
-                SiteConfig.objects.update_or_create(
-                    key="EVOLUTION_LOCK",
-                    defaults={'value': {'status': 'idle', 'last_run': timezone.now().isoformat()}}
-                )
-            except Exception as e:
-                logger.debug("Failed to reset evolution lock to idle: %s", e)
-            safe_close_connections()
+            SiteConfig.objects.update_or_create(
+                key="EVOLUTION_LOCK",
+                defaults={'value': {'status': 'idle', 'last_run': timezone.now().isoformat()}}
+            )
+        except Exception as e:
+            logger.debug("Failed to reset evolution lock to idle: %s", e)
+        safe_close_connections()
 
 
 def _run_site_cycle(site):
@@ -1882,9 +1883,9 @@ def _run_site_cycle(site):
         finally:
             safe_close_connections()
 
-    with ThreadPoolExecutor(max_workers=2) as cycle_executor:
-        cycle_executor.submit(run_track_a_evolution)
-        cycle_executor.submit(run_track_b_growth)
+    # 🔄 Run tracks sequentially to drastically lower CPU load
+    run_track_a_evolution()
+    run_track_b_growth()
 
     update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
     broadcast_agent_log(site, f"✨ Master Cycle executed successfully for {site.name}.", "success")
