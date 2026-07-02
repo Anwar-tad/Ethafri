@@ -213,69 +213,73 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
 # ============================================================
 def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruction: str = "", task=None) -> str:
     """
-    የ 10 ሰከንድ የፈጣን ውድቀት፣ የ 24-ሰዓት ኮታ መቆለፊያ እና የቁልፍ ማፈግፈጊያ
-    የተገጠመለት ዋና የ AI ጥሪ ማስፈጸሚያ ሮውተር [1]
+    የተሻሻለ AI Router: ቁልፎችን በራስ-ሰር ይፈራረቃል (Rotation)፣ 
+    429 ስህተት ሲያጋጥም ወደ ቀጣዩ ቁልፍ ይሸጋገራል፣ እና 10 ሰከንድ Fail-Fast አለው።
     """
-    # 1. የ 24-ሰዓት የኮታ መቆለፊያ መፈተሽ
-    quota_lock = cache.get("ai_quota_locked_until")
-    if quota_lock:
-        logger.warning(f"⚠️ AI Router Guard: AI API is quota-locked until {quota_lock}. Skipping call to prevent delays.")
-        return "{}"
     
-    # 2. የቶከን መጭመቂያውን በመጥራት የፕሮምፕት መጠንን መቀነስ
+    # 1. የቶከን መጭመቂያውን በመጥራት የፕሮምፕት መጠንን መቀነስ
     prompt_compressed = AIUtils.compress_code_for_prompt(prompt)
     
-    # የኤፒአይ ቁልፎችን ዝርዝር ማግኘት (የቁልፍ ማፈግፈጊያ - API Key Rotation)
+    # 2. ሁሉንም የኤፒአይ ቁልፎች ሰብስቦ ዝርዝር ማዘጋጀት
+    # GEMINI_API_KEY + ሌሎች ተጨማሪ ቁልፎች
     api_keys = [os.getenv('GEMINI_API_KEY', '')]
     fallback_keys = getattr(settings, 'AI_FALLBACK_API_KEYS', [])
     if fallback_keys:
-        api_keys.extend(fallback_keys)
+        # በቅንፍ ውስጥ የተሰጡ ቁልፎች ካሉ እንደ List ይውሰዳቸው
+        if isinstance(fallback_keys, list):
+            api_keys.extend(fallback_keys)
+        elif isinstance(fallback_keys, str):
+            api_keys.extend(fallback_keys.split(','))
         
     # ባዶ ቁልፎችን ማጽዳት
-    api_keys = [k for k in api_keys if k]
+    api_keys = [k.strip() for k in api_keys if k and k.strip()]
     
     if not api_keys:
         logger.error("❌ AI Router Error: No API Keys available in configuration.")
         return "{}"
         
     last_error = ""
+    
+    # 3. የቁልፍ ማፈግፈጊያ (Key Rotation) ሎፕ
     for idx, api_key in enumerate(api_keys):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
         
-        # 3. የ 10 ሰከንድ የፈጣን ውድቀት (Fail-Fast Timeout)
         try:
             payload = {
                 "contents": [{"parts": [{"text": f"{system_instruction}\n\n{prompt_compressed}"}]}]
             }
+            # የ 10 ሰከንድ የፈጣን ውድቀት (Fail-Fast Timeout)
             res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
             
-            # የኮታ ገደብ ማጋጠሙን መለካት (Too Many Requests - HTTP 429)
-            if res.status_code == 429:
-                lockout_until = (timezone.now() + timedelta(hours=24)).isoformat()
-                cache.set("ai_quota_locked_until", lockout_until, timeout=86400)
-                logger.critical(f"🚨 AI Router: Rate Limit (429) detected! Locking AI API calls until {lockout_until}")
-                return "{}"
-                
+            # ስኬታማ ምላሽ
             if res.status_code == 200:
                 response_data = res.json()
                 try:
                     return response_data['candidates'][0]['content']['parts'][0]['text']
                 except (KeyError, IndexError) as parse_err:
-                    logger.error(f"Failed to parse Gemini payload: {parse_err}")
-                    continue
-                    
-            last_error = f"HTTP {res.status_code}: {res.text}"
-            logger.warning(f"⚠️ API Key {idx+1} failed with error: {last_error}. Retrying fallback...")
+                    logger.error(f"Failed to parse Gemini payload with key {idx+1}: {parse_err}")
+                    continue # ወደ ቀጣዩ ቁልፍ ይሸጋገር
             
+            # የኮታ ገደብ (429) ካጋጠመ: ቀጣዩን ቁልፍ ሞክር
+            elif res.status_code == 429:
+                logger.warning(f"⚠️ API Key {idx+1} reached quota (429). Swapping to next key...")
+                continue 
+            
+            else:
+                last_error = f"HTTP {res.status_code}: {res.text}"
+                logger.warning(f"⚠️ API Key {idx+1} failed: {last_error}. Trying next key...")
+                
         except requests.exceptions.Timeout:
             last_error = "Timeout limit (10s) reached"
-            logger.warning(f"⏱️ Fail-Fast Triggered: API Key {idx+1} timed out. Swapping key...")
+            logger.warning(f"⏱️ Fail-Fast: API Key {idx+1} timed out. Swapping key...")
         except Exception as e:
             last_error = str(e)
-            logger.warning(f"⚠️ API Key {idx+1} connection failed: {e}. Swapping key...")
+            logger.warning(f"⚠️ API Key {idx+1} error: {e}. Swapping key...")
             
-    logger.error(f"❌ AI Router: All fallback API keys exhausted. Last error: {last_error}")
+    # ሁሉም ቁልፎች ካለቁ በኋላ
+    logger.error(f"❌ AI Router: All API keys exhausted. Last error: {last_error}")
     return "{}"
+
 
 
 def broadcast_agent_log(site, message: str, status_type: str = "info"):
