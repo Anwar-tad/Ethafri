@@ -1,6 +1,18 @@
 #!/bin/bash
 set -e
-# Nixpacks ሁሉንም ነገር ይጭንልናል፣ እኛ የምንፈልገው መሮጥ ብቻ ነው
+
+echo "🚀 Starting Build Process..."
+
+# 1. መጀመሪያ ፓኬጆችን መጫን (ይህ መስመር የጎደለህ ነው!)
+echo "📦 Installing Requirements..."
+pip install -r requirements.txt
+
+# 2. Playwright መጫን
+echo "🌐 Installing Playwright..."
+playwright install chromium
+
+# 3. Django commands
+echo "📂 Collecting static files..."
 python manage.py collectstatic --no-input
-python manage.py migrate
-python create_admin.py || true
+
+echo "✅ Build completed successfully!"
