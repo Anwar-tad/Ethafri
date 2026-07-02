@@ -86,8 +86,7 @@ def apply_surgical_patch(path, target_name, new_code_segment):
 # 🛠️ 2. MAIN CODE APPLICATION (apply_code_change)
 # ============================================================
 
-def apply_code_change(site, file_key, new_content, reason="", path=None, 
-                      confidence_score=100, backlog_task=None, push_to_github=False, target_name=None):
+def apply_code_change(site, file_key, new_content, reason="", path=None,  confidence_score=100, backlog_task=None, push_to_github=False, target_name=None):
     """
     ኮድን በደህንነት ይተገብራል፣ የፓይተን ሲንታክስ በ Sandbox ይፈትሻል፣ 
     እና በአስተዳዳሪው ትዕዛዝ መሠረት ብቻ ወደ GitHub ያመሳስላል (Sync)
