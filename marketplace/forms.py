@@ -11,7 +11,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.html import strip_tags  # 🛡️ XSS ጥቃትን መከላከያ ማጽጃ
 from django.apps import apps
 import json
-
+from typing import Dict, List, Optional, Union, Any
 # ሞዴሎችን በደህንነት በዳይናሚክ መጫን [1]
 Product = apps.get_model('marketplace', 'Product')
 Category = apps.get_model('marketplace', 'Category')

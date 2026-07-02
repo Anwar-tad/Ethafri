@@ -16,7 +16,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.core.management import call_command
 from django.conf import settings
 from django.apps import apps
-
+from typing import Dict, List, Optional, Union, Any
 # የዲፔንደንሲ ክራሽን ለመከላከል ወደ smart_ai_router መፍቻ አቅጣጫ ተቀይሯል
 from marketplace.ai_utils import ask_master_ai_smart, clean_and_parse_json
 

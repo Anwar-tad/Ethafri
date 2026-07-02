@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from channels.db import database_sync_to_async
 from django.db import connection, connections, close_old_connections
-
+from typing import Dict, List, Optional, Union, Any
 from django.db.models import Count, Sum, Case, When, IntegerField, Value
 from django.contrib.auth.models import User
 from django.apps import apps
