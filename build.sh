@@ -14,7 +14,7 @@ export PLAYWRIGHT_BROWSERS_PATH=/opt/render/.cache/ms-playwright
 
 # Chromium-ን እና አስፈላጊ የሆኑትን የOS Libraries መጫን
 python -m playwright install chromium
-python -m playwright install-deps chromium 
+
 
 # የብሮውዘር ማህደርን ለሰርቨሩ ክፍት ማድረግ
 chmod -R 777 /opt/render/.cache/ms-playwright
