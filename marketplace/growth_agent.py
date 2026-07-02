@@ -481,7 +481,7 @@ class StrategicCEO:
 
 
 # ============================================================
-# 🛠️ RECURSIVE BUILDER
+# 🛠️ RECURSIVE BUILDER (የተስተካከለ)
 # ============================================================
 
 class RecursiveBuilder:
@@ -511,7 +511,10 @@ class RecursiveBuilder:
             task.save()
             return "Halted for Seeding"
 
+        # ✅ FIX: compress_code_for_prompt ን እዚህ ላይ አስመጡ
+        _, _, _, compress_code_for_prompt = _get_ai_utils()
         VectorMemory = get_model('VectorMemory')
+        
         past_memories = VectorMemory.objects.filter(site=self.site).order_by('-id')[:3]
         memory_context = [compress_code_for_prompt(m.content) for m in past_memories]
 
@@ -534,6 +537,10 @@ class RecursiveBuilder:
             f"Return JSON with key 'code' containing the full file content."
         )
 
+        # ✅ FIX: ask_master_ai_smart ን እዚህ ላይ አስመጡ
+        _, ask_master_ai_smart, _, _ = _get_ai_utils()
+        clean_and_parse_json, _, _, _ = _get_ai_utils()
+        
         res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding", task=task))
 
         if not (res and isinstance(res, dict) and 'code' in res):
@@ -554,12 +561,19 @@ class RecursiveBuilder:
                 task.save()
                 return "Syntax Error"
 
+        # ✅ FIX: SecurityAuditor ን እዚህ ላይ አስመጡ
+        SecurityAuditor, _, _ = _get_self_doctor()
+        
         is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=task.target_file, site=self.site)
         if not is_safe:
             logger.error(f"🛡️ Security Gate Blocked Code for {task.target_file}: {msg}")
             task.status = 'Blocked'
             task.save()
             return "Security Block"
+
+        # ✅ FIX: apply_code_change ን እዚህ ላይ አስመጡ
+        apply_code_change = _get_code_apply()
+        _, _, AntiBloatEngine = _get_self_doctor()
 
         with _apply_lock:
             local_path = resolve_local_file_path(self.site, task.target_file)
