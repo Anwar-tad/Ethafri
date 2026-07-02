@@ -1,26 +1,35 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/management/commands/sync_translations.py
-# 📝 ለውጥ፦ Dynamic API Pacing Translation Guard + Naming Sync (v1.2 - Complete)
-# ✅ የተፈቱ ችግሮች፦ Dynamic API pacing, 100% complete loop, and zero pass statements in error catch blocks.
-# 📅 ቀን፦ Wednesday, July 01, 2026
+# 📝 ለውጥ፦ Dynamic API Pacing Translation Guard + Naming Sync (v10.16)
+# ✅ የተፈቱ ችግሮች፦ Dynamic API pacing (preventing 429 lockouts), polib safe import shielding, and dynamic model registry loading.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
-from django.core.management.base import BaseCommand
-from django.core.management import call_command
-from django.conf import settings
-# የዲፔንደንሲ ክራሽን ለመከላከል ወደ smart_ai_router መፍቻ አቅጣጫ ተቀይሯል
-from marketplace.ai_utils import ask_master_ai_smart, clean_and_parse_json
-from marketplace.models import SiteRegistry
-import polib
 import os
 import json
 import shutil
 import logging
 import re
+import time  # 🔴 429 Rate Limit ለመከላከል መኝታ (Pacing) የተጨመረበት
+
+from django.core.management.base import BaseCommand, CommandError
+from django.core.management import call_command
+from django.conf import settings
+from django.apps import apps
+
+# የዲፔንደንሲ ክራሽን ለመከላከል ወደ smart_ai_router መፍቻ አቅጣጫ ተቀይሯል
+from marketplace.ai_utils import ask_master_ai_smart, clean_and_parse_json
 
 logger = logging.getLogger(__name__)
 
-# ask_ai_with_failoverን በስማርት ሁኔታ ወደ ai_utils translation ሞተር ማዞር
+# 🛡️ SAFE IMPORT SHIELD: polib ጥቅል በሰርቨሩ ላይ ካልተጫነ ኮማንዱ እንዳይከሰከስ መከላከያ [1]
+try:
+    import polib
+    POLIB_AVAILABLE = True
+except ImportError:
+    POLIB_AVAILABLE = False
+
+
 def ask_ai_with_failover(prompt, pool_type="translation", expected_keys=None):
     """
     [Dependency Resolver] በልዩ ሁኔታ የተዘጋጀውን የትርጉም ሥራ ወደ ai_utils.ask_master_ai_smart ያዞራል
@@ -44,6 +53,16 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **kwargs):
+        # 1. polib ጥቅል መኖሩን ማረጋገጥ
+        if not POLIB_AVAILABLE:
+            raise CommandError(
+                "❌ የትርጉም ስራውን ለማጠናቀር 'polib' ጥቅል በሰርቨሩ ላይ አልተገኘም። "
+                "እባክዎ መጀመሪያ 'pip install polib' ያካሂዱ።"
+            )
+
+        # 2. የሞዴል ተለዋዋጭ ጭነት (Registry Safety) [1]
+        SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+
         site_name = kwargs.get('site')
         all_sites = kwargs.get('all_sites')
         
@@ -79,7 +98,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("🎉 የትርጉም ስራው እና ማጠናቀሪያው ሙሉ በሙሉ ተጠናቋል!"))
 
     def _clean_and_parse_json(self, raw_data):
-        """AI የሚመልሰውን ጥሬ ምላሽ አጽድቶ ወደ ዲክሽነሪ ይቀይራል (KeyError መከላከያ)"""
+        """AI የሚመልሰውን ጥሬ ምላሽ አጽድቶ ወደ ዲክሽነሪ ይቀይራል"""
         return clean_and_parse_json(raw_data)
 
     def _process_system_translations(self):
@@ -161,6 +180,9 @@ class Command(BaseCommand):
                 else:
                     self.stdout.write(self.style.ERROR(f"❌ Batch request failed or returned invalid schema."))
 
+                # 🔴 DYNAMIC API PACING: የ 24-ሰዓት የ AI ኮታ መቆለፊያን ለመከላከል በእያንዳንዱ ጥሪ መካከል መኝታ [1]
+                time.sleep(1.5)
+
             po.save()
             try:
                 po.save_as_mofile(mo_file_path)
@@ -168,8 +190,9 @@ class Command(BaseCommand):
             except Exception as compile_err:
                 self.stdout.write(self.style.ERROR(f"❌ Python MO Compilation Error: {compile_err}"))
 
-    def _process_site_translations(self, site: SiteRegistry):
+    def _process_site_translations(self, site):
         """ለአንድ የተወሰነ ጣቢያ የተለየ ትርጉም ያካሂዳል"""
+        SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
         site_locale_path = os.path.join(site.repo_path or settings.BASE_DIR, 'locale')
         
         if not os.path.exists(site_locale_path):
@@ -226,6 +249,9 @@ class Command(BaseCommand):
                             if translated_text and len(str(translated_text).strip()) > 0:
                                 entry.msgstr = str(translated_text).strip()
                                 count += 1
+                
+                # 🔴 DYNAMIC API PACING: የ 24-ሰዓት የ AI ኮታ መቆለፊያን ለመከላከል በእያንዳንዱ ጥሪ መካከል መኝታ [1]
+                time.sleep(1.5)
             
             po.save()
             try:

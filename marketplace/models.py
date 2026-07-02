@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/models.py
-# 📝 ስሪት፦ v10.15 (Production Grade - Complete Part 1/3)
-# ✅ የተፈቱ ችግሮች፦ Full schema validation, aligned Product fields, zero pass placeholders, and strict Django formatting rules.
+# 📝 ስሪት፦ v10.16 (Production Grade - Upgraded & Consolidated)
+# ✅ የተፈቱ ችግሮች፦ Full schema validation, optimized semantic search matching with keyword weight ranking, and strict model cohesion.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
@@ -15,7 +15,7 @@ import hashlib
 import json
 
 # ============================================================
-# 1. ነባር የማርኬት ፕሌስ ሞዴሎች
+# 1. የማርኬት ፕሌስ ዋና ሞዴሎች
 # ============================================================
 
 class Category(models.Model):
@@ -63,7 +63,7 @@ class Product(models.Model):
     specifications = models.TextField(default='{}', blank=True)
     market_value_status = models.CharField(max_length=50, blank=True, default='Unknown')
     
-    # 🔴 አዲስ የተጨመሩ የመገናኛ እና የገበያ አይነት ፊልዶች (views.py እና growth_agent.py Alignment) [1, 2]
+    # የመገናኛ እና የገበያ አይነት ፊልዶች (views.py እና growth_agent.py Alignment)
     listing_type = models.CharField(max_length=50, choices=LISTING_TYPES, default='sale', db_index=True)
     contact_info = models.CharField(max_length=255, blank=True, default='')
     image_gallery = models.JSONField(default=list, blank=True)
@@ -172,10 +172,7 @@ class SelfHealingLog(models.Model):
 
     def __str__(self):
         return f"Healed: {self.error_message[:30]}..."
-        
-# ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/models.py (ክፍል 2/3)
-# ============================================================
+
 
 # ============================================================
 # 2. የኤጀንት ማህደረ-ትውስታ እና የቁጥጥር ሞዴሎች
@@ -480,14 +477,10 @@ class SiteRegistry(models.Model):
         self.save()
     
     def update_real_counts(self):
-        from .models import Product
         self.real_product_count = Product.objects.filter(site=self, is_active=True).count()
         self.real_customer_count = User.objects.filter(product__site=self).distinct().count()
         self.save()
-        
-# ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/models.py (ክፍል 3/3)
-# ============================================================
+
 
 # ============================================================
 # 4. የንግድ እድገት እና የደንበኛ ማግኛ ሞዴሎች
@@ -603,7 +596,7 @@ class NotificationQueue(models.Model):
 # ============================================================
 
 class VectorMemory(models.Model):
-    """RAG (Retrieval-Augmented Generation) ትውስታ ለኤጀንቱ [1, 2]"""
+    """RAG (Retrieval-Augmented Generation) ትውስታ ለኤጀንቱ"""
     MEMORY_TYPES = [
         ('error', 'Error Resolution'),
         ('solution', 'Solution Pattern'),
@@ -673,6 +666,10 @@ class VectorMemory(models.Model):
 
     @classmethod
     def find_similar(cls, query, memory_type=None, site=None, limit=5):
+        """
+        ከመስመር ውጭ (Offline) ወይም ኤፒአይ ሳይጠራ ኪወርዶችን በሪጀክስ ፈልጎ በማውጣት
+        የተዛማጅነት መለኪያ (Match Relevance Weight) ደረጃ የሚሰጥ የተራቀቀ መፈለጊያ።
+        """
         from django.db.models import Q
         
         queryset = cls.objects.all()
@@ -684,11 +681,25 @@ class VectorMemory(models.Model):
         keywords = [k for k in query.lower().split() if len(k) > 2][:8]
         
         if keywords:
-            # 🔴 OR-based keyword search fallback ሎጂክ [1]
+            # በ OR ሁኔታ ኪወርዶችን ፈልጎ ማውጣት
             q_filter = Q()
             for keyword in keywords:
                 q_filter |= Q(content__icontains=keyword)
             queryset = queryset.filter(q_filter)
+            
+            # በሜሞሪ ውስጥ የኪወርድ ድግግሞሹንና የውጤቶቹን ስኬታማነት ማወዳደር (Ranking)
+            results = list(queryset)
+            
+            def calculate_relevance(entry):
+                content_lower = entry.content.lower()
+                # ኪወርዶች በይዘቱ ውስጥ የተደጋገሙበትን ቁጥር መለካት
+                match_weight = sum(content_lower.count(kw) for kw in keywords)
+                # የስኬት ፍጥነትና ጥቅም ላይ የዋሉበትን ብዛት እንደ ሁለተኛ ክብደት መውሰድ
+                return (match_weight, entry.success_rate, entry.usage_count)
+            
+            # ከፍተኛ የክብደት ደረጃ ያላቸውን ውጤቶች ማስቀደም
+            results.sort(key=calculate_relevance, reverse=True)
+            return results[:limit]
         
         return queryset.order_by('-success_rate', '-usage_count')[:limit]
 
@@ -839,7 +850,7 @@ class ABTest(models.Model):
 
 
 class SecurityLog(models.Model):
-    """የደህንነት ቀንድ መዝገብ [1, 2]"""
+    """የደህንነት ቀንድ መዝገብ"""
     SEVERITY_CHOICES = [
         ('low', 'Low'),
         ('medium', 'Medium'),
@@ -881,7 +892,7 @@ class SecurityLog(models.Model):
 
 
 class PredictionLog(models.Model):
-    """የትንበያ ውጤቶች መዝገብ [1, 2]"""
+    """የትንበያ ውጤቶች መዝገብ"""
     PREDICTION_TYPES = [
         ('traffic', 'Traffic Prediction'),
         ('seo', 'SEO Score Prediction'),
@@ -911,7 +922,7 @@ class PredictionLog(models.Model):
 
 
 class ExternalAPI(models.Model):
-    """የውጭ API ግንኙነት አስተዳደር [1, 2]"""
+    """የውጭ API ግንኙነት አስተዳደር"""
     API_TYPES = [
         ('google_analytics', 'Google Analytics'),
         ('google_search_console', 'Google Search Console'),

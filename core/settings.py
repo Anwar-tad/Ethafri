@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/core/settings.py
-# 📝 ስሪት፦ v1.3 Advanced Agent Features — Aligned & Complete (v1.3)
-# ✅ የተፈቱ ችግሮች፦ Dynamic environment loading, Django 4.2+ STORAGES dictionary, zero pass statements, and fallback logger safety.
+# 📝 ስሪት፦ v10.16 (Production Grade - Central System Settings)
+# ✅ የተፈቱ ችግሮች፦ Dynamic environment loading, Django 4.2+ STORAGES, zero registry-crash direct handler imports, and consolidated AI fallback keys.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
@@ -43,7 +43,7 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # =====================================================================
-# 3. Application Definition
+# 3. Application Definition (Daphne at top for ASGI support)
 # =====================================================================
 INSTALLED_APPS = [
     # Daphne for Django Channels ASGI (Daphne must be at the top)
@@ -191,6 +191,18 @@ MISTRAL_API_KEY = env('MISTRAL_API_KEY', default='')
 OPENROUTER_API_KEY = env('OPENROUTER_API_KEY', default='')
 HUGGINGFACE_API_KEY = env('HUGGINGFACE_API_KEY', default='')
 
+# 🔴 AI KEY ROTATION: ኤጀንቱ አንዱ ኤፒአይ ሲያልቅበት ወደ ሌላው እንዲያልፍ ዝርዝር ማደራጀት [1]
+AI_FALLBACK_API_KEYS = [
+    GEMINI_API_KEY_2,
+    GEMINI_API_KEY_3,
+    GROQ_API_KEY,
+    MISTRAL_API_KEY,
+    OPENROUTER_API_KEY,
+    HUGGINGFACE_API_KEY
+]
+# ባዶ የሆኑ ቁልፎችን ዝርዝር ውስጥ ማስወገድ
+AI_FALLBACK_API_KEYS = [k for k in AI_FALLBACK_API_KEYS if k]
+
 RENDER_SERVICE_ID = env('RENDER_SERVICE_ID', default='')
 RENDER_API_KEY = env('RENDER_API_KEY', default='')
 GITHUB_TOKEN = env('GITHUB_TOKEN', default='')
@@ -219,146 +231,54 @@ CHANNEL_LAYERS = {
     },
 }
 
-# =====================================================================
-# 9. Cache Configuration
-# =====================================================================
+# ============================================================
+# 9. የትውስታ መሸጎጫ አስተዳደር (Caching)
+# ============================================================
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'ethafri-cache',
+        'LOCATION': 'unique-snowflake',
     }
 }
 
-CACHE_TTL = {
-    'short': 60,
-    'medium': 300,
-    'long': 3600,
-    'very_long': 86400,
-}
+# ============================================================
+# 🎡 10. MASTER ENGINE COOLDOWNS & PACING
+# ============================================================
+AI_ENABLED_FEATURES = [
+    'self_evolution', 'self_healing', 'competitor_intelligence', 
+    'predictive_seo', 'auto_marketing', 'dynamic_pricing'
+]
+AI_MODEL_VERSION = '2026.07.02'
 
-# =====================================================================
-# 10. pgvector Configuration (RAG Memory)
-# =====================================================================
-VECTOR_DIMENSION = 1536
 
-# =====================================================================
-# 11. Multi-Site Configuration
-# =====================================================================
-DEFAULT_SITE_CONFIG = {
-    'name': 'primary',
-    'display_name': 'EthAfri Primary',
-    'niche': 'general',
-    'target_market': 'Global',
-    'content_style': 'professional',
-    'is_active': True,
-    'auto_update_enabled': True,
-    'auto_marketing_enabled': True,
-}
-
-GROWTH_THRESHOLDS = {
-    'LOCAL': 100,
-    'CITY': 1000,
-    'COUNTRY': 10000,
-    'CONTINENT': 100000,
-    'GLOBAL': 1000000,
-}
-
-AUTO_MARKETING_CONFIG = {
-    'enabled': True,
-    'max_campaigns_per_day': 3,
-    'max_notifications_per_day': 50,
-    'social_media_posting': True,
-    'email_marketing': True,
-    'sms_marketing': False,
-}
-
-# =====================================================================
-# 12. Logging Configuration (የደህንነት ጠባቂ ሎገር)
-# =====================================================================
-try:
-    from marketplace.log_handlers import SelfHealingDBHandler
-except ImportError:
-    class SelfHealingDBHandler(logging.Handler):
-        def emit(self, record):
-            # 🔴 [ZERO PASS]: በስህተት ተቆርጦ የነበረው pass መግለጫ በአስተማማኝ ሎጂክ ተተክቷል
-            _ = record
+# ============================================================
+# 🛡️ 11. SAFE SELF-HEALING DATABASE LOGGER INTEGRATION
+# ============================================================
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-        'detailed': {
-            'format': '{levelname} {asctime} {name} {filename}:{lineno} {message}',
-            'style': '{',
-        },
-    },
     'handlers': {
         'console': {
-            'level': 'INFO',
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
         },
+        # 🔴 የዳታቤዝ ግንኙነት ሲበላሽ ራሱን በራሱ የሚጠግነው የደህንነት ጋሻ [1]
         'self_healing_db': {
-            'level': 'WARNING',
             'class': 'marketplace.log_handlers.SelfHealingDBHandler',
-            'formatter': 'simple',
         },
     },
     'root': {
-        'handlers': ['console'],
+        'handlers': ['console', 'self_healing_db'],
         'level': 'INFO',
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
+            'handlers': ['console', 'self_healing_db'],
             'level': 'INFO',
-            'propagate': False,
-        },
-        'django.request': {
-            'handlers': ['console', 'self_healing_db'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'django.security': {
-            'handlers': ['console', 'self_healing_db'],
-            'level': 'WARNING',
             'propagate': False,
         },
         'marketplace': {
             'handlers': ['console', 'self_healing_db'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'marketplace.growth_agent': {
-            'handlers': ['console', 'self_healing_db'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-        'marketplace.self_coder': {
-            'handlers': ['console', 'self_healing_db'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-        'marketplace.self_doctor': {
-            'handlers': ['console', 'self_healing_db'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-        'channels': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'daphne': {
-            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },

@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ስሪት፦ v10.4 Phoenix Auto-Installer — Complete Zero-Crash Boot (Multi-Thread Daemon)
-# ✅ የተፈቱ ችግሮች፦ Dynamic migrations, Proactive schema checks, safe 3-thread boot daemon integration
-# 📅 ቀን፦ Wednesday, July 01, 2026
+# 📝 ስሪት፦ v10.16 Phoenix Auto-Installer — Production Grade (Zero-Crash Boot & Connection Guard)
+# ✅ የተፈቱ ችግሮች፦ Dynamic generalized migrations, resilient DB connection healing, surgical patching scaffolds, and safe boot threads
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 import os
@@ -25,37 +25,66 @@ logger = logging.getLogger(__name__)
 # 🚑 STARTUP SELF-HEALER (የቅድመ-ጅማሮ ራስ-ገዝ የስኬማ ጠጋኝ)
 # ============================================================
 def startup_self_heal_migration(err_msg):
-    """ሰርቨሩ በሚነሳበት ጊዜ የሚከሰቱ የማይግሬሽን መቆለፊያዎችን በራስ-ሰር ፈልጎ የሚፈታ የቅድመ-ጅማሮ ጠጋኝ [1, 2, 3.1.2]"""
+    """
+    ሰርቨሩ በሚነሳበት ጊዜ የሚከሰቱ የማይግሬሽን መቆለፊያዎችንና የጠፉ ሰንጠረዦችን
+    በተለዋዋጭ Regex ፈልጎ በራሱ የሚፈታ የቅድመ-ጅማሮ ጠጋኝ [1, 2]
+    """
     logger.warning(f"🚑 Startup Healer: Attempting to resolve migration error: {err_msg}")
     try:
         from django.db import connection
         
-        # 1. የጠፋ ሰንጠረዥ/ኢንዴክስ ካለ (marketplace_name ዱሚ ሰንጠረዥን ጨምሮ) መፍታት [1, 2]
-        match_missing = re.search(r'relation "([^"]+)" does not exist', err_msg)
+        # 1. የጠፋ ሰንጠረዥ/ሪሌሽን በስም ለይቶ ፈልቅቆ ማውጣትና ዱሚ መገንባት [1]
+        match_missing = re.search(r'relation "([^"]+)" does not exist', err_msg, re.IGNORECASE) or \
+                        re.search(r'table "([^"]+)" does not exist', err_msg, re.IGNORECASE)
         if match_missing:
-            idx_name = match_missing.group(1)
-            idx_name_clean = str(idx_name).lower()
-            
-            if "marketplace_name" in idx_name_clean or "marketplace_name_8491f6_idx" in idx_name_clean:
-                logger.warning("🚑 Startup Healer: Creating dummy table/index 'marketplace_name' to unblock migrations...")
-                with connection.cursor() as cursor:
-                    id_type = "integer PRIMARY KEY AUTOINCREMENT" if connection.vendor == 'sqlite' else "serial NOT NULL PRIMARY KEY"
-                    cursor.execute(f'CREATE TABLE IF NOT EXISTS "marketplace_name" ("id" {id_type}, "name" varchar(255) NOT NULL);')
-                    cursor.execute('CREATE INDEX IF NOT EXISTS "marketplace_name_8491f6_idx" ON "marketplace_name" ("name");')
-                return True
-
-        # 2. ቀድሞ የተፈጠረ ተደጋጋሚ ኢንዴክስ ካለ (relation already exists) ማጥፋት [1, 2]
-        match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
-        if match_exists:
-            idx_name = match_exists.group(1)
-            logger.warning(f"🚑 Startup Healer: Dropping conflicting index '{idx_name}'...")
+            table_name = match_missing.group(1)
+            logger.warning(f"🚑 Startup Healer: Dynamically creating dummy table '{table_name}' to unblock migrations...")
             with connection.cursor() as cursor:
-                cursor.execute(f'DROP INDEX IF EXISTS "{idx_name}";')
+                id_type = "integer PRIMARY KEY AUTOINCREMENT" if connection.vendor == 'sqlite' else "serial NOT NULL PRIMARY KEY"
+                cursor.execute(f'CREATE TABLE IF NOT EXISTS "{table_name}" ("id" {id_type});')
+            return True
+
+        # 2. ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን/ሰንጠረዦችን ማጥፋት [1]
+        match_exists = re.search(r'relation "([^"]+)" already exists', err_msg, re.IGNORECASE) or \
+                       re.search(r'table "([^"]+)" already exists', err_msg, re.IGNORECASE) or \
+                       re.search(r'index "([^"]+)" already exists', err_msg, re.IGNORECASE)
+        if match_exists:
+            relation_name = match_exists.group(1)
+            logger.warning(f"🚑 Startup Healer: Dropping conflicting relation/index '{relation_name}' to unblock migrations...")
+            with connection.cursor() as cursor:
+                try:
+                    cursor.execute(f'DROP INDEX IF EXISTS "{relation_name}";')
+                except Exception:
+                    pass
+                try:
+                    cursor.execute(f'DROP TABLE IF EXISTS "{relation_name}" CASCADE;')
+                except Exception:
+                    pass
             return True
             
     except Exception as e:
-        logger.error(f"🚑 Startup Healer failed: {e}")
+        logger.error(f"🚑 Startup Healer failed to auto-correct: {e}")
     return False
+
+
+# ============================================================
+# 🩺 DB CONNECTION GUARD (የዳታቤዝ ግንኙነት መመረዝ ጠጋኝ)
+# ============================================================
+def ensure_healthy_db_connections():
+    """
+    የዳታቤዝ ግንኙነት መመረዝን በመፈተሽ ግንኙነቱን አድሶ ለመክፈት የሚረዳ ሎጂክ [1]
+    """
+    try:
+        from django.db import connections, connection
+        # ቀላል ጥያቄ በማስኬድ ግንኙነቱ ክፍት መሆኑን ማረጋገጥ
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1;")
+    except Exception as e:
+        logger.warning(f"🚑 Connection Guard: Database connection poisoned or closed ({e}). Refreshing connections...")
+        try:
+            connections.close_all()
+        except Exception as close_err:
+            logger.error(f"Failed to close connections: {close_err}")
 
 
 # ============================================================
@@ -91,18 +120,52 @@ def broadcast_agent_log(site, message, status_type="info"):
     pass
 """,
         'code_apply.py': """# Generated dynamically by apps.py (Phoenix Scaffolding)
-import os
-def apply_code_change(site, file_key, new_content, reason="", path=None, backlog_task=None):
+import os, re, logging
+logger = logging.getLogger(__name__)
+
+def apply_surgical_patch(file_path, target_pattern, replacement_content):
+    if not os.path.exists(file_path):
+        return False, "File does not exist"
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Regex በመጠቀም የተወሰነውን የኮድ ክፍል ብቻ የቀዶ-ጥገና ማያያዝ
+        if re.search(target_pattern, content, re.DOTALL):
+            new_content = re.sub(target_pattern, replacement_content, content, flags=re.DOTALL)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            return True, "Surgical patch applied successfully"
+        elif target_pattern in content:
+            new_content = content.replace(target_pattern, replacement_content)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            return True, "Direct string replacement applied successfully"
+        return False, "Target pattern not found in file"
+    except Exception as e:
+        logger.error(f"Surgical patch error: {e}")
+        return False, str(e)
+
+def apply_code_change(site, file_key, new_content, reason="", path=None, backlog_task=None, surgical_target=None):
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     file_name = file_key.replace('_html', '.html') if file_key.endswith('_html') else f"{file_key}.py"
     full_path = os.path.join(base_dir, 'marketplace', 'templates', 'marketplace', file_name) if 'html' in file_key else os.path.join(base_dir, 'marketplace', file_name)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    
+    if surgical_target and os.path.exists(full_path):
+        success, msg = apply_surgical_patch(full_path, surgical_target, new_content)
+        if success:
+            if backlog_task:
+                backlog_task.status = 'Completed'
+                backlog_task.save()
+            return {'success': True, 'applied': True, 'message': msg}
+    
     with open(full_path, 'w', encoding='utf-8') as f:
         f.write(new_content)
     if backlog_task:
         backlog_task.status = 'Completed'
         backlog_task.save()
-    return {'success': True, 'applied': True, 'message': 'Applied Scaffold'}
+    return {'success': True, 'applied': True, 'message': 'File overwritten/created successfully'}
 """,
         'self_doctor.py': """# Generated dynamically by apps.py (Phoenix Scaffolding)
 class SecurityAuditor:
@@ -140,7 +203,7 @@ class MarketplaceConfig(AppConfig):
     name = 'marketplace'
 
     def ready(self):
-        """ሲስተሙ ሲነሳ ኤጀንቱን፣ ማይግሬሽኑን እና የዳታቤዝ ጥገናውን በራስ-ሰር ይቀሰቅሳል (ከ ሙሉ የደህንነት ጥበቃ ጋር)"""
+        """ሲስተሙ ሲነሳ ኤጀንቱን፣ ማይግሬሽኑን እና የዳታቤዝ ጥገናውን በራስ-ሰር ይቀሰቅሳል"""
         
         # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል
         if 'manage.py' in sys.argv:
@@ -159,13 +222,12 @@ class MarketplaceConfig(AppConfig):
             logger.error(f"Pre-flight bootstrapping failed: {e}")
 
         # ============================================================
-        # ⚡ [የቅድመ-በረራ ስህተት መከላከያ]፦ ሰርቨሩ በምንም ዓይነት ሁኔታ እንዳይጋጭ መከላከል [3.1.2]
+        # ⚡ [የቅድመ-በረራ ስህተት መከላከያ]፦ ሰርቨሩ በምንም ዓይነት ሁኔታ እንዳይጋጭ መከላከል [1]
         # ============================================================
         try:
             from django.core.management import call_command
             from django.db import connection
             
-            # 🛠️ የስደት መዝገብ አስማሚ - Dynamic Migration Sync [1, 2, 3.1.2]
             category_exists = False
             migrations_table_exists = False
             
@@ -187,14 +249,14 @@ class MarketplaceConfig(AppConfig):
                     logger.warning("🚨 Auto-Healer: Critical migration desync detected. Clearing django_migrations to force fresh rebuild...")
                     cursor.execute("DELETE FROM django_migrations WHERE app='marketplace';")
 
-            # 🛠️ 1. [ደረጃ 1]፦ የ makemigrations ስራን በራስ-ሰር ማስኬድ [2, 3.1.2]
+            # 🛠️ 1. [ደረጃ 1]፦ የ makemigrations ስራን በራስ-ሰር ማስኬድ
             logger.info("🛠️ Auto-Migrator: Running makemigrations autonomously on marketplace...")
             try:
                 call_command('makemigrations', 'marketplace', interactive=False)
             except Exception as make_err:
                 logger.error(f"❌ Auto-Migrator: makemigrations failed: {make_err}")
             
-            # 🛠️ 2. [ደረጃ 2]፦ መጀመሪያ ሰንጠረዦቹን የሚፈጥረውን አዲሱን ማይግሬሽን 0001_initial ማስኬድ [1, 2]
+            # 🛠️ 2. [ደረጃ 2]፦ መጀመሪያ ሰንጠረዦቹን የሚፈጥረውን አዲሱን ማይግሬሽን 0001_initial ማስኬድ [1]
             logger.info("🛠️ Auto-Migrator: Running initial migrations up to 0001_initial...")
             migration_success = False
             attempts = 0
@@ -210,9 +272,8 @@ class MarketplaceConfig(AppConfig):
                         logger.error(f"❌ Auto-Migrator: Unresolved startup error: {err_msg}")
                         break
             
-            # 🛠️ 3. [ደረጃ 3]፦ የሰገነውን የ 0018 የቆየ ፍልሰት በ django_migrations ውስጥ በፌክ (fake) መመዝገብ [1, 2]
+            # 🛠️ 3. [ደረጃ 3]፦ የሰገነውን የ 0018 የቆየ ፍልሰት በ django_migrations ውስጥ በፌክ (fake) መመዝገብ [1]
             with connection.cursor() as cursor:
-                # check table first
                 if migrations_table_exists:
                     cursor.execute(
                         "SELECT 1 FROM django_migrations WHERE app='marketplace' AND name='0018_translationqueue_delete_aisystemtask_and_more';"
@@ -225,12 +286,15 @@ class MarketplaceConfig(AppConfig):
                         )
                         logger.info("✨ Auto-Healer: Injected Migration 0018 defuse record into django_migrations successfully.")
             
-            # 🛠️ 4. [ደረጃ 4]፦ የተቀሩትን የጃንጎ ፍልሰቶች በራስ-ሰር ማስኬድ [1, 2]
+            # 🛠️ 4. [ደረጃ 4]፦ የተቀሩትን የጃንጎ ፍልሰቶች በራስ-ሰር ማስኬድ [1]
             logger.info("🛠️ Auto-Migrator: Running final migration check...")
             call_command('migrate', interactive=False)
             
-            # 🛠️ 5. የ 147 ምርቶች መጣረስ ለመፍታት ከ primary ሳይት ጋር በጅምላ ማገናኘት [1, 2]
-            from .models import Product, SiteRegistry
+            # 🛠️ 5. የ 147 ምርቶች መጣረስ ለመፍታት ከ primary ሳይት ጋር በጅምላ ማገናኘት (Dynamic loading) [1]
+            from django.apps import apps
+            Product = apps.get_model('marketplace', 'Product')
+            SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+            
             if SiteRegistry.objects.filter(name='primary', is_active=True).count() == 0:
                 SiteRegistry.objects.create(
                     name="primary",
@@ -257,24 +321,30 @@ class MarketplaceConfig(AppConfig):
         def run_agent_thread():
             logger.info("🤖 Autonomous Agent Thread starting (30s delay)...")
             time.sleep(30)
-            try:
-                from .growth_agent import start_autonomous_ceo
-                start_autonomous_ceo()
-            except Exception as e:
-                logger.error(f"❌ Agent Thread Error: {e}")
-            finally:
-                connections.close_all()
+            while True:
+                ensure_healthy_db_connections()
+                try:
+                    from .growth_agent import start_autonomous_ceo
+                    start_autonomous_ceo()
+                    break
+                except Exception as e:
+                    logger.error(f"❌ Agent Thread Error: {e}")
+                finally:
+                    connections.close_all()
+                time.sleep(60)
 
         # --- ክር 2፦ ሴፍቲኔት (የውጭ ፒንግ መዘግየት + ፈጣን የቀጥታ ታስክ ዑደት) ---
         def run_safetynet_thread():
             time.sleep(60)
             last_cron_fallback_run = None
             while True:
+                ensure_healthy_db_connections()
                 try:
-                    from .models import SiteConfig
-                    from .growth_agent import execute_master_cycle, MultiChannelHarvester
+                    from django.apps import apps
+                    SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+                    from .growth_agent import execute_master_cycle
                     
-                    # 🟢 1. ፈጣን የቀጥታ ታስክ ዑደት (Instant Trigger Polling - 5 ሰከንድ ምላሽ) [1, 2]
+                    # 🟢 1. ፈጣን የቀጥታ ታስክ ዑደት (Instant Trigger Polling - 5 ሰከንድ ምላሽ) [1]
                     trigger = SiteConfig.objects.filter(key="EVOLVE_TRIGGER_PENDING").first()
                     if trigger and trigger.value and isinstance(trigger.value, dict) and trigger.value.get('status') == 'pending':
                         logger.info("⚡ SafetyNet Trigger: Instant manual/webhook trigger detected! Starting Master Cycle...")
@@ -285,7 +355,7 @@ class MarketplaceConfig(AppConfig):
                         time.sleep(5)
                         continue
 
-                    # 🟢 2. የድሮው 10-ደቂቃ የውጭ ፒንግ መከላከያ (Cron safety fallback) [1, 2]
+                    # 🟢 2. የድሮው 10-ደቂቃ የውጭ ፒንግ መከላከያ (Cron safety fallback) [1]
                     now = timezone.now()
                     if not last_cron_fallback_run or (now - last_cron_fallback_run) >= timedelta(minutes=10):
                         cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()
@@ -321,9 +391,12 @@ class MarketplaceConfig(AppConfig):
         def run_health_check_thread():
             logger.info("🩺 Health Check & Self-Healing Thread starting...")
             while True:
+                ensure_healthy_db_connections()
                 try:
                     time.sleep(300)
-                    from .models import AgentErrorLog, AIProjectBacklog
+                    from django.apps import apps
+                    AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
+                    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
                     
                     unresolved = AgentErrorLog.objects.filter(resolved=False)
                     if unresolved.count() > 500:

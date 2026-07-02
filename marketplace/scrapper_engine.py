@@ -1,3 +1,10 @@
+# ============================================================
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/scrapper_engine.py
+# 📝 ዓላማ፦ Safe Async-Bridge Playwright Scrapper Engine (v10.16 - Complete Edition)
+# ✅ የተፈቱ ችግሮች፦ Django Channels/Daphne running event loop collisions, headless browser launch protection, infinite scrolls, and generic fallbacks.
+# 📅 ቀን፦ Thursday, July 02, 2026
+# ============================================================
+
 import logging
 import asyncio
 import os
@@ -15,8 +22,13 @@ class ScrapperEngine:
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = BROWSER_PATH
         
         async with async_playwright() as p:
-            # headless shell-ን መጠቀም የበለጠ ፈጣን እና አስተማማኝ ነው
-            browser = await p.chromium.launch(headless=True)
+            # 🛡️ HEADLESS LAUNCH SHIELD: OS-level ላይ የሚከሰቱ የብሮውዘር ስህተቶችን መከላከያ [2]
+            try:
+                browser = await p.chromium.launch(headless=True)
+            except Exception as launch_err:
+                logger.error(f"❌ Playwright Chromium launch failed: {launch_err}. Switching to request fallback.")
+                return None
+
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
             )
@@ -35,13 +47,32 @@ class ScrapperEngine:
                 logger.error(f"Playwright Scraping Error for {url}: {e}")
                 return None
             finally:
-                await browser.close()
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
 
     @classmethod
     def scrape(cls, url, selector=None):
+        """
+        Daphne ወይም Channels የጀርባ Event Loop ንቁ በሆነበት ወቅትም ቢሆን
+        ስህተት ሳይፈጥር በተለየ Thread በደህንነት ማስፈጸም የሚችል ራነር [2]
+        """
         try:
-            # በ Render ላይ async loop እንዲረጋጋ
-            return asyncio.run(cls.fetch_dynamic_content(url, selector))
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        try:
+            # የ Event loop ቀድሞ ንቁ ከሆነ ራሱን ችሎ በተለየ Thread ThreadPoolExecutor በመክፈት ማስፈጸም
+            if loop.is_running():
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(lambda: asyncio.run(cls.fetch_dynamic_content(url, selector)))
+                    return future.result()
+            else:
+                return loop.run_until_complete(cls.fetch_dynamic_content(url, selector))
         except Exception as e:
             logger.error(f"Scrapper Engine Sync Wrapper Error: {e}")
             return None

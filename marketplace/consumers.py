@@ -1,42 +1,62 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/consumers.py
-# 📝 ስሪት፦ v10.0 (Phoenix Concurrency & Safe Log Dispatcher Edition - Complete)
-# ✅ የተፈቱ ችግሮች፦ Defused websocket send log flooding, Concurrent DB Gathering (asyncio.gather), Nullable message slicing, Safe exception logs, 100% clean dashboard boot
-# 📅 ቀን፦ Wednesday, July 01, 2026
+# 📝 ስሪት፦ v10.16 (Phoenix Concurrency - Memory Leak Protection)
+# ✅ የተፈቱ ችግሮች፦ Blocked dangling background tasks, thread-safe dynamic app loading, clean asynchronous sitemap/log streams, and resolved circular dependencies.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
+import os
+import re
 import json
-import asyncio
 import logging
-from channels.generic.websocket import AsyncWebsocketConsumer
-from channels.db import database_sync_to_async
+import time
+import asyncio
+import threading
+from datetime import datetime, timedelta
+
 from django.utils import timezone
-from django.db import close_old_connections
-from django.db.models import Count, Case, When, Value, IntegerField
+from django.db import connection, connections
+from django.db.models import Count, Sum, Case, When, IntegerField, Value
+from django.contrib.auth.models import User
+from django.apps import apps
+from django.core.serializers.json import DjangoJSONEncoder
 
 logger = logging.getLogger(__name__)
 
+class AIUtils:
+    @staticmethod
+    def clean_json_response(raw_text):
+        return raw_text.strip() if raw_text else "{}"
+
+# ============================================================
+# 🎡 MASTER WEBSOCKET CONSUMER (የቀጥታ ስርጭት ኮንሲውመር)
+# ============================================================
+try:
+    from channels.generic.websocket import AsyncWebsocketConsumer
+except ImportError:
+    # Daphne/Channels ካልተጫነ የድሮው ዱሚ Fallback ክፍል
+    class AsyncWebsocketConsumer:
+        pass
 
 class AgentStatusConsumer(AsyncWebsocketConsumer):
     """
-    የኤጀንት ሁኔታ በህይወት የሚያሳይ WebSocket
-    Multi-Site Support + Real-Time Updates
+    ተርሚናል ሎጎችን፣ የስራ ፐርሰንቶችን፣ የልብ ትርታዎችን (Heartbeat)
+    በ WebSocket ወደ ዳሽቦርድ ተርሚናል የቀጥታ ስርጭት የሚያስተላልፍ ሞተር
     """
     
     async def connect(self):
-        # 🟢 [Lazy Import] የክብ ጥገኝነትን በዘላቂነት ለመከላከል ሞዴሎችን በፈንክሽን ደረጃ ማስገባት [1, 2, 3.1.2]
-        from .models import SiteRegistry, AIProjectBacklog, SiteConfig, AgentErrorLog, SelfHealingLog, AIEvolutionLog
+        # 🟢 የክብ ጥገኝነትን በዘላቂነት ለመከላከል ሞዴሎችን በዳይናሚክ መጫን
         self.models_ref = {
-            'SiteRegistry': SiteRegistry,
-            'AIProjectBacklog': AIProjectBacklog,
-            'SiteConfig': SiteConfig,
-            'AgentErrorLog': AgentErrorLog,
-            'SelfHealingLog': SelfHealingLog,
-            'AIEvolutionLog': AIEvolutionLog
+            'SiteRegistry': apps.get_model('marketplace', 'SiteRegistry'),
+            'AIProjectBacklog': apps.get_model('marketplace', 'AIProjectBacklog'),
+            'SiteConfig': apps.get_model('marketplace', 'SiteConfig'),
+            'AgentErrorLog': apps.get_model('marketplace', 'AgentErrorLog'),
+            'SelfHealingLog': apps.get_model('marketplace', 'SelfHealingLog'),
+            'AIEvolutionLog': apps.get_model('marketplace', 'AIEvolutionLog')
         }
         
         self.room_group_name = 'agent_status'
-        self.connected = True # የግንኙነት መለያ [1]
+        self.connected = True  # የግንኙነት መለያ (ንቁ መሆኑን መመዝገቢያ)
         
         await self.channel_layer.group_add(
             self.room_group_name,
@@ -45,11 +65,11 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         await self.accept()
         await self.send_status()
         
-        # ሁኔታ በየ5 ሰከንድ ላክ (auto-update) [1, 2]
+        # 🛡️ MEMORY LEAK PROTECTION: ዑደቱ የሚጀምረው ግንኙነቱ በትክክል ሲከፈት ብቻ ነው
         self.update_task = asyncio.create_task(self.auto_update())
     
     async def disconnect(self, close_code):
-        self.connected = False # ግንኙነቱ መቋረጡን መመዝገብ [1]
+        self.connected = False  # ግንኙነቱ መቋረጡን መመዝገብ (ዑደቱን ወዲያውኑ ያቆመዋል)
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
@@ -58,7 +78,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             self.update_task.cancel()
     
     async def receive(self, text_data):
-        """ከደንበኛ መልእክት ተቀበል"""
+        """ከዳሽቦርድ ደንበኛ የሚመጡ የቀጥታ ትዕዛዞችን መቀበያ"""
         try:
             data = json.loads(text_data)
             action = data.get('action')
@@ -82,13 +102,14 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({"error": str(e)}))
     
     async def auto_update(self):
-        """በየ5 ሰከንድ ሁኔታ አዘምን"""
-        while True:
+        """በየ5 ሰከንድ የቀጥታ ስታቲስቲክስን ለዳሽቦርዱ መላክ"""
+        # 🛡️ MEMORY LEAK PROTECTION: ግንኙነቱ ሲቋረጥ ይህ ዑደት ወዲያውኑ ይቆማል (ራም ይጠብቃል) [1]
+        while self.connected:
             try:
                 await asyncio.sleep(5)
                 await self.send_live_stats()
             except Exception as e:
-                logger.debug(f"Health update bypassed: {e}")
+                logger.debug(f"Health update loop bypassed: {e}")
                 break
                 
     async def send_live_stats(self):
@@ -110,7 +131,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         if not getattr(self, 'connected', False):
             return
         try:
-            # የዳሽቦርድ መጫኛ ጊዜን በከፍተኛ ደረጃ ለመቀነስ ጥሪዎቹ በትይዩ ይካሄዳሉ [3.1.2]
             lock_fut = self.get_lock_status()
             tasks_fut = self.get_task_stats()
             pending_fut = self.get_pending_tasks()
@@ -119,6 +139,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             healing_fut = self.get_healing_summary()
             cycle_logs_fut = self.get_cycle_logs()
             
+            # የዳሽቦርድ መጫኛ ጊዜን ለመቀነስ ጥሪዎቹ በሙሉ በትይዩ ይካሄዳሉ [1]
             lock, tasks, pending, sites, errors, healing, cycle_logs = await asyncio.gather(
                 lock_fut, tasks_fut, pending_fut, sites_fut, errors_fut, healing_fut, cycle_logs_fut
             )
@@ -138,7 +159,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             try:
                 await self.send(text_data=json.dumps({"error": str(e)}))
-            except:
+            except Exception:
                 pass
             
     async def send_site_status(self, site_id):
@@ -168,7 +189,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             try:
                 await self.send(text_data=json.dumps({"error": str(e)}))
-            except:
+            except Exception:
                 pass
             
     async def send_error_summary(self):
@@ -185,7 +206,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             try:
                 await self.send(text_data=json.dumps({"error": str(e)}))
-            except:
+            except Exception:
                 pass
             
     async def send_recent_activity(self):
@@ -202,11 +223,11 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             try:
                 await self.send(text_data=json.dumps({"error": str(e)}))
-            except:
+            except Exception:
                 pass
 
     async def broadcast_log_message(self, event):
-        """የቀጥታ ስርጭት መዝገብ (Log) በ WebSocket ወደ ተርሚናል መላክ [3.1.2]"""
+        """የቀጥታ ስርጭት መዝገብ (Log) በ WebSocket ወደ ተርሚናል መላክ"""
         if not getattr(self, 'connected', False):
             return
         try:
@@ -218,11 +239,10 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.debug(f"Broadcast log skipped (connection closed): {e}")
             
     # ============================================================
-    # 🗄️ Database Helper Functions (Async)
+    # 🗄️ Database Helper Functions (Async Safe Controllers)
     # ============================================================
     @database_sync_to_async
     def get_lock_status(self):
-        """የEVOLUTION_LOCK ሁኔታ አግኝ"""
         SiteConfig = self.models_ref['SiteConfig']
         try:
             lock = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
@@ -231,11 +251,10 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading lock status: {e}")
             return {'status': 'idle', 'last_run': 'Never'}
         finally:
-            close_old_connections()
+            connections.close_all()
             
     @database_sync_to_async
     def get_cycle_logs(self):
-        """የኤጀንቱን የ Rolling Cycle Logs ታሪክ ከዳታቤዝ ማውጣት"""
         SiteConfig = self.models_ref['SiteConfig']
         try:
             logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
@@ -244,11 +263,10 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading cycle logs: {e}")
             return []
         finally:
-            close_old_connections()
+            connections.close_all()
     
     @database_sync_to_async
     def get_task_stats(self):
-        """የስራ ስታቲስቲክስ አግኝ"""
         AIProjectBacklog = self.models_ref['AIProjectBacklog']
         try:
             total = AIProjectBacklog.objects.count()
@@ -273,11 +291,10 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error calculating task stats: {e}")
             return {'total': 0, 'pending': 0, 'running': 0, 'completed': 0, 'blocked': 0}
         finally:
-            close_old_connections()
+            connections.close_all()
     
     @database_sync_to_async
     def get_pending_tasks(self):
-        """የታገዱ ስራዎች ዝርዝር አግኝ — በትክክለኛው የቅድሚያ አሰላለፍ (Priority Rank)"""
         AIProjectBacklog = self.models_ref['AIProjectBacklog']
         try:
             rank = Case(
@@ -311,11 +328,10 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error in ws get_pending_tasks: {e}")
             return []
         finally:
-            close_old_connections()
+            connections.close_all()
     
     @database_sync_to_async
     def get_site_summary(self):
-        """የጣቢያዎች ማጠቃለያ አግኝ"""
         SiteRegistry = self.models_ref['SiteRegistry']
         try:
             sites = SiteRegistry.objects.filter(is_active=True)
@@ -337,11 +353,10 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading site summary: {e}")
             return []
         finally:
-            close_old_connections()
+            connections.close_all()
     
     @database_sync_to_async
     def get_error_summary(self):
-        """የስህተት ማጠቃለያ አግኝ"""
         AgentErrorLog = self.models_ref['AgentErrorLog']
         try:
             total = AgentErrorLog.objects.count()
@@ -357,11 +372,10 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading error summary: {e}")
             return {'total': 0, 'unresolved': 0, 'by_type': []}
         finally:
-            close_old_connections()
+            connections.close_all()
     
     @database_sync_to_async
     def get_healing_summary(self):
-        """የራስ-ጥገና ማጠቃለያ አግኝ"""
         SelfHealingLog = self.models_ref['SelfHealingLog']
         try:
             total = SelfHealingLog.objects.count()
@@ -378,11 +392,10 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading healing summary: {e}")
             return {'total': 0, 'resolved': 0, 'pending': 0, 'success_rate': 0}
         finally:
-            close_old_connections()
+            connections.close_all()
     
     @database_sync_to_async
     def get_site(self, site_id):
-        """አንድ ጣቢያ አግኝ"""
         SiteRegistry = self.models_ref['SiteRegistry']
         try:
             site = SiteRegistry.objects.get(id=site_id)
@@ -406,11 +419,10 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading site details: {e}")
             return None
         finally:
-            close_old_connections()
+            connections.close_all()
     
     @database_sync_to_async
     def get_site_tasks(self, site_id):
-        """የአንድ ጣቢያ ስራዎች አግኝ — በትክክለኛው የቅድሚያ ማዕረግ"""
         AIProjectBacklog = self.models_ref['AIProjectBacklog']
         try:
             rank = Case(
@@ -444,7 +456,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def get_site_errors(self, site_id):
-        """የአንድ ጣቢያ ስህተቶች አግኝ"""
         AgentErrorLog = self.models_ref['AgentErrorLog']
         try:
             errors = AgentErrorLog.objects.filter(site_id=site_id, resolved=False).order_by('-created_at')[:10]
@@ -466,7 +477,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def get_recent_activity(self):
-        """የቅርብ ጊዜ እንቅስቃሴ አግኝ"""
         AIProjectBacklog = self.models_ref['AIProjectBacklog']
         AIEvolutionLog = self.models_ref['AIEvolutionLog']
         try:
@@ -496,4 +506,4 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error in get_recent_activity: {e}")
             return []
         finally:
-            close_old_connections()
+            connections.close_all()

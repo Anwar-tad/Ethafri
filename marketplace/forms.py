@@ -1,15 +1,21 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/forms.py
-# 📝 ስሪት፦ v1.5 (Unified ModelForm Integration — JSON Optimized)
-# ✅ የተፈቱ ችግሮች፦ Dynamic native JSONField list assignment, static WhiteNoise manifest safe overrides, and complete translation tags.
+# 📝 ስሪት፦ v10.16 (Unified ModelForm Integration — Defused & Secure)
+# ✅ የተፈቱ ችግሮች፦ Deferred dynamic querysets in __init__ (prevents boot crashes), HTML XSS tag stripping, and circular-free model registry loading.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 from django import forms
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
+from django.utils.html import strip_tags  # 🛡️ XSS ጥቃትን መከላከያ ማጽጃ
+from django.apps import apps
 import json
-from .models import Product, Category, SiteRegistry
+
+# ሞዴሎችን በደህንነት በዳይናሚክ መጫን [1]
+Product = apps.get_model('marketplace', 'Product')
+Category = apps.get_model('marketplace', 'Category')
+SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
 
 
 class ProductForm(forms.ModelForm):
@@ -24,30 +30,24 @@ class ProductForm(forms.ModelForm):
         label=_("Listing Type")
     )
     
-    # የሻጩ ስልክ ወይም የቴሌግራም ዩዘርኔም
-    contact_info = forms.CharField(
-        required=True,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': _('የባለቤቱ ስልክ ወይም የቴሌግራም ዩዘርኔም (ለምሳሌ 0912345678)...')
-        }),
-        label=_("Contact Info")
+    # የሻጩ ስልክ ወይም የቴሌግራም ዩዘርኔም በመለየት
+    contact_info = models_contact_info = forms.CharField(
+        max_length=255, 
+        required=False, 
+        initial='', 
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ስልክ ቁጥር ወይም @username'})
     )
     
-    # ተጨማሪ የምስል ሊንኮች ዝርዝር ለስላይደር
+    # የፎቶዎች መጋዘን አምድ
     image_gallery = forms.CharField(
         required=False,
-        widget=forms.Textarea(attrs={
-            'class': 'form-control',
-            'rows': 2,
-            'placeholder': _('ተጨማሪ የምስል ሊንኮችን በነጠላ ሰረዝ (,) በመለየት ያስገቡ...')
-        }),
-        label=_("Additional Images Gallery"),
-        help_text=_("ከተፈለገ ተጨማሪ የምስል ሊንኮችን በኮማ በመለየት ያስገቡ।")
+        widget=forms.Textarea(attrs={'rows': 2, 'placeholder': 'ተጨማሪ የምስል ሊንኮችን በነጠላ ሰረዝ (,) በመለየት ያስገቡ...'}),
+        label=_("Additional Images Gallery")
     )
     
+    # 🛡️ DEFERRED EVALUATION: መጀመሪያ በባዶ queryset መመደብ (በ __init__ ውስጥ በዳይናሚክ ይተካል)
     site = forms.ModelChoiceField(
-        queryset=SiteRegistry.objects.filter(is_active=True),
+        queryset=SiteRegistry.objects.none(),
         required=False,
         empty_label=_("Select Site (optional)"),
         widget=forms.Select(attrs={'class': 'form-select'}),
@@ -55,7 +55,7 @@ class ProductForm(forms.ModelForm):
     )
     
     category = forms.ModelChoiceField(
-        queryset=Category.objects.all(),
+        queryset=Category.objects.none(),
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'}),
         empty_label=_("Select Category")
@@ -63,7 +63,7 @@ class ProductForm(forms.ModelForm):
     
     class Meta:
         model = Product
-        fields = ['title', 'description', 'price', 'category', 'location', 'image', 'listing_type', 'contact_info', 'image_gallery', 'site']
+        fields = ['title', 'description', 'price', 'category', 'location', 'image', 'listing_type', 'contact_info', 'site']
         widgets = {
             'title': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -91,6 +91,26 @@ class ProductForm(forms.ModelForm):
                 'accept': 'image/*'
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        """
+        🛡️ DEFERRED EVALUATION: ኳሪዎችን በዳይናሚክ መጫን (የመጀመሪያ ማስነሻ ስህተቶችን በዘላቂነት ይከላከላል)
+        """
+        super().__init__(*args, **kwargs)
+        CategoryModel = apps.get_model('marketplace', 'Category')
+        SiteRegistryModel = apps.get_model('marketplace', 'SiteRegistry')
+        
+        self.fields['category'].queryset = CategoryModel.objects.all()
+        self.fields['site'].queryset = SiteRegistryModel.objects.filter(is_active=True)
+        
+        # የነባር ምርት ማሻሻያ ከሆነ የፎቶዎችን መዝገብ በኮማ በመለየት ማሳየት
+        if self.instance and self.instance.pk:
+            try:
+                gallery = self.instance.image_gallery
+                if isinstance(gallery, list):
+                    self.fields['image_gallery'].initial = ", ".join(gallery)
+            except Exception:
+                pass
     
     def clean_price(self):
         """የዋጋ ማረጋገጫ"""
@@ -100,17 +120,29 @@ class ProductForm(forms.ModelForm):
         return price
     
     def clean_title(self):
-        """የርዕስ ማረጋገጫ"""
+        """የርዕስ ማረጋገጫ እና የ XSS ጠለፋ መከላከያ [1]"""
         title = self.cleaned_data.get('title')
-        if title and len(title.strip()) < 3:
-            raise forms.ValidationError(_("Title must be at least 3 characters long."))
-        return title.strip()
+        if title:
+            # HTML ታጎችን በሙሉ ማጽዳት (XSS Script Sanitization)
+            clean_title = strip_tags(title).strip()
+            if len(clean_title) < 3:
+                raise forms.ValidationError(_("Title must be at least 3 characters long."))
+            return clean_title
+        return title
+
+    def clean_description(self):
+        """የመግለጫ ማረጋገጫ እና የ XSS ጠለፋ መከላከያ [1]"""
+        description = self.cleaned_data.get('description')
+        if description:
+            # HTML ታጎችን በሙሉ ማጽዳት (XSS Script Sanitization)
+            return strip_tags(description).strip()
+        return description
     
     def save(self, commit=True):
         """ፎርሙን በማስቀመጥ ላይ — Multi-Site ድጋፍ"""
         product = super().save(commit=False)
         
-        # 🔴 የተሻሻለ ውህደት፦ የ JSONField እሴቶችን በቀጥታ እንደ ፓይተን ሊስት (List) ማስቀመጥ [1]
+        # የ JSONField እሴቶችን በቀጥታ እንደ ፓይተን ሊስት (List) ማስቀመጥ [1]
         gallery_raw = self.cleaned_data.get('image_gallery', '').strip()
         if gallery_raw:
             gallery_list = [url.strip() for url in gallery_raw.split(',') if url.strip()]
@@ -142,20 +174,16 @@ class ProductSearchForm(forms.Form):
         })
     )
     category = forms.ModelChoiceField(
-        queryset=Category.objects.all(),
+        queryset=Category.objects.none(),
         required=False,
         empty_label=_("All Categories"),
-        widget=forms.Select(attrs={
-            'class': 'form-select'
-        })
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
     site = forms.ModelChoiceField(
-        queryset=SiteRegistry.objects.filter(is_active=True),
+        queryset=SiteRegistry.objects.none(),
         required=False,
         empty_label=_("All Sites"),
-        widget=forms.Select(attrs={
-            'class': 'form-select'
-        })
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
     min_price = forms.DecimalField(
         required=False,
@@ -173,6 +201,15 @@ class ProductSearchForm(forms.Form):
             'placeholder': _('Max')
         })
     )
+
+    def __init__(self, *args, **kwargs):
+        """🛡️ DEFERRED EVALUATION: ኳሪዎችን በዳይናሚክ መጫን"""
+        super().__init__(*args, **kwargs)
+        CategoryModel = apps.get_model('marketplace', 'Category')
+        SiteRegistryModel = apps.get_model('marketplace', 'SiteRegistry')
+        
+        self.fields['category'].queryset = CategoryModel.objects.all()
+        self.fields['site'].queryset = SiteRegistryModel.objects.filter(is_active=True)
 
 
 class SiteRegistrationForm(forms.ModelForm):
@@ -257,7 +294,7 @@ class MarketingCampaignForm(forms.Form):
     ]
     
     site = forms.ModelChoiceField(
-        queryset=SiteRegistry.objects.filter(is_active=True),
+        queryset=SiteRegistry.objects.none(),
         required=True,
         widget=forms.Select(attrs={'class': 'form-select'})
     )
@@ -304,3 +341,9 @@ class MarketingCampaignForm(forms.Form):
             'type': 'datetime-local'
         })
     )
+
+    def __init__(self, *args, **kwargs):
+        """🛡️ DEFERRED EVALUATION: ኳሪዎችን በዳይናሚክ መጫን"""
+        super().__init__(*args, **kwargs)
+        SiteRegistryModel = apps.get_model('marketplace', 'SiteRegistry')
+        self.fields['site'].queryset = SiteRegistryModel.objects.filter(is_active=True)

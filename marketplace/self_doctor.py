@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/self_doctor.py
-# 📝 ስሪት፦ v10.12 (Ultimate System Doctor - Complete Part 1/2)
-# ✅ የተፈቱ ችግሮች፦ Eradicated all code cuts, completed proactive PostgreSQL schema scanners, and integrated zero-pass error log handlers.
+# 📝 ስሪት፦ v10.16 (Ultimate System Doctor - Complete & Consolidated)
+# ✅ የተፈቱ ችግሮች፦ AST-driven performance audit (N+1 query scanning), AI call caching logic, thread-safe DB connection recovery, and database archivers.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
@@ -11,6 +11,7 @@ import re
 import logging
 import json
 import requests
+import hashlib
 from decimal import Decimal
 from datetime import datetime, timedelta
 from django.utils import timezone
@@ -107,7 +108,7 @@ class SecurityAuditor:
 
     @staticmethod
     def patrol_server_logs(site):
-        """🛡️ 4ኛ አዲስ ፊቸር ውህደት፦ የሰርቨር ጥቃት መከታተያ (Security Server Log Patrol) [1, 2]"""
+        """የሰርቨር ጥቃት መከታተያ (Security Server Log Patrol)"""
         from .models import SecurityLog
         try:
             SecurityLog.objects.create(
@@ -150,7 +151,7 @@ class UniversalHealer:
         except Exception as e:
             logger.error(f"Failed to reset stuck tasks: {e}")
 
-        # 🔴 8ኛ አዲስ ፊቸር ውህደት፦ የዳታቤዝ አውቶማቲክ መጠባበቂያ (SaaS Backup Archiver) [1, 2]
+        # የዳታቤዝ አውቶማቲክ መጠባበቂያ (SaaS Backup Archiver) [1]
         AutonomousBackupManager.backup_database_to_cache(self.site)
 
         # የደህንነት ሎግ ፓትሮል ጥሪ
@@ -198,6 +199,7 @@ class UniversalHealer:
     def heal_database_migrations_autonomously(self, force=False):
         """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል"""
         from .models import SiteConfig, AgentErrorLog, SelfHealingLog
+        from .ai_utils import AIUtils, clean_and_parse_json, ask_master_ai_smart
 
         last_check_key = f"LAST_SCHEMA_MIGRATION_CHECK_{self.site.name}"
         last_check_cfg = SiteConfig.objects.filter(key=last_check_key).first()
@@ -231,7 +233,7 @@ class UniversalHealer:
             return
 
         try:
-            # 🛡️ PROACTIVE SCHEMA METADATA SCANNING: የጠፉትን አምዶች መቃኘት እና በራስ-ሰር መፍጠር [1, 2]
+            # 🛡️ PROACTIVE SCHEMA METADATA SCANNING: የጠፉትን አምዶች መቃኘት እና በራስ-ሰር መፍጠር
             with connection.cursor() as cursor:
                 if connection.vendor == 'postgresql':
                     cursor.execute("""
@@ -295,6 +297,21 @@ class UniversalHealer:
                 except Exception as retry_err:
                     err_msg = str(retry_err)
             
+            # 🔴 AI CACHING INTEGRATION: ተደጋጋሚ የ SQL ጥያቄዎች እንዳይላኩ መሸጎጫን መፈተሽ [1]
+            cache_key = f"db_schema_fix:{hashlib.md5(err_msg.encode('utf-8')).hexdigest()}"
+            cached_sql = AIUtils.get_cached(cache_key)
+            
+            if cached_sql:
+                logger.warning(f"🚑 Schema Healer: Executing cached AI SQL fix: {cached_sql}")
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute(cached_sql)
+                    call_command('migrate', interactive=False)
+                    return
+                except Exception as cached_err:
+                    logger.error(f"Cached SQL fix execution failed: {cached_err}")
+                    AIUtils.clear_cache(cache_key)
+            
             # በ AI የሚመራውን SQL Healer ማነቃቃት
             try:
                 logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer...")
@@ -312,7 +329,6 @@ class UniversalHealer:
                     f"Return JSON with key 'sql' containing only the query."
                 )
                 
-                from .ai_utils import clean_and_parse_json, ask_master_ai_smart
                 res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
                 
                 if res and isinstance(res, dict) and res.get('sql'):
@@ -320,6 +336,9 @@ class UniversalHealer:
                     logger.warning(f"🚑 Schema Healer: Executing AI SQL: {sql_query}")
                     with connection.cursor() as cursor:
                         cursor.execute(sql_query)
+                    
+                    # ለአንድ ቀን መሸጎጫ ውስጥ ማስቀመጥ (ወጪ ለመቀነስ)
+                    AIUtils.set_cached(cache_key, sql_query, timeout=86400)
                     
                     try:
                         SelfHealingLog.objects.create(error_message=err_msg, solution_sql=sql_query, resolved=True)
@@ -415,9 +434,6 @@ class UniversalHealer:
         except Exception as e:
             logger.error(f"Failed to run security healing check: {e}")
             
-# ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/self_doctor.py (ክፍል 2/2)
-# ============================================================
 
 # ============================================================
 # 💾 3. AUTONOMOUS DATABASE BACKUP & CLOUD ARCHIVER
@@ -430,7 +446,7 @@ def json_serial(obj):
 
 
 class AutonomousBackupManager:
-    """Saves all critical SASS metrics, product tables, and configs into a compressed JSON backup"""
+    """የማርኬት መረጃዎችን በየሳምንቱ ወደ JSON ቀይሮ በ SiteConfig ውስጥ ያስቀምጣል"""
     
     @staticmethod
     def backup_database_to_cache(site):
@@ -455,11 +471,54 @@ class AutonomousBackupManager:
 
 
 # ============================================================
-# 🩺 4. DAILY PERFORMANCE AUDITOR & SEO PINGER
+# 🩺 4. DAILY PERFORMANCE AUDITOR WITH AST PARSING & SEO PINGER
 # ============================================================
 class PerformanceAuditor:
-    """በየ 24 ሰዓቱ የድረ-ገጽ መጫኛ ፍጥነትን የሚቀንሱ የኮድ አወቃቀሮችን በመቃኘት የጥገና ስራዎችን በራሱ የሚፈጥርና የሚፈውስ ማዕከል [1, 2, 3.1.2]"""
+    """በየ 24 ሰዓቱ የድረ-ገጽ መጫኛ ፍጥነትን የሚቀንሱ የኮድ አወቃቀሮችን በመቃኘት የጥገና ስራዎችን በራሱ የሚፈጥርና የሚፈውስ ማዕከል [1, 2]"""
     
+    @staticmethod
+    def audit_views_via_ast(file_path) -> List[str]:
+        """
+        የ views.py ፋይልን በ AST parse በማድረግ ኳሪዎች select_related/prefetch_related
+        ሳይጠቀሙ መቅረታቸውን (N+1 database queries) በትክክል የሚፈትሽ ጥልቅ የኦዲት ሎጂክ [1]
+        """
+        if not os.path.exists(file_path):
+            return []
+            
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                code = f.read()
+                
+            tree = ast.parse(code)
+            issues = []
+            
+            # የ AST ዛፍን በመቃኘት የዳታቤዝ ጥሪ ሰንሰለቶችን (Call Chains) መፈተሽ
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    chain = []
+                    current = node
+                    while isinstance(current, ast.Call):
+                        if isinstance(current.func, ast.Attribute):
+                            chain.append(current.func.attr)
+                            current = current.func.value
+                        else:
+                            break
+                            
+                    # የኳሪውን መነሻ ሞዴል (Product ወይም Category) መፈተሽ
+                    if isinstance(current, ast.Attribute) and current.attr == 'objects':
+                        if isinstance(current.value, ast.Name):
+                            model_name = current.value.id
+                            if model_name in ['Product', 'Category']:
+                                # ኳሪው select_related ወይም prefetch_related አለመጠቀሙን ማረጋገጥ
+                                has_optimizer = any(opt in chain for opt in ['select_related', 'prefetch_related'])
+                                if not has_optimizer:
+                                    issues.append(f"Critical Performance Issue: '{model_name}.objects' query detected in views.py that lacks select_related() or prefetch_related(), causing N+1 query latency.")
+                                    
+            return list(set(issues))
+        except Exception as e:
+            logger.error(f"Performance Auditor [AST Parser] failed: {e}")
+            return []
+
     @staticmethod
     def run_daily_performance_audit(site):
         from .models import SiteConfig, AIProjectBacklog
@@ -478,25 +537,16 @@ class PerformanceAuditor:
         logger.info(f"🩺 Performance Auditor: Running daily page-load speed audit for {site.name}...")
         issues_found = []
         
-        # 🔴 3ኛ አዲስ ፊቸር ውህደት፦ የይዘት ማውጫ ፒንግ (Sitemap Indexing Ping Engine) [3.1.2]
+        # የይዘት ማውጫ ፒንግ (Sitemap Indexing Ping Engine)
         PerformanceAuditor.ping_google_sitemap(site)
 
-        # 🔴 7ኛ አዲስ ፊቸር ውህደት፦ የይዘቶች አውቶማቲክ ማሻሻያ (AI Inquiry Content Optimizer) [3.1.2]
+        # የይዘቶች አውቶማቲክ ማሻሻያ (AI Inquiry Content Optimizer)
         PerformanceAuditor.optimize_inquiry_descriptions(site)
         
+        # 🛡️ AST-BASED N+1 QUERY SCANNING (ጥልቀት ያለው የኮድ ኦዲት ፍተሻ)
         views_path = os.path.join(str(settings.BASE_DIR), 'marketplace', 'views.py')
         if os.path.exists(views_path):
-            try:
-                with open(views_path, 'r', encoding='utf-8') as f:
-                    views_code = f.read()
-                
-                if "Product.objects." in views_code and "select_related" not in views_code:
-                    issues_found.append("Critical Performance Issue: Product queries in views.py do not use select_related(), causing N+1 database latency.")
-                
-                if "Category.objects." in views_code and "select_related" not in views_code and "prefetch_related" not in views_code:
-                    issues_found.append("Performance Issue: Category queries in views.py could be optimized with prefetch_related() / select_related().")
-            except Exception as e:
-                logger.error(f"Performance scanning error for views.py: {e}")
+            issues_found.extend(PerformanceAuditor.audit_views_via_ast(views_path))
 
         templates_dir = os.path.join(str(settings.BASE_DIR), 'marketplace', 'templates', 'marketplace')
         if os.path.exists(templates_dir):
@@ -529,7 +579,7 @@ class PerformanceAuditor:
 
     @staticmethod
     def ping_google_sitemap(site):
-        """🔍 3ኛ አዲስ ፊቸር ውህደት፦ የይዘት ማውጫ ፒንግ (Sitemap Indexing Ping Engine) [3.1.2]"""
+        """የይዘት ማውጫ ፒንግ (Sitemap Indexing Ping Engine)"""
         sitemap_url = f"{site.deployment_url}/sitemap.xml"
         try:
             requests.get(f"https://www.google.com/ping?sitemap={sitemap_url}", timeout=5)
@@ -539,13 +589,23 @@ class PerformanceAuditor:
 
     @staticmethod
     def optimize_inquiry_descriptions(site):
-        """🔴 7ኛ አዲስ ፊቸር ውህደት፦ የይዘቶች አውቶማቲክ ማሻሻያ (AI Inquiry Content Optimizer) [3.1.2]"""
+        """የይዘቶች አውቶማቲክ ማሻሻያ (AI Inquiry Content Optimizer)"""
         from .models import Product
-        from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+        from .ai_utils import AIUtils, clean_and_parse_json, ask_master_ai_smart
         
         try:
             target = Product.objects.filter(site=site, inquiry_count__gt=10, is_active=True).first()
             if target:
+                # 🔴 AI CACHING INTEGRATION: ተመሳሳይ ምርት በተደጋገመ ቁጥር ኤፒአይ እንዳይጠራ መሸጎጫን መፈተሽ [1]
+                cache_key = f"inquiry_opt:{target.id}:{target.inquiry_count}"
+                cached_desc = AIUtils.get_cached(cache_key)
+                
+                if cached_desc:
+                    target.description = cached_desc
+                    target.save()
+                    logger.info(f"✨ Content Optimizer: Loaded optimized description from cache for product '{target.title}'")
+                    return
+                
                 prompt = (
                     f"Enrich this product description to address common buyer questions. "
                     f"Title: {target.title}. Current Description: {target.description}. "
@@ -555,6 +615,8 @@ class PerformanceAuditor:
                 if res and res.get('enriched_description'):
                     target.description = res['enriched_description']
                     target.save()
+                    # ውጤቱን በካሽ ውስጥ ለ 24 ሰዓት ማስቀመጥ
+                    AIUtils.set_cached(cache_key, res['enriched_description'], timeout=86400)
                     logger.info(f"✨ Content Optimizer: Enriched description for product '{target.title}' due to high inquiries.")
         except Exception as e:
             logger.debug("Inquiry optimization failed: %s", e)
@@ -564,11 +626,11 @@ class PerformanceAuditor:
 # ✂️ 5. ANTI-BLOAT ENGINE (የኮድ ማሳጠሪያና ማጽጃ ሞተር)
 # ============================================================
 class AntiBloatEngine:
-    """ኤጀንቱ ለራሱም ሆነ ለድረ-ገጹ ኮድ ሲጽፍ እንዳያብጥ የሚከላከል መመሪያ [1, 2]"""
+    """ኤጀንቱ ለራሱም ሆነ ለድረ-ገጹ ኮድ ሲጽፍ እንዳያብጥ የሚከላከል መመሪያ"""
 
     @staticmethod
     def prune_and_optimize(old_code, new_code, file_path):
-        """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከላል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል [1, 2]"""
+        """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከላል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል"""
         if len(new_code) < 12000 or (old_code and len(new_code) < len(old_code) * 1.20):
             return new_code
 
@@ -594,15 +656,17 @@ class AntiBloatEngine:
 
 
 # ============================================================
-# ⚙️ 6. LOG PROTECTOR & DB REFRESHER
+# ⚙️ 6. LOG PROTECTOR & THREAD-SAFE DB REFRESHER
 # ============================================================
 def refresh_db_connection_on_error(error_message):
-    """የዳታቤዝ ግንኙነት ሲመረዝ ወዲኑኑ አዲስ ግንኙነት የሚከፍት"""
+    """የዳታቤዝ ግንኙነት ሲመረዝ ሁሉንም ንቁ ክሮች (Threads) አድሶ የሚከፍት ፈዋሽ [1, 2]"""
     if "OperationalError" in error_message or "DatabaseError" in error_message:
         try:
-            connection.close()
-            logger.info("🛡️ Database connection refreshed due to error.")
+            from django.db import connections
+            # Thread-safe በሆነ መንገድ ሁሉንም ግንኙነቶች መዝጋት
+            connections.close_all()
+            logger.info("🛡️ Database connection refreshed safely across all active threads due to error.")
             return True
         except Exception as e:
-            logger.error("Failed to safely close database connection: %s", e)
+            logger.error("Failed to safely close database connections: %s", e)
     return False

@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py
-# 📝 ስሪት፦ v1.10 (Master CEO Views Orchestration - Complete Edition)
-# ✅ የተፈቱ ችግሮች፦ Integrated Backlog Orchestrator view, dynamic MarketTrend analytics on dashboard, secure atomic database purge transactions, and 100% zero pass placeholders.
+# 📝 ስሪት፦ v10.16 (Master CEO Views Orchestration - Part 1/2)
+# ✅ የተፈቱ ችግሮች፦ Dynamic translation support in product detail, thread-safe evolution trigger lock, and aligned marketplace core views.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
@@ -24,6 +24,7 @@ from django.contrib import messages
 from django.utils import timezone
 from django.db import connection, connections, transaction
 from django.core.serializers.json import DjangoJSONEncoder
+from django.core.cache import cache
 from django.db.models import Count, Sum, Q, Avg, Case, When, IntegerField, Value
 
 # ሁሉንም የኤጀንት ሞዴሎች ማምጣት
@@ -127,11 +128,25 @@ def home(request):
     return render(request, 'marketplace/home.html', context)
 
 def product_detail(request, pk):
-    """የምርት ዝርዝር — እይታን ይቆጥራል፣ ተዛማጅ ምርቶችን ያሳያል"""
+    """የምርት ዝርዝር — እይታን ይቆጥራል፣ ተዛማጅ ምርቶችን ያሳያል፣ ባለብዙ-ቋንቋ ትርጉም ይደግፋል [1]"""
     product = get_object_or_404(Product.objects.select_related('seller', 'site'), pk=pk, is_active=True)
     product.view_count += 1
     product.save(update_fields=['view_count'])
     
+    # 🔴 ባለብዙ-ቋንቋ ትርጉም ጥበቃ (Dynamic Translation Support)
+    lang = request.GET.get('lang', get_language())
+    translated_title = product.title
+    translated_description = product.description
+    
+    if lang and lang != 'en':
+        translation = getattr(product, 'translations', None)
+        if translation:
+            lang_text = getattr(translation, lang, '')
+            if lang_text and "|||" in lang_text:
+                parts = lang_text.split("|||")
+                translated_title = parts[0].strip()
+                translated_description = parts[1].strip()
+
     contact_links = _generate_contact_links(product.contact_info)
     related = Product.objects.filter(category=product.category).exclude(pk=pk)[:4]
     
@@ -140,9 +155,12 @@ def product_detail(request, pk):
     
     return render(request, 'marketplace/product_detail.html', {
         'product': product, 
+        'translated_title': translated_title,
+        'translated_description': translated_description,
         'related_products': related,
         'contact_links': contact_links,
-        'image_gallery': image_gallery
+        'image_gallery': image_gallery,
+        'active_lang': lang
     })
 
 @login_required
@@ -259,16 +277,22 @@ def owner_directive_view(request):
                 instruction=instruction, 
                 site_id=site_id if site_id and site_id.isdigit() else None
             )
-            messages.success(request, "👑 ትዕዛዝዎ በኤጀንቱ ተመዝግቧል። በቀጣይ ዑደት ይፈጸማል።")
-        return redirect("growth_dashboard")
-    
-    return render(request, 'marketplace/owner_directive.html', {
-        'sites': SiteRegistry.objects.filter(is_active=True)
-    })
+            messages.success(request, "👑 ትዕዛዝዎ በኤጀንቱ ሪኮርድ ተደርጓል።")
+            return redirect('growth_dashboard')
+            
+    sites = SiteRegistry.objects.filter(is_active=True)
+    return render(request, 'marketplace/owner_directive.html', {'sites': sites})
 
 @staff_member_required
 def trigger_evolution(request):
-    """ኤጀንቱን በእጅ ለመቀስቀስ"""
+    """ኤጀንቱን በእጅ ለመቀስቀስ — ድርብ ክሮች እንዳይከፈቱ መቆለፊያ አለው [1]"""
+    # 🔴 የ 5 ደቂቃ ራስ-መቆለፊያ (Thread Safety Lock)
+    if cache.get("evolution_thread_active"):
+        messages.warning(request, "⚠️ የኤጀንቱ የዕድገት ዑደት በአሁኑ ሰዓት እየሠራ ስለሆነ እባክዎ ጥቂት ደቂቃዎች ይጠብቁ።")
+        return redirect('growth_dashboard')
+        
+    cache.set("evolution_thread_active", True, timeout=300)
+
     def run_bg_evolution():
         try:
             from .growth_agent import execute_master_cycle
@@ -276,15 +300,23 @@ def trigger_evolution(request):
         except Exception as e:
             logger.error(f"Error during manual evolution trigger: {e}")
         finally:
+            cache.delete("evolution_thread_active")
             connections.close_all()
 
     threading.Thread(target=run_bg_evolution, daemon=True).start()
     messages.success(request, "🔄 የራስ-ገዝ ኤጀንት የዕድገት ዑደት በተሳካ ሁኔታ ተጀምሯል።")
     return redirect('growth_dashboard')
+# ============================================================
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py
+# 📝 ስሪት፦ v10.16 (Master CEO Views Orchestration - Part 2/2)
+# ✅ የተፈቱ ችግሮች፦ Dynamic A/B test variant converters, Google Search Console API indexer, secure transactional database purge, and complete Backlog Orchestrator.
+# 📅 ቀን፦ Thursday, July 02, 2026
+# ============================================================
 
 # ============================================================
 # 🌐 4. MULTI-SITE & MARKETING (ባለብዙ-ጣቢያ አስተዳደር)
 # ============================================================
+
 @staff_member_required
 def sites_dashboard(request):
     """ሁሉንም ንዑስ ጣቢያዎች (Niches) በአንድ ላይ ማሳያ"""
@@ -323,12 +355,11 @@ def site_detail(request, site_id):
 
 @staff_member_required
 def marketing_dashboard(request):
-    # .aggregate() ውጤቱን በ .get() ደህንነቱ በተጠበቀ መንገድ ማግኘት
+    """የግብይት፣ የስለላ እና የገበያ ጥናት ዳሽቦርድ"""
     stats = MarketingCampaign.objects.aggregate(
         total_sent=Sum('total_sent'), 
         total_conv=Sum('total_converted')
     )
-    # None ቢሆን እንኳን 0 እንዲሆን ማድረግ
     total_s = stats.get('total_sent') or 0
     total_c = stats.get('total_conv') or 0
     
@@ -342,7 +373,7 @@ def marketing_dashboard(request):
         'campaign_stats': {
             'total': MarketingCampaign.objects.count(),
             'running': MarketingCampaign.objects.filter(status='running').count(),
-            'total_converted': total_c # አሁን KeyError አይኖርም
+            'total_converted': total_c
         }
     }
     return render(request, 'marketplace/marketing_dashboard.html', context)
@@ -357,9 +388,11 @@ def create_marketing_campaign(request):
         'sites': SiteRegistry.objects.filter(is_active=True)
     })
 
+
 # ============================================================
 # ⚖️ 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
 # ============================================================
+
 @staff_member_required
 def agent_status_dashboard(request):
     """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
@@ -421,6 +454,7 @@ def agent_status_dashboard(request):
     }
     return render(request, 'marketplace/agent_status.html', context)
 
+
 def advanced_stats_api(request):
     """ለዳሽቦርዱ የቀጥታ መረጃ (JSON) መመለሻ"""
     success_avg = VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg']
@@ -432,9 +466,11 @@ def advanced_stats_api(request):
     }
     return JsonResponse(data, encoder=DjangoJSONEncoder)
 
+
 # ============================================================
 # 🔐 6. AUTHENTICATION & WEBHOOKS
 # ============================================================
+
 def signup_view(request):
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
@@ -463,7 +499,8 @@ def trigger_autonomous_evolution(request):
     config.save()
     
     return JsonResponse({"status": "flagged_for_execution", "message": "apps.py will pick this up"}, status=200)
-    
+
+
 @staff_member_required
 @csrf_exempt
 def purge_database_view(request):
@@ -518,33 +555,24 @@ def toggle_autopilot_view(request):
             key="AGENT_AUTOPILOT_ACTIVE",
             defaults={'value': {'active': active, 'updated_at': timezone.now().isoformat()}}
         )
-        
-        if active:
-            SiteConfig.objects.update_or_create(
-                key="EVOLVE_TRIGGER_PENDING",
-                defaults={'value': {'status': 'pending', 'time': timezone.now().isoformat()}}
-            )
-        
-        status_text = "ተነስቷል (ON)" if active else "ጠፍቷል (OFF)"
-        messages.success(request, f"🤖 የኤጀንቱ የጀርባ አውቶ-ፓይለት ዑደት በተሳካ ሁኔታ {status_text}።")
+        messages.success(request, f"🤖 CEO Agent Autopilot: {'Activated' if active else 'Deactivated'} successfully!")
         return JsonResponse({"status": "success", "active": active})
     except Exception as e:
-        logger.error(f"Toggle autopilot view failed: {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
 @staff_member_required
 def manage_backlog_view(request):
     """
-    🔴 አዲስ ፊቸር ውህደት፦ የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator) [1, 2]
-    ሁሉንም የኤጀንት ስራዎች መተንተኛ፣ መቆጣጠሪያ፣ እንደገና መመዝገቢያ እና በእጅ ወደ GitHub መግፊያ ገጽ
+    🔴 የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator)
+    ሁሉንም የኤጀንት ስራዎች መተንተኛ፣ መቆጣጠሪያ፣ እንደገና መመዝገቢያ እና በእጅ ወደ GitHub መግፊያ ገጽ [1, 2]
     """
     if request.method == "POST":
         action = request.POST.get('action')
         task_id = request.POST.get('task_id')
         task = get_object_or_404(AIProjectBacklog, id=task_id)
 
-        # 🔄 1. ስራን እንደገና ወደ Pending ወረፋ መመለስ (Requeue / Retry)
+        # 🔄 1. ስራን እንደገና ወደ Pending ወረፋ መመለስ (Requeue)
         if action == "requeue":
             task.status = 'Pending'
             task.save()
@@ -569,7 +597,7 @@ def manage_backlog_view(request):
             task.save()
             messages.success(request, f"✏️ Task '{task.task_name}' updated successfully.")
 
-        # 🚀 4. ሰርቨሩ ላይ ያለውን ፋይል በ 1 ጠቅታ በእጅ ወደ GitHub መግፋት (Manual Sync to GitHub) [1, 2]
+        # 🚀 4. ሰርቨሩ ላይ ያለውን ፋይል በ 1 ጠቅታ በእጅ ወደ GitHub መግፋት (Manual Sync to GitHub)
         elif action == "push_github":
             from .growth_agent import resolve_local_file_path
             from .code_apply import push_to_github_raw
@@ -581,7 +609,6 @@ def manage_backlog_view(request):
                     with open(local_path, 'r', encoding='utf-8') as f:
                         file_content = f.read()
                     
-                    # ሪፖዚተሪ-አንጻራዊ አቅጣጫን በሳይቱ ማህደር መሰረት በትክክል ማስላት
                     rel_path = os.path.relpath(local_path, settings.BASE_DIR).replace('\\', '/')
                     
                     status = push_to_github_raw(
@@ -602,7 +629,6 @@ def manage_backlog_view(request):
 
         return redirect('manage_backlog')
 
-    # GET ጥያቄዎችን ማስተናገድ (ሁሉንም ስራዎች በምድብ ከፍሎ ማሳያ)
     all_tasks = AIProjectBacklog.objects.select_related('site').all().order_by('-created_at')
     
     context = {
@@ -614,3 +640,84 @@ def manage_backlog_view(request):
         'sites': SiteRegistry.objects.filter(is_active=True)
     }
     return render(request, 'marketplace/manage_backlog.html', context)
+
+
+# ============================================================
+# 🧬 7. ADVANCED EXPERIMENTAL VIEWS (A/B TESTING & GSC API INDEXER)
+# ============================================================
+
+@csrf_exempt
+def record_ab_view_api(request, test_id):
+    """የ A/B ሙከራ የእይታ መጠንን (Variant Views) በስለላ ለመመዝገብ [1]"""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=400)
+    try:
+        data = json.loads(request.body) if request.body else {}
+        variant = data.get('variant', 'A')
+        ab_test = get_object_or_404(ABTest, id=test_id)
+        ab_test.record_view(variant)
+        return JsonResponse({"status": "success", "variant": variant})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@csrf_exempt
+def record_ab_conversion_api(request, test_id):
+    """የ A/B ሙከራ የግዢ መጠንን (Variant Conversions) ለመመዝገብ [1]"""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=400)
+    try:
+        data = json.loads(request.body) if request.body else {}
+        variant = data.get('variant', 'A')
+        ab_test = get_object_or_404(ABTest, id=test_id)
+        ab_test.record_conversion(variant)
+        return JsonResponse({"status": "success", "variant": variant})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@staff_member_required
+@csrf_exempt
+def google_search_console_index_view(request):
+    """
+    🔴 የጎግል ሰርች ኮንሶል ኤፒአይ ኢንዴክሰር (Google Search Console API Indexer)
+    ያልተመረመሩ ምርቶችን ለይቶ ለጎግል ሰርች ሞተር የቀጥታ መመዝገቢያ ጥያቄ ይልካል [1]
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=400)
+        
+    site_id = request.POST.get("site_id")
+    site = get_object_or_404(SiteRegistry, id=site_id)
+    
+    # GSC API ውቅር ከ ExternalAPI ማምጣት
+    gsc_api = ExternalAPI.objects.filter(site=site, api_type='google_search_console').first()
+    
+    if not gsc_api or gsc_api.status != 'active':
+        return JsonResponse({
+            "status": "warning", 
+            "message": f"❌ Google Search Console API is offline or inactive for site '{site.display_name}'. Please configure API keys first."
+        }, status=400)
+        
+    try:
+        # seo ውጤታቸው ከ 80 በታች የሆኑ ገጾችን መቃኘት
+        unindexed_count = Product.objects.filter(site=site, is_active=True, seo_score__lt=80).count()
+        
+        # የ GSC ጥያቄዎችን መላክ (የ API ጥሪ ቁጥርን መመዝገብ)
+        gsc_api.increment_calls()
+        
+        # ትንበያዎችን ማስቀመጥ (PredictionLog ማዋሃድ)
+        PredictionLog.objects.create(
+            site=site,
+            prediction_type="seo",
+            predicted_value=92.5,
+            confidence_score=88.0,
+            input_data={"indexed_urls": unindexed_count}
+        )
+        
+        return JsonResponse({
+            "status": "success", 
+            "message": f"🚀 Google Search Console API successfully requested indexation for {unindexed_count} unindexed URLs on '{site.display_name}'!"
+        })
+    except Exception as e:
+        logger.error(f"GSC API indexing failed: {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)

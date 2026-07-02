@@ -1,9 +1,9 @@
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ v2.2 Lightning Build Script — 100% Clean & Thread Synced (Zero DB Logic)
-# ✅ የተፈቱ ችግሮች፦ Omitted redundant Python diagnostics for 5x faster deployment, secure compilation checks
-# 📅 ቀን፦ Tuesday, June 30, 2026
+# 📝 ለውጥ፦ v10.16 Lightning Build Script — 100% Clean & Thread Synced
+# ✅ የተፈቱ ችግሮች፦ Dynamic Playwright browser path export, auto-creation of locale folders, and fast pip caching.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 # ስህተት ሲያጋጥም ወዲያውኑ እንዲቆም ማድረግ
@@ -19,15 +19,24 @@ export DJANGO_SETTINGS_MODULE=core.settings
 echo ""
 echo "📦 Installing Python packages with cache-enabled..."
 pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
-echo "🌐 Installing Playwright Browser..."
+
+# 2. 🛡️ PLAYWRIGHT BROWSER PATH ALIGNMENT: ብሮውዘሩ በአግባቡ እንዲቀመጥ ማህደሩን በግልጽ ማዋሃድ [2]
+echo "🌐 Configuring Playwright browser path..."
+export PLAYWRIGHT_BROWSERS_PATH="/opt/render/.cache/ms-playwright"
+
+echo "🌐 Installing Playwright Chromium browser..."
 playwright install chromium
-# 2. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ (WhiteNoise መጨመቂያውን በአግባቡ ያጠናቅራል)
+
+# 3. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ
 echo ""
 echo "📂 Collecting static files..."
 python manage.py collectstatic --no-input --clear || true
 
-# 3. የቋንቋ ፋይሎችን ማጠናቀር (msgfmt በሰርቨሩ ላይ ከተገኘ ብቻ)
+# 4. አስፈላጊ የፋይል ማውጫዎችን መፍጠር እና ማረጋገጥ (የቋንቋ ማህደርን ጨምሮ) [1]
 echo ""
+mkdir -p locale staticfiles media logs tmp
+
+# 5. የቋንቋ ፋይሎችን ማጠናቀር (msgfmt በሰርቨሩ ላይ ከተገኘ ብቻ)
 if command -v msgfmt &> /dev/null; then
     echo "🌍 Compiling translation files..."
     python manage.py compilemessages 2>/dev/null || true
@@ -35,10 +44,7 @@ else
     echo "⚠️ gettext compilation tool (msgfmt) not found. Skipping compilation."
 fi
 
-# 4. አስፈላጊ የፋይል ማውጫዎችን መፍጠር
-mkdir -p staticfiles media logs tmp
-
-# 5. የመጀመሪያ አድሚን መፍጠር (Anwar)
+# 6. የመጀመሪያ አድሚን መፍጠር
 echo ""
 echo "🔧 Setting up initial data..."
 python create_admin.py || true

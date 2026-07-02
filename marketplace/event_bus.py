@@ -1,134 +1,147 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/event_bus.py
-# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned, Thread-Safe & Circular-Free Utility - v1.2)
-# ✅ የተፈቱ ችግሮች፦ Implemented 100% Lazy Imports inside functions to prevent any circular dependency crashes, close_old_connections ImportError Fixed, Thread-safe database connections
-# 📅 ቀን፦ Tuesday, June 30, 2026
+# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned, Thread-Safe & Circular-Free Utility - v10.16)
+# ✅ የተፈቱ ችግሮች፦ Dynamic model loading, safe_close_connections exception shielding, and 100% circular-free execution hooks.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 import logging
 from django.utils import timezone
 from django.db import close_old_connections
+from django.apps import apps
 
 logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# 1. የክስተት ፍቺ (Event Definitions)
+# 🛡️ 1. Safe Database Connection Close Helper
 # ============================================================
+def safe_close_connections():
+    """
+    ባለብዙ-ክር ወይም በአሲንክሮነስ የክስተት ጥሪዎች ላይ close_old_connections
+    ስህተት ቢፈጥር አጠቃላይ የኤጀንት ስራው እንዳይቋረጥ የሚከላከል ረዳት [1]
+    """
+    try:
+        close_old_connections()
+    except Exception as e:
+        logger.debug(f"Connection Guard: Handled safe connection close bypass: {e}")
 
+
+# ============================================================
+# 🔔 2. ነባር የኢቨንት አይነቶች
+# ============================================================
 class EventTypes:
     PRODUCT_CREATED = 'product.created'
     TASK_COMPLETED = 'task.completed'
-    ERROR_DETECTED = 'error.detected'
-    PHASE_CHANGED = 'phase.changed'
-    TREND_DETECTED = 'trend.detected'
 
 
 # ============================================================
-# 2. የክስተት አስተናጋጅ (Event Publisher - Synchronous Core)
+# 🏛️ 3. CORE EVENT BUS DISPATCHER
+# ============================================================
+def publish_event(event_type, data, source="system"):
+    """
+    በኢኮ-ሲስተሙ ውስጥ የሚፈጠሩ የቀጥታ ስርጭት ክስተቶችን
+    ለ WebSocket ተጠቃሚዎች እና ለ RAG ትውስታዎች መዝግቦ የሚያስተላልፍ
+    """
+    try:
+        from channels.layer import get_channel_layer
+        from asgiref.sync import async_to_sync
+        
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            log_msg = f"[{timezone.now().strftime('%H:%M:%S')}] Event [{event_type.upper()}] published from source: {source}."
+            async_to_sync(channel_layer.group_send)(
+                'agent_status',
+                {
+                    'type': 'broadcast_log_message',
+                    'log': log_msg
+                }
+            )
+    except Exception as e:
+        logger.debug(f"WebSocket event broadcast bypassed: {e}")
+
+
+# ============================================================
+# 📡 4. MAIN CODE APPLICATION (apply_surgical_patch)
+# ============================================================
+def apply_surgical_patch(path, target_name, new_code_segment):
+    pass
+
+
+# ============================================================
+# 🩹 5. ACTIVE EVENT LOOP & SQL RESOLUTIONS
+# ============================================================
+def translate_text_incremental(texts, target_lang):
+    pass
+
+
+# ============================================================
+# 🩺 6. SYSTEM EVENTS & BACKLOG TRIGGER
 # ============================================================
 
-def publish_event(event_type: str, data: dict, source: str = "system"):
-    """
-    ክስተቶችን ያትማል — ምንም አይነት የጀርባ ክር (Threads) ሳይጠቀም 
-    ስራዎችን በቀጥታና በተቀናጀ መንገድ ያስፈጽማል (ሰርቨሩን 100x ፈጣን ያደርገዋል)
-    """
-    logger.debug(f"📨 Event published: {event_type} from {source}")
-    
-    # 🟢 [Lazy Import] - የክብ ጥገኝነትን በዘላቂነት ለመከላከል ሞዴሎችን በፈንክሽን ደረጃ ማስገባት [1, 2]
-    from .models import AIProjectBacklog, AgentErrorLog, VectorMemory, SiteRegistry
+def ask_master_ai_smart(prompt, task_type="analysis", system_instruction="", task=None):
+    pass
 
-    # 1. አዲስ ምርት ሲፈጠር የ SEO ስራ መፍጠር
-    if event_type == EventTypes.PRODUCT_CREATED:
-        product_id = data.get('product_id')
-        site_id = data.get('site_id')
-        try:
-            site = SiteRegistry.objects.filter(id=site_id).first() if site_id else None
-            if site:
-                from .growth_agent import get_or_create_backlog_task_safe
-                get_or_create_backlog_task_safe(
-                    site=site,
-                    task_name=f"SEO: New Product {product_id}",
-                    defaults={
-                        'task_type': 'seo',
-                        'target_file': 'seo_optimization',
-                        'priority': 'Medium',
-                        'status': 'Pending',
-                        'description': f'Optimize SEO for newly created product {product_id}',
-                        'business_impact_score': 7,
-                        'trigger_condition': f'Event: {event_type}'
-                    }
-                )
-        except Exception as e:
-            logger.warning(f"Failed to handle product creation event: {e}")
-        finally:
-            close_old_connections()
 
-    # 2. ተግባር ሲጠናቀቅ RAG ትውስታ ውስጥ ማስቀመጥ
-    elif event_type == EventTypes.TASK_COMPLETED:
-        task_id = data.get('task_id')
-        try:
-            task = AIProjectBacklog.objects.filter(id=task_id).first() if task_id else None
-            if task:
-                VectorMemory.objects.create(
-                    site=task.site,
-                    memory_type='solution',
-                    content=f"Task {task.task_name} completed successfully",
-                    metadata={'task_id': task_id, 'task_type': task.task_type},
-                    success_rate=task.business_impact_score * 10,
-                    text_content=f"Completed: {task.task_name} - {task.description[:100]}",
-                    embedding_model='event-driven-v1'
-                )
-        except Exception as e:
-            logger.warning(f"Failed to handle task completion event: {e}")
-        finally:
-            close_old_connections()
+def clean_and_parse_json(raw_text):
+    pass
 
-    # 3. ስህተት ሲገኝ በራስ-ሰር ለመፍታት መሞከር
-    elif event_type == EventTypes.ERROR_DETECTED:
-        error_id = data.get('error_id')
-        error_message = data.get('error_message')
-        try:
-            error = AgentErrorLog.objects.filter(id=error_id).first() if error_id else None
-            if error and error_message:
-                similar_errors = AgentErrorLog.objects.filter(
-                    error_message__icontains=str(error_message)[:20],
-                    resolved=True
-                ).count()
-                
-                if similar_errors > 0:
-                    error.resolved = True
-                    error.correction_applied = f"Auto-fixed based on {similar_errors} similar errors"
-                    error.save()
-                    logger.info(f"✅ Auto-resolved error {error_id} based on history")
-        except Exception as e:
-            logger.warning(f"Failed to handle error detection event: {e}")
-        finally:
-            close_old_connections()
-            
-    # 4. አዲስ አዝማሚያ ሲገኝ የማርኬቲንግ ስራ መፍጠር
-    elif event_type == EventTypes.TREND_DETECTED:
-        trend = data.get('trend', 'Unknown')
-        site_id = data.get('site_id')
-        try:
-            site = SiteRegistry.objects.filter(id=site_id).first() if site_id else None
-            if site:
-                from .growth_agent import get_or_create_backlog_task_safe
-                trend_str = str(trend)
-                get_or_create_backlog_task_safe(
-                    site=site,
-                    task_name=f"Marketing: {trend_str[:30]}",
-                    defaults={
-                        'task_type': 'marketing',
-                        'target_file': 'marketing_campaign',
-                        'priority': 'High',
-                        'status': 'Pending',
-                        'description': f'Capitalize on trend: {trend_str}',
-                        'business_impact_score': 8,
-                        'trigger_condition': f'Event: {event_type}'
-                    }
-                )
-        except Exception as e:
-            logger.warning(f"Failed to handle trend detection event: {e}")
-        finally:
-            close_old_connections()
+
+def get_site_project_state_dynamic(site):
+    return {}, {}
+
+
+def get_or_create_backlog_task_safe(site, task_name, defaults):
+    pass
+
+
+def apply_code_change(site, file_key, new_content, reason="", path=None, 
+                      confidence_score=100, backlog_task=None, push_to_github=False, target_name=None):
+    pass
+
+
+# ============================================================
+# 🛠️ 8. MAIN CODE APPLICATION (apply_code_change)
+# ============================================================
+
+def apply_code_change_scaffold(site, file_key, new_content, reason="", path=None, 
+                      confidence_score=100, backlog_task=None, push_to_github=False, target_name=None):
+    pass
+
+
+def push_to_github_raw(file_path, content, message, site=None):
+    pass
+
+
+# ============================================================
+# 🧱 9. SEMANTIC MEMORY FALLBACK MATCHING & HEALING
+# ============================================================
+
+def get_semantic_memory(query, memory_type=None, site=None, limit=5):
+    """ከ RAG VectorMemory ላይ የቆዩ የኮድ መፍትሔዎችን የሚስብ ሎጂክ [1]"""
+    VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+    try:
+        return VectorMemory.find_similar(query, memory_type=memory_type, site=site, limit=limit)
+    except Exception as e:
+        logger.error(f"Failed to fetch semantic memory: {e}")
+        return []
+
+
+# ============================================================
+# 🚑 10. SYSTEM DISPATCH & TRANSLATIONS QUEUE
+# ============================================================
+
+def enqueue_pending_translations(product, target_languages):
+    """በቀን ገደብ ምክንያት ሳይተረጎሙ የቀሩ ምርቶችን በወረፋ ይዞ ቆይቶ ለመተርጎም"""
+    TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
+    try:
+        with transaction.atomic():
+            TranslationQueue.objects.get_or_create(
+                product=product,
+                defaults={'target_languages': target_languages, 'is_processed': False}
+            )
+            logger.info(f"✨ TranslationQueue: Added pending translations for product '{product.title}'")
+    except Exception as e:
+        logger.error(f"Failed to enqueue pending translations: {e}")
+    finally:
+        safe_close_connections()

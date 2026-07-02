@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/urls.py
-# 📝 ስሪት፦ v10.0 (Master CEO Agent URL Mapping - Complete Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic URL namespaces, aligned backlog orchestrator routing, secure API endpoints, and zero-pass placeholders.
+# 📝 ስሪት፦ v10.16 (Master CEO Agent URL Mapping - Complete Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic URL namespaces, aligned backlog orchestrator routing, secure API GSC indexers, and Ajax A/B test variant converters.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
@@ -59,7 +59,12 @@ urlpatterns = [
     # የውጭ ክሮን (External Cron) Webhook Gateway
     path('evolve-now-secret-123/', views.trigger_autonomous_evolution, name='trigger_autonomous_evolution'),
     
-    # 🟢 አዲስ የተጨመሩ የዳሽቦርድ Purge እና Autopilot ኤፒአይዎች
+    # የዳሽቦርድ Purge እና Autopilot ኤፒአይዎች
     path('api/agent/purge-db/', views.purge_database_view, name='api_purge_database'),
     path('api/agent/toggle-autopilot/', views.toggle_autopilot_view, name='api_toggle_autopilot'),
+    
+    # 🟢 አዲስ የተጨመሩ የ A/B ሙከራ እና የ GSC API ኢንዴክሰር አድራሻዎች [1]
+    path('api/ab-test/<int:test_id>/view/', views.record_ab_view_api, name='api_record_ab_view'),
+    path('api/ab-test/<int:test_id>/conversion/', views.record_ab_conversion_api, name='api_record_ab_conversion'),
+    path('api/agent/gsc-index/', views.google_search_console_index_view, name='api_gsc_index'),
 ]

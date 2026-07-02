@@ -1,43 +1,75 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/admin.py
-# 📝 ለውጥ፦ Dynamic Diagnostics & Universal Marketplace Synced (v1.3)
-# ✅ የተፈቱ ችግሮች፦ Added listing_type and contact_info to list_display and list_filter, Missing is_active and auto settings on SiteRegistryAdmin fieldsets, safe status colors
-# 📅 ቀን፦ Monday, June 29, 2026
+# 📝 ለውጥ፦ Dynamic Diagnostics & Universal Marketplace Synced (v10.16)
+# ✅ የተፈቱ ችግሮች፦ Dynamic crash-safe registers, product translation tabular inline support, and stylized HTML code block preview for AIEvolutionLog.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import (
-    # 1. መሰረታዊ የማርኬት ፕሌስ ሞዴሎች
-    Product, Category, UserSearch, ProductTranslation, TranslationQueue,
-    
-    # 2. የኤጀንት ስትራቴጂ እና ኦፕሬሽን
-    SiteRegistry, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction,
-    
-    # 3. ጥገና እና ጤና (Health & Healing)
-    AgentErrorLog, SelfHealingLog, SiteConfig, MarketTrend,
-    
-    # 4. የንግድ እድገት እና ማርኬቲንግ
-    SellerProfile, CustomerAcquisitionLog, MarketingCampaign, NotificationQueue,
-    
-    # 5. የላቁ የኤአይ ባህሪያት (Advanced AI)
-    VectorMemory, AgentTask, ABTest, SecurityLog, PredictionLog, ExternalAPI
-)
+from django.apps import apps
+
+# ሁሉንም ሞዴሎች በደህንነት መጫን
+Product = apps.get_model('marketplace', 'Product')
+Category = apps.get_model('marketplace', 'Category')
+UserSearch = apps.get_model('marketplace', 'UserSearch')
+ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
+TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
+
+SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
+AdminOverrideInstruction = apps.get_model('marketplace', 'AdminOverrideInstruction')
+
+AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
+SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
+SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+MarketTrend = apps.get_model('marketplace', 'MarketTrend')
+
+SellerProfile = apps.get_model('marketplace', 'SellerProfile')
+CustomerAcquisitionLog = apps.get_model('marketplace', 'CustomerAcquisitionLog')
+MarketingCampaign = apps.get_model('marketplace', 'MarketingCampaign')
+NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+
+VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+AgentTask = apps.get_model('marketplace', 'AgentTask')
+ABTest = apps.get_model('marketplace', 'ABTest')
+SecurityLog = apps.get_model('marketplace', 'SecurityLog')
+PredictionLog = apps.get_model('marketplace', 'PredictionLog')
+ExternalAPI = apps.get_model('marketplace', 'ExternalAPI')
+
+
+# 🛡️ REGISTRY COLLISION GUARD: ሰርቨሩ በ AlreadyRegistered ስህተት እንዳይከሰከስ የደህንነት ምዝገባ ረዳት [1]
+def safe_register(model_class, admin_class=None):
+    try:
+        if not admin.site.is_registered(model_class):
+            if admin_class:
+                admin.site.register(model_class, admin_class)
+            else:
+                admin.site.register(model_class)
+    except admin.sites.AlreadyRegistered:
+        pass
+
 
 # ============================================================
-# 📦 1. ምርት እና ትርጉም አስተዳደር
+# 📦 1. ምርት እና ትርጉም አስተዳደር (Inline Translation Support)
 # ============================================================
 
-@admin.register(Product)
+class ProductTranslationInline(admin.StackedInline):
+    """🔴 የምርት ትርጉሞችን በአንድ ገጽ ላይ በአድሚን ሰሌዳ ለመተርጎም (UX Booster) [1]"""
+    model = ProductTranslation
+    extra = 1
+    max_num = 1
+
+
 class ProductAdmin(admin.ModelAdmin):
-    # 🟢 አዲስ የተጨመሩ፦ listing_type እና contact_info በአድሚን የምርት ዝርዝር ላይ እንዲታዩ ተደርገዋል
     list_display = ('title', 'get_site', 'price', 'category', 'listing_type', 'contact_info', 'is_active', 'market_status', 'view_count', 'created_at')
-    
-    # 🟢 አዲስ የተጨመረ፦ የሽያጭ/የኪራይ አይነት ፈጣን ማጣሪያ (listing_type)
     list_filter = ('site', 'category', 'listing_type', 'is_active', 'market_value_status')
-    
     search_fields = ('title', 'description', 'location')
     readonly_fields = ('view_count', 'inquiry_count', 'created_at', 'updated_at')
+    
+    # የትርጉም ሰንጠረዡን ወደ ምርት ገጽ ስር inline ማገናኘት
+    inlines = [ProductTranslationInline]
     
     def get_site(self, obj):
         return obj.site.display_name if obj.site else "Primary"
@@ -48,16 +80,17 @@ class ProductAdmin(admin.ModelAdmin):
         return format_html('<b style="color: {};">{}</b>', color, obj.market_value_status)
 
 
-admin.site.register(Category)
-admin.site.register(TranslationQueue)
-admin.site.register(ProductTranslation)
-admin.site.register(UserSearch)
+safe_register(Product, ProductAdmin)
+safe_register(Category)
+safe_register(TranslationQueue)
+safe_register(ProductTranslation)
+safe_register(UserSearch)
+
 
 # ============================================================
 # 🌐 2. Multi-Site እና የኤጀንት ሰሌዳ (Backlog)
 # ============================================================
 
-@admin.register(SiteRegistry)
 class SiteRegistryAdmin(admin.ModelAdmin):
     list_display = ('display_name', 'niche', 'growth_level', 'build_phase', 'is_active')
     list_filter = ('is_active', 'growth_level', 'build_phase')
@@ -68,7 +101,7 @@ class SiteRegistryAdmin(admin.ModelAdmin):
         ('የኤጀንት መቆጣጠሪያ (Agent Control)', {'fields': ('is_active', 'auto_update_enabled', 'auto_marketing_enabled')}),
     )
 
-@admin.register(AIProjectBacklog)
+
 class AIProjectBacklogAdmin(admin.ModelAdmin):
     list_display = ('task_name', 'priority_tag', 'status_tag', 'target_file', 'site', 'created_at')
     list_filter = ('status', 'priority', 'site', 'task_type')
@@ -85,22 +118,43 @@ class AIProjectBacklogAdmin(admin.ModelAdmin):
         return format_html('<b style="color: {};">{}</b>', colors.get(obj.status, 'black'), obj.status)
 
 
-@admin.register(AIEvolutionLog)
 class AIEvolutionLogAdmin(admin.ModelAdmin):
+    """🔴 ኤጀንቱ የቀየራቸውን ኮዶች በጥቁር ዳራ (HTML pre/code style) አሳምሮ የሚያሳይ ሰሌዳ [1]"""
     list_display = ('target_file', 'site', 'reason_preview', 'created_at')
     list_filter = ('site', 'target_file')
-    readonly_fields = ('created_at',)
+    readonly_fields = ('created_at', 'code_preview')
+    
+    # የድሮ እና አዳዲስ ኮዶችን በኮድ ፎርማት ማሳያ
+    fields = ('backlog_task', 'target_file', 'site', 'reason_for_change', 'code_preview', 'created_at')
     
     def reason_preview(self, obj):
         msg = obj.reason_for_change or ""
         return msg[:75] + "..." if len(msg) > 75 else msg
+
+    def code_preview(self, obj):
+        old_code = obj.old_code_backup or "No previous content (New File)"
+        new_code = obj.new_code_patch or "No patch content"
+        return format_html(
+            '<div>'
+            '<h3>⏮️ Old Code Backup</h3>'
+            '<pre style="background: #272822; color: #f8f8f2; padding: 10px; border-radius: 5px; font-family: monospace; overflow-x: auto; max-height: 250px;">{}</pre>'
+            '<h3>⏭️ New Code Patch</h3>'
+            '<pre style="background: #272822; color: #a6e22e; padding: 10px; border-radius: 5px; font-family: monospace; overflow-x: auto; max-height: 250px;">{}</pre>'
+            '</div>',
+            old_code, new_code
+        )
+    code_preview.short_description = "Code Comparison"
+
+
+safe_register(SiteRegistry, SiteRegistryAdmin)
+safe_register(AIProjectBacklog, AIProjectBacklogAdmin)
+safe_register(AIEvolutionLog, AIEvolutionLogAdmin)
 
 
 # ============================================================
 # 🩺 3. የኤጀንቱ ጤና እና ጥገና (Diagnostic Center)
 # ============================================================
 
-@admin.register(AgentErrorLog)
 class AgentErrorLogAdmin(admin.ModelAdmin):
     list_display = ('task_name', 'error_type', 'is_resolved', 'site', 'created_at')
     list_filter = ('resolved', 'error_type', 'site')
@@ -109,7 +163,7 @@ class AgentErrorLogAdmin(admin.ModelAdmin):
     def is_resolved(self, obj):
         return format_html('✅' if obj.resolved else '❌')
 
-@admin.register(SelfHealingLog)
+
 class SelfHealingLogAdmin(admin.ModelAdmin):
     list_display = ('error_message_short', 'resolved', 'created_at')
     
@@ -118,14 +172,16 @@ class SelfHealingLogAdmin(admin.ModelAdmin):
         return msg[:100] + "..." if len(msg) > 100 else msg
 
 
-admin.site.register(SiteConfig)
-admin.site.register(MarketTrend)
+safe_register(AgentErrorLog, AgentErrorLogAdmin)
+safe_register(SelfHealingLog, SelfHealingLogAdmin)
+safe_register(SiteConfig)
+safe_register(MarketTrend)
+
 
 # ============================================================
 # 👑 4. የአድሚን የበላይነት (Executive Control)
 # ============================================================
 
-@admin.register(AdminOverrideInstruction)
 class AdminOverrideInstructionAdmin(admin.ModelAdmin):
     list_display = ('instruction_preview', 'priority_override', 'is_processed', 'site', 'created_at')
     list_filter = ('is_processed', 'priority_override')
@@ -134,27 +190,32 @@ class AdminOverrideInstructionAdmin(admin.ModelAdmin):
         msg = obj.instruction or ""
         return msg[:70] + "..." if len(msg) > 70 else msg
 
+safe_register(AdminOverrideInstruction, AdminOverrideInstructionAdmin)
+
+
 # ============================================================
 # 💰 5. የንግድ እድገት እና ማርኬቲንግ
 # ============================================================
 
-@admin.register(SellerProfile)
 class SellerProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'business_name', 'site', 'rating', 'total_products')
     search_fields = ('business_name', 'user__username')
 
-@admin.register(MarketingCampaign)
+
 class MarketingCampaignAdmin(admin.ModelAdmin):
     list_display = ('name', 'campaign_type', 'status', 'total_sent', 'total_converted')
 
-admin.site.register(CustomerAcquisitionLog)
-admin.site.register(NotificationQueue)
+
+safe_register(SellerProfile, SellerProfileAdmin)
+safe_register(MarketingCampaign, MarketingCampaignAdmin)
+safe_register(CustomerAcquisitionLog)
+safe_register(NotificationQueue)
+
 
 # ============================================================
 # 🧠 6. የላቁ የኤአይ ባህሪያት (RAG & Security)
 # ============================================================
 
-@admin.register(VectorMemory)
 class VectorMemoryAdmin(admin.ModelAdmin):
     list_display = ('memory_type', 'content_preview', 'success_rate', 'usage_count')
     
@@ -163,7 +224,6 @@ class VectorMemoryAdmin(admin.ModelAdmin):
         return msg[:100] + "..." if len(msg) > 100 else msg
 
 
-@admin.register(SecurityLog)
 class SecurityLogAdmin(admin.ModelAdmin):
     list_display = ('severity_tag', 'category', 'description', 'is_fixed', 'file_path')
     list_filter = ('severity', 'is_fixed', 'category')
@@ -179,11 +239,14 @@ class SecurityLogAdmin(admin.ModelAdmin):
         return format_html('<b style="color: {};">{}</b>', color, str(obj.severity).upper())
 
 
-@admin.register(PredictionLog)
 class PredictionLogAdmin(admin.ModelAdmin):
     list_display = ('prediction_type', 'predicted_value', 'confidence_score', 'predicted_at')
 
 
-admin.site.register(AgentTask)
-admin.site.register(ABTest)
-admin.site.register(ExternalAPI)
+safe_register(VectorMemory, VectorMemoryAdmin)
+safe_register(SecurityLog, SecurityLogAdmin)
+safe_register(PredictionLog, PredictionLogAdmin)
+
+safe_register(AgentTask)
+safe_register(ABTest)
+safe_register(ExternalAPI)

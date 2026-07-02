@@ -1,20 +1,20 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ዓላማ፦ Robust Growth Engine + Fixed Naming & Import Sync (v1.3 - Optimized Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic multi-site analysis, clean import fallbacks, safe close_old_connections integration, and zero pass placeholders.
+# 📝 ዓላማ፦ Robust Growth Engine + Fixed Naming & Import Sync (v10.16 - Optimized Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading, circular import fallbacks, safe close_old_connections integration, and resource cleaning.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections, connection
 from django.utils import timezone
+from django.apps import apps
 import logging
 import gc
-from marketplace.models import SiteConfig, SiteRegistry
 
 logger = logging.getLogger(__name__)
 
-# ✅ የ growth_agent አስገቢዎችን የዲፔንደንሲ ግጭት ለማስቀረት የተሰሩ የሥራ መጋጠሚያዎች
+# የ growth_agent አስገቢዎችን የዲፔንደንሲ ግጭት ለማስቀረት የተሰሩ የሥራ መጋጠሚያዎች
 def run_single_site_analysis(site):
     """የአንድን ንዑስ ጣቢያ የዕድገት ዑደት ከዋናው _run_site_cycle ጋር ያገናኛል"""
     from marketplace.growth_agent import _run_site_cycle
@@ -53,19 +53,26 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **kwargs):
+        # 🛡️ የሞዴል ተለዋዋጭ ጭነት (Registry Safety) [1]
+        SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+        SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+
         site_name = kwargs.get('site')
         all_sites = kwargs.get('all_sites')
         discover = kwargs.get('discover')
         
-        close_old_connections()
+        try:
+            close_old_connections()
+        except Exception as conn_err:
+            logger.debug("Failed to close old connections on startup: %s", conn_err)
+            
         gc.collect()
 
         self.stdout.write(self.style.SUCCESS(f"🚀 [{timezone.now()}] EthAfri Autonomous Growth Engine Triggered."))
         
         try:
-            # 🛡️ ላለፈው የ "Growth Agent module missing" ስህተት መከላከያ
+            # ላለፈው የ "Growth Agent module missing" ስህተት መከላከያ [1]
             try:
-                # የውህደት ፍተሻ (ኮዱ በትክክል መኖሩን ያረጋግጣል)
                 from marketplace.growth_agent import execute_master_cycle
             except ImportError as ie:
                 error_msg = f"❌ Critical Import Error: growth_agent.py module is broken or missing. Details: {ie}"
@@ -113,7 +120,11 @@ class Command(BaseCommand):
             results = []
             if sites_to_process:
                 for site in sites_to_process:
-                    close_old_connections()
+                    try:
+                        close_old_connections()
+                    except Exception as conn_err:
+                        logger.debug("Failed to clear connection before site process: %s", conn_err)
+                        
                     self.stdout.write(f"  🔍 Analyzing {site.name}...")
                     try:
                         result = run_single_site_analysis(site)
@@ -132,13 +143,11 @@ class Command(BaseCommand):
                     results.append(f"[Global] ❌ Error: {str(ge)[:100]}")
                     self.stdout.write(self.style.ERROR(f"  ❌ Global analysis failed: {ge}"))
             
-            # JSONField አውቶማቲክ ስለሚሠራ json.dumps እዚህ አያስፈልግም
             SiteConfig.objects.update_or_create(
                 key="LAST_SUCCESSFUL_CRON_PING", 
                 defaults={'value': {'time': timezone.now().isoformat()}}
             )
             
-            # ቀጥተኛ ዲክሽነሪ ጥሪ
             SiteConfig.objects.update_or_create(
                 key="LAST_CRON_RUN",
                 defaults={'value': {

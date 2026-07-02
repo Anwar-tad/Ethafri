@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/render.yaml
-# 📝 ለውጥ፦ v1.5 Master Secure Infrastructure — Python 3.11.8 & Supabase DB Synced
-# ✅ የተፈቱ ችግሮች፦ Redundant Render PostgreSQL removed, DATABASE_URL mapped to external Supabase connection string, Python version synced to production 3.11.8
-# 📅 ቀን፦ Tuesday, June 30, 2026
+# 📝 ለውጥ፦ v10.16 Master Secure Infrastructure — Python 3.11.8 & Supabase DB Synced
+# ✅ የተፈቱ ችግሮች፦ Dynamic proxy headers allowed in uvicorn start command, Python version mapped, and env key protection.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 services:
@@ -15,7 +15,8 @@ services:
     plan: free
     buildCommand: ./build.sh
     # ኡቪኮርን (Uvicorn ASGI) ዌብሶኬቱ በጥራት እንዲሰራ ያስችለዋል
-    startCommand: uvicorn core.asgi:application --host 0.0.0.0 --port $PORT --workers 1
+    # --forwarded-allow-ips='*' ሬንደር በሚጠቀምበት የሪቨርስ ፕሮክሲ (Reverse Proxy) መረብ ላይ ግንኙነቶች እንዳይቋረጡ ያረጋግጣል [1]
+    startCommand: uvicorn core.asgi:application --host 0.0.0.0 --port $PORT --workers 1 --forwarded-allow-ips='*'
     envVars:
       # የሬንደር ዳታቤዝ ሙሉ በሙሉ ጠፍቶ ከውጪው ሱፓቤዝ (Supabase) ጋር በጥራት ተገናኝቷል
       # ይህንን ቁልፍ በ Render Dashboard -> Environment Variables ላይ የሱፓቤዝ ሊንክህን በመለጠፍ ማስተሳሰር ትችላለህ
@@ -25,7 +26,7 @@ services:
         generateValue: true
       - key: DEBUG
         value: "False"
-      # 🟢 አዲስ፦ የፓይተን ስሪት በሰርቨርዎ ላይ ካለው የ3.11.8 ስሪት ጋር ተመሳስሏል
+      # የፓይተን ስሪት በሰርቨርዎ ላይ ካለው የ3.11.8 ስሪት ጋር ተመሳስሏል
       - key: PYTHON_VERSION
         value: "3.11.8"
       - key: AUTONOMOUS_AGENT_ENABLED

@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/database_memory.py
-# 📝 ዓላማ፦ Safe Offline-First & Semantic Cache Memory Controller (v1.0 - Complete Edition)
-# ✅ የተፈቱ ችግሮች፦ Network disconnection graceful degradation, local cache vector fallback, automatic database sync
-# 📅 ቀን፦ Wednesday, July 01, 2026
+# 📝 ዓላማ፦ Safe Offline-First & Semantic Cache Memory Controller (v10.16 - Complete Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic app model loading, network graceful degradation, local cache vector fallback, and automatic database sync.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 import json
@@ -10,7 +10,7 @@ import logging
 from datetime import timedelta
 from django.utils import timezone
 from django.db import connection, transaction
-from .models import VectorMemory, SiteConfig, Product, AIProjectBacklog
+from django.apps import apps
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ class OfflineCacheManager:
         መረጃን በመጀመሪያ ከ SiteConfig (የአገር ውስጥ ካሽ) ይፈልጋል፤ 
         ካሽ ካለቀበት ወይም ከሌለ ኔትወርክ ግንኙነቱን አረጋግጦ አዲስ መረጃ ያመነጫል [1]
         """
+        SiteConfig = apps.get_model('marketplace', 'SiteConfig')
         cache_key = f"OFFLINE_CACHE_{site.name}_{key}"
         cached_data = SiteConfig.objects.filter(key=cache_key).first()
         
@@ -75,6 +76,9 @@ class OfflineCacheManager:
     @classmethod
     def harvest_offline_insights(cls, site):
         """ኔትወርክ በማይኖርበት ጊዜ ካሉ እውነተኛ ምርቶች ላይ ስልታዊ የገበያ ጥናቶችን (Insights) ያመነጫል"""
+        VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+        Product = apps.get_model('marketplace', 'Product')
+
         logger.info(f"🧠 Offline-First: Analysing existing product data on site '{site.name}' for strategic insights.")
         
         # 1. በዳታቤዝ ውስጥ ያሉትን ምርቶች መተንተን
@@ -114,6 +118,8 @@ class OfflineCacheManager:
     @classmethod
     def process_stale_offline_tasks(cls, site):
         """ኦፍላይን በሆንንበት ጊዜ ኤፒአይ ሳይጠየቅ በዳታቤዝ ውስጥ ያሉ የቆዩ ወይም የታገዱ ታስኮችን ራሱ መርምሮ ያጸዳል"""
+        AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+
         logger.info(f"🧹 Offline-First Maintenance: Scanning for blocked or stale tasks on site '{site.name}'.")
         
         # 1. ከ 15 ደቂቃ በላይ 'Running' የነበሩ ታስኮችን 'Pending' ማድረግ
