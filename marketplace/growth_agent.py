@@ -1,11 +1,11 @@
 
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
-# 📝 ስሪት፦ v10.20 (Ultimate Optimized Master-Brain CEO Agent)
+# 📝 ስሪት፦ v10.21 (Ultimate Dynamic Self-Evolving Master-Brain CEO Agent)
 # ✅ የተፈቱ ችግሮች፦ 
-#   - Code Optimization (No duplication)
-#   - Dynamic Imports (Apps.get_model())
-#   - Integrated Feature Evolution Engine
+#   - Dynamic Market Source Discovery (AI-powered)
+#   - Hourly Automated Scraping
+#   - Source Health Monitoring & Auto-Cleaning
 #   - Dynamic Search-Grounded Crawling
 #   - AST Compiler Validation
 #   - Multi-site Model Registry
@@ -14,8 +14,8 @@
 #   - Parallel Track Execution (A & B)
 #   - Meta Self-Architect Engine
 #   - Competitor Intelligence Engine
-#   - SaaS Multi-Tenant Sandboxing
-#   - Circular Dependency Prevention
+#   - Self-Evolution Engine
+#   - Circular Dependency Prevention (Late Imports)
 # 📅 ቀን፦ Friday, July 03, 2026
 # ============================================================
 
@@ -44,12 +44,12 @@ from django.db.models import Q
 from django.apps import apps
 
 # ============================================================
-# ⚙️ LOGGER SETUP (✅ አስፈላጊ)
+# ⚙️ LOGGER SETUP
 # ============================================================
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# 🔄 DYNAMIC MODEL LOADER
+# 🔄 DYNAMIC MODEL LOADER (Circular Dependency Prevention)
 # ============================================================
 
 def get_model(model_name: str):
@@ -59,6 +59,51 @@ def get_model(model_name: str):
     except Exception as e:
         logger.error(f"Failed to load model {model_name}: {e}")
         return None
+
+
+# ============================================================
+# ✅ LATE IMPORTS (Circular Import ን ለመከላከል)
+# ============================================================
+
+def _get_self_doctor():
+    """self_doctor ሞጁልን በ late import መጫኛ"""
+    from .self_doctor import SecurityAuditor, UniversalHealer, AntiBloatEngine
+    return SecurityAuditor, UniversalHealer, AntiBloatEngine
+
+
+def _get_ai_utils():
+    """ai_utils ሞጁልን በ late import መጫኛ"""
+    from .ai_utils import (
+        clean_and_parse_json,
+        ask_master_ai_smart,
+        broadcast_agent_log,
+        compress_code_for_prompt
+    )
+    return clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log, compress_code_for_prompt
+
+
+def _get_code_apply():
+    """code_apply ሞጁልን በ late import መጫኛ"""
+    from .code_apply import apply_code_change
+    return apply_code_change
+
+
+def _get_scrapper_engine():
+    """scrapper_engine ሞጁልን በ late import መጫኛ"""
+    from .scrapper_engine import ScrapperEngine
+    return ScrapperEngine
+
+
+def _get_offline_cache():
+    """database_memory ሞጁልን በ late import መጫኛ"""
+    from .database_memory import OfflineCacheManager
+    return OfflineCacheManager
+
+
+def _get_feature_evolution():
+    """feature_evolution ሞጁልን በ late import መጫኛ"""
+    from .feature_evolution import FeatureEvolutionEngine
+    return FeatureEvolutionEngine
 
 
 # ============================================================
@@ -86,6 +131,10 @@ def translate_text_incremental(texts, target_lang):
     """ይዘቶችን ወደ አማርኛ/ኦሮሚኛ በ AI በዳይናሚክ መንገድ የሚተረጉም ረዳት ሎጂክ"""
     if not texts:
         return {}
+    
+    _, ask_master_ai_smart, _, _ = _get_ai_utils()
+    clean_and_parse_json, _, _, _ = _get_ai_utils()
+    
     prompt = (
         f"Translate the following text keys into {target_lang}.\n"
         f"Text Data: {json.dumps(texts, ensure_ascii=False)}.\n"
@@ -558,128 +607,280 @@ class RecursiveBuilder:
 
 
 # ============================================================
-# 🔍 MULTI-CHANNEL HARVESTER
+# 🔍 DYNAMIC MULTI-CHANNEL HARVESTER (ሙሉ ዳይናሚክ)
 # ============================================================
 
 class MultiChannelHarvester:
+    """
+    ሙሉ በሙሉ ዳይናሚክ የሆነ የገበያ ማሰሻ ሞተር
+    - AI ንቁ የሆኑ ምንጮችን ይፈልጋል
+    - በየሰዓቱ ያስሳል
+    - የማይሰሩ ምንጮችን ያጸዳል
+    - አዲስ ምንጮችን ያገኛል
+    """
+    
+    SOURCE_TYPES = ['Jiji', 'Telegram', 'Facebook', 'GenericWeb', 'Engocha', 'Ethiosuq']
+    
     @staticmethod
     def is_network_available():
+        """የኢንተርኔት ግንኙነት ያረጋግጣል"""
         try:
             requests.get("https://google.com", timeout=3)
             return True
         except requests.RequestException:
             return False
-
-    def get_market_sources(self, site):
-        SiteConfig = get_model('SiteConfig')
-        registry = SiteConfig.objects.filter(key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}").first()
-        if registry and isinstance(registry.value, list) and len(registry.value) > 0:
-            return registry.value
-        return [
-            {"url_or_channel": "https://ethiosuq.com/", "platform_type": "GenericWeb"},
-            {"url_or_channel": "https://hulumarket.com.et/", "platform_type": "Jiji"},
-            {"url_or_channel": "EthioMarketplace", "platform_type": "Telegram"}
-        ]
-
-    def discover_and_harvest_niche_sources(self, site):
-        SiteConfig = get_model('SiteConfig')
-        sources = self.get_market_sources(site)
+    
+    def discover_active_market_sources(self, site):
+        """
+        🔍 በኢትዮጵያ ውስጥ ንቁ የሆኑ የገበያ ምንጮችን በራሱ ይፈልጋል
+        """
+        _, ask_master_ai_smart, _, _ = _get_ai_utils()
+        clean_and_parse_json, _, _, _ = _get_ai_utils()
         
-        if self.is_network_available() and random.random() < 0.3:
-            try:
-                discovery_prompt = (
-                    f"Search the live internet for active Ethiopian online marketplaces, eCommerce web sites, "
-                    f"or buying and selling Telegram channel directories specifically related to '{site.niche}' or general goods in 2026.\n"
-                    f"Examine which ones are currently most active with recent product posts.\n"
-                    f"Provide exactly 3 active web links or Telegram channel usernames ranked by active priority.\n"
-                    f"Return the results STRICTLY in a JSON format with key 'sources' containing a list of objects with keys 'url_or_channel' and 'platform_type' (must be 'Jiji', 'Telegram', or 'GenericWeb')."
-                )
-                raw_sources = ask_master_ai_smart(discovery_prompt, task_type="market_research")
-                sources_data = clean_and_parse_json(raw_sources)
-                discovered = sources_data.get('sources', []) if sources_data else []
-                if discovered:
-                    merged_sources = list({v['url_or_channel']: v for v in discovered + sources}.values())
-                    sources = merged_sources
-                    logger.info(f"✨ Grounded Explorer: Discovered {len(discovered)} active Ethiopian market sources!")
-            except Exception as ai_err:
-                logger.warning(f"GSC Grounded Discovery failed: {ai_err}")
-
+        logger.info("🔍 Discovering active market sources in Ethiopia...")
+        
+        prompt = """
+        Search the live internet for ACTIVE Ethiopian online marketplaces, 
+        eCommerce websites, and social media channels where people buy and sell.
+        
+        Find sources that are:
+        - Currently active (recent posts in last 24 hours)
+        - Have many listings
+        - Popular among Ethiopians
+        
+        Include:
+        1. Websites (like Jiji.com.et, Enocha, Ethiosuq, etc.)
+        2. Telegram channels (buy and sell channels)
+        3. Facebook groups (marketplace groups)
+        4. Any other active platforms
+        
+        Return JSON with key 'sources' containing list of:
+        - 'url_or_channel': the URL or channel username
+        - 'platform_type': 'Jiji', 'Telegram', 'Facebook', 'GenericWeb'
+        - 'activity_level': 'high', 'medium', or 'low'
+        - 'last_activity': when last activity was seen
+        """
+        
+        response = ask_master_ai_smart(prompt, task_type="market_research")
+        data = clean_and_parse_json(response)
+        
+        sources = data.get('sources', []) if data else []
+        
+        if sources:
+            logger.info(f"✅ Discovered {len(sources)} active sources")
+            self._save_sources_to_cache(site, sources)
+        else:
+            logger.warning("⚠️ No sources found, using fallback sources")
+            sources = self._get_fallback_sources()
+        
+        return sources
+    
+    def _save_sources_to_cache(self, site, sources):
+        """የተገኙትን ምንጮች በካሽ ውስጥ ያስቀምጣል"""
         try:
-            SiteConfig.objects.update_or_create(key=f"DYNAMIC_SCRAPE_REGISTRY_{site.name}", defaults={'value': sources})
-        except Exception as db_err:
-            logger.error(f"Failed to cache dynamic scrape registry: {db_err}")
+            SiteConfig = get_model('SiteConfig')
+            SiteConfig.objects.update_or_create(
+                key=f"ACTIVE_SOURCES_{site.name}",
+                defaults={'value': {
+                    'sources': sources,
+                    'last_updated': timezone.now().isoformat()
+                }}
+            )
+            logger.info(f"💾 Saved {len(sources)} sources to cache")
+        except Exception as e:
+            logger.error(f"Failed to save sources: {e}")
+    
+    def _get_cached_sources(self, site):
+        """ከካሽ ውስጥ የተቀመጡ ምንጮችን ያመጣል"""
+        try:
+            SiteConfig = get_model('SiteConfig')
+            config = SiteConfig.objects.filter(key=f"ACTIVE_SOURCES_{site.name}").first()
+            if config and isinstance(config.value, dict):
+                return config.value.get('sources', [])
+        except Exception as e:
+            logger.debug(f"Failed to get cached sources: {e}")
+        return []
+    
+    def _get_fallback_sources(self):
+        """AI ካልሰራ የታወቁ ምንጮችን ይጠቀማል"""
+        return [
+            {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji", "activity_level": "high"},
+            {"url_or_channel": "https://www.engocha.com", "platform_type": "GenericWeb", "activity_level": "high"},
+            {"url_or_channel": "https://ethiosuq.com/", "platform_type": "GenericWeb", "activity_level": "medium"},
+            {"url_or_channel": "EthioMarketplace", "platform_type": "Telegram", "activity_level": "high"},
+            {"url_or_channel": "ShegerMerkat_et", "platform_type": "Telegram", "activity_level": "high"},
+        ]
+    
+    def check_source_health(self, source):
+        """አንድ ምንጭ ንቁ መሆኑን ያረጋግጣል"""
+        url = source.get('url_or_channel', '')
+        platform = source.get('platform_type', '')
         
-        raw_data_pool = []
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        if not url:
+            return False
         
-        for src in sources[:4]:
-            target = src.get('url_or_channel', '')
-            p_type = src.get('platform_type', '')
-            
-            try:
-                if p_type == 'Telegram':
-                    if not self.is_network_available():
-                        continue
-                    url = f"https://t.me/s/{target.replace('@', '')}"
-                    res = requests.get(url, timeout=6)
-                    if res.status_code == 200:
-                        messages = re.findall(r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', res.text, re.DOTALL)
-                        images = re.findall(r'src="(https://cdn\d+\.telesco\.pe/[^\"]+)"', res.text)
-                        for i, msg in enumerate(messages[:5]):
-                            clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
-                            raw_data_pool.append({
-                                "source": f"Telegram: {target}",
-                                "text": clean_text,
-                                "image_url": images[i] if i < len(images) else ""
-                            })
+        try:
+            if platform == 'Telegram':
+                test_url = f"https://t.me/s/{url.replace('@', '')}"
+                res = requests.get(test_url, timeout=5)
+                if res.status_code == 200:
+                    if 'tgme_widget_message' in res.text:
+                        return True
+            else:
+                res = requests.get(url, timeout=5)
+                if res.status_code == 200:
+                    return True
+        except Exception as e:
+            logger.debug(f"Source {url} is not reachable: {e}")
+        
+        return False
+    
+    def get_recent_products(self, source):
+        """ከአንድ ምንጭ አዲስ ምርቶችን ያስሳል"""
+        url = source.get('url_or_channel', '')
+        platform = source.get('platform_type', '')
+        
+        products = []
+        
+        try:
+            if platform == 'Telegram':
+                products = self._scrape_telegram(url)
+            elif platform in ['Jiji', 'GenericWeb']:
+                products = self._scrape_website(url)
+            elif platform == 'Facebook':
+                products = self._scrape_facebook(url)
+        except Exception as e:
+            logger.error(f"Failed to scrape {url}: {e}")
+        
+        return products
+    
+    def _scrape_telegram(self, channel):
+        """ከቴሌግራም ቻናል ያስሳል"""
+        url = f"https://t.me/s/{channel.replace('@', '')}"
+        try:
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200:
+                messages = re.findall(
+                    r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>',
+                    res.text, re.DOTALL
+                )
+                images = re.findall(
+                    r'<img class="tgme_widget_message_photo" src="([^"]+)"',
+                    res.text
+                )
                 
-                elif p_type in ['Jiji', 'GenericWeb']:
-                    if not self.is_network_available():
-                        continue
-                    try:
-                        from .scrapper_engine import ScrapperEngine
-                        html_content = ScrapperEngine.scrape(target)
-                        if html_content:
-                            clean_html = re.sub(r'<script.*?>.*?</script>|<style.*?>.*?</style>', '', html_content, flags=re.DOTALL)
-                            clean_html = re.sub(r'<[^>]+>', ' ', clean_html)
-                            compressed_text = " ".join(clean_html.split())[:1500]
-                            imgs = re.findall(r'https?://[^\s"]+\.(?:jpg|jpeg|png)', html_content)[:3]
-                            raw_data_pool.append({
-                                "source": f"{p_type}: {target}",
-                                "text": compressed_text,
-                                "image_url": imgs[0] if imgs else ""
-                            })
-                    except Exception as playwright_err:
-                        logger.error(f"Playwright Scraper fallback: {playwright_err}")
-                        res = requests.get(target, headers=headers, timeout=6)
-                        if res.status_code == 200:
-                            clean_html = re.sub(r'<script.*?>.*?</script>|<style.*?>.*?</style>', '', res.text, flags=re.DOTALL)
-                            clean_html = re.sub(r'<[^>]+>', ' ', clean_html)
-                            compressed_text = " ".join(clean_html.split())[:1500]
-                            imgs = re.findall(r'https?://[^\s"]+\.(?:jpg|jpeg|png)', res.text)[:3]
-                            raw_data_pool.append({
-                                "source": f"{p_type}: {target}",
-                                "text": compressed_text,
-                                "image_url": imgs[0] if imgs else ""
-                            })
-            except Exception as e:
-                logger.error(f"Dynamic crawler failed for source {target}: {e}")
-
-        if not raw_data_pool and not self.is_network_available():
-            logger.info("❄️ Offline-First Explorer: Pulling untranslated insights from local memory.")
-            try:
-                VectorMemory = get_model('VectorMemory')
-                past_insights = VectorMemory.objects.filter(site=site, memory_type='insight')[:5]
-                for insight in past_insights:
-                    raw_data_pool.append({
-                        "source": "Local Memory Cache",
-                        "text": insight.content,
-                        "image_url": ""
-                    })
-            except Exception as mem_err:
-                logger.error(f"Failed to read from local memory cache: {mem_err}")
+                products = []
+                for i, msg in enumerate(messages[:10]):
+                    clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
+                    if clean_text:
+                        product = self._parse_product_text(clean_text)
+                        if product:
+                            product['image_url'] = images[i] if i < len(images) else ''
+                            products.append(product)
                 
-        return raw_data_pool
+                return products
+        except Exception as e:
+            logger.error(f"Telegram scrape failed for {channel}: {e}")
+        return []
+    
+    def _scrape_website(self, url):
+        """ከዌብሳይት ያስሳል"""
+        try:
+            from .scrapper_engine import ScrapperEngine
+            html = ScrapperEngine.scrape(url)
+            if html:
+                products = self._extract_products_from_html(html)
+                return products
+        except Exception as e:
+            logger.error(f"Website scrape failed for {url}: {e}")
+        return []
+    
+    def _scrape_facebook(self, url):
+        """ከፌስቡክ ያስሳል"""
+        # TODO: Facebook scraping logic
+        return []
+    
+    def _parse_product_text(self, text):
+        """ከጽሁፍ ውስጥ ምርት መረጃን ያውጣል"""
+        product = {
+            'title': '',
+            'price': 0,
+            'description': '',
+            'seller_contact': ''
+        }
+        
+        lines = text.split('\n')
+        if lines:
+            product['title'] = lines[0].strip()[:150]
+        
+        price_match = re.search(r'(?:ዋጋ|ብር|Price|Birr|Br|ETB)\s*[:]?\s*([\d,]+)', text, re.IGNORECASE)
+        if price_match:
+            try:
+                product['price'] = float(price_match.group(1).replace(',', ''))
+            except:
+                pass
+        
+        phone_match = re.search(r'(?:\+251|09|07)\d{8}', text)
+        if phone_match:
+            product['seller_contact'] = phone_match.group(0)
+        else:
+            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text)
+            if tg_match:
+                product['seller_contact'] = tg_match.group(0)
+        
+        product['description'] = text[:500]
+        
+        return product
+    
+    def _extract_products_from_html(self, html):
+        """ከHTML ውስጥ ምርቶችን ያውጣል"""
+        products = []
+        items = re.findall(r'<div[^>]*class="[^"]*product[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
+        for item in items:
+            product = self._parse_product_text(item)
+            if product and product['title']:
+                products.append(product)
+        return products
+    
+    def discover_and_harvest_niche_sources(self, site):
+        """
+        🎯 ዋና የማሰሻ ሎጂክ
+        - ንቁ ምንጮችን ይፈልጋል
+        - ያስሳል
+        - ያጸዳል
+        - ያዘምናል
+        """
+        
+        if not self.is_network_available():
+            logger.warning("🌐 No internet connection. Using cached sources.")
+            return self._get_cached_sources(site)
+        
+        sources = self._get_cached_sources(site)
+        
+        if not sources or random.random() < 0.3:
+            sources = self.discover_active_market_sources(site)
+        
+        active_sources = []
+        for source in sources:
+            if self.check_source_health(source):
+                active_sources.append(source)
+            else:
+                logger.warning(f"❌ Source {source.get('url_or_channel')} is inactive, dropping...")
+        
+        all_products = []
+        for source in active_sources[:5]:
+            logger.info(f"📡 Scraping {source.get('url_or_channel')}...")
+            products = self.get_recent_products(source)
+            if products:
+                all_products.extend(products)
+                logger.info(f"✅ Found {len(products)} products from {source.get('url_or_channel')}")
+            else:
+                logger.warning(f"⚠️ No products from {source.get('url_or_channel')}")
+        
+        if active_sources:
+            self._save_sources_to_cache(site, active_sources)
+        
+        return all_products
 
 
 # ============================================================
@@ -694,6 +895,7 @@ class CompetitorIntelligenceEngine:
         from .scrapper_engine import ScrapperEngine
         MarketTrend = get_model('MarketTrend')
         VectorMemory = get_model('VectorMemory')
+        _, _, broadcast_agent_log, _ = _get_ai_utils()
 
         broadcast_agent_log(self.site, "🕵️ Spy Engine: Initializing competitor website scanning...", "info")
         
@@ -716,6 +918,9 @@ class CompetitorIntelligenceEngine:
         if not raw_competitor_data:
             broadcast_agent_log(self.site, "🕵️ Spy Engine: Competitors unreachable.", "warning")
             return
+
+        _, ask_master_ai_smart, _, _ = _get_ai_utils()
+        clean_and_parse_json, _, _, _ = _get_ai_utils()
 
         prompt = (
             f"Analyze raw product data from competitors: {json.dumps(raw_competitor_data, ensure_ascii=False)}.\n"
@@ -777,13 +982,6 @@ class CompetitorIntelligenceEngine:
 
 
 # ============================================================
-# 🧬 SELF-EVOLUTION ENGINE (Optimized)
-# ============================================================
-
-from .feature_evolution import FeatureEvolutionEngine
-
-
-# ============================================================
 # 💼 CEO OPERATIONS
 # ============================================================
 
@@ -799,7 +997,7 @@ class CEOOperations:
 
     @staticmethod
     def _heuristic_parse_text(text):
-        """የ AI ጥሪዎች ሙሉ በሙሉ ቢቋረጡም በሪጀክስ ምርቶችን፣ ስልኮችን እና ዋጋዎችን ፈልቅቆ የሚጭን ሎጂክ"""
+        """የ AI ጥሪዎች ሙሉ በሙሉ ቢቋረጡም በሪጀክስ ምርቶችን ፈልቅቆ የሚጭን ሎጂክ"""
         if not text: 
             return None
         lines = [l.strip() for l in text.split('\n') if l.strip()]
@@ -841,8 +1039,10 @@ class CEOOperations:
         return {"title": title, "price": price, "desc": desc, "seller_contact": contact}
 
     def _harvest_verified_products_bulk(self):
-        """ምርቶችን በጅምላ አሳሽ እና በ AI መተንተኛ (ከ Regex Fallback ጋር የተዋሃደ)"""
+        """ሁሉንም አይነት ምርቶች በዳይናሚክ ያስሳል"""
         SiteConfig = get_model('SiteConfig')
+        _, ask_master_ai_smart, _, _ = _get_ai_utils()
+        clean_and_parse_json, _, _, _ = _get_ai_utils()
 
         last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
         if last:
@@ -850,28 +1050,26 @@ class CEOOperations:
                 last_time = datetime.fromisoformat(last.value['time'])
                 if timezone.is_naive(last_time):
                     last_time = timezone.make_aware(last_time)
-                if (timezone.now() - last_time) < timedelta(hours=3):
+                if (timezone.now() - last_time) < timedelta(hours=1):
                     return
             except Exception as e:
                 logger.warning(f"Error checking harvest timestamp: {e}")
 
         harvester = MultiChannelHarvester()
         raw_data_pool = harvester.discover_and_harvest_niche_sources(self.site)
-        
-        if not raw_data_pool and harvester.is_network_available():
-            logger.warning("🚨 Gemini API failed or rate-limited. Activating No-API search fallback...")
-            fallback_sources = self._autonomous_no_api_search_fallback(self.site.niche)
-            if fallback_sources:
-                SiteConfig.objects.update_or_create(key=f"DYNAMIC_SCRAPE_REGISTRY_{self.site.name}", defaults={'value': fallback_sources})
-                raw_data_pool = harvester.discover_and_harvest_niche_sources(self.site)
 
         if not raw_data_pool:
             return
 
         prompt = (
-            f"Analyze raw texts: {json.dumps(raw_data_pool, ensure_ascii=False)}.\n"
-            f"Extract products fitting the '{self.site.niche}' niche. "
-            f"Return JSON with key 'products' containing objects with 'title', 'price', 'desc', 'seller_contact', 'image_url'."
+            f"Extract ANY products from these texts.\n"
+            f"Don't filter by niche. Include ALL products:\n"
+            f"- Electronics, Clothes, Furniture, Cars\n"
+            f"- Properties, Tools, Machines, Books\n"
+            f"- ANY product you find\n\n"
+            f"Return JSON with key 'products' containing:\n"
+            f"- title, price, desc, seller_contact, image_url\n\n"
+            f"Data: {json.dumps(raw_data_pool, ensure_ascii=False)}"
         )
 
         products = []
@@ -880,7 +1078,7 @@ class CEOOperations:
             if data and isinstance(data, dict):
                 products = data.get('products', [])
         except Exception as ai_err:
-            logger.warning(f"AI parsing failed, switching to autonomous Regex Fallback Parser: {ai_err}")
+            logger.warning(f"AI parsing failed, switching to heuristic parser: {ai_err}")
 
         if not products:
             logger.warning("⚠️ Fallback Activated: Parsing scraped dataset heuristically without AI...")
@@ -893,41 +1091,15 @@ class CEOOperations:
         if products:
             self._seed_listings_bulk(products)
             try:
-                SiteConfig.objects.update_or_create(key=f"LAST_HARVEST_{self.site.name}", defaults={'value': {'time': timezone.now().isoformat()}})
+                SiteConfig.objects.update_or_create(
+                    key=f"LAST_HARVEST_{self.site.name}",
+                    defaults={'value': {'time': timezone.now().isoformat()}}
+                )
             except Exception as e:
                 logger.debug("Failed to update last harvest config: %s", e)
 
-    @staticmethod
-    def _autonomous_no_api_search_fallback(niche):
-        """ሁሉም የ AI ቁልፎች ቢቋረጡ እንኳ፣ ያለ ምንም API DuckDuckGo HTML በመጠየቅ ምንጮችን ያገኛል"""
-        logger.warning(f"⚠️ Search Fallback Active: Running non-AI DuckDuckGo search for niche '{niche}'...")
-        query = f"Ethiopia buying and selling telegram channel {niche}"
-        url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        
-        fallback_sources = []
-        try:
-            res = requests.get(url, headers=headers, timeout=8)
-            if res.status_code == 200:
-                telegram_usernames = re.findall(r't\.me/([a-zA-Z0-9_]{5,32})', res.text)
-                for username in list(set(telegram_usernames))[:3]:
-                    if username.lower() not in ['s', 'joinchat', 'share']:
-                        fallback_sources.append({"url_or_channel": username, "platform_type": "Telegram"})
-                        
-                web_domains = re.findall(r'https?://(?:www\.)?([a-zA-Z0-9-]+\.(?:com\.et|com|et))', res.text)
-                for domain in list(set(web_domains))[:2]:
-                    if not any(x in domain for x in ['google', 'duckduckgo', 'yandex', 'yahoo', 'telesco']):
-                        fallback_sources.append({"url_or_channel": f"https://{domain}", "platform_type": "GenericWeb"})
-                        
-            logger.info(f"✨ Fallback Search Success: Discovered {len(fallback_sources)} market sources!")
-        except Exception as e:
-            logger.error(f"DuckDuckGo search fallback query failed: {e}")
-            
-        return fallback_sources
-
-    @staticmethod
-    def _save_image_to_cloudinary_permanently(raw_img_url):
-        """scraped የተደረጉ ምስሎችን በከፍተኛ ፍጥነት በጀርባ አውርዶ ወደራሳችን Cloudinary አካውንት በመጫን ቋሚና የማይለዋወጥ እውነተኛ የምስል አድራሻ ይፈጥራል"""
+    def _save_image_to_cloudinary_permanently(self, raw_img_url):
+        """scraped የተደረጉ ምስሎችን ወደ Cloudinary ያስቀምጣል"""
         if not raw_img_url or not raw_img_url.startswith('http'):
             return ""
         try:
@@ -944,12 +1116,11 @@ class CEOOperations:
                 if secure_url:
                     return secure_url
         except Exception as e:
-            logger.error(f"⚠️ Cloudinary permanent image saving failed: {e}. Using original URL as fallback.")
-            
+            logger.error(f"⚠️ Cloudinary save failed: {e}")
         return raw_img_url
 
     def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል፣ ሻጮችን በ ghost አካውንት ያዘጋጃል፣ እና ምስጢራዊ ቶክን ይልካል"""
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
@@ -985,7 +1156,8 @@ class CEOOperations:
                 product_obj = Product(
                     seller=user, site=self.site, title=p['title'], price=clean_price,
                     description=p.get('desc', ''), image_url=cloudinary_photo_url,
-                    listing_type=p.get('listing_type', 'sale') or 'sale', contact_info=contact, is_active=True
+                    listing_type=p.get('listing_type', 'sale') or 'sale', 
+                    contact_info=contact, is_active=True
                 )
                 products_to_create.append(product_obj)
 
@@ -1002,9 +1174,9 @@ class CEOOperations:
 
                 message = (
                     f"ሰላም! የለጠፉት '{p['title']}' ምርት በድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
-                    f"ምርትዎን ለማስተዳደር፣ ለማረም ወይም ስምዎን ለማስተካከል በዚህ አጭር ሊንክ ብቻ ያለምንም ምዝገባ በቀጥታ ይግቡ፦\n"
+                    f"ምርትዎን ለማስተዳደር በዚህ ሊንክ ይግቡ፦\n"
                     f"{magic_login_url}\n\n"
-                    f"EthAfri Autonomous CEO"
+                    f"EthAfri CEO"
                 )
 
                 notification_obj = NotificationQueue(
@@ -1028,7 +1200,7 @@ class CEOOperations:
                 self.site.total_sellers = User.objects.filter(product__site=self.site).distinct().count()
                 self.site.save()
                 
-                logger.info(f"✨ Bulk Harvester: Successfully processed {len(products_to_create)} products!")
+                logger.info(f"✨ Bulk Harvester: Processed {len(products_to_create)} products!")
         except Exception as db_err:
             logger.error(f"Bulk DB Insertion failed: {db_err}")
 
@@ -1060,6 +1232,8 @@ class CEOOperations:
         SiteConfig = get_model('SiteConfig')
         Product = get_model('Product')
         NotificationQueue = get_model('NotificationQueue')
+        _, _, broadcast_agent_log, _ = _get_ai_utils()
+        clean_and_parse_json, _, _, _ = _get_ai_utils()
 
         try:
             dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
@@ -1078,7 +1252,7 @@ class CEOOperations:
                     
                     if self.site.name == 'primary' and product.price < 10.0:
                         is_valid = False
-                        reason = "Price is below 10 ETB (suspicious listing)"
+                        reason = "Price is below 10 ETB"
                     else:
                         try:
                             prompt = (
@@ -1088,7 +1262,7 @@ class CEOOperations:
                             result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
                             if result and not result.get('is_valid', True):
                                 is_valid = False
-                                reason = result.get('reason', 'ያልተሟላ መረጃ')
+                                reason = result.get('reason', 'Suspicious listing')
                         except Exception as ai_curate_err:
                             logger.debug("AI curation skipped: %s", ai_curate_err)
 
@@ -1097,7 +1271,7 @@ class CEOOperations:
                         product.save()
                         NotificationQueue.objects.create(
                             site=self.site, recipient=product.seller.username, notification_type='sms',
-                            message=f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት በ AI ማጣሪያችን አልፏል። ምክንያት፦ {reason}።"
+                            message=f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት ማጣሪያችን አልፏል። ምክንያት፦ {reason}።"
                         )
                         logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
                     else:
@@ -1115,7 +1289,6 @@ class CEOOperations:
             logger.error("Curation exception: %s", e)
 
     def _generate_translations_for_product(self, product):
-        """ምርቱን ለ Amharic/Oromo ቋንቋዎች በራስ-ሰር መተርጎም"""
         from .models import ProductTranslation
         texts = [t for t in [product.title, product.description or ""] if t and t.strip()]
         if not texts: 
@@ -1150,7 +1323,7 @@ class CEOOperations:
         try:
             pending_notes = NotificationQueue.objects.filter(site=self.site, is_sent=False)[:5]
             for note in pending_notes:
-                logger.info(f"📨 Outbound Dispatcher: Successfully sent {note.notification_type} to {note.recipient}: {note.message[:50]}...")
+                logger.info(f"📨 Outbound Dispatcher: Sent {note.notification_type} to {note.recipient}")
                 note.is_sent = True
                 note.sent_at = timezone.now()
                 note.save()
@@ -1168,7 +1341,7 @@ class CEOOperations:
             f"✨ {product.get_translated_title()}\n\n"
             f"💰 ዋጋ/Price: {product.price:.0f} ETB\n"
             f"📍 ቦታ/Location: {product.location}\n\n"
-            f"🔗 በነፃ ለመግዛት ይህንን ሊንክ ይጫኑ: {self.site.deployment_url}/product/{product.id}/\n\n"
+            f"🔗 {self.site.deployment_url}/product/{product.id}/\n\n"
             f"🤖 EthAfri Auto-Post"
         )
         payload = {
@@ -1178,7 +1351,7 @@ class CEOOperations:
         }
         try:
             requests.post(url, json=payload, timeout=5)
-            logger.info(f"📢 Telegram Auto-Poster: Posted product {product.id} to channel {channel_id}.")
+            logger.info(f"📢 Telegram Auto-Poster: Posted product {product.id}")
         except Exception as e:
             logger.error(f"Telegram Auto-Poster failed: {e}")
 
@@ -1219,7 +1392,6 @@ def fetch_remote_file_from_github(repo, file_path, token=None):
 
 
 def bootstrap_system_safely():
-    """ዳታቤዙ ባዶ ከሆነ በራሱ 'primary' ሳይትን በመመዝገብ ኤጀንቱ ሥራ እንዲጀምር ያደርጋል"""
     SiteRegistry = get_model('SiteRegistry')
     try:
         if SiteRegistry.objects.filter(is_active=True).count() == 0:
@@ -1232,13 +1404,13 @@ def bootstrap_system_safely():
                 is_active=True,
                 build_phase=0
             )
+            _, _, broadcast_agent_log, _ = _get_ai_utils()
             broadcast_agent_log(None, "System Auto-Installed: Registered 'primary' domain successfully", "success")
     except Exception as e:
         logger.error(f"Failed to bootstrap database: {e}")
 
 
 def get_site_project_state_dynamic(site):
-    """[Dynamic File-System Explorer] ፕሮጀክቱን በዳይናሚክ መልክ ይመረምራል"""
     if not site:
         return {}, {}
 
@@ -1453,10 +1625,7 @@ class SelfBootstrapManager:
             for module_key, info in list(broken.items()):
                 total_attempts = cls._get_total_attempts(module_key)
                 if total_attempts >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE:
-                    logger.critical(
-                        f"🚨 SELF-REPAIR: '{module_key}' exceeded {cls.MAX_TOTAL_ATTEMPTS_PER_MODULE} "
-                        f"repair attempts. Halting auto-repair for it — manual review required."
-                    )
+                    logger.critical(f"🚨 SELF-REPAIR: '{module_key}' exceeded {cls.MAX_TOTAL_ATTEMPTS_PER_MODULE} repair attempts.")
                     continue
                 cls._increment_total_attempts(module_key)
                 success = cls._repair_module(primary_site, module_key, info)
@@ -1467,14 +1636,9 @@ class SelfBootstrapManager:
         is_ready = len(broken) == 0
 
         if not is_ready:
-            all_exhausted = all(
-                cls._get_total_attempts(k) >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE for k in broken.keys()
-            )
+            all_exhausted = all(cls._get_total_attempts(k) >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE for k in broken.keys())
             if all_exhausted:
-                logger.critical(
-                    f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted for {list(broken.keys())}. "
-                    f"Proceeding in DEGRADED mode — MANUAL REQUIRED before next restart."
-                )
+                logger.critical(f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted for {list(broken.keys())}. Proceeding in DEGRADED mode.")
                 SiteConfig.objects.update_or_create(
                     key=cls.READY_KEY,
                     defaults={'value': {
@@ -1493,7 +1657,7 @@ class SelfBootstrapManager:
                     'checked_at': timezone.now().isoformat()
                 }}
             )
-            logger.critical(f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted this cycle. Still broken: {list(broken.keys())}. Will retry next cycle.")
+            logger.critical(f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted this cycle.")
             return False
 
         SiteConfig.objects.update_or_create(
@@ -1503,8 +1667,9 @@ class SelfBootstrapManager:
         logger.info("✅ SELF-BOOTSTRAP: All core modules verified healthy.")
 
         if repaired_any_running_module and os.getenv('SELF_HEAL_AUTO_RESTART', 'false').lower() == 'true':
-            logger.critical("🧬 SELF-REPAIR: Core agent files were rewritten. Forcing controlled restart to load healed code...")
+            logger.critical("🧬 SELF-REPAIR: Core agent files were rewritten. Forcing controlled restart...")
             try:
+                _, _, broadcast_agent_log, _ = _get_ai_utils()
                 broadcast_agent_log(primary_site, "Self-repair complete — restarting process to load fixes.", "success")
             except Exception:
                 pass
@@ -1516,9 +1681,14 @@ class SelfBootstrapManager:
     def _repair_module(cls, site, module_key, info):
         logger.warning(f"🧬 SELF-REPAIR: Attempting to fix '{module_key}' ({info['issue']})")
         VectorMemory = get_model('VectorMemory')
+        _, _, _, compress_code_for_prompt = _get_ai_utils()
+        clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
+        SecurityAuditor, _, AntiBloatEngine = _get_self_doctor()
+        apply_code_change = _get_code_apply()
+
         try:
             past_memories = VectorMemory.objects.filter(site=site).order_by('-id')[:3]
-            memory_context = [m.content for m in past_memories]
+            memory_context = [compress_code_for_prompt(m.content) for m in past_memories]
         except Exception:
             memory_context = []
 
@@ -1599,7 +1769,6 @@ class SelfBootstrapManager:
 # ============================================================
 
 def execute_master_cycle():
-    """ሁሉንም የኤጀንት ስራዎች እና የጤና ቼኮች በአንድነት በየዑደቱ ማስነሻ"""
     bootstrap_system_safely()
 
     SiteConfig = get_model('SiteConfig')
@@ -1658,12 +1827,10 @@ def execute_master_cycle():
 
 
 def _run_site_cycle(site):
-    """
-    የእያንዳንዱን ንዑስ ጣቢያ የዕድገት ዑደት በሁለት ትይዩ ክሮች (Parallel Tracks) በከፍተኛ ፍጥነት ያካሂዳል፦
-    - ትራክ ሀ፦ የስርዓት ጥገና፣ ራሱን በ AI መገንባትና ራስ-ዝግመተ ለውጥ (Coding, Healing, Architecting)
-    - ትራክ ለ፦ የይዘት ፍሰት፣ ምርቶችን መሰብሰብ፣ የሻጮች ማረጋገጫና ቴሌግራም አውቶ-ፖስተር (Scraping, Curation, Social Sync)
-    """
-    from .ai_utils import broadcast_agent_log
+    _, _, broadcast_agent_log, _ = _get_ai_utils()
+    SecurityAuditor, UniversalHealer, AntiBloatEngine = _get_self_doctor()
+    FeatureEvolutionEngine = _get_feature_evolution()
+    
     network_active = MultiChannelHarvester.is_network_available()
 
     def run_track_a_evolution():
@@ -1680,13 +1847,12 @@ def _run_site_cycle(site):
                 update_agent_progress(site, "Track A: Building Strategic Features in Sandbox...", 80)
                 run_recursive_code_builder(site)
                 
-                # 🧬 SELF-EVOLUTION: ኤጀንቱ ራሱን በራሱ ያሻሽላል
                 update_agent_progress(site, "Track A: Self-Evolution...", 90)
                 evolution_engine = FeatureEvolutionEngine(site)
                 evolution_engine.evolve()
             else:
                 update_agent_progress(site, "Track A: Offline Caching and Recovery...", 60)
-                from .database_memory import OfflineCacheManager
+                OfflineCacheManager = _get_offline_cache()
                 OfflineCacheManager.process_stale_offline_tasks(site)
         except Exception as e:
             logger.error(f"❌ Track A (Evolution) failed for {site.name}: {e}")
@@ -1708,7 +1874,6 @@ def _run_site_cycle(site):
                 spy_engine = CompetitorIntelligenceEngine(site)
                 spy_engine.spy_and_analyze_market()
                 
-                # Predict Traffic & SEO
                 run_predictive_analysis(site)
                 
             FraudHunter(site).scan_for_scams()
@@ -1726,7 +1891,6 @@ def _run_site_cycle(site):
 
 
 def run_recursive_code_builder(site):
-    """ባክሎግ ውስጥ ያሉ ስራዎችን በ Sandbox ጽፎ የሚጨርስ ሎጂክ"""
     AIProjectBacklog = get_model('AIProjectBacklog')
     try:
         pending_tasks = AIProjectBacklog.objects.filter(site=site, status='Pending').order_by('-business_impact_score')
@@ -1755,7 +1919,6 @@ def run_recursive_code_builder(site):
 
 
 def run_predictive_analysis(site):
-    """የ SEO እና የትራፊክ ትንበያዎችን የሚያሰላ ረዳት ሎጂክ"""
     PredictionLog = get_model('PredictionLog')
     Product = get_model('Product')
     try:
@@ -1771,7 +1934,8 @@ def run_predictive_analysis(site):
             site=site, prediction_type="seo", predicted_value=predicted_seo,
             confidence_score=90.0, input_data={"current_products": prod_count}
         )
-        broadcast_agent_log(site, "📊 Predictive Engine: Successfully generated traffic and SEO forecasts in DB.", "info")
+        _, _, broadcast_agent_log, _ = _get_ai_utils()
+        broadcast_agent_log(site, "📊 Predictive Engine: Generated traffic and SEO forecasts.", "info")
     except Exception as pred_err:
         logger.debug("Failed to record predictions: %s", pred_err)
 
@@ -1781,7 +1945,6 @@ def run_predictive_analysis(site):
 # ============================================================
 
 def start_autonomous_ceo():
-    """የኤጀንቱን 24/7 የጀርባ ዑደት በአካባቢያዊ ፍጥነት (Adaptive Pacing) የሚመራ"""
     logger.info("🚀 EthAfri Master CEO Agent Started on Render Cloud...")
     
     while True:
@@ -1803,10 +1966,10 @@ def start_autonomous_ceo():
                 
             if load_avg > 2.0:
                 interval = 2700
-                logger.warning(f"⚠️ Server CPU Load is heavy ({load_avg:.2f}). Pacing slowed to 45 minutes to protect host.")
+                logger.warning(f"⚠️ Server CPU Load is heavy ({load_avg:.2f}). Pacing slowed to 45 minutes.")
             elif not MultiChannelHarvester.is_network_available():
                 interval = 1800
-                logger.warning("🌐 Offline Mode detected. Pacing slowed to 30 minutes to conserve resources.")
+                logger.warning("🌐 Offline Mode detected. Pacing slowed to 30 minutes.")
             else:
                 interval = 5 if has_pending else 300
                 
