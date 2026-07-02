@@ -77,10 +77,11 @@ def _get_ai_utils():
         clean_and_parse_json,
         ask_master_ai_smart,
         broadcast_agent_log,
-        compress_code_for_prompt
+        AIUtils  # <--- Import the AIUtils class instead
     )
-    return clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log, compress_code_for_prompt
-
+    
+    # Return the static method attached to the class
+    return clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log, AIUtils.compress_code_for_prompt
 
 def _get_code_apply():
     """code_apply ሞጁልን በ late import መጫኛ"""
