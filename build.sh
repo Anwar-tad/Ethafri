@@ -20,12 +20,17 @@ echo ""
 echo "📦 Installing Python packages with cache-enabled..."
 pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
 
-# 2. 🛡️ PLAYWRIGHT BROWSER PATH ALIGNMENT: ብሮውዘሩ በአግባቡ እንዲቀመጥ ማህደሩን በግልጽ ማዋሃድ [2]
+# 2. 🛡️ PLAYWRIGHT BROWSER PATH ALIGNMENT:
 echo "🌐 Configuring Playwright browser path..."
-export PLAYWRIGHT_BROWSERS_PATH="/opt/render/.cache/ms-playwright"
+export PLAYWRIGHT_BROWSERS_PATH=/opt/render/.cache/ms-playwright
 
 echo "🌐 Installing Playwright Chromium browser..."
-playwright install chromium
+# ብሮውዘሩን በትክክለኛው መንገድ መጫን
+python -m playwright install chromium
+
+# ተጨማሪ ደህንነት - ፍቃድ መስጠት
+chmod -R 755 /opt/render/.cache/ms-playwright
+
 
 # 3. የስታቲክ ፋይሎችን በፈጣን መንገድ መሰብሰብ
 echo ""
