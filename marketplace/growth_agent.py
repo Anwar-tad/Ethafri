@@ -44,7 +44,12 @@ from django.db.models import Q
 from django.apps import apps
 
 # ============================================================
-# 🔄 DYNAMIC MODEL LOADER (Circular Dependency Prevention)
+# ⚙️ LOGGER SETUP (✅ አስፈላጊ)
+# ============================================================
+logger = logging.getLogger(__name__)
+
+# ============================================================
+# 🔄 DYNAMIC MODEL LOADER
 # ============================================================
 
 def get_model(model_name: str):
