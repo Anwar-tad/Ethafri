@@ -1,15 +1,21 @@
 /* ============================================================
-   🎨 EthAfri Ultimate Design System — Master CSS (v1.2)
+   🎨 EthAfri Ultimate Design System — Master CSS (v10.16)
    ዓላማ፦ የኮድ ድግግሞሽን ማጥፋት እና ሁሉንም ቴምፕሌቶች በአንድ ቦታ መቆጣጠር
-   📅 ቀን፦ 2026-06-25
+   ✅ የተፈቱ ችግሮች፦ Dynamic CSS variable alias mappings added to prevent theme customization mismatches across templates.
+   📅 ቀን፦ Thursday, July 02, 2026
    ============================================================ */
 
 :root {
-    /* 🎨 1. Dynamic Brand Colors */
+    /* 🎨 1. Dynamic Brand Colors & Aliases */
     --primary: #1a2a6c;
+    --primary-color: var(--primary); /* 🛡️ Aligned Alias [1] */
     --primary-soft: rgba(26, 42, 108, 0.1);
+    
     --accent: #ffc107;
+    --accent-gold: var(--accent); /* 🛡️ Aligned Alias [1] */
+    
     --secondary: #4e085e;
+    --accent-purple: var(--secondary); /* 🛡️ Aligned Alias [1] */
     
     /* 📊 2. Semantic UI Colors */
     --success: #10b981;
@@ -128,7 +134,7 @@ html {
 }
 
 /* ============================================================
-   📢 7. BASE SKELETON LAYOUT STYLES (MIGRATED FROM base.html)
+   📢 7. BASE SKELETON LAYOUT STYLES
    ============================================================ */
 .announcement-bar {
     background: var(--primary-color, #1a2a6c) !important;
@@ -465,93 +471,27 @@ html {
 }
 
 .announcement-banner .banner-btn {
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: var(--white);
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
     border-radius: 50px;
-    padding: 0.3rem 1.2rem;
-    font-size: 0.8rem;
+    padding: 0.4rem 1.2rem;
+    font-weight: bold;
     text-decoration: none;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease-in-out;
 }
-
 .announcement-banner .banner-btn:hover {
-    background: var(--white);
+    background: white;
     color: var(--primary-color);
 }
 
-/* site selector */
-.site-selector-home {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    margin-bottom: 1.5rem;
-    padding: 0.75rem 1rem;
-    background: var(--white);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
-}
-
-.site-selector-home .selector-label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-muted);
-}
-
-.site-selector-home .site-option {
-    padding: 0.3rem 1rem;
-    border-radius: 50px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: all 0.3s ease;
-    color: var(--text-muted);
-    background: var(--light-bg);
-    border: 1px solid var(--border-color);
-}
-
-.site-selector-home .site-option:hover {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-    transform: translateY(-2px);
-}
-
-.site-selector-home .site-option.active {
-    background: var(--primary-color);
-    color: var(--white);
-    border-color: var(--primary-color);
-}
-
-.site-selector-home .site-option .badge-count {
-    background: rgba(255,255,255,0.2);
-    border-radius: 50px;
-    padding: 0 0.5rem;
-    font-size: 0.6rem;
-    margin-left: 0.25rem;
-}
-
-.site-selector-home .site-option.active .badge-count {
-    background: rgba(255,255,255,0.3);
-}
-
-.site-selector-home .site-option .site-indicator {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 0.3rem;
-}
-
-/* categories scroll */
+/* categories chips slider */
 .categories-scroll {
     display: flex;
+    gap: 0.75rem;
     overflow-x: auto;
-    gap: 0.5rem;
-    padding-bottom: 0.75rem;
-    -webkit-overflow-scrolling: touch;
+    padding: 0.5rem 0;
+    margin-bottom: 2rem;
     scrollbar-width: none;
-    margin-bottom: 1.5rem;
 }
 
 .categories-scroll::-webkit-scrollbar {
@@ -559,44 +499,30 @@ html {
 }
 
 .category-chip {
-    flex-shrink: 0;
     padding: 0.5rem 1.25rem;
     border-radius: 50px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: all 0.3s ease;
     background: var(--white);
     color: var(--text-dark);
-    border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-sm);
-    display: flex;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-decoration: none;
+    border: 1.5px solid var(--border-color);
+    transition: all 0.2s ease-in-out;
+    display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.5rem;
 }
 
-.category-chip:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-}
-
-.category-chip.active {
+.category-chip:hover, .category-chip.active {
     background: var(--primary-color);
-    color: var(--white);
+    color: white !important;
     border-color: var(--primary-color);
-}
-
-.category-chip .chip-icon {
-    font-size: 0.7rem;
 }
 
 .category-chip .chip-count {
-    font-size: 0.6rem;
-    opacity: 0.6;
+    font-size: 0.7rem;
     background: rgba(0,0,0,0.05);
-    padding: 0 0.4rem;
+    padding: 0.1rem 0.5rem;
     border-radius: 50px;
 }
 
@@ -1186,35 +1112,24 @@ html {
 
 .auth-body label {
     display: block;
-    font-weight: 600;
-    font-size: 0.85rem;
+    font-weight: 700;
     color: var(--text-muted);
-    margin-bottom: 0.5rem;
+    font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
 }
 
-.auth-body input {
-    width: 100%;
-    border: 2px solid #f1f5f9;
-    border-radius: 1rem;
+.auth-body .form-control {
+    border-radius: 0.75rem;
     padding: 0.75rem 1.2rem;
-    transition: all 0.3s ease;
+    border: 2px solid #f1f5f9;
     background: #f8fafc;
+    transition: all 0.3s ease;
 }
 
-.auth-body input:focus {
+.auth-body .form-control:focus {
     border-color: var(--primary-color);
     background: white;
-    outline: none;
-    box-shadow: 0 0 0 4px rgba(26, 42, 108, 0.05);
-}
-
-.auth-body .helptext {
-    display: block;
-    font-size: 0.7rem;
-    color: #94a3b8;
-    margin-top: 0.25rem;
+    box-shadow: 0 0 0 4px rgba(26,42,108,0.05);
 }
 
 .btn-auth {
