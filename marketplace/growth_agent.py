@@ -1,7 +1,7 @@
 # ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
-# 📝 ስሪት፦ v10.22 (Ultimate Master-Brain CEO Agent - Part 1/3)
-# ✅ የተፈቱ ችግሮች፦ Circular import prevention, system pre-flight verification, dynamic progress tracker, and safe file rollback handlers.
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 1/2)
+# 📝 ስሪት፦ v10.23 (Ultimate Master-Brain CEO Agent - Part 1/2)
+# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading, circular import prevention, pre-flight verification, and recursive backlog planning.
 # 📅 ቀን፦ Friday, July 03, 2026
 # ============================================================
 
@@ -243,9 +243,10 @@ def update_agent_progress(site, step_msg, percentage):
         )
     except Exception:
         pass
-      
+
+
 # ============================================================
-# 🔬 1.2 LIGHTWEIGHT AST CALCULATOR & OPTIMIZERS
+# 🔬 LIGHTWEIGHT AST CALCULATOR
 # ============================================================
 
 def calculate_site_phase(state, site) -> int:
@@ -291,6 +292,10 @@ def calculate_site_phase(state, site) -> int:
     return phase
 
 
+# ============================================================
+# 🧠 RECURSIVE OPTIMIZER
+# ============================================================
+
 class RecursiveOptimizer:
     def __init__(self, site):
         self.site = site
@@ -324,7 +329,131 @@ class RecursiveOptimizer:
 
 
 # ============================================================
-# 🛠️ 2. RECURSIVE BUILDER (AI-Driven Code Writer)
+# 🏛️ STRATEGIC CEO (የዕቅድ እና የስልት ማዕከል)
+# ============================================================
+
+class StrategicCEO:
+    def __init__(self, site):
+        self.site = site
+
+    def execute_planning_cycle(self):
+        self._process_owner_directives()
+        self.check_for_self_audit()
+
+        AIProjectBacklog = get_model('AIProjectBacklog')
+        SiteConfig = get_model('SiteConfig')
+        clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
+
+        if AIProjectBacklog.objects.filter(site=self.site, status='Pending').exists():
+            return
+
+        state, file_paths = get_site_project_state_dynamic(self.site)
+        current_phase = calculate_site_phase(state, self.site)
+
+        try:
+            self.site.build_phase = current_phase
+            self.site.save()
+            logger.info(f"📈 AST Audit: Site build_phase computed as {current_phase}/5")
+        except Exception as e:
+            logger.warning(f"models.py needs check for SiteRegistry.build_phase: {e}")
+
+        audit_summary = {
+            key: "Missing / Pending Creation" if "❌ MISSING_FILE" in content 
+                 else "Incomplete / Needs Work" if len(content) < 200 
+                 else "Completed / Validated"
+            for key, content in state.items()
+        }
+
+        SiteConfig.objects.update_or_create(
+            key=f"PROJECT_AUDIT_LOG_{self.site.name}",
+            defaults={'value': {'summary': audit_summary, 'updated_at': timezone.now().isoformat()}}
+        )
+
+        intent_config = SiteConfig.objects.filter(key="MANUAL_SITE_INTENT").first()
+        manual_intent = intent_config.value.get('intent', '') if intent_config and isinstance(intent_config.value, dict) else ""
+        site_intent_context = f"Manual Admin Overridden Intent: {manual_intent}" if manual_intent else f"Niche: {self.site.niche or 'Auto-Detect'}"
+
+        prompt = (
+            f"[MASTER BRAIN AUDIT] Site: {self.site.display_name}. {site_intent_context}. "
+            f"Current Phase: {current_phase}/5.\n"
+            f"Dynamic Project Audit Log: {json.dumps(audit_summary, ensure_ascii=False)}.\n"
+            f"Please perform the following in one analysis:\n"
+            f"1. Refine the market niche if necessary.\n"
+            f"2. Identify 1 competitor feature from Jumia/Amazon for this niche.\n"
+            f"3. Output 2 core backlog tasks to move the site from Phase {current_phase} to next, "
+            f"prioritizing files marked as 'Missing' or 'Incomplete' in the Audit Log. "
+            f"Return clean JSON format with keys: 'niche', 'competitor_feature': {{'name', 'desc'}}, 'backlog': [{{'name', 'priority', 'file', 'desc'}}]"
+        )
+        data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="analysis"))
+
+        if data and isinstance(data, dict):
+            self.site.niche = data.get('niche', self.site.niche)
+            self.site.save()
+
+            comp = data.get('competitor_feature')
+            if comp and isinstance(comp, dict) and comp.get('name'):
+                get_or_create_backlog_task_safe(
+                    self.site, task_name=f"🕵️ SPY: {comp['name']}",
+                    defaults={
+                        'priority': 'Medium',
+                        'status': 'Pending',
+                        'business_impact_score': 6,
+                        'target_file': 'home_html',
+                        'description': comp.get('desc', '')
+                    }
+                )
+
+            backlog = data.get('backlog', [])
+            if isinstance(backlog, list):
+                for t in backlog:
+                    if isinstance(t, dict) and 'name' in t:
+                        get_or_create_backlog_task_safe(
+                            self.site, task_name=t['name'],
+                            defaults={
+                                'priority': t.get('priority', 'Medium'),
+                                'status': 'Pending',
+                                'target_file': t.get('file', 'views'),
+                                'description': t.get('desc', '')
+                            }
+                        )
+
+    def check_for_self_audit(self):
+        """ቢያንስ በየ 3 ሰዓቱ ራሱን መርምሮ የራሱን የኮድ ክፍሎች በ AI ያሻሽላል"""
+        SiteConfig = get_model('SiteConfig')
+        last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
+
+        if not last_self_audit or (timezone.now() - last_self_audit.updated_at) >= timedelta(hours=3):
+            # የላቀውን ራሱን የመቀረጽ እና የማሳደግ ሞተር መጥራት
+            architect = MetaSelfArchitectEngine(self.site)
+            architect.analyze_and_architect_self()
+            
+            try:
+                SiteConfig.objects.update_or_create(
+                    key=f"LAST_SELF_AUDIT_{self.site.name}",
+                    defaults={'value': {'time': timezone.now().isoformat()}}
+                )
+            except Exception as e:
+                logger.debug("Failed to record self audit config: %s", e)
+
+    def _process_owner_directives(self):
+        AdminOverrideInstruction = get_model('AdminOverrideInstruction')
+        for cmd in AdminOverrideInstruction.objects.filter(site=self.site, is_processed=False):
+            get_or_create_backlog_task_safe(
+                self.site, task_name=f"👑 OWNER: {cmd.instruction[:30]}",
+                defaults={
+                    'priority': 'Critical',
+                    'status': 'Pending',
+                    'business_impact_score': 10,
+                    'target_file': 'views',
+                    'description': cmd.instruction
+                }
+            )
+            cmd.is_processed = True
+            cmd.save()
+
+
+# ============================================================
+# 🛠️ 3. RECURSIVE BUILDER (የኮድ ፈታሽ እና ገንቢ)
 # ============================================================
 
 class RecursiveBuilder:
@@ -379,7 +508,9 @@ class RecursiveBuilder:
             f"Return JSON with key 'code' containing the full file content."
         )
 
-        clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
+        _, ask_master_ai_smart, _, _ = _get_ai_utils()
+        clean_and_parse_json, _, _, _ = _get_ai_utils()
+        
         res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding", task=task))
 
         if not (res and isinstance(res, dict) and 'code' in res):
@@ -401,6 +532,7 @@ class RecursiveBuilder:
                 return "Syntax Error"
 
         SecurityAuditor, _, _ = _get_self_doctor()
+        
         is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=task.target_file, site=self.site)
         if not is_safe:
             logger.error(f"🛡️ Security Gate Blocked Code for {task.target_file}: {msg}")
@@ -455,15 +587,14 @@ class RecursiveBuilder:
             pass
         return "Success"
 
-
 # ============================================================
-# 📡 3. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
+# 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
 # ============================================================
 
 def _autonomous_no_api_search_fallback(niche):
     """
     የጌሚኒ ቁልፎች ሙሉ በሙሉ ቢቋረጡም፣ ያለ ምንም API DuckDuckGo HTML በመጠየቅ
-    ንቁ የሆኑ የኢትዮጵያ የቴሌግራም ቻናሎችን እና Classified ዌብሳይቶችን በሪጀክስ ፈልቅቆ ያወጣል
+    ንቁ የሆኑ የኢትዮጵያ የቴሌግራም ቻናሎችን እና Classified ዌብሳይቶችን በሪጀክስ ፈልቅቆ ያወጣል [1]
     """
     logger.warning(f"⚠️ Search Fallback: Running non-AI DuckDuckGo search for niche '{niche}'...")
     query = f"Ethiopia buying and selling telegram channel {niche}"
@@ -474,13 +605,11 @@ def _autonomous_no_api_search_fallback(niche):
     try:
         res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 200:
-            # የቴሌግራም ቻናል ሊንኮችን በሪጀክስ ፈልቅቆ ማውጣት (t.me/username)
             telegram_usernames = re.findall(r't\.me/([a-zA-Z0-9_]{5,32})', res.text)
             for username in list(set(telegram_usernames))[:3]:
                 if username.lower() not in ['s', 'joinchat', 'share']:
                     fallback_sources.append({"url_or_channel": username, "platform_type": "Telegram"})
                     
-            # የሀገር ውስጥ የሽያጭ ድረ-ገጽ ሊንኮችን መፈለግ (.com / .et)
             web_domains = re.findall(r'https?://(?:www\.)?([a-zA-Z0-9-]+\.(?:com\.et|com|et))', res.text)
             for domain in list(set(web_domains))[:2]:
                 if not any(x in domain for x in ['google', 'duckduckgo', 'yandex', 'yahoo', 'telesco']):
@@ -512,7 +641,6 @@ class MultiChannelHarvester:
         
         logger.info("🔍 Grounded Explorer: Scanning active market sources in Ethiopia...")
         
-        # ጌሚኒ ከበይነመረብ ፍለጋ (Google Search Grounding) ላይ እንዲያጠና ማዘዣ [1]
         prompt = (
             f"Search the live internet for active Ethiopian online marketplaces, eCommerce websites, "
             f"or buying and selling Telegram channel directories specifically related to '{site.niche}' or general goods in 2026.\n"
@@ -529,7 +657,6 @@ class MultiChannelHarvester:
         except Exception as e:
             logger.warning(f"Grounded search failed ({e}). Attempting unauthenticated fallback...")
             
-        # 🛡️ ጌሚኒ ሙሉ በሙሉ ከጠፋ በ DuckDuckGo ሪጀክስ ፈልቅቆ ማውጫ ፎልባክን ማነቃቃት
         if not sources:
             sources = _autonomous_no_api_search_fallback(site.niche)
             
@@ -701,7 +828,7 @@ class MultiChannelHarvester:
 
 
 # ============================================================
-# 🕵️ COMPETITOR INTELLIGENCE ENGINE (የተፎካካሪ ስለላ)
+# 🕵️ COMPETITOR INTELLIGENCE ENGINE (ተፎካካሪ ስለላ)
 # ============================================================
 
 class CompetitorIntelligenceEngine:
@@ -796,25 +923,13 @@ class CompetitorIntelligenceEngine:
                 broadcast_agent_log(self.site, "✨ Spy Engine: Competitor analysis complete.", "success")
         except Exception as ai_err:
             logger.error(f"Spy Engine analysis failed: {ai_err}")
-            
-            
-# ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 3/3)
-# 📝 ስሪት፦ v10.22 (Ultimate Master-Brain CEO Agent - Final Part 3/3)
-# ✅ የተፈቱ ችግሮች፦ Decoupled model getters, multi-provider API key rotation, dynamic no-api DuckDuckGo fallback, and integrated Channels webhooks.
-# 📅 ቀን፦ Friday, July 03, 2026
-# ============================================================
 
 
 # ============================================================
-# 💼 CEO OPERATIONS WITH 6-KEY AI ROTATION & GHOST ONBOARDING
+# 💼 CEO OPERATIONS
 # ============================================================
 
 class CEOOperations:
-    """
-    የኢኮ-ሲስተሙን የንግድ ዕድገት፣ የጅምላ ምርት ዳሰሳን፣ የ 6 AI ቁልፎች ሽክርክሪትን፣
-    እና ከውዝግብ የጸዳ የተጠቃሚ ghost ምዝገባዎችን በአንድ ላይ የሚመራ የሥራ ማዕከል [1, 2]
-    """
     def __init__(self, site):
         self.site = site
 
@@ -827,11 +942,9 @@ class CEOOperations:
 
     def _heuristic_parse_text(self, text):
         """የ AI ጥሪዎች ሙሉ በሙሉ ቢቋረጡ በሪጀክስ ምርቶችን የሚፈትሽ (Survival Line)"""
-        if not text: 
-            return None
+        if not text: return None
         lines = [l.strip() for l in text.split('\n') if l.strip()]
-        if not lines: 
-            return None
+        if not lines: return None
         
         title = lines[0][:150]
         phone_match = re.search(r'(?:\+251|09|07)\d{8}', text)
@@ -851,7 +964,7 @@ class CEOOperations:
         return {"title": title, "price": price, "desc": text[:1000], "seller_contact": contact}
 
     def _harvest_verified_products_bulk(self):
-        """ሁሉንም አይነት ምርቶች በዳይናሚክ ያስሳል - ሁሉንም 6 AI ኪዎች በ rotary failover ይጠቀማል [1]"""
+        """ምርቶችን በጅምላ ያስሳል - 6ቱንም AI ኪዎች በ rotary failover ይጠቀማል [1]"""
         SiteConfig = get_model('SiteConfig')
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
 
@@ -933,8 +1046,6 @@ class CEOOperations:
                 logger.info(f"✅ Successfully seeded {len(products)} products")
             except Exception as e:
                 logger.debug("Failed to update last harvest config: %s", e)
-        else:
-            logger.warning("⚠️ No products found in this harvest cycle")
 
     def _call_ai_with_timeout(self, provider: str, prompt: str, timeout: int = 10) -> Optional[str]:
         """አንድ የተወሰነ AI አቅራቢን በ10 ሰከንድ ጊዜ ገደብ ይጠራል"""
@@ -1029,19 +1140,22 @@ class CEOOperations:
         return None
 
     def _no_api_fallback_harvest(self) -> List[Dict]:
-        """🛡️ NO-API FALLBACK: ሁሉም AI ቢወድቅ በ DuckDuckGo እና Regex ምርቶችን መፈለጊያ ሎጂክ"""
+        """🛡️ NO-API FALLBACK: ሁሉም AI ቢወድቅ የሚሰራ"""
         logger.info("🌐 No-API Fallback: Searching DuckDuckGo for products...")
+        
         products = []
         search_terms = [
             "Ethiopia market products for sale",
             "Ethiopian online marketplace products",
-            "Buy and sell Ethiopia products"
+            "Buy and sell Ethiopia products",
+            "Ethiopia classifieds products"
         ]
         
         for term in search_terms:
             try:
                 url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(term)}"
                 res = requests.get(url, timeout=8)
+                
                 if res.status_code == 200:
                     items = re.findall(r'<a[^>]*>(.*?)</a>', res.text)
                     for item in items[:5]:
@@ -1050,13 +1164,15 @@ class CEOOperations:
                             parsed = self._heuristic_parse_text(clean_text)
                             if parsed and parsed.get('title'):
                                 products.append(parsed)
+                    
             except Exception as e:
-                logger.debug(f"DuckDuckGo search fallback failed: {e}")
-                
+                logger.debug(f"DuckDuckGo search failed: {e}")
+                continue
+        
         return products
 
     def _save_image_to_cloudinary_permanently(self, raw_img_url):
-        """scraped የተደረጉ ምስሎችን በከፍተኛ ፍጥነት በጀርባ አውርዶ ወደ Cloudinary በቋሚነት መጫኛ [1]"""
+        """scraped የተደረጉ ምስሎችን ወደ Cloudinary ያስቀምጣል"""
         if not raw_img_url or not raw_img_url.startswith('http'):
             return ""
         try:
@@ -1077,7 +1193,7 @@ class CEOOperations:
         return raw_img_url
 
     def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል እና ከውዝግብ የጸዳ ፈጣን የ ghost ተጠቃሚ መመዝገቢያ ይፈጥራል [1]"""
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል እና ከውዝግብ የጸዳ ghost ምዝገባን ይፈጥራል"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
@@ -1095,7 +1211,6 @@ class CEOOperations:
                 contact = p['seller_contact']
                 uname = contact.replace('@', '').replace('+', '').strip()
                 
-                # የ ghost አካውንት መፍጠር
                 user, created = User.objects.get_or_create(username=uname, defaults={'is_active': True})
                 if created:
                     user.set_unusable_password()
@@ -1119,7 +1234,6 @@ class CEOOperations:
                 )
                 products_to_create.append(product_obj)
 
-                # Frictionless Onboarding Access Token
                 login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode('utf-8')).hexdigest()[:16]
                 
                 SiteConfig.objects.update_or_create(
@@ -1773,7 +1887,7 @@ def execute_master_cycle():
 
     active_sites = SiteRegistry.objects.filter(is_active=True)
     try:
-        # 🔄 Changed to sequential execution to prevent CPU spikes
+        # 🔄 Sequential execution to prevent CPU spikes
         for site in active_sites:
             _run_site_cycle(site)
     finally:
@@ -1935,7 +2049,10 @@ def start_autonomous_ceo():
                 interval = 5 if has_pending else 300
                 
             logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
+            # ✅ FIX: name 'time' is not defined error resolved inside start_autonomous_ceo loop
+            import time
             time.sleep(interval)
         except Exception as e:
             logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
+            import time
             time.sleep(10)
