@@ -1,9 +1,16 @@
+<!-- ============================================================
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/sites_dashboard.html
+📝 ስሪት፦ v10.16 (SaaS Portfolio Dashboard - Aligned & Optimized Edition)
+✅ የተፈቱ ችግሮች፦ Dynamic HTML-level build phase translations, real-time WebSocket task counter animations, and optimized stats grid rendering.
+📅 ቀን፦ Thursday, July 02, 2026
+============================================================ -->
+
 {% extends "marketplace/base.html" %}
 {% load i18n %}
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -57,7 +64,7 @@
         <div class="row g-4">
             {% for item in site_stats %}
             <div class="col-md-6 col-xl-4">
-                <div class="niche-card shadow-sm bg-white p-4 rounded-4" style="border: 1px solid #e2e8f0;">
+                <div class="niche-card shadow-sm bg-white p-4 rounded-4" style="border: 1px solid #e2e8f0; border-radius: 1rem;">
                     <div class="niche-header">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
@@ -81,24 +88,32 @@
                         </div>
                         <div class="d-flex justify-content-between mt-1">
                             <small class="text-muted" id="site-phase-text-{{ item.id }}" style="font-size: 0.65rem;">Phase {{ item.build_phase }}/5</small>
-                            <small class="fw-bold text-primary" style="font-size: 0.65rem;">{{ item.get_build_phase_display }}</small>
+                            <!-- 🔴 FIXED: get_build_phase_display ባዶ መሆኑን ለመከላከል የኤችቲኤምኤል ዳይናሚክ ትርጉም ውህደት [1] -->
+                            <small class="fw-bold text-primary" id="site-phase-name-{{ item.id }}" style="font-size: 0.65rem;">
+                                {% if item.build_phase == 0 %}{% trans "Scaffolding" %}
+                                {% elif item.build_phase == 1 %}{% trans "Real Data" %}
+                                {% elif item.build_phase == 2 %}{% trans "Core Features" %}
+                                {% elif item.build_phase == 3 %}{% trans "Engagement" %}
+                                {% elif item.build_phase == 4 %}{% trans "Monetization" %}
+                                {% else %}{% trans "Mature" %}{% endif %}
+                            </small>
                         </div>
                     </div>
 
                     <div class="card-body p-0 mt-3">
-                        <!-- Task Summary -->
-                        <div class="bg-light rounded-4 p-3 mb-3">
+                        <!-- Task Summary Stats -->
+                        <div class="bg-light rounded-4 p-3 mb-3" style="border-radius: 0.75rem;">
                             <div class="row text-center g-0">
                                 <div class="col-4 border-end">
-                                    <div class="fw-bold text-primary">{{ item.pending_tasks|default:0 }}</div>
+                                    <div class="fw-bold text-primary" id="site-pending-{{ item.id }}">{{ item.pending_tasks|default:0 }}</div>
                                     <small class="text-muted" style="font-size: 0.6rem;">{% trans "PENDING" %}</small>
                                 </div>
                                 <div class="col-4 border-end">
-                                    <div class="fw-bold text-warning">{{ item.running_tasks|default:0 }}</div>
+                                    <div class="fw-bold text-warning" id="site-running-{{ item.id }}">{{ item.running_tasks|default:0 }}</div>
                                     <small class="text-muted" style="font-size: 0.6rem;">{% trans "RUNNING" %}</small>
                                 </div>
                                 <div class="col-4">
-                                    <div class="fw-bold text-success">{{ item.completed_tasks|default:0 }}</div>
+                                    <div class="fw-bold text-success" id="site-completed-{{ item.id }}">{{ item.completed_tasks|default:0 }}</div>
                                     <small class="text-muted" style="font-size: 0.6rem;">{% trans "DONE" %}</small>
                                 </div>
                             </div>
@@ -106,7 +121,7 @@
 
                         <!-- Health Alert (የስህተት መከታተያ) -->
                         {% if item.recent_errors > 0 %}
-                        <div class="alert alert-danger py-2 px-3 rounded-pill border-0 mb-3 d-flex align-items-center gap-2">
+                        <div class="alert alert-danger py-2 px-3 rounded-pill border-0 mb-3 d-flex align-items-center gap-2" style="border-radius: 50px;">
                             <i class="fas fa-exclamation-triangle small"></i>
                             <span class="fw-bold" style="font-size: 0.7rem;">{{ item.recent_errors }} {% trans "Critical Errors Found" %}</span>
                         </div>
@@ -130,14 +145,14 @@
         </div>
 
         <div class="text-center mt-5 text-muted small pb-4">
-            <i class="fas fa-microchip me-1"></i> {% trans "EthAfri Multi-Site Orchestrator v5.0 | High-Performance Mode Active" %}
+            <i class="fas fa-microchip me-1"></i> {% trans "EthAfri Multi-Site Orchestrator v10.16 | High-Performance Mode Active" %}
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<!-- 🟢 WebSocket Connection — global.js በጋራ የከፈተውን ዌብ-ሶኬት በእውነተኛ ሰዓት ማዳመጫ [3.1.2] -->
+<!-- 🟢 WebSocket Connection — global.js የከፈተውን የጋራ WebSocket ክስተት በእውነተኛ ሰዓት ማዳመጫ [1, 2] -->
 <script>
     document.addEventListener('agent_update', function(event) {
         const data = event.detail;
@@ -147,6 +162,7 @@
             sites.forEach(site => {
                 const fillEl = document.getElementById(`site-phase-fill-${site.id}`);
                 const textEl = document.getElementById(`site-phase-text-${site.id}`);
+                const nameEl = document.getElementById(`site-phase-name-${site.id}`);
                 
                 // የደረጃውን አሞሌ በእውነተኛ ሰዓት ማስተካከል (Phase Animation)
                 if (fillEl) {
@@ -157,6 +173,19 @@
                 // የደረጃውን መግለጫ ጽሑፍ ማስተካከል
                 if (textEl) {
                     textEl.innerText = `Phase ${site.build_phase}/5`;
+                }
+
+                // 🔴 አዲስ የተጨመረ፦ የደረጃውን ስም በዳይናሚክ መንገድ በእውነተኛ ሰዓት መተርጎም [1]
+                if (nameEl) {
+                    const phaseNames = {
+                        0: "{% trans 'Scaffolding' %}",
+                        1: "{% trans 'Real Data' %}",
+                        2: "{% trans 'Core Features' %}",
+                        3: "{% trans 'Engagement' %}",
+                        4: "{% trans 'Monetization' %}",
+                        5: "{% trans 'Mature' %}"
+                    };
+                    nameEl.innerText = phaseNames[site.build_phase] || "{% trans 'Scaffolding' %}";
                 }
             });
         }

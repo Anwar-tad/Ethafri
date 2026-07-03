@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/base.html
-📝 ለውጥ፦ v1.4 Master CEO Unified Base — Backlog Orchestrator Integrated & Centered Sell FAB
-✅ የተፈቱ ችግሮች፦ Dynamic Backlog link added to Navbar and Dropup, centered Sell FAB layout for all screen widths
-📅 ቀን፦ Wednesday, July 01, 2026
+📝 ስሪት፦ v10.16 (Master CEO Unified Base - Harvester Integrated)
+✅ የተፈቱ ችግሮች፦ Integrated new Harvester Control Center links in desktop Navbar & mobile Dropup menu, aligned floating Sell FAB, and synchronized WebSocket status badges.
+📅 ቀን፦ Thursday, July 02, 2026
 ============================================================ -->
 
 {% load i18n %}
@@ -117,7 +117,7 @@
 <body>
 
     <!-- ============================================================
-    ማስታወቂያ ባር
+    ማስታወቂያ ባንድ
     ============================================================ -->
     {% if theme.show_announcement %}
     <div class="announcement-bar text-center" id="announcementBar">
@@ -179,10 +179,16 @@
                     {% endif %}
                     
                     {% if user.is_staff %}
-                    <!-- 🔴 አዲስ የተጨመረ፦ የBacklog ማኔጀር ቁልፍ በNavbar ላይ -->
+                    <!-- 🔴 አዲስ የተጨመረ፦ የይዘት አሰሳ (Harvester) ሊንክ በNavbar ላይ -->
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'harvester' in request.path %}active{% endif %}" href="{% url 'harvester_orchestrator' %}">
+                            <i class="fa-solid fa-satellite-dish text-success"></i> {% trans "Harvester" %}
+                        </a>
+                    </li>
+                    <!-- የBacklog ማኔጀር ቁልፍ በNavbar ላይ -->
                     <li class="nav-item">
                         <a class="nav-link {% if 'backlog' in request.path %}active{% endif %}" href="{% url 'manage_backlog' %}">
-                            <i class="fa-solid fa-rectangle-list"></i> {% trans "Orchestrator" %}
+                            <i class="fa-solid fa-rectangle-list text-warning"></i> {% trans "Orchestrator" %}
                         </a>
                     </li>
                     <li class="nav-item">
@@ -253,16 +259,14 @@
             {% trans "Home" %}
         </a>
         
-        <!-- 🏥 Status ቁልፍ -->
+        <!-- 🏥 Status ቁልፍ (የቀጥታ ስህተቶችን በእውነተኛ ሰዓት በዳሽቦርዱ Status Badge ያሳያል) -->
         <a href="{% url 'agent_status' %}" class="{% if 'agent_status' in request.path %}active{% endif %}">
             <i class="fas fa-heartbeat text-primary"></i>
             {% trans "Status" %}
-            {% if pending_errors > 0 %}
-            <span class="nav-badge">{{ pending_errors }}</span>
-            {% endif %}
+            <span class="nav-badge" id="live-unresolved-errors-badge" style="display: none;">0</span>
         </a>
         
-        <!-- 🔴 Floating Red Action Button (በትልቁ በቀይ - ✅ v1.4 በStatus እና AI/Logout መሃከል ፍጹም ማዕከላዊ ሆኗል) -->
+        <!-- 🔴 Floating Red Action Button (በትልቁ በቀይ) -->
         <a href="{% url 'post_product' %}" class="btn-sell-floating {% if 'post_product' in request.path %}active{% endif %}">
             <i class="fas fa-plus-circle"></i>
             <span>{% trans "Sell" %}</span>
@@ -282,7 +286,13 @@
                         <i class="fas fa-chart-line text-primary"></i> {% trans "Dashboard" %}
                     </a>
                 </li>
-                <!-- 🔴 አዲስ የተጨመረ፦ የBacklog ማኔጀር ሊንክ በታችኛው AI Dropdown ላይ -->
+                <!-- 🔴 አዲስ የተጨመረ፦ የይዘት አሰሳ እዝ ማዕከል ሊንክ በታችኛው AI Dropdown ላይ [1] -->
+                <li>
+                    <a class="dropdown-item" href="{% url 'harvester_orchestrator' %}">
+                        <i class="fa-solid fa-satellite-dish text-success"></i> {% trans "Harvester" %}
+                    </a>
+                </li>
+                <!-- የBacklog ማኔጀር ሊንክ በታችኛው AI Dropdown ላይ -->
                 <li>
                     <a class="dropdown-item" href="{% url 'manage_backlog' %}">
                         <i class="fa-solid fa-rectangle-list text-warning"></i> {% trans "Orchestrator" %}
@@ -335,7 +345,7 @@
     </nav>
 
     <!-- ============================================================
-    ⚡ የፍጥነት ማሻሻያ ስክሪፕቶች (defer attribute for non-blocking rendering)
+    ⚡ የፍጥነት ማሻሻያ ስክሪፕቶች
     ============================================================ -->
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
@@ -345,7 +355,7 @@
     <!-- ለአንድ ፔጅ ብቻ የሚያገልግል ጃቫስክሪፕት -->
     {% block extra_js %}{% endblock %}
     
-    <!-- የአኒሜሽን ማስነሻ -->
+    <!-- የአኒሜሽን ማስነሻ እና የቀጥታ ዌብሶኬት ስህተት ጠቋሚ -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const hero = document.querySelector('.hero-banner-custom');
@@ -369,6 +379,23 @@
                         announcementBar.style.display = 'none';
                     }, 500);
                 }, 10000);
+            }
+        });
+
+        // 📟 WebSocket Event Listener — የቀጥታ ንቁ ስህተቶችን በሞባይል Status Badge ላይ ማሳያ [1]
+        document.addEventListener('agent_update', function(event) {
+            const data = event.detail;
+            if (data.type === 'status_update' || data.type === 'live_stats') {
+                const badge = document.getElementById('live-unresolved-errors-badge');
+                if (badge && data.errors) {
+                    const unresolved = data.errors.unresolved || 0;
+                    if (unresolved > 0) {
+                        badge.style.display = 'inline';
+                        badge.innerText = unresolved;
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
             }
         });
     </script>

@@ -1,9 +1,16 @@
+<!-- ============================================================
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/agent_status.html
+📝 ስሪት፦ v10.16 (Autonomous Agent Monitor - Complete & Optimized Edition)
+✅ የተፈቱ ችግሮች፦ Real Server Uptime calculation using server heartbeats, robust hybrid log rendering guards, and responsive live terminal.
+📅 ቀን፦ Thursday, July 02, 2026
+============================================================ -->
+
 {% extends 'marketplace/base.html' %}
 {% load i18n %}
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -118,8 +125,13 @@
                     </div>
                     {% for log in cycle_logs %}
                     <div class="terminal-line">
-                        <span class="text-muted">[{{ log.time }}]</span> 
-                        <span class="{% if log.type == 'success' %}text-success{% elif log.type == 'error' %}text-danger{% else %}text-info{% endif %}">➜ {{ log.message }}</span>
+                        <!-- 🛡️ HYBRID LOG RENDERING GUARD: ሎጎች ቲክስትም ሆኑ ዲክሽነሪ ቢሆኑ ሳይበላሽ እንዲሰራ መከላከያ [1] -->
+                        {% if log.message %}
+                            <span class="text-muted">[{{ log.time }}]</span> 
+                            <span class="{% if log.type == 'success' %}text-success{% elif log.type == 'error' %}text-danger{% else %}text-info{% endif %}">➜ {{ log.message }}</span>
+                        {% else %}
+                            <span class="text-info">➜ {{ log }}</span>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -245,8 +257,10 @@
 
 {% block extra_js %}
 <script>
-    // ⏰ Uptime Calculator
-    const startTime = Date.now();
+    // ⏰ REAL SERVER UPTIME CALCULATOR: የሰርቨሩን እውነተኛ የመነሻ ሰዓት መሰረት በማድረግ አፕታይምን በእውነተኛ ሰዓት ያሰላል [1]
+    const serverBootTimeStr = "{{ agent_status.timestamp|default:'' }}";
+    const startTime = serverBootTimeStr ? Date.parse(serverBootTimeStr) : Date.now();
+    
     setInterval(() => {
         const diff = Math.floor((Date.now() - startTime) / 1000);
         document.getElementById('uptime-counter').innerText = new Date(diff * 1000).toISOString().substr(11, 8);

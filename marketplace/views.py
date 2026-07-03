@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py
-# 📝 ስሪት፦ v10.16 (Master CEO Views Orchestration - Part 1/2)
-# ✅ የተፈቱ ችግሮች፦ Dynamic translation support in product detail, thread-safe evolution trigger lock, and aligned marketplace core views.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ስሪት፦ v10.17 (Master CEO Views Orchestration - Part 1/2)
+# ✅ የተፈቱ ችግሮች፦ Dynamic frictionless onboarding token login, session-aware A/B variant router in detail view, and thread-safe evolution trigger.
+# 📅 ቀን፦ Friday, July 03, 2026
 # ============================================================
 
 import logging
@@ -10,6 +10,7 @@ import uuid
 import json
 import threading
 import re
+import random # ✅ A/B ሙከራ ቫሪያንት በዳይናሚክ ለመምረጥ የተጨመረ [1]
 from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -26,15 +27,7 @@ from django.db import connection, connections, transaction
 from django.core.serializers.json import DjangoJSONEncoder
 from django.core.cache import cache
 from django.db.models import Count, Sum, Q, Avg, Case, When, IntegerField, Value
-
-# ሁሉንም የኤጀንት ሞዴሎች ማምጣት
-from .models import (
-    Product, Category, UserSearch, SiteConfig, MarketTrend, SelfHealingLog,
-    AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction, TranslationQueue,
-    SiteRegistry, CustomerAcquisitionLog, MarketingCampaign, SellerProfile, 
-    NotificationQueue, AgentErrorLog, VectorMemory, AgentTask, ABTest, 
-    SecurityLog, PredictionLog, ExternalAPI
-)
+from django.apps import apps
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +76,7 @@ def _generate_contact_links(contact_str):
 # ============================================================
 def theme_context(request):
     """ኤጀንቱ የሚቀይራቸውን የዲዛይን ተለዋዋጮች ለሁሉም ገጾች ያቀርባል"""
-    config = SiteConfig.objects.filter(key="DYNAMIC_UI").first()
+    config = apps.get_model('marketplace', 'SiteConfig').objects.filter(key="DYNAMIC_UI").first()
     return {'theme': _safe_json_decode(config.value, {}) if config else {}}
 
 # ============================================================
@@ -92,6 +85,11 @@ def theme_context(request):
 
 def home(request):
     """ዋና ገጽ — ምርቶችን በብቃት ያሳያል"""
+    Product = apps.get_model('marketplace', 'Product')
+    Category = apps.get_model('marketplace', 'Category')
+    UserSearch = apps.get_model('marketplace', 'UserSearch')
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+
     query = request.GET.get('q', '').strip()  
     category_id = request.GET.get('category')
     site_id = request.GET.get('site')
@@ -127,13 +125,17 @@ def home(request):
     }
     return render(request, 'marketplace/home.html', context)
 
+
 def product_detail(request, pk):
-    """የምርት ዝርዝር — እይታን ይቆጥራል፣ ተዛማጅ ምርቶችን ያሳያል፣ ባለብዙ-ቋንቋ ትርጉም ይደግፋል [1]"""
+    """የምርት ዝርዝር — እይታን ይቆጥራል፣ ተዛማጅ ምርቶችን ያሳያል፣ ባለብዙ-ቋንቋ ትርጉምና A/B ሙከራዎችን ይደግፋል [1]"""
+    Product = apps.get_model('marketplace', 'Product')
+    ABTest = apps.get_model('marketplace', 'ABTest')
+
     product = get_object_or_404(Product.objects.select_related('seller', 'site'), pk=pk, is_active=True)
     product.view_count += 1
     product.save(update_fields=['view_count'])
     
-    # 🔴 ባለብዙ-ቋንቋ ትርጉም ጥበቃ (Dynamic Translation Support)
+    # 🔴 1. ባለብዙ-ቋንቋ ትርጉም ጥበቃ (Dynamic Translation Support)
     lang = request.GET.get('lang', get_language())
     translated_title = product.title
     translated_description = product.description
@@ -146,6 +148,21 @@ def product_detail(request, pk):
                 parts = lang_text.split("|||")
                 translated_title = parts[0].strip()
                 translated_description = parts[1].strip()
+
+    # 🔴 2. A/B ሙከራ ቫሪያንት መራጭ ሎጂክ (A/B Routing Context) [1]
+    # ንቁ የ A/B ሙከራ ለሳይቱ መኖሩን መፈተሽ
+    active_test = ABTest.objects.filter(site=product.site, status='running').first()
+    variant = 'A'
+    if active_test:
+        session_key = f"ab_variant_{active_test.id}"
+        variant = request.session.get(session_key)
+        if not variant:
+            # 50/50 በሆነ ፕሪዲክሽን Variant A ወይም B መርጦ በ session መሸጎጥ
+            variant = random.choice(['A', 'B'])
+            request.session[session_key] = variant
+        
+        # የሙከራ እይታ መጠንን በዳታቤዝ መመዝገብ
+        active_test.record_view(variant)
 
     contact_links = _generate_contact_links(product.contact_info)
     related = Product.objects.filter(category=product.category).exclude(pk=pk)[:4]
@@ -160,12 +177,19 @@ def product_detail(request, pk):
         'related_products': related,
         'contact_links': contact_links,
         'image_gallery': image_gallery,
-        'active_lang': lang
+        'active_lang': lang,
+        'ab_test': active_test,
+        'ab_variant': variant
     })
+
 
 @login_required
 def post_product(request):
     """ምርት መለጠፊያ — ከባለብዙ-ጣቢያና ከምድቦች ውህደት ጋር"""
+    Product = apps.get_model('marketplace', 'Product')
+    Category = apps.get_model('marketplace', 'Category')
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+
     if request.method == "POST":
         title = request.POST.get('title', '').strip()
         price_str = request.POST.get('price', '0').strip()
@@ -240,12 +264,59 @@ def post_success(request):
     """ምርት በስኬት መለጠፉን ማብሰሪያ"""
     return render(request, 'marketplace/post_success.html')
 
+
+# ============================================================
+# 🚪 2.1 FRICTIONLESS GHOST ONBOARDING TOKEN LOGIN
+# ============================================================
+
+@csrf_exempt
+def magic_login_token_view(request):
+    """
+    🚪 ከውዝግብ የጸዳ ፈጣን የ ghost ተጠቃሚ መግቢያ (Frictionless Onboarding Token Link Handler)
+    ስልክ እና ቶክን ተቀብሎ በደህንነት Login በማድረግ በቀጥታ ምርት ማስተዳደሪያው ይመራል [1]።
+    """
+    phone = request.GET.get('phone', '').strip()
+    token = request.GET.get('token', '').strip()
+    
+    if not phone or not token:
+        messages.error(request, _("ያልተሟላ ወይም የተሳሳተ የምስጢር ሊንክ ጥያቄ።"))
+        return redirect('login')
+    
+    SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+    token_cfg = SiteConfig.objects.filter(key=f"ACCESS_TOKEN_{phone}").first()
+    
+    if not token_cfg or not isinstance(token_cfg.value, dict) or token_cfg.value.get('token') != token:
+        messages.error(request, _("ጊዜው ያለፈበት ወይም የተሳሳተ የምስጢር መግቢያ ሊንክ።"))
+        return redirect('login')
+        
+    # ቶክኑ ትክክል ከሆነ ተጠቃሚውን ያለምንም የይለፍ ቃል መግቢያ መፍቀድ (Bypass auth password check)
+    try:
+        user = User.objects.get(username=phone)
+        from django.contrib.auth import login
+        user.backend = 'django.contrib.auth.backends.ModelBackend'
+        login(request, user)
+        
+        messages.success(request, _(f"እንኳን በደህና መጡ {phone}! አዲሱን ምርትዎን በቀጥታ እዚህ ማስተዳደር ይችላሉ።"))
+        # ሻጩ አዲስ ስለሆነ የይለፍ ቃል እንዲያዘጋጅ ማሳሰቢያ በ session መሸጎጥ
+        request.session['frictionless_needs_password'] = True
+        return redirect('manage_backlog') # በቀጥታ ወደ እቅድ ማኔጀር ይመራል
+    except User.DoesNotExist:
+        messages.error(request, _("ተጠቃሚው አልተገኘም።"))
+        return redirect('login')
+
+
 # ============================================================
 # 🧠 3. CEO COMMAND & GROWTH (የኤጀንቱ ዕዝ ማዕከል)
 # ============================================================
 @staff_member_required
 def admin_growth_dashboard(request):
     """ዋናው የ CEO መቆጣጠሪያ ዳሽቦርድ"""
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+    SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+    AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
+    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+    AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
+
     total_rev = SiteRegistry.objects.aggregate(total_rev=Sum('monthly_revenue'))['total_rev']
     
     lock_config = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
@@ -269,6 +340,9 @@ def admin_growth_dashboard(request):
 @staff_member_required
 def owner_directive_view(request):
     """የባለቤት ቀጥተኛ መመሪያ መስጫ ገጽ"""
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+    AdminOverrideInstruction = apps.get_model('marketplace', 'AdminOverrideInstruction')
+
     if request.method == "POST":
         instruction = request.POST.get("instruction")
         site_id = request.POST.get("site_id")
@@ -285,7 +359,7 @@ def owner_directive_view(request):
 
 @staff_member_required
 def trigger_evolution(request):
-    """ኤጀንቱን በእጅ ለመቀስቀስ — ድርብ ክሮች እንዳይከፈቱ መቆለፊያ አለው [1]"""
+    """ኤጀንቱን በእጅ ለመቀስቀስ — ድርብ ክሮች እንዳይከፈቱ መቆለፊያ አለው"""
     # 🔴 የ 5 ደቂቃ ራስ-መቆለፊያ (Thread Safety Lock)
     if cache.get("evolution_thread_active"):
         messages.warning(request, "⚠️ የኤጀንቱ የዕድገት ዑደት በአሁኑ ሰዓት እየሠራ ስለሆነ እባክዎ ጥቂት ደቂቃዎች ይጠብቁ።")
@@ -306,20 +380,24 @@ def trigger_evolution(request):
     threading.Thread(target=run_bg_evolution, daemon=True).start()
     messages.success(request, "🔄 የራስ-ገዝ ኤጀንት የዕድገት ዑደት በተሳካ ሁኔታ ተጀምሯል።")
     return redirect('growth_dashboard')
+    
 # ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py
-# 📝 ስሪት፦ v10.16 (Master CEO Views Orchestration - Part 2/2)
-# ✅ የተፈቱ ችግሮች፦ Dynamic A/B test variant converters, Google Search Console API indexer, secure transactional database purge, and complete Backlog Orchestrator.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py (ክፍል 2/2)
+# 📝 ስሪት፦ v10.17 (Master CEO Views Orchestration - Part 2/2)
+# ✅ የተፈቱ ችግሮች፦ Dynamic outbound notification analytics, self-coding compilation success rates, transactional database purge, and complete Backlog Orchestrator.
+# 📅 ቀን፦ Friday, July 03, 2026
 # ============================================================
 
 # ============================================================
-# 🌐 4. MULTI-SITE & MARKETING (ባለብዙ-ጣቢያ አስተዳደር)
+# 🌐 4. MULTI-SITE & MARKETING (ባለብዙ-ጣቢያ እና የግብይት አስተዳደር)
 # ============================================================
 
 @staff_member_required
 def sites_dashboard(request):
     """ሁሉንም ንዑስ ጣቢያዎች (Niches) በአንድ ላይ ማሳያ"""
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+    User = apps.get_model('auth', 'User')
+
     sites = SiteRegistry.objects.annotate(
         pending_tasks=Sum(Case(When(backlog_tasks__status='Pending', then=Value(1)), default=Value(0), output_field=IntegerField())),
         running_tasks=Sum(Case(When(backlog_tasks__status='Running', then=Value(1)), default=Value(0), output_field=IntegerField())),
@@ -343,6 +421,12 @@ def sites_dashboard(request):
 @staff_member_required
 def site_detail(request, site_id):
     """የአንድ የተወሰነ ንዑስ ጣቢያ ዝርዝር ሁኔታ"""
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+    AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
+    AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
+    MarketingCampaign = apps.get_model('marketplace', 'MarketingCampaign')
+
     site = get_object_or_404(SiteRegistry, id=site_id)
     context = {
         'site': site,
@@ -355,7 +439,31 @@ def site_detail(request, site_id):
 
 @staff_member_required
 def marketing_dashboard(request):
-    """የግብይት፣ የስለላ እና የገበያ ጥናት ዳሽቦርድ"""
+    """የግብይት፣ የስለላ፣ የውጭ ማሳወቂያዎች (SMS/Email) እና የገበያ ጥናት ዳሽቦርድ"""
+    MarketingCampaign = apps.get_model('marketplace', 'MarketingCampaign')
+    CustomerAcquisitionLog = apps.get_model('marketplace', 'CustomerAcquisitionLog')
+    MarketTrend = apps.get_model('marketplace', 'MarketTrend')
+    NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+
+    # 🔴 አዲስ የተጨመረ፦ የውጭ ማሳወቂያዎች (SMS/Email) ዝርዝር ትንተና [1]
+    notification_analytics = NotificationQueue.objects.aggregate(
+        total=Count('id'),
+        sent=Sum(Case(When(is_sent=True, then=Value(1)), default=Value(0), output_field=IntegerField())),
+        pending=Sum(Case(When(is_sent=False, then=Value(1)), default=Value(0), output_field=IntegerField())),
+        sms_count=Sum(Case(When(notification_type='sms', then=Value(1)), default=Value(0), output_field=IntegerField())),
+        email_count=Sum(Case(When(notification_type='email', then=Value(1)), default=Value(0), output_field=IntegerField())),
+    )
+    
+    # 🔴 የሻጮች ልወጣ ትንተና (Merchant Conversion Rates)
+    acquisition_stats = CustomerAcquisitionLog.objects.aggregate(
+        total_contacts=Count('id'),
+        converted=Sum(Case(When(converted_to_seller=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
+    )
+    
+    total_contacts = acquisition_stats.get('total_contacts') or 0
+    converted_sellers = acquisition_stats.get('converted') or 0
+    acquisition_rate = (converted_sellers / max(total_contacts, 1)) * 100 if total_contacts > 0 else 0.0
+
     stats = MarketingCampaign.objects.aggregate(
         total_sent=Sum('total_sent'), 
         total_conv=Sum('total_converted')
@@ -374,6 +482,18 @@ def marketing_dashboard(request):
             'total': MarketingCampaign.objects.count(),
             'running': MarketingCampaign.objects.filter(status='running').count(),
             'total_converted': total_c
+        },
+        'notification_analytics': {
+            'total': notification_analytics.get('total') or 0,
+            'sent': notification_analytics.get('sent') or 0,
+            'pending': notification_analytics.get('pending') or 0,
+            'sms': notification_analytics.get('sms_count') or 0,
+            'email': notification_analytics.get('email_count') or 0,
+        },
+        'acquisition_stats': {
+            'total': total_contacts,
+            'converted': converted_sellers,
+            'rate': f"{acquisition_rate:.1f}%"
         }
     }
     return render(request, 'marketplace/marketing_dashboard.html', context)
@@ -381,27 +501,52 @@ def marketing_dashboard(request):
 @staff_member_required
 def create_marketing_campaign(request):
     """አዲስ የግብይት ካምፔን መፍጠሪያ ገጽ"""
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     if request.method == "POST":
         messages.success(request, "✅ የግብይት ካምፔን በተሳካ ሁኔታ ተፈጥሯል።")
         return redirect('marketing_dashboard')
     return render(request, 'marketplace/create_campaign.html', {
-        'sites': SiteRegistry.objects.filter(is_active=True)
+    'sites': SiteRegistry.objects.filter(is_active=True)
     })
 
 
 # ============================================================
-# ⚖️ 5. AGENT HEALTH & STATUS (ጤና እና ምርመራ)
+# ⚖️ 5. AGENT HEALTH, CODES EVOLUTION & STATUS (ጤና እና ምርመራ)
 # ============================================================
 
 @staff_member_required
 def agent_status_dashboard(request):
-    """የኤጀንቱን ጤንነት፣ ትውስታ እና ስህተቶች ማሳያ"""
+    """የኤጀንቱን ጤንነት፣ የ RAG ትውስታዎች፣ እና የራስ-ገዝ ኮዲንግ (Self-Evolution) ስታቲስቲክስ ማሳያ"""
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+    SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
+    PredictionLog = apps.get_model('marketplace', 'PredictionLog')
+    VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+    SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+    AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
+    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+    AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
+    NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+    AgentTask = apps.get_model('marketplace', 'AgentTask')
+    ABTest = apps.get_model('marketplace', 'ABTest')
+    SecurityLog = apps.get_model('marketplace', 'SecurityLog')
+
     build_avg = SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg']
     
     healing = SelfHealingLog.objects.aggregate(
         total=Count('id'),
         resolved=Sum(Case(When(resolved=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
     )
+    
+    # 🔴 አዲስ የተጨመረ፦ የራስ-ገዝ ኮዲንግ እና የዝግመተ-ለውጥ ስታቲስቲክስ (Self-Coding Audit) [1]
+    evolution_analytics = AIEvolutionLog.objects.aggregate(
+        total_patches=Count('id'),
+        failed_rollbacks=Sum(Case(When(backlog_task__status='Blocked', then=Value(1)), default=Value(0), output_field=IntegerField()))
+    )
+    
+    total_evolutions = evolution_analytics.get('total_patches') or 0
+    failed_rollbacks = evolution_analytics.get('failed_rollbacks') or 0
+    compilation_success_rate = ((total_evolutions - failed_rollbacks) / max(total_evolutions, 1)) * 100 if total_evolutions > 0 else 100.0
+
     pred = PredictionLog.objects.aggregate(
         total=Count('id'),
         traffic=Sum(Case(When(prediction_type='traffic', then=Value(1)), default=Value(0), output_field=IntegerField())),
@@ -441,7 +586,11 @@ def agent_status_dashboard(request):
             'completed': AIProjectBacklog.objects.filter(status='Completed').count()
         },
         'site_stats': {'active': SiteRegistry.objects.filter(is_active=True).count(), 'build_phase': build_avg or 0},
-        'evolution_stats': {'today': today_evolution_count},
+        'evolution_stats': {
+            'today': today_evolution_count,
+            'total_patches': total_evolutions,
+            'compilation_rate': f"{compilation_success_rate:.1f}%"
+        },
         'healing_stats': healing,
         'prediction_stats': pred,
         'success_rate': success_avg or 0,
@@ -457,6 +606,8 @@ def agent_status_dashboard(request):
 
 def advanced_stats_api(request):
     """ለዳሽቦርዱ የቀጥታ መረጃ (JSON) መመለሻ"""
+    VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
     success_avg = VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg']
     data = {
         'pending': AIProjectBacklog.objects.filter(status='Pending').count(),
@@ -494,6 +645,7 @@ def logout_view(request):
 @csrf_exempt
 def trigger_autonomous_evolution(request):
     """ከውጭ ክሮን (External Webhook) ኤጀንቱን ለመቀስቀስ"""
+    SiteConfig = apps.get_model('marketplace', 'SiteConfig')
     config, created = SiteConfig.objects.get_or_create(key="LAST_SUCCESSFUL_CRON_PING")
     config.value = {"time": timezone.now().isoformat(), "source": "webhook"}
     config.save()
@@ -508,6 +660,18 @@ def purge_database_view(request):
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=400)
     
+    Product = apps.get_model('marketplace', 'Product')
+    SellerProfile = apps.get_model('marketplace', 'SellerProfile')
+    NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+    SecurityLog = apps.get_model('marketplace', 'SecurityLog')
+    AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
+    AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
+    VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+    SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
+    TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+
     models_to_purge = [
         Product, SellerProfile, NotificationQueue, AIProjectBacklog,
         SecurityLog, AgentErrorLog, AIEvolutionLog, VectorMemory,
@@ -546,6 +710,7 @@ def toggle_autopilot_view(request):
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=400)
         
+    SiteConfig = apps.get_model('marketplace', 'SiteConfig')
     try:
         data = json.loads(request.body)
         active = data.get('active', False)
@@ -567,6 +732,9 @@ def manage_backlog_view(request):
     🔴 የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator)
     ሁሉንም የኤጀንት ስራዎች መተንተኛ፣ መቆጣጠሪያ፣ እንደገና መመዝገቢያ እና በእጅ ወደ GitHub መግፊያ ገጽ [1, 2]
     """
+    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+
     if request.method == "POST":
         action = request.POST.get('action')
         task_id = request.POST.get('task_id')
@@ -649,6 +817,7 @@ def manage_backlog_view(request):
 @csrf_exempt
 def record_ab_view_api(request, test_id):
     """የ A/B ሙከራ የእይታ መጠንን (Variant Views) በስለላ ለመመዝገብ [1]"""
+    ABTest = apps.get_model('marketplace', 'ABTest')
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=400)
     try:
@@ -664,6 +833,7 @@ def record_ab_view_api(request, test_id):
 @csrf_exempt
 def record_ab_conversion_api(request, test_id):
     """የ A/B ሙከራ የግዢ መጠንን (Variant Conversions) ለመመዝገብ [1]"""
+    ABTest = apps.get_model('marketplace', 'ABTest')
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=400)
     try:
@@ -683,6 +853,11 @@ def google_search_console_index_view(request):
     🔴 የጎግል ሰርች ኮንሶል ኤፒአይ ኢንዴክሰር (Google Search Console API Indexer)
     ያልተመረመሩ ምርቶችን ለይቶ ለጎግል ሰርች ሞተር የቀጥታ መመዝገቢያ ጥያቄ ይልካል [1]
     """
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+    ExternalAPI = apps.get_model('marketplace', 'ExternalAPI')
+    Product = apps.get_model('marketplace', 'Product')
+    PredictionLog = apps.get_model('marketplace', 'PredictionLog')
+
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=400)
         
@@ -721,3 +896,120 @@ def google_search_console_index_view(request):
     except Exception as e:
         logger.error(f"GSC API indexing failed: {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+        
+# ============================================================
+# 📡 8. HARVESTER ORCHESTRATOR CENTER (የይዘት አሰሳ እዝ ማዕከል)
+# ============================================================
+
+@staff_member_required
+@csrf_exempt
+def harvester_orchestrator_view(request):
+    """
+    📡 የይዘት አሰሳ መቆጣጠሪያ፣ አዳዲስ ዌብሳይቶችን በእጅ መመዝገቢያ፣
+    የአክቲቭ/የታገዱ ምንጮች ዝርዝር እና በየቀኑ/በየወሩ የተሰበሰቡ ምርቶች ትንተና ሰሌዳ [1, 2]
+    """
+    SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+    SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+    Product = apps.get_model('marketplace', 'Product')
+    SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
+    NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+
+    sites = SiteRegistry.objects.filter(is_active=True)
+    selected_site_id = request.GET.get('site_id') or (str(sites.first().id) if sites.exists() else None)
+    
+    current_site = None
+    if selected_site_id and selected_site_id.isdigit():
+        current_site = get_object_or_404(SiteRegistry, id=selected_site_id)
+
+    # 🔄 1. አድሚኑ አዲስ የዳሰሳ ምንጭ (Telegram/Jiji/Web) በእጅ ሲጨምር
+    if request.method == "POST" and request.POST.get('action') == "add_source" and current_site:
+        url_or_channel = request.POST.get('url_or_channel', '').strip()
+        platform_type = request.POST.get('platform_type', 'Telegram').strip()
+        
+        if url_or_channel:
+            reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
+            registry, created = SiteConfig.objects.get_or_create(key=reg_key, defaults={'value': []})
+            
+            current_sources = registry.value if isinstance(registry.value, list) else []
+            # ተደጋጋሚ እንዳይሆን መፈተሽ
+            if not any(src.get('url_or_channel') == url_or_channel for src in current_sources):
+                current_sources.append({
+                    "url_or_channel": url_or_channel,
+                    "platform_type": platform_type,
+                    "added_by": "admin",
+                    "created_at": timezone.now().isoformat()
+                })
+                registry.value = current_sources
+                registry.save()
+                messages.success(request, f"✅ Source '{url_or_channel}' successfully added to the active queue of '{current_site.display_name}'!")
+            else:
+                messages.warning(request, "⚠️ This source is already in the active crawl queue.")
+        return redirect(f"/admin/harvester/?site_id={selected_site_id}")
+
+    # 🔄 2. ምንጭን ከወረፋ ላይ በቋሚነት ለመሰረዝ
+    if request.method == "POST" and request.POST.get('action') == "delete_source" and current_site:
+        url_or_channel = request.POST.get('url_or_channel', '').strip()
+        reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
+        registry = SiteConfig.objects.filter(key=reg_key).first()
+        
+        if registry and isinstance(registry.value, list):
+            filtered_sources = [src for src in registry.value if src.get('url_or_channel') != url_or_channel]
+            registry.value = filtered_sources
+            registry.save()
+            messages.success(request, f"❌ Source '{url_or_channel}' successfully removed from the crawl queue.")
+        return redirect(f"/admin/harvester/?site_id={selected_site_id}")
+
+    # 📋 3. ንቁ የሆኑ የዳሳሽ ምንጮችን ከካሽ ማምጣት (Active Queue)
+    active_sources = []
+    if current_site:
+        reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
+        registry = SiteConfig.objects.filter(key=reg_key).first()
+        if registry and isinstance(registry.value, list):
+            active_sources = registry.value
+
+    # ❌ 4. የታገዱ/የተሰረዙ (Dropped) ዌብሳይቶችን ከ SelfHealingLog ላይ መፈለግ [1]
+    # 'dropping' የሚል ቃል ያላቸውን የጥገና ሎጎች በመቃኘት የማይሰሩ ምንጮችን ዝርዝር ማውጣት
+    dropped_sources = SelfHealingLog.objects.filter(
+        error_message__icontains="dropping"
+    ).order_by('-created_at')[:15]
+
+    # 📊 5. የውሂብ ትንተናዎች (Dynamic Analytics) [1]
+    today = timezone.now().date()
+    yesterday = today - timedelta(days=1)
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+
+    stats = {
+        # ዛሬ የተሰበሰቡ ምርቶች
+        'scraped_today': Product.objects.filter(created_at__date=today).count(),
+        # ትናንት የተሰበሰቡ ምርቶች
+        'scraped_yesterday': Product.objects.filter(created_at__date=yesterday).count(),
+        # በዚህ ወር የተሰበሰቡ ምርቶች
+        'scraped_this_month': Product.objects.filter(created_at__gte=thirty_days_ago).count(),
+        # በጠቅላላ የተሰበሰቡ ምርቶች
+        'total_scraped': Product.objects.count(),
+        # ወረፋ ላይ ያሉ የ SMS/Email ማሳወቂያዎች
+        'pending_outbox_sms': NotificationQueue.objects.filter(is_sent=False, notification_type='sms').count(),
+        'sent_outbox_sms': NotificationQueue.objects.filter(is_sent=True, notification_type='sms').count()
+    }
+
+    # 📈 6. የ 7-ቀን የምርት አሰሳ የዕድገት ሰንጠረዥ (7-Day Crawling Trend) [1, 2]
+    # የ Chart.js ግራፍ ለመሳል እንዲያመች የየቀኑን መረጃ ማደራጀት
+    daily_trend = []
+    for i in range(6, -1, -1):
+        target_date = today - timedelta(days=i)
+        count = Product.objects.filter(created_at__date=target_date).count()
+        daily_trend.append({
+            'date': target_date.strftime('%b %d'),
+            'count': count
+        })
+
+    context = {
+        'sites': sites,
+        'current_site': current_site,
+        'active_sources': active_sources,
+        'dropped_sources': dropped_sources,
+        'stats': stats,
+        'daily_trend_json': json.dumps(daily_trend), # ለ Chart.js በ JSON ይተላለፋል
+        'live_time': timezone.now()
+    }
+    return render(request, 'marketplace/harvester_orchestrator.html', context)

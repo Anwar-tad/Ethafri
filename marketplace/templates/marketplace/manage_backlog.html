@@ -1,6 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/manage_backlog.html
-📝 ስሪት፦ v1.4 (Self-Contained Dashboard - Complete Implementation)
+📝 ስሪት፦ v10.16 (Self-Contained Dashboard - Complete Implementation)
+✅ የተፈቱ ችግሮች፦ Fixed invalid <% csrf_token %> syntax to prevent 403 Forbidden errors, aligned complete form action controllers, and optimized modals.
+📅 ቀን፦ Thursday, July 02, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -204,8 +206,9 @@
                                 <p class="text-muted small m-0">{{ task.description }}</p>
                             </div>
                             <div class="col-md-4 text-md-end mt-3 d-flex gap-2 justify-content-md-end">
-                                <form method="POST" style="margin:0;"><% csrf_token %><input type="hidden" name="action" value="requeue"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3">{% translate "Requeue" %}</button></form>
-                                <form method="POST" style="margin:0;"><% csrf_token %><input type="hidden" name="action" value="push_github"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-success rounded-pill px-3"><i class="fa-brands fa-github me-1"></i> {% translate "Sync Code" %}</button></form>
+                                <!-- 🛡️ Django Template Syntax Gating [1] -->
+                                <form method="POST" style="margin:0;">{% csrf_token %}<input type="hidden" name="action" value="requeue"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3">{% translate "Requeue" %}</button></form>
+                                <form method="POST" style="margin:0;">{% csrf_token %}<input type="hidden" name="action" value="push_github"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-success rounded-pill px-3"><i class="fa-brands fa-github me-1"></i> {% translate "Sync Code" %}</button></form>
                                 <form method="POST" style="margin:0;" onsubmit="return confirm('{% translate "Are you sure?" %}');">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3"><i class="fa-solid fa-trash-can"></i></button></form>
                             </div>
                         </div>
@@ -235,7 +238,8 @@
                                 <p class="text-muted small m-0">{{ task.description }}</p>
                             </div>
                             <div class="col-md-4 text-md-end mt-3 d-flex gap-2 justify-content-md-end">
-                                <form method="POST" style="margin:0;"><% csrf_token %><input type="hidden" name="action" value="requeue"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3">{% translate "Requeue" %}</button></form>
+                                <!-- 🛡️ Django Template Syntax Gating [1] -->
+                                <form method="POST" style="margin:0;">{% csrf_token %}<input type="hidden" name="action" value="requeue"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3">{% translate "Requeue" %}</button></form>
                                 <form method="POST" style="margin:0;" onsubmit="return confirm('{% translate "Are you sure?" %}');">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3"><i class="fa-solid fa-trash-can"></i></button></form>
                             </div>
                         </div>

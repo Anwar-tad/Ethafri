@@ -1,6 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/site_detail.html
-📝 ስሪት፦ v1.4 (Site Specific Intelligence - Complete Implementation)
+📝 ስሪት፦ v10.16 (Site Specific Intelligence - Optimized Edition)
+✅ የተፈቱ ችግሮች፦ Defused WebSocket query flood via 10-second debounce throttling, prevented Render CPU spikes, and protected database from starvation.
+📅 ቀን፦ Thursday, July 02, 2026
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -8,7 +10,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -47,46 +49,42 @@
                         <span class="metric-lbl small opacity-75">{% trans "Visitors" %}</span>
                     </div>
                     <div class="metric-item d-flex flex-column">
-                        <span class="metric-val fs-3 fw-bold" id="site-revenue-val">ETB {{ site.monthly_revenue|floatformat:0 }}</span>
-                        <span class="metric-lbl small opacity-75">{% trans "Revenue" %}</span>
+                        <span class="site-revenue-val stat-val text-success fw-bold" style="font-size: 1.5rem; font-weight: bold;">ETB {{ site.monthly_revenue|floatformat:0 }}</span>
+                        <span class="stat-label d-block small text-white-50">{% trans "Revenue" %}</span>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-5 text-lg-end mt-4 mt-lg-0">
-                <div class="d-flex flex-column gap-2">
-                    <form method="POST" action="{% url 'trigger_evolution' %}">
+            <div class="col-md-5 text-md-end mt-3 mt-md-0">
+                <div class="d-flex justify-content-md-end gap-2">
+                    <form method="POST" action="{% url 'trigger_evolution' %}" style="margin: 0;">
                         {% csrf_token %}
-                        <input type="hidden" name="site_id" value="{{ site.id }}">
-                        <button type="submit" class="btn btn-light btn-lg rounded-pill px-4 w-100 fw-bold shadow">
-                            <i class="fas fa-robot me-2 text-primary"></i> {% trans "Force Site Audit" %}
+                        <button type="submit" class="btn btn-info btn-lg rounded-pill px-4 fw-bold shadow-lg">
+                            <i class="fas fa-sync-alt me-2"></i> {% trans "Run Evolution" %}
                         </button>
                     </form>
-                    <a href="{{ site.deployment_url|default:'#' }}" target="_blank" class="btn btn-outline-light rounded-pill px-4 py-2">
-                        <i class="fas fa-external-link-alt me-2"></i> {% trans "Visit Live Site" %}
-                    </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 🛠️ Intelligence Tabs -->
-    <ul class="nav nav-pills nav-pills-custom gap-2 mb-4 justify-content-center" id="siteDetailTabs" role="tablist">
-        <li class="nav-item">
-            <button class="nav-link active rounded-pill px-4 fw-bold" data-bs-toggle="tab" data-bs-target="#tab-backlog">
-                <i class="fas fa-list-check me-2"></i>{% trans "Backlog" %}
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link rounded-pill px-4 fw-bold" data-bs-toggle="tab" data-bs-target="#tab-evolution">
-                <i class="fas fa-dna me-2"></i>{% trans "History" %}
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link rounded-pill px-4 fw-bold" data-bs-toggle="tab" data-bs-target="#tab-errors">
-                <i class="fas fa-bug me-2"></i>{% trans "Errors" %}
-            </button>
-        </li>
-    </ul>
+        <!-- 🧭 Tab Navigation -->
+        <ul class="nav nav-pills mb-4 bg-white p-2 rounded-4 shadow-sm d-flex gap-2" id="backlogTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active rounded-pill" id="backlog-tab" data-bs-toggle="pill" data-bs-target="#backlog" type="button" role="tab">
+                    <i class="fa-solid fa-rectangle-list me-1 text-primary"></i> {% trans "Backlog" %}
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill" id="evolutions-tab" data-bs-toggle="pill" data-bs-target="#evolutions" type="button" role="tab">
+                    <i class="fas fa-dna me-1 text-info"></i> {% trans "Evolutions" %}
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill" id="errors-tab" data-bs-toggle="pill" data-bs-target="#errors" type="button" role="tab">
+                    <i class="fas fa-bug me-1 text-danger"></i> {% trans "Errors" %}
+                </button>
+            </li>
+        </ul>
 
     <div class="tab-content">
         <!-- 📋 Backlog Tab -->
@@ -113,42 +111,42 @@
             </div>
         </div>
 
-        <!-- 🧬 Evolution History -->
-        <div class="tab-pane fade" id="tab-evolution">
-            <div class="tab-pane-content bg-white p-4 rounded-4 shadow-sm border">
-                <h5 class="fw-bold mb-4">{% trans "System Evolution History" %}</h5>
+        <!-- 🧬 Evolutions Tab -->
+        <div class="tab-pane fade" id="evolutions" role="tabpanel">
+            <div class="glass-card" style="background: white; border-radius: 1rem; padding: 2rem;">
+                <h5 class="fw-bold mb-3 text-primary"><i class="fas fa-dna me-2"></i> {% trans "Evolution History" %}</h5>
                 {% for log in evolutions %}
                 <div class="p-3 border-bottom border-light">
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="fw-bold text-primary">{{ log.target_file|upper }}</span>
-                        <small class="text-muted">{{ log.created_at|date:"M d, Y H:i" }}</small>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small fw-bold text-primary">Updated: {{ log.target_file }}</span>
+                        <small class="text-muted">{{ log.created_at|date:"H:i" }}</small>
                     </div>
-                    <div class="small">{{ log.reason_for_change }}</div>
+                    <div class="small text-muted">{{ log.reason_for_change }}</div>
                 </div>
                 {% empty %}
-                <p class="text-center py-5 text-muted">{% trans "No evolution records yet." %}</p>
+                <p class="text-center py-4 text-muted small">No recent evolutions.</p>
                 {% endfor %}
             </div>
         </div>
 
-        <!-- 🚑 Errors & Health -->
-        <div class="tab-pane fade" id="tab-errors">
-            <div class="tab-pane-content bg-white p-4 rounded-4 shadow-sm border">
-                <h5 class="fw-bold mb-4">{% trans "Unresolved Issues" %}</h5>
+        <!-- ❌ Tab: Blocked / Errors -->
+        <div class="tab-pane fade" id="errors" role="tabpanel">
+            <div class="glass-card">
+                <h5 class="fw-bold mb-3 text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i> {% translate "Blocked / Failed Compilations" %}</h5>
                 {% for err in error_logs %}
-                <div class="alert alert-danger rounded-4 border-0 mb-3">
-                    <div class="d-flex justify-content-between">
-                        <strong class="text-capitalize">{{ err.error_type }}</strong>
-                        <small>{{ err.created_at|timesince }} {% trans "ago" %}</small>
+                    <div class="p-4 mb-3 rounded-4 bg-white border shadow-sm" style="border-left: 5px solid #dc3545;">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="fw-bold text-dark mb-2">{{ err.task_name }}</h5>
+                                <p class="text-danger small m-0">{{ err.error_message }}</p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="small mt-1">{{ err.error_message }}</div>
-                </div>
                 {% empty %}
-                <div class="text-center py-5">
-                    <i class="fas fa-shield-halved text-success fa-4x mb-3"></i>
-                    <h5 class="text-success fw-bold">{% trans "Niche Health" %}: 100%</h5>
-                    <p class="text-muted">{% trans "No unresolved system or code errors found." %}</p>
-                </div>
+                    <div class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-shield-heart fa-3x mb-3 opacity-25"></i>
+                        <p class="m-0">{% translate "Zero blocked tasks. AST Compiler is happy." %}</p>
+                    </div>
                 {% endfor %}
             </div>
         </div>
@@ -158,16 +156,20 @@
 
 {% block extra_js %}
 <script>
-    // 📟 WebSocket Connection — የነጠላ ሳይት መረጃዎችን በእውነተኛ ሰዓት ለመቆጣጠር የተገጠመ ሎጂክ
+    // 📟 WebSocket Connection
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
 
+    // 🛡️ CPU PACING GUARD: በየሰከንዱ የሚላኩ የሎግ ጥያቄዎች ሰርቨሩን እንዳያጨናንቁት የ 10 ሰከንድ ታይምአውት መገደቢያ [1]
+    let lastRequestTime = 0;
+    const REQUEST_DEBOUNCE_MS = 10000; // 10 ሰከንድ
+
     socket.onopen = function() {
-        // ገጹ ሲከፈት የዚህን ሳይት ሁኔታ ለይቶ በእውነተኛ ሰዓት እንዲያመጣልን ጥሪ ማድረግ
         socket.send(JSON.stringify({
             action: 'get_site_status',
             site_id: "{{ site.id }}"
         }));
+        lastRequestTime = Date.now();
     };
 
     socket.onmessage = function(event) {
@@ -182,7 +184,7 @@
             const visEl = document.getElementById('site-visitors-val');
             const revEl = document.getElementById('site-revenue-val');
             
-            if (prodEl) prodEl.innerText = site.total_products;
+            if (prodEl) prodEl.innerText = site.real_products;
             if (visEl) visEl.innerText = site.monthly_visitors;
             if (revEl) revEl.innerText = 'ETB ' + parseFloat(site.monthly_revenue).toFixed(0);
             
@@ -209,19 +211,23 @@
                                     <span class="badge bg-${badgeColor} rounded-pill me-2">${task.priority}</span>
                                     <span class="fw-bold">${task.name}</span>
                                 </div>
-                                <span class="text-muted small fw-bold">⚡ Impact: ${task.business_impact}/10</span>
+                                <span class="text-muted small fw-bold">📁 ${task.target_file}</span>
                             </div>`;
                     });
                     backlogContainer.innerHTML = html;
                 }
             }
         }
-        // ተርሚናል ሎግ ሲመጣ መረጃዎችን በየሰከንዱ ዳግም አፕዴት እንዲያደርግ መጠየቅ
+        // 🛡️ የደህንነት መቆጣጠሪያ፦ የ terminal_log መልእክት በደረሰ ቁጥር ሰርቨሩ ላይ ድምር ኳሪዎችን ከመላክ ይልቅ በየ 10 ሰከንዱ አንድ ጊዜ ብቻ እንዲጠይቅ መገደብ [1]
         else if (data.type === 'terminal_log') {
-            socket.send(JSON.stringify({
-                action: 'get_site_status',
-                site_id: "{{ site.id }}"
-            }));
+            const now = Date.now();
+            if (now - lastRequestTime > REQUEST_DEBOUNCE_MS) {
+                lastRequestTime = now;
+                socket.send(JSON.stringify({
+                    action: 'get_site_status',
+                    site_id: "{{ site.id }}"
+                }));
+            }
         }
     };
 </script>

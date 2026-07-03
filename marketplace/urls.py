@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/urls.py
-# 📝 ስሪት፦ v10.16 (Master CEO Agent URL Mapping - Complete Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic URL namespaces, aligned backlog orchestrator routing, secure API GSC indexers, and Ajax A/B test variant converters.
+# 📝 ስሪት፦ v10.17 (Master CEO Agent URL Mapping - Complete & Aligned Edition)
+# ✅ የተፈቱ ችግሮች፦ Integrated frictionless token-based login routing, dynamic GSC indexer endpoint, and Ajax A/B test variant converters.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
@@ -9,18 +9,27 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # 🏠 1. የገበያ ቦታው ዋና ክፍሎች (Core Marketplace)
+    # ============================================================
+    # 🏠 1. የገበያ ቦታው ዋና ክፍሎች (Core Marketplace Views)
+    # ============================================================
     path('', views.home, name='home'),
     path('product/<int:pk>/', views.product_detail, name='product_detail'),
     path('post/', views.post_product, name='post_product'),
     path('success/', views.post_success, name='post_success'),
     
+    # ============================================================
     # 🔐 2. የተጠቃሚዎች ማንነት ማረጋገጫ (Authentication)
+    # ============================================================
     path('signup/', views.signup_view, name='signup'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     
+    # 🚪 ከውዝግብ የጸዳ ፈጣን የ ghost ተጠቃሚ መግቢያ (Frictionless Onboarding Token Link Handler) [1]
+    path('api/login-token/', views.magic_login_token_view, name='magic_login_token'),
+    
+    # ============================================================
     # 🧠 3. የኤጀንቱ የሥራ መቆጣጠሪያ (Master CEO Command Center)
+    # ============================================================
     # የባለቤቱ ዋና የዕድገት ዳሽቦርድ
     path('growth-dashboard/', views.admin_growth_dashboard, name='growth_dashboard'),
     
@@ -63,8 +72,10 @@ urlpatterns = [
     path('api/agent/purge-db/', views.purge_database_view, name='api_purge_database'),
     path('api/agent/toggle-autopilot/', views.toggle_autopilot_view, name='api_toggle_autopilot'),
     
-    # 🟢 አዲስ የተጨመሩ የ A/B ሙከራ እና የ GSC API ኢንዴክሰር አድራሻዎች [1]
+    # 🔴 አዲስ የተጨመሩ የ A/B ሙከራ እና የ GSC API ኢንዴክሰር አድራሻዎች [1]
     path('api/ab-test/<int:test_id>/view/', views.record_ab_view_api, name='api_record_ab_view'),
     path('api/ab-test/<int:test_id>/conversion/', views.record_ab_conversion_api, name='api_record_ab_conversion'),
     path('api/agent/gsc-index/', views.google_search_console_index_view, name='api_gsc_index'),
+    # 📡 9. የይዘት አሰሳ መቆጣጠሪያ አድራሻ (Harvester Orchestrator)
+    path('admin/harvester/', views.harvester_orchestrator_view, name='harvester_orchestrator'),
 ]
