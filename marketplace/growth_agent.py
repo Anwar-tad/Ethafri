@@ -1000,58 +1000,172 @@ class CompetitorIntelligenceEngine:
 # 💼 CEO OPERATIONS
 # ============================================================
 
+# ============================================================
+# 💼 CEO OPERATIONS (ክፍል 2/3 - ሙሉ ኮድ)
+# ============================================================
+
 class CEOOperations:
     def __init__(self, site):
         self.site = site
 
     def run_business_growth(self):
+        """የንግድ ዕድገት ዑደት (Bulk Harvesting + Listing Curation)"""
         self._harvest_verified_products_bulk()
         self.curate_user_listings()
         self._boost_revenue()
         self.dispatch_pending_notifications()
 
-    @staticmethod
-    def _heuristic_parse_text(text):
-        """የ AI ጥሪዎች ሙሉ በሙሉ ቢቋረጡም በሪጀክስ ምርቶችን ፈልቅቆ የሚጭን ሎጂክ"""
-        if not text: 
-            return None
+    def _heuristic_parse_text(self, text):
+        """የ AI ጥሪዎች ሙሉ በሙሉ ቢቋረጡ በሪጀክስ ምርቶችን የሚፈትሽ (Survival Line)"""
+        if not text: return None
         lines = [l.strip() for l in text.split('\n') if l.strip()]
-        if not lines: 
-            return None
-            
+        if not lines: return None
+        
         title = lines[0][:150]
         phone_match = re.search(r'(?:\+251|09|07)\d{8}', text)
         tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text)
         
-        contact = ""
-        if phone_match: 
-            contact = phone_match.group(0)
-        elif tg_match: 
-            contact = tg_match.group(0)
-        else: 
-            contact = "0900000000"
+        contact = phone_match.group(0) if phone_match else (tg_match.group(0) if tg_match else "0900000000")
             
+        # ዋጋን በሪጀክስ መለየት
         price = 0.0
-        price_match = re.search(r'(?:ዋጋ|Waga|Price|Birr|Br|ETB|ብር)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE)
-        if not price_match:
-            price_match = re.search(r'([\d,]+)\s*(?:ብር|ETB|Birr|Br)', text, re.IGNORECASE)
-            
+        price_match = re.search(r'(?:ዋጋ|Price|Birr|ETB|ብር)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE)
         if price_match:
             try:
                 price = float(price_match.group(1).replace(',', ''))
             except ValueError:
                 price = 0.0
-                
-        if price == 0.0:
-            numbers = re.findall(r'\b\d{3,6}\b', text)
-            for num in numbers:
-                val = float(num)
-                if 50.0 <= val <= 800000.0:
-                    price = val
-                    break
                     
-        desc = text[:1000]
-        return {"title": title, "price": price, "desc": desc, "seller_contact": contact}
+        return {"title": title, "price": price, "desc": text[:1000], "seller_contact": contact}
+
+    def _harvest_verified_products_bulk(self):
+        """ምርቶችን በጅምላ አሳሽ እና በ AI መተንተኛ (ከ Regex Fallback ጋር የተዋሃደ)"""
+        SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+
+        last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
+        if last:
+            try:
+                last_time = datetime.fromisoformat(last.value.get('time', '2000-01-01'))
+                if (timezone.now() - timezone.make_aware(last_time) if timezone.is_naive(last_time) else timezone.now() - last_time) < timedelta(hours=3):
+                    return
+            except: pass
+
+        harvester = MultiChannelHarvester()
+        raw_data_pool = harvester.discover_and_harvest_niche_sources(self.site)
+        if not raw_data_pool: return
+
+        products = []
+        try:
+            prompt = f"Extract products fitting '{self.site.niche}' niche. JSON format: {{'products': [...]}}"
+            data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+            if data and isinstance(data, dict):
+                products = data.get('products', [])
+        except:
+            logger.warning("AI Harvesting failed, using fallback...")
+
+        if not products:
+            for item in raw_data_pool:
+                parsed = self._heuristic_parse_text(item.get('text', ''))
+                if parsed:
+                    parsed['image_url'] = item.get('image_url', '')
+                    products.append(parsed)
+
+        if products:
+            self._seed_listings_bulk(products)
+            SiteConfig.objects.update_or_create(key=f"LAST_HARVEST_{self.site.name}", defaults={'value': {'time': timezone.now().isoformat()}})
+
+    def _save_image_to_cloudinary_permanently(self, raw_img_url):
+        """ምስሎችን ወደ Cloudinary በቋሚነት በመጫን Secure URL የሚያመነጭ"""
+        if not raw_img_url or not raw_img_url.startswith('http'): return ""
+        try:
+            import cloudinary.uploader
+            res = requests.get(raw_img_url, timeout=5)
+            if res.status_code == 200:
+                upload_data = cloudinary.uploader.upload(res.content, folder="products_scraped/")
+                return upload_data.get('secure_url', raw_img_url)
+        except Exception as e:
+            logger.error(f"Cloudinary upload failed: {e}")
+        return raw_img_url
+
+    def _seed_listings_bulk(self, products_list):
+        """ምርቶችን በጅምላ ይጭናል እና Frictionless ምዝገባን ይፈጥራል"""
+        Product = apps.get_model('marketplace', 'Product')
+        SellerProfile = apps.get_model('marketplace', 'SellerProfile')
+        NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+        SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+
+        products_to_create, notifications_to_create = [], []
+
+        for p in products_list:
+            if not p.get('title') or not p.get('seller_contact'): continue
+            
+            try:
+                uname = p['seller_contact'].replace('@', '').replace('+', '').strip()
+                user, _ = User.objects.get_or_create(username=uname, defaults={'is_active': True})
+                user.set_unusable_password(); user.save()
+                SellerProfile.objects.get_or_create(user=user, defaults={'site': self.site})
+
+                # Frictionless Login Token
+                login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode()).hexdigest()[:16]
+                SiteConfig.objects.update_or_create(key=f"ACCESS_TOKEN_{uname}", defaults={'value': {'token': login_token}})
+
+                magic_url = f"{self.site.deployment_url or 'https://ethafri.com'}/api/login-token/?phone={uname}&token={login_token}"
+
+                product_obj = Product(
+                    seller=user, site=self.site, title=p['title'], price=float(p.get('price', 0)),
+                    description=p.get('desc', ''), image_url=self._save_image_to_cloudinary_permanently(p.get('image_url', '')),
+                    contact_info=p['seller_contact'], is_active=True
+                )
+                products_to_create.append(product_obj)
+                notifications_to_create.append(NotificationQueue(
+                    site=self.site, recipient=p['seller_contact'], notification_type='sms',
+                    message=f"የለጠፉት ምርት ተለጥፏል! ለማስተዳደር በዚህ ሊንክ ይግቡ፦ {magic_url}"
+                ))
+            except Exception as e: logger.error(f"Seeding Error: {e}")
+
+        with transaction.atomic():
+            if products_to_create:
+                Product.objects.bulk_create(products_to_create)
+            if notifications_to_create:
+                NotificationQueue.objects.bulk_create(notifications_to_create)
+            self.site.save()
+
+    def curate_user_listings(self, limit=5):
+        """ምርቶችን በ AI ማጣሪያ ማጽዳት"""
+        Product = apps.get_model('marketplace', 'Product')
+        NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+        
+        candidates = Product.objects.filter(site=self.site, is_active=True)[:limit]
+        for product in candidates:
+            try:
+                prompt = f"Is this listing spam? Title: {product.title}. Price: {product.price}. JSON: {{'is_valid': bool, 'reason': str}}"
+                result = clean_and_parse_json(ask_master_ai_smart(prompt))
+                if result and not result.get('is_valid', True):
+                    product.is_active = False; product.save()
+                    NotificationQueue.objects.create(site=self.site, recipient=product.seller.username, message="ምርትዎ ተሰርዟል፡ " + result.get('reason', ''))
+                else:
+                    self._generate_translations_for_product(product)
+            except: pass
+
+    def _generate_translations_for_product(self, product):
+        """ምርቱን በራስ-ሰር መተርጎም"""
+        ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
+        texts = [product.title, product.description or ""]
+        for lang in ['am', 'om']:
+            translated = translate_text_incremental(texts, target_lang=lang)
+            ProductTranslation.objects.update_or_create(
+                product=product, defaults={lang: f"{translated.get(product.title, product.title)} ||| {translated.get(product.description or '', '')}"}
+            )
+
+    def _boost_revenue(self):
+        Product = apps.get_model('marketplace', 'Product')
+        for item in Product.objects.filter(site=self.site, view_count__gt=100)[:2]:
+            get_or_create_backlog_task_safe(self.site, task_name=f"Promote: {item.title}", defaults={'priority': 'High'})
+
+    def dispatch_pending_notifications(self):
+        NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+        for note in NotificationQueue.objects.filter(site=self.site, is_sent=False)[:5]:
+            note.is_sent = True; note.sent_at = timezone.now(); note.save()
 
 def _harvest_verified_products_bulk(self):
     """ሁሉንም አይነት ምርቶች በዳይናሚክ ያስሳል - ሁሉንም 6 AI ኪዎች ይጠቀማል"""
