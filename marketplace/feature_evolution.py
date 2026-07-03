@@ -1,27 +1,29 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/feature_evolution.py
-# 📝 ዓላማ፦ Safe, Advanced, and Fast Self-Evolution Code Generator Engine (v10.16)
-# ✅ የተፈቱ ችግሮች፦ Decoupled schema-compliant logging, core file erasure safeguard, auto-import injection, and multi-thread safe file writing.
-# 📅 ቀን፦ Friday, July 03, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/feature_evolution.py
+# 📝 ዓላማ፦ Safe, Advanced, and Fast Self-Evolution Code Generator Engine (v10.17)
+# ✅ የተፈቱ ችግሮች፦ Dynamic model schema logging, core file erasure safeguard, auto-import injection, and thread-safe file writing.
 # ============================================================
 
 import os
 import ast
 import json
 import logging
-import re,sys
+import re
 import time
+import sys
+import threading  # ✅ 'threading' is not defined ስህተትን ለመከላከል የተጨመረ
+
 from datetime import timedelta
 from django.utils import timezone
 from django.apps import apps
-from django.conf import settings
 
 from .ai_utils import clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log
 from .code_apply import apply_code_change, apply_surgical_patch
+from .self_doctor import SecurityAuditor, AntiBloatEngine
 
 logger = logging.getLogger(__name__)
 
-# የ I/O ሂደቶች እርስ በእርሳቸው እንዳይጋጩ መቆለፊያ (Race-Condition Guard)
+# የ I/O ሂደቶች እርስ በእርሳቸው እንዳይጋጩ መቆለፊያ (Race-Condition Guard) [1]
 _evolution_write_lock = threading.Lock() if 'threading' in sys.modules else None
 
 
@@ -44,12 +46,12 @@ class FeatureEvolutionEngine:
         self.ErrorLogModel = apps.get_model('marketplace', 'AgentErrorLog')
         
     def evolve(self):
-        """ሙሉ የራስ-እድገት ዑደት ያካሂዳል"""
+        """የኮድ ዝግመተ-ለውጥ ዑደትን ያስፈጽማል (Self-Evolution Loop)"""
         logger.info(f"🧬 Starting self-evolution cycle for {self.site.name}...")
         broadcast_agent_log(self.site, "🧬 Self-Evolution: Scanning repository codebase for missing features...", "info")
         
         try:
-            # 1. የጎደሉትን ፊቸሮች በ AI ፍለጋ-ተኮር ሎጂክ መለየት
+            # 1. የጎደሉትን ፊቸሮች በ AI ፈልጎ መለየት
             self.discover_missing_features()
             
             if not self.pending_features:
@@ -124,7 +126,7 @@ class FeatureEvolutionEngine:
         """አዲስ ፊቸር ይፈጥራል - የደህንነት ጋሻዎችን ያጠቃልላል"""
         logger.info(f"🔨 Creating feature: {feature['name']}")
         
-        # የክብ ጥገኝነትን በዘላቂነት ለመከላከል የ growth_agent ረዳቶችን በዳይናሚክ መጫን
+        # የክብ ጥገኝነትን ለመከላከል የ growth_agent ረዳቶችን በዳይናሚክ መጫን [1]
         from .growth_agent import (
             resolve_local_file_path, 
             verify_disk_write, 
@@ -144,24 +146,31 @@ class FeatureEvolutionEngine:
             try:
                 with open(local_path, 'r', encoding='utf-8') as f:
                     old_code = f.read()
-            except Exception as read_err:
-                logger.debug(f"Failed to read backup for {file_name}: {read_err}")
+            except Exception:
+                pass
 
-        # የኮድ አጻጻፍ መመሪያ ፕሮምፕት ማዘጋጀት
-        code = self._generate_code(feature, is_core_file)
-        if not code:
+        # 3. የ AI ኮድ ማመንጨት
+        prompt = (
+            f"Write the full, clean Python code for {file_name}.\n"
+            f"You MUST include imports: import time, logging, json, os, re, gc.\n"
+            f"Ensure all models are accessed dynamically using apps.get_model to avoid registry crashes.\n"
+            f"Return JSON with key 'code' containing the full file content."
+        )
+
+        new_code = self._generate_code(feature, is_core_file)
+        if not new_code:
             return False
 
-        # 1. 🛡️ Pre-write Sandbox & Syntax check
+        # Sandbox & Syntax check
         if file_name.endswith('.py') or not is_html_target(file_name):
             try:
-                ast.parse(code)
+                ast.parse(new_code)
             except SyntaxError as syntax_err:
                 logger.error(f"❌ Syntax validation failed for generated code: {syntax_err}")
                 return False
 
-        # 2. የደህንነት ጋሻ ኦዲት (Security Scanner)
-        is_safe, security_issues = SecurityAuditor.scan_code_safety(code, file_path=local_path, site=self.site)
+        # የደህንነት ጋሻ ኦዲት
+        is_safe, security_issues = SecurityAuditor.scan_code_safety(new_code, file_path=local_path, site=self.site)
         if not is_safe:
             logger.error(f"🛡️ Security Shield Active: Blocked generated code due to: {security_issues}")
             return False
@@ -172,19 +181,19 @@ class FeatureEvolutionEngine:
             if _evolution_write_lock:
                 _evolution_write_lock.acquire()
 
-            # አላስፈላጊ ኮዶችን በ AI ማሳጠር (Anti-Bloat)
-            code = AntiBloatEngine.prune_and_optimize(old_code, code, file_name)
+            # አላስፈላጊ ኮዶችን ማሳጠር (Anti-Bloat)
+            new_code = AntiBloatEngine.prune_and_optimize(old_code, new_code, file_name)
 
             result = apply_code_change(
                 site=self.site,
                 file_key=file_name,
-                new_content=code,
+                new_content=new_code,
                 reason=f"Self-created: {feature['name']}",
-                push_to_github=True # በራስ-ሰር ወደ GitHub ፑሽ ማድረግ
+                push_to_github=True  # በራስ-ሰር ወደ GitHub ፑሽ ማድረግ
             )
             success = result.get('success', False)
 
-            # 4. የዲስክ ላይ ጽሕፈት እና የጃንጎ መረጋጋት ፍተሻ (Verification Phase) [1]
+            # የዲስክ ላይ ጽሕፈት እና የጃንጎ መረጋጋት ፍተሻ (Verification Phase) [1]
             if success:
                 verified, vmsg = verify_disk_write(local_path)
                 if not verified:
@@ -272,7 +281,6 @@ class FeatureEvolutionEngine:
         if not self.SelfHealingLog:
             return
         try:
-            # 🛡️ SCHEMA ALIGNMENT: የ 'site' ፊልድ ስህተትን ለማስወገድ በአስተማማኝ ሁኔታ መመዝገብ
             self.SelfHealingLog.objects.create(
                 error_message=f"Autonomous Feature Creation: {feature['name']} - {'✅ Success' if success else '❌ Failed'}",
                 solution_sql=json.dumps(feature),
