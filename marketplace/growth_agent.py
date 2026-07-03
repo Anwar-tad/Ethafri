@@ -327,7 +327,59 @@ class RecursiveOptimizer:
                 )
                 logger.info(f"🔄 Self-Optimization: Applied new system prompt rule for {self.site.name}")
 
+# ============================================================
+# 🔴 META SELF-ARCHITECT ENGINE (የላቀ ራስ-መቀረጽ እና ራስ-ዝግመተ-ለውጥ ሞተር)
+# ============================================================
+class MetaSelfArchitectEngine:
+    """
+    ኤጀንቱ የራሱን የኮድ ጤንነት አጥንቶ፣ የጎደሉ ክፍተቶችን በመለየት፣
+    አዳዲስ ፋይሎችን በራሱ ዲስክ ላይ በመፍጠር ራሱን Recursively የሚያሳድግበት ማዕከል [1, 2]።
+    """
+    def __init__(self, site):
+        self.site = site
 
+    def analyze_and_architect_self(self):
+        AIProjectBacklog = get_model('AIProjectBacklog')
+        clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log, _ = _get_ai_utils()
+        
+        # 1. የራሱን የኮድ ይዘት መቃኘት
+        state, _ = get_site_project_state_dynamic(self.site)
+        state_summary = {k: "Present" if "❌" not in v else "Missing" for k, v in state.items()}
+        
+        # 2. የላቀ የራስ-መቀረጽ መመሪያ (Prompt)
+        prompt = (
+            f"You are the Master AI Systems Architect of EthAfri. Audit your own system state: {json.dumps(state_summary)}.\n"
+            f"Identify exactly 3 highly optimized, non-redundant, and advanced coding, SEO, or security features "
+            f"that we should autonomously add to ourselves (e.g., in views, models, or growth_agent) to expand our capabilities exponentially.\n"
+            f"You have full permission to architect, name, and suggest new python file creations in the backlog.\n"
+            f"Ensure that any proposed python code strictly includes necessary standard imports (import time, logging, json, os, re, gc) at the top.\n"
+            f"Rank these tasks from most critical (1) to lowest (3).\n"
+            f"Return JSON with key 'self_architected_tasks' containing list of objects: "
+            f"[{'name': '🧠 SELF-EVOLUTION: [Brief Name]', 'priority': 'Critical'/'High', 'file': '[proposed_file_name_without_py_extension]', 'desc': '...', 'impact': 1-10}]."
+        )
+        
+        try:
+            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="analysis"))
+            tasks = res.get('self_architected_tasks', []) if res else []
+            
+            for t in tasks:
+                if isinstance(t, dict) and t.get('name'):
+                    get_or_create_backlog_task_safe(
+                        self.site, 
+                        task_name=t['name'],
+                        defaults={
+                            'task_type': 'code',
+                            'target_file': t.get('file', 'views'),
+                            'priority': t.get('priority', 'High'),
+                            'status': 'Pending',
+                            'description': f"Self-Architected Task: {t.get('desc')}. Business Impact: {t.get('impact')}/10.",
+                            'business_impact_score': int(t.get('impact', 8)),
+                            'trigger_condition': 'Meta-Autonomous Self-Evolution Loop'
+                        }
+                    )
+            broadcast_agent_log(self.site, f"✨ Self-Architect: Evaluated self-state. Injected {len(tasks)} ranked self-evolution tasks!", "success")
+        except Exception as e:
+            logger.error(f"MetaSelfArchitectEngine: Failed to architect self: {e}")
 # ============================================================
 # 🏛️ STRATEGIC CEO (የዕቅድ እና የስልት ማዕከል)
 # ============================================================
@@ -451,59 +503,6 @@ class StrategicCEO:
             cmd.is_processed = True
             cmd.save()
 
-# ============================================================
-# 🔴 META SELF-ARCHITECT ENGINE (የላቀ ራስ-መቀረጽ እና ራስ-ዝግመተ-ለውጥ ሞተር)
-# ============================================================
-class MetaSelfArchitectEngine:
-    """
-    ኤጀንቱ የራሱን የኮድ ጤንነት አጥንቶ፣ የጎደሉ ክፍተቶችን በመለየት፣
-    አዳዲስ ፋይሎችን በራሱ ዲስክ ላይ በመፍጠር ራሱን Recursively የሚያሳድግበት ማዕከል [1, 2]።
-    """
-    def __init__(self, site):
-        self.site = site
-
-    def analyze_and_architect_self(self):
-        AIProjectBacklog = get_model('AIProjectBacklog')
-        clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log, _ = _get_ai_utils()
-        
-        # 1. የራሱን የኮድ ይዘት መቃኘት
-        state, _ = get_site_project_state_dynamic(self.site)
-        state_summary = {k: "Present" if "❌" not in v else "Missing" for k, v in state.items()}
-        
-        # 2. የላቀ የራስ-መቀረጽ መመሪያ (Prompt)
-        prompt = (
-            f"You are the Master AI Systems Architect of EthAfri. Audit your own system state: {json.dumps(state_summary)}.\n"
-            f"Identify exactly 3 highly optimized, non-redundant, and advanced coding, SEO, or security features "
-            f"that we should autonomously add to ourselves (e.g., in views, models, or growth_agent) to expand our capabilities exponentially.\n"
-            f"You have full permission to architect, name, and suggest new python file creations in the backlog.\n"
-            f"Ensure that any proposed python code strictly includes necessary standard imports (import time, logging, json, os, re, gc) at the top.\n"
-            f"Rank these tasks from most critical (1) to lowest (3).\n"
-            f"Return JSON with key 'self_architected_tasks' containing list of objects: "
-            f"[{'name': '🧠 SELF-EVOLUTION: [Brief Name]', 'priority': 'Critical'/'High', 'file': '[proposed_file_name_without_py_extension]', 'desc': '...', 'impact': 1-10}]."
-        )
-        
-        try:
-            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="analysis"))
-            tasks = res.get('self_architected_tasks', []) if res else []
-            
-            for t in tasks:
-                if isinstance(t, dict) and t.get('name'):
-                    get_or_create_backlog_task_safe(
-                        self.site, 
-                        task_name=t['name'],
-                        defaults={
-                            'task_type': 'code',
-                            'target_file': t.get('file', 'views'),
-                            'priority': t.get('priority', 'High'),
-                            'status': 'Pending',
-                            'description': f"Self-Architected Task: {t.get('desc')}. Business Impact: {t.get('impact')}/10.",
-                            'business_impact_score': int(t.get('impact', 8)),
-                            'trigger_condition': 'Meta-Autonomous Self-Evolution Loop'
-                        }
-                    )
-            broadcast_agent_log(self.site, f"✨ Self-Architect: Evaluated self-state. Injected {len(tasks)} ranked self-evolution tasks!", "success")
-        except Exception as e:
-            logger.error(f"MetaSelfArchitectEngine: Failed to architect self: {e}")
 # ============================================================
 # 🛠️ RECURSIVE BUILDER (የኮድ ፈታሽ እና ገንቢ)
 # ============================================================
