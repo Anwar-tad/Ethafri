@@ -1,21 +1,52 @@
 #!/bin/bash
+# ============================================================
+# 📁 ፋይል፦ EthAfri/build.sh
+# 📝 ለውጥ፦ v10.16 Lightning Build Script — Complete Browser Installer
+# ✅ የተፈቱ ችግሮች፦ Dynamic Playwright browser path export, complete browser dependency installation, and fast pip caching.
+# 📅 ቀን፦ Thursday, July 02, 2026
+# ============================================================
+
 set -e
 
-echo "📦 Installing Dependencies & Running Build..."
+echo "🚀 EthAfri Build Script Started..."
+echo "⏰ $(date)"
 
-# 1. ፓኬጆችን በ requirements.txt መሰረት መጫን
-pip install -r requirements.txt
+export DJANGO_SETTINGS_MODULE=core.settings
 
-# 2. Playwright Chromium ን መጫን (nixpacks ካልጫነው ብሎ)
-python -m playwright install chromium
+# 1. የፓይተን ጥቅሎችን በካሽ ማህደር በከፍተኛ ፍጥነት መጫን
+echo ""
+echo "📦 Installing Python packages with cache-enabled..."
+pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
 
-# 3. የስታቲክ ፋይሎችን መሰብሰብ (ስህተት ቢኖርም አያቁም)
+# 2. የ Playwright ማውጫ ጥበቃ (Browser Path Alignment) [2]
+echo "🌐 Configuring Playwright browser path..."
+export PLAYWRIGHT_BROWSERS_PATH="/opt/render/.cache/ms-playwright"
+
+# 🛡️ COMPLETE INSTALL: chromium-headless-shell ስህተት እንዳይፈጠር ሙሉውን የ playwright install ማስኬድ [2]
+echo "🌐 Installing Playwright browser dependencies..."
+playwright install
+
+# 3. የስታቲክ ፋይሎችን መሰብሰብ
+echo ""
 echo "📂 Collecting static files..."
-python manage.py collectstatic --no-input || echo "⚠️ Static collection failed, but continuing..."
+python manage.py collectstatic --no-input --clear || true
 
-# 4. ዳታቤዝ ማይግሬሽን
-echo "🔧 Running migrations..."
-python manage.py makemigrations
-python manage.py migrate --no-input
+# 4. የቋንቋ ማህደሮችን አስቀድሞ ማረጋገጥ እና ማጠናቀር [1]
+echo ""
+mkdir -p locale staticfiles media logs tmp
 
-echo "✅ Build Process Finished Successfully!"
+if command -v msgfmt &> /dev/null; then
+    echo "🌍 Compiling translation files..."
+    python manage.py compilemessages 2>/dev/null || true
+else
+    echo "⚠️ gettext compilation tool (msgfmt) not found. Skipping compilation."
+fi
+
+# 5. የመጀመሪያ አድሚን መፍጠር
+echo ""
+echo "🔧 Setting up initial data..."
+python create_admin.py || true
+
+echo ""
+echo "✅ Build completed successfully!"
+echo "⏰ $(date)"

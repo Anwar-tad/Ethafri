@@ -1,8 +1,8 @@
 # ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 1/2)
-# 📝 ስሪት፦ v10.23 (Ultimate Master-Brain CEO Agent - Part 1/2)
-# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading, circular import prevention, pre-flight verification, and recursive backlog planning.
-# 📅 ቀን፦ Friday, July 03, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
+# 📝 ስሪት፦ v10.16 (Ultimate Master-Brain CEO Agent - Complete & Consolidated)
+# ✅ የተፈቱ ችግሮች፦ Circular import prevention, system pre-flight verification, dynamic progress tracker, and safe file rollback handlers.
+# 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
 from __future__ import annotations
@@ -423,7 +423,7 @@ class StrategicCEO:
         last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
 
         if not last_self_audit or (timezone.now() - last_self_audit.updated_at) >= timedelta(hours=3):
-            # የላቀውን ራሱን የመቀረጽ እና የማሳደግ ሞተር መጥራት
+            # የላቀውን ራሱን የመቀረጽ እና የማሳደግ ሞተር መጥራት [1]
             architect = MetaSelfArchitectEngine(self.site)
             architect.analyze_and_architect_self()
             
@@ -453,7 +453,7 @@ class StrategicCEO:
 
 
 # ============================================================
-# 🛠️ 3. RECURSIVE BUILDER (የኮድ ፈታሽ እና ገንቢ)
+# 🛠️ RECURSIVE BUILDER (የኮድ ፈታሽ እና ገንቢ)
 # ============================================================
 
 class RecursiveBuilder:
@@ -587,6 +587,7 @@ class RecursiveBuilder:
             pass
         return "Success"
 
+
 # ============================================================
 # 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
 # ============================================================
@@ -594,7 +595,7 @@ class RecursiveBuilder:
 def _autonomous_no_api_search_fallback(niche):
     """
     የጌሚኒ ቁልፎች ሙሉ በሙሉ ቢቋረጡም፣ ያለ ምንም API DuckDuckGo HTML በመጠየቅ
-    ንቁ የሆኑ የኢትዮጵያ የቴሌግራም ቻናሎችን እና Classified ዌብሳይቶችን በሪጀክስ ፈልቅቆ ያወጣል [1]
+    ንቁ የሆኑ የኢትዮጵያ የቴሌግራም ቻናሎችን እና Classified ዌብሳይቶችን በሪጀክስ ፈልቅቆ ያወጣል
     """
     logger.warning(f"⚠️ Search Fallback: Running non-AI DuckDuckGo search for niche '{niche}'...")
     query = f"Ethiopia buying and selling telegram channel {niche}"
@@ -679,6 +680,7 @@ class MultiChannelHarvester:
                     'last_updated': timezone.now().isoformat()
                 }}
             )
+            logger.info(f"💾 Saved {len(sources)} sources to cache")
         except Exception as e:
             logger.error(f"Failed to save sources to cache: {e}")
     
@@ -828,7 +830,7 @@ class MultiChannelHarvester:
 
 
 # ============================================================
-# 🕵️ COMPETITOR INTELLIGENCE ENGINE (ተፎካካሪ ስለላ)
+# 🕵️ COMPETITOR INTELLIGENCE ENGINE
 # ============================================================
 
 class CompetitorIntelligenceEngine:
@@ -964,7 +966,7 @@ class CEOOperations:
         return {"title": title, "price": price, "desc": text[:1000], "seller_contact": contact}
 
     def _harvest_verified_products_bulk(self):
-        """ምርቶችን በጅምላ ያስሳል - 6ቱንም AI ኪዎች በ rotary failover ይጠቀማል [1]"""
+        """ምርቶችን በጅምላ ያስሳል - 6ቱንም AI ኪዎች በ rotary failover ይጠቀማል"""
         SiteConfig = get_model('SiteConfig')
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
 
@@ -998,7 +1000,7 @@ class CEOOperations:
 
         products = []
         
-        # 🚀 6ቱን የ AI አቅራቢዎች በቅደም ተከተል መፈተሽ (API Rotation & Failover) [1]
+        # 🚀 STEP 1: ሁሉንም 6 AI ኪዎች በቅደም ተከተል ይሞክራል
         ai_providers = ['GEMINI', 'GROQ', 'MISTRAL', 'OPENROUTER', 'HUGGINGFACE', 'GITHUB']
         last_error = None
         
@@ -1011,7 +1013,7 @@ class CEOOperations:
                 if not api_key:
                     continue
                     
-                # የ 10 ሰከንድ ጊዜ ገደብ ያለው ጥሪ ማስፈጸም
+                # የ10 ሰከንድ ጊዜ ገደብ
                 response = self._call_ai_with_timeout(provider, prompt)
                 
                 if response:
@@ -1026,7 +1028,7 @@ class CEOOperations:
                 logger.warning(f"⚠️ {provider} failed: {e}")
                 continue
         
-        # 🛡️ ጌሚኒን ጨምሮ ሁሉም AI ቢያልቅባቸው በ DuckDuckGo ሪጀክስ ፈልቅቆ ማውጫ ፎልባክን ማነቃቃት [1]
+        # 🛡️ STEP 2: NO-API FALLBACK (ሁሉም AI ቢወድቅ)
         if not products:
             logger.warning(f"⚠️ All AI providers failed. Last error: {last_error}")
             logger.warning("🌐 Activating No-API Fallback (DuckDuckGo + Regex)...")
@@ -1036,6 +1038,7 @@ class CEOOperations:
                 products = fallback_products
                 logger.info(f"✅ No-API Fallback found {len(products)} products")
         
+        # 📦 STEP 3: ምርቶችን ወደ ዳታቤዝ ይጭናል
         if products:
             self._seed_listings_bulk(products)
             try:
@@ -1045,7 +1048,9 @@ class CEOOperations:
                 )
                 logger.info(f"✅ Successfully seeded {len(products)} products")
             except Exception as e:
-                logger.debug("Failed to update last harvest config: %s", e)
+                logger.debug(f"Failed to update last harvest config: %s", e)
+        else:
+            logger.warning("⚠️ No products found in this harvest cycle")
 
     def _call_ai_with_timeout(self, provider: str, prompt: str, timeout: int = 10) -> Optional[str]:
         """አንድ የተወሰነ AI አቅራቢን በ10 ሰከንድ ጊዜ ገደብ ይጠራል"""
@@ -1073,6 +1078,7 @@ class CEOOperations:
             return None
 
     def _call_gemini(self, prompt: str, timeout: int) -> Optional[str]:
+        """የ GEMINI ጥሪ"""
         api_key = os.getenv('GEMINI_API_KEY')
         if not api_key: return None
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
@@ -1083,6 +1089,7 @@ class CEOOperations:
         return None
 
     def _call_groq(self, prompt: str, timeout: int) -> Optional[str]:
+        """የ GROQ ጥሪ"""
         api_key = os.getenv('GROQ_API_KEY')
         if not api_key: return None
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -1094,6 +1101,7 @@ class CEOOperations:
         return None
 
     def _call_mistral(self, prompt: str, timeout: int) -> Optional[str]:
+        """የ MISTRAL ጥሪ"""
         api_key = os.getenv('MISTRAL_API_KEY')
         if not api_key: return None
         url = "https://api.mistral.ai/v1/chat/completions"
@@ -1105,6 +1113,7 @@ class CEOOperations:
         return None
 
     def _call_openrouter(self, prompt: str, timeout: int) -> Optional[str]:
+        """የ OPENROUTER ጥሪ"""
         api_key = os.getenv('OPENROUTER_API_KEY')
         if not api_key: return None
         url = "https://openrouter.ai/api/v1/chat/completions"
@@ -1116,6 +1125,7 @@ class CEOOperations:
         return None
 
     def _call_huggingface(self, prompt: str, timeout: int) -> Optional[str]:
+        """የ HUGGINGFACE ጥሪ - የቀን ገደብ የሌለው"""
         api_key = os.getenv('HUGGINGFACE_API_KEY')
         if not api_key: return None
         url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
@@ -1129,6 +1139,7 @@ class CEOOperations:
         return None
 
     def _call_github(self, prompt: str, timeout: int) -> Optional[str]:
+        """የ GITHUB ጥሪ - የቀን ገደብ የሌለው"""
         token = os.getenv('GITHUB_TOKEN')
         if not token: return None
         url = "https://models.github.ai/inference/chat/completions"
@@ -1158,6 +1169,7 @@ class CEOOperations:
                 
                 if res.status_code == 200:
                     items = re.findall(r'<a[^>]*>(.*?)</a>', res.text)
+                    
                     for item in items[:5]:
                         clean_text = re.sub(r'<[^>]+>', '', item).strip()
                         if len(clean_text) > 20:
@@ -1193,7 +1205,7 @@ class CEOOperations:
         return raw_img_url
 
     def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል እና ከውዝግብ የጸዳ ghost ምዝገባን ይፈጥራል"""
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
