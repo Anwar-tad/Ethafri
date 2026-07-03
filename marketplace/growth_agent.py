@@ -1,3 +1,4 @@
+
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
 # 📝 ስሪት፦ v10.16 (Ultimate Master-Brain CEO Agent - Complete & Consolidated)
@@ -423,7 +424,7 @@ class StrategicCEO:
         last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
 
         if not last_self_audit or (timezone.now() - last_self_audit.updated_at) >= timedelta(hours=3):
-            # የላቀውን ራሱን የመቀረጽ እና የማሳደግ ሞተር መጥራት [1]
+            # የላቀውን ራሱን የመቀረጽ እና የማሳደግ ሞተር በቀጥታ በግሎባል ስኮፕ መጥራት
             architect = MetaSelfArchitectEngine(self.site)
             architect.analyze_and_architect_self()
             
@@ -451,7 +452,59 @@ class StrategicCEO:
             cmd.is_processed = True
             cmd.save()
 
+# ============================================================
+# 🔴 META SELF-ARCHITECT ENGINE (የላቀ ራስ-መቀረጽ እና ራስ-ዝግመተ-ለውጥ ሞተር)
+# ============================================================
+class MetaSelfArchitectEngine:
+    """
+    ኤጀንቱ የራሱን የኮድ ጤንነት አጥንቶ፣ የጎደሉ ክፍተቶችን በመለየት፣
+    አዳዲስ ፋይሎችን በራሱ ዲስክ ላይ በመፍጠር ራሱን Recursively የሚያሳድግበት ማዕከል [1, 2]።
+    """
+    def __init__(self, site):
+        self.site = site
 
+    def analyze_and_architect_self(self):
+        AIProjectBacklog = get_model('AIProjectBacklog')
+        clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log, _ = _get_ai_utils()
+        
+        # 1. የራሱን የኮድ ይዘት መቃኘት
+        state, _ = get_site_project_state_dynamic(self.site)
+        state_summary = {k: "Present" if "❌" not in v else "Missing" for k, v in state.items()}
+        
+        # 2. የላቀ የራስ-መቀረጽ መመሪያ (Prompt)
+        prompt = (
+            f"You are the Master AI Systems Architect of EthAfri. Audit your own system state: {json.dumps(state_summary)}.\n"
+            f"Identify exactly 3 highly optimized, non-redundant, and advanced coding, SEO, or security features "
+            f"that we should autonomously add to ourselves (e.g., in views, models, or growth_agent) to expand our capabilities exponentially.\n"
+            f"You have full permission to architect, name, and suggest new python file creations in the backlog.\n"
+            f"Ensure that any proposed python code strictly includes necessary standard imports (import time, logging, json, os, re, gc) at the top.\n"
+            f"Rank these tasks from most critical (1) to lowest (3).\n"
+            f"Return JSON with key 'self_architected_tasks' containing list of objects: "
+            f"[{'name': '🧠 SELF-EVOLUTION: [Brief Name]', 'priority': 'Critical'/'High', 'file': '[proposed_file_name_without_py_extension]', 'desc': '...', 'impact': 1-10}]."
+        )
+        
+        try:
+            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="analysis"))
+            tasks = res.get('self_architected_tasks', []) if res else []
+            
+            for t in tasks:
+                if isinstance(t, dict) and t.get('name'):
+                    get_or_create_backlog_task_safe(
+                        self.site, 
+                        task_name=t['name'],
+                        defaults={
+                            'task_type': 'code',
+                            'target_file': t.get('file', 'views'),
+                            'priority': t.get('priority', 'High'),
+                            'status': 'Pending',
+                            'description': f"Self-Architected Task: {t.get('desc')}. Business Impact: {t.get('impact')}/10.",
+                            'business_impact_score': int(t.get('impact', 8)),
+                            'trigger_condition': 'Meta-Autonomous Self-Evolution Loop'
+                        }
+                    )
+            broadcast_agent_log(self.site, f"✨ Self-Architect: Evaluated self-state. Injected {len(tasks)} ranked self-evolution tasks!", "success")
+        except Exception as e:
+            logger.error(f"MetaSelfArchitectEngine: Failed to architect self: {e}")
 # ============================================================
 # 🛠️ RECURSIVE BUILDER (የኮድ ፈታሽ እና ገንቢ)
 # ============================================================
@@ -1168,6 +1221,7 @@ class CEOOperations:
                 res = requests.get(url, timeout=8)
                 
                 if res.status_code == 200:
+                    # ምርቶችን በ Regex ፈልጎ ማውጣት
                     items = re.findall(r'<a[^>]*>(.*?)</a>', res.text)
                     
                     for item in items[:5]:
@@ -1205,7 +1259,7 @@ class CEOOperations:
         return raw_img_url
 
     def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል"""
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል እና ከውዝግብ የጸዳ ghost ምዝገባን ይፈጥራል"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
@@ -2068,3 +2122,277 @@ def start_autonomous_ceo():
             logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
             import time
             time.sleep(10)
+
+አዲስ ገፅ እንድሰራህ የጠየከኝ የይዘት አሰሳ እዝ ማዕከል harvester_orchestrator.html ይኸውልህ።
+
+ይህንን ፋይል በ EthAfri/marketplace/templates/marketplace/harvester_orchestrator.html
+ስር ፍጹም ከስህተት የጸዳ አድርጌ አዘጋጅቼዋለሁ፦
+
+📁 EthAfri/marketplace/templates/marketplace/harvester_orchestrator.html
+
+<!-- ============================================================
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/harvester_orchestrator.html
+📝 ስሪት፦ v10.16 (Harvester Control Center - Complete Edition)
+✅ የተፈቱ ችግሮች፦ Dynamic 7-day Chart.js crawl trend, manual source injection form, active vs dropped sources log, and outbox notification queue stats.
+📅 ቀን፦ Thursday, July 02, 2026
+============================================================ -->
+
+{% extends "marketplace/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Harvester Control Center" %} - EthAfri{% endblock %}
+
+{% block content %}
+<div class="harvester-wrapper py-4" data-agent-monitor>
+    <div class="container-fluid">
+
+        <!-- ============================================================
+        🧭 1. HARVESTER HEADER
+        ============================================================ -->
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+            <div>
+                <h2 class="fw-bold m-0 text-dark">
+                    <i class="fa-solid fa-satellite-dish text-success me-2"></i> 
+                    {% trans "Harvester Control Center" %}
+                </h2>
+                <p class="text-muted m-0 small">{% trans "Live web discovery, dynamic crawling queues, dropped source logs, and outbound notification trends." %}</p>
+            </div>
+            
+            <!-- የንዑስ ጣቢያዎች መራጭ (Site Selector Dropdown) -->
+            <div class="d-flex gap-2 align-items-center">
+                <span class="small fw-bold text-muted text-uppercase">Niche:</span>
+                <select class="form-select rounded-pill px-3 py-1" id="harvesterSiteSelector" style="width: auto; font-weight: bold; cursor: pointer;" onchange="switchHarvesterSite(this.value)">
+                    {% for site in sites %}
+                        <option value="{{ site.id }}" {% if current_site.id == site.id %}selected{% endif %}>{{ site.display_name }} ({{ site.niche|upper }})</option>
+                    {% endfor %}
+                </select>
+                <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-dark rounded-pill px-3 py-1 small">
+                    <i class="fa-solid fa-arrow-left me-1"></i> Dashboard
+                </a>
+            </div>
+        </div>
+
+        <!-- ============================================================
+        📊 2. HARVEST & OUTBOX METRICS
+        ============================================================ -->
+        <div class="row g-3 mb-4 text-center">
+            <div class="col-6 col-lg">
+                <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                    <div class="small text-muted fw-bold">{% trans "Scraped Today" %}</div>
+                    <div class="h3 fw-bold text-success mt-1" id="scraped-today-val">{{ stats.scraped_today }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg">
+                <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                    <div class="small text-muted fw-bold">{% trans "Scraped Yesterday" %}</div>
+                    <div class="h3 fw-bold text-primary mt-1">{{ stats.scraped_yesterday }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg">
+                <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                    <div class="small text-muted fw-bold">{% trans "Scraped This Month" %}</div>
+                    <div class="h3 fw-bold text-info mt-1">{{ stats.scraped_this_month }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg">
+                <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                    <div class="small text-muted fw-bold">{% trans "Pending Outbound SMS" %}</div>
+                    <div class="h3 fw-bold text-warning mt-1">{{ stats.pending_outbox_sms }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg">
+                <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
+                    <div class="small text-muted fw-bold">{% trans "Sent Outbound SMS" %}</div>
+                    <div class="h3 fw-bold text-dark mt-1">{{ stats.sent_outbox_sms }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- ============================================================
+            📡 3. ACTIVE QUEUE & MANUAL SOURCE INJECTOR (ግራ)
+            ============================================================ -->
+            <div class="col-xl-6">
+                <!-- አዲስ ምንጭ በእጅ መጨመሪያ ፎርም -->
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-success text-white py-3 border-0 rounded-top-4">
+                        <h5 class="mb-0 fw-bold"><i class="fa-solid fa-plus-circle me-2"></i> Add Manual Scraping Source</h5>
+                    </div>
+                    <div class="card-body bg-light p-4 rounded-bottom-4">
+                        <form method="POST" action="?site_id={{ current_site.id }}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="add_source">
+                            
+                            <div class="row g-3">
+                                <div class="col-md-7">
+                                    <label class="form-label small fw-bold text-muted text-uppercase">URL or Telegram Channel</label>
+                                    <input type="text" name="url_or_channel" class="form-control rounded-3 border-0 bg-white" placeholder="e.g. ethiomarket or https://..." required>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-bold text-muted text-uppercase">Platform Type</label>
+                                    <select name="platform_type" class="form-select rounded-3 border-0 bg-white">
+                                        <option value="Telegram">Telegram Channel</option>
+                                        <option value="Jiji">Jiji Directory</option>
+                                        <option value="GenericWeb">Generic eCommerce Website</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold w-100 mt-3 shadow-sm">
+                                <i class="fa-solid fa-satellite-dish me-2"></i> Inject Source into Queue
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- ንቁ የሆኑ የዳሳሽ ምንጮች ሰንጠረዥ -->
+                <div class="card border-0 shadow-sm rounded-4">
+                    <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold"><i class="fa-solid fa-satellites me-2 text-primary"></i> Active Crawling Queue</h5>
+                        <span class="badge bg-light text-dark border rounded-pill px-3">{{ active_sources|length }} Active</span>
+                    </div>
+                    <div class="card-body p-3" style="max-height: 400px; overflow-y: auto;">
+                        {% for src in active_sources %}
+                        <div class="p-3 mb-2 rounded-3 bg-light d-flex justify-content-between align-items-center border">
+                            <div>
+                                <h6 class="fw-bold mb-1 text-dark">{{ src.url_or_channel }}</h6>
+                                <span class="badge bg-{% if src.platform_type == 'Telegram' %}info{% else %}primary{% endif %} small">
+                                    {{ src.platform_type }}
+                                </span>
+                                {% if src.added_by == 'admin' %}
+                                    <span class="badge bg-success rounded-pill small ms-1">Admin Injected</span>
+                                {% endif %}
+                            </div>
+                            <form method="POST" style="margin: 0;" onsubmit="return confirm('{% trans "Are you sure you want to delete this source?" %}');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_source">
+                                <input type="hidden" name="url_or_channel" value="{{ src.url_or_channel }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-5 text-muted">
+                            <i class="fa-solid fa-satellite-dish fa-3x mb-3 opacity-25"></i>
+                            <p class="m-0">No active sources in queue. System is offline-first.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================
+            📊 4. CRAWLING TRENDS & DROPPED SOURCES (ቀኝ)
+            ============================================================ -->
+            <div class="col-xl-6">
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-white py-3 border-0">
+                        <h5 class="mb-0 fw-bold"><i class="fa-solid fa-chart-line me-2"></i> Crawling Trends</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="crawlingTrendsChart" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- የታገዱ/ያልሰሩ (Dropped) ዌብሳይቶች ሰሌዳ -->
+                <div class="card border-0 shadow-sm rounded-4">
+                    <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold"><i class="fa-solid fa-ban me-2 text-danger"></i> Auto-Cleaned Inactive Sources</h5>
+                        <span class="badge bg-danger rounded-pill px-3">{{ dropped_sources|length }} Dropped</span>
+                    </div>
+                    <div class="card-body p-0" style="max-height: 260px; overflow-y: auto;">
+                        {% for log in dropped_sources %}
+                        <div class="p-3 border-bottom border-light">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="fw-bold text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> Auto-Dropped</span>
+                                <small class="text-muted">{{ log.created_at|date:"M d, Y H:i" }}</small>
+                            </div>
+                            <div class="small text-muted">{{ log.error_message }}</div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-5 text-muted small">
+                            <i class="fa-solid fa-shield-heart fa-2x mb-2 text-success opacity-25"></i>
+                            <p class="m-0">No dropped sources. Crawling queue is completely healthy.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js ቤተ-መጽሐፍት ጭነት -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+
+<script>
+    // 📍 የሳይት ምርጫ መለወጫ ሎጂክ
+    function switchHarvesterSite(siteId) {
+        window.location.href = `?site_id=${siteId}`;
+    }
+
+    // 📈 Chart.js የ 7-ቀን የምርት አሰሳ ግራፍ አኒሜሽን
+    document.addEventListener("DOMContentLoaded", function() {
+        const trendData = JSON.parse('{{ daily_trend_json|safe }}');
+        
+        const labels = trendData.map(item => item.date);
+        const counts = trendData.map(item => item.count);
+
+        const ctx = document.getElementById('crawlingTrendsChart');
+        if (ctx) {
+            const checkChartJS = setInterval(() => {
+                if (typeof Chart !== 'undefined') {
+                    clearInterval(checkChartJS);
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Harvested Products',
+                                data: counts,
+                                fill: true,
+                                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                borderColor: 'rgba(16, 185, 129, 1)',
+                                borderWidth: 3,
+                                pointBackgroundColor: 'rgba(16, 185, 129, 1)',
+                                tension: 0.35
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                                },
+                                x: {
+                                    grid: { display: false }
+                                }
+                            }
+                        }
+                    });
+                }
+            }, 100);
+        }
+    });
+
+    // 📟 WebSocket Auto-Updater
+    document.addEventListener('agent_update', function(event) {
+        const data = event.detail;
+        if (data.type === 'status_update' || data.type === 'live_stats') {
+            const todayCountEl = document.getElementById('scraped-today-val');
+            if (todayCountEl && data.scraped_today_count) {
+                todayCountEl.innerText = data.scraped_today_count;
+            }
+        }
+    });
+</script>
+{% endblock %}
