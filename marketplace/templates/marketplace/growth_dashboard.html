@@ -1,8 +1,8 @@
 <!-- ============================================================
-📁 ፋይል፦ EthAfri/marketplace/templates/marketplace/growth_dashboard.html
-📝 ለውጥ፦ v1.6 Master CEO Dashboard — Live Progress Bar & Web Autopilot Synced (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Real-time progress bar animation (0%-100%), version synced to v10.6, Agent Autopilot Switch, secure DB purger button, dynamic stats update
-📅 ቀን፦ Tuesday, June 30, 2026
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/growth_dashboard.html
+📝 ለውጥ፦ v10.16 Master CEO Dashboard — Live Progress Bar & Web Autopilot Synced (DRY Sync)
+✅ የተፈቱ ችግሮች፦ Real-time progress bar animation (0%-100%), version synced to v10.16, Agent Autopilot Switch, secure DB purger button, dynamic stats update
+📅 ቀን፦ Thursday, July 02, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,7 +10,7 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
+<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -22,17 +22,17 @@
 <div class="dashboard-wrapper" data-agent-monitor>
     <div class="container-fluid">
 
-        <!-- 🤖 ዋና የኤጀንት ሁኔታ -->
+        <!-- 🤖 ዋና የኤጀንት ሁኔታ ካርድ -->
         <div class="agent-core-card mb-4">
             <div class="row align-items-center">
                 <div class="col-md-7">
                     <h2 class="fw-bold mb-2">
                         <i class="fas fa-brain me-2 text-info"></i>
-                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v10.6</span>
+                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v10.16</span>
                     </h2>
                     <p class="opacity-75 mb-4">Autonomous Strategic Growth & System Evolution Engine</p>
                     
-                    <!-- 🟢 አዲስ የተጨመረ፦ የቀጥታ ታስክ አፈጻጸም ባር (Dynamic Progress Bar) [3.1.2] -->
+                    <!-- 🟢 የቀጥታ ታስክ አፈጻጸም ባር (Dynamic Progress Bar) -->
                     <div class="mb-4" id="agent-progress-container" style="display: none; max-width: 550px;">
                         <div class="d-flex justify-content-between mb-1 small text-white-50">
                             <span id="agent-progress-step" class="fw-bold text-info">Analyzing views.py...</span>
@@ -78,7 +78,7 @@
             </div>
         </div>
 
-        <!-- 📊 ስታቲስቲክስ -->
+        <!-- 📊 ስታቲስቲክስ ቦክሶች -->
         <div class="row g-4 mb-4 text-center">
             <div class="col-6 col-md-3">
                 <div class="stat-box">
@@ -149,7 +149,6 @@
             <!-- 👑 የአድሚን ትዕዛዝ መስጫ (Executive Override) -->
             <div class="col-lg-5">
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
-                    <!-- ቀጥተኛ ወደ መመሪያ ገጽ መሄጃ በተን (Full View) የተጨመረበት -->
                     <div class="card-header bg-primary text-white py-3 border-0 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold"><i class="fas fa-crown me-2"></i> CEO Direct Command</h5>
                         <a href="{% url 'owner_directive' %}" class="btn btn-sm btn-outline-light rounded-pill px-3">
@@ -170,7 +169,7 @@
                     </div>
                 </div>
 
-                <!-- 📡 Harvester & Evolution Logs -->
+                <!-- 📡 የዝግመተ-ለውጥ ታሪክ (Evolution History) -->
                 <div class="card border-0 shadow-sm rounded-4">
                     <div class="card-header bg-white py-3 border-0">
                         <h5 class="mb-0 fw-bold"><i class="fas fa-dna me-2"></i> Evolution History</h5>
@@ -204,14 +203,14 @@
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
         
-        // 1. የባክሎግ ቁጥር መዘመኛ (በየ 5 ሰከንዱ)
+        // 1. የባክሎግ ቁጥር መዘመኛ
         if (data.type === 'status_update' || data.type === 'live_stats') {
             const pendingTasksCountEl = document.getElementById('pending-tasks-count');
             if (pendingTasksCountEl && data.task_stats) {
                 pendingTasksCountEl.innerText = data.task_stats.pending;
             }
 
-            // 🟢 አዲስ የተጨመረ፦ የፕሮግረስ ባር አኒሜሽን በእውነተኛ ሰዓት ማዘመኛ [3.1.2]
+            // 🟢 የፕሮግረስ ባር አኒሜሽን በእውነተኛ ሰዓት ማዘመኛ
             const progress = data.agent_progress;
             if (progress) {
                 const container = document.getElementById('agent-progress-container');
@@ -220,8 +219,7 @@
                 const barEl = document.getElementById('agent-progress-bar');
                 
                 if (container && stepEl && percentEl && barEl) {
-                    // ዑደቱ በስኬት ተኝቶ ከሆነ ባሩን መደበቅ፣ ታስክ በሚሠራበት ጊዜ ግን ማሳየት
-                    if (progress.percent === 100 || progress.step.includes("Sleeping")) {
+                    if (progress.percent === 100 || progress.step.includes("Sleeping") || progress.percent === 0) {
                         container.style.display = 'none';
                     } else {
                         container.style.display = 'block';
@@ -233,12 +231,11 @@
             }
         }
         
-        // 2. ኤጀንቱ አሁን እየሠራ ያለውን ሥራ ማሳየት
+        // 2. ኤጀንቱ አሁን እየሠራ ያለውን ሥራ ማሳየት (Terminal Logs)
         else if (data.type === 'terminal_log') {
             const runningTaskEl = document.getElementById('running-task-name');
-            const log = data.log || {};
-            if (runningTaskEl && log.message) {
-                const displayMsg = log.message.length > 55 ? log.message.substring(0, 52) + '...' : log.message;
+            if (runningTaskEl && data.log) {
+                const displayMsg = data.log.length > 55 ? data.log.substring(0, 52) + '...' : data.log;
                 runningTaskEl.innerText = displayMsg;
             }
         }
@@ -260,7 +257,7 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    location.reload(); // የጃንጎ ስኬት መልእክት እንዲታይ ገጹን ማደስ
+                    location.reload();
                 } else {
                     alert("Error toggling autopilot: " + data.message);
                     this.checked = !isActive;
@@ -273,7 +270,7 @@
         });
     }
 
-    // የመረጃ ቋት ማጽጃ AJAX ሎጂክ (Purge Database AJAX Handler)
+    // የመረጃ ቋት ማጽጃ AJAX ሎጂክ
     function confirmPurge() {
         if (confirm("⚠️ ማስጠንቀቂያ፦ የመረጃ ቋቱን በንጽህና ለማጽዳት እርግጠኛ ነዎት? ሁሉንም ምርቶች፣ ሻጮች እና የኤጀንት ዑደቶች ያጠፋል!")) {
             const purgeBtn = document.getElementById('purgeBtn');
@@ -305,6 +302,7 @@
         }
     }
 
+    // በየ 10 ደቂቃው ገጹን በራስ-ሰር ማደስ (fallback)
     setTimeout(function() { location.reload(); }, 600000);
 </script>
 {% endblock %}
