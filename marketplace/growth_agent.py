@@ -1053,65 +1053,261 @@ class CEOOperations:
         desc = text[:1000]
         return {"title": title, "price": price, "desc": desc, "seller_contact": contact}
 
-    def _harvest_verified_products_bulk(self):
-        """ሁሉንም አይነት ምርቶች በዳይናሚክ ያስሳል"""
-        SiteConfig = get_model('SiteConfig')
-        _, ask_master_ai_smart, _, _ = _get_ai_utils()
-        clean_and_parse_json, _, _, _ = _get_ai_utils()
+def _harvest_verified_products_bulk(self):
+    """ሁሉንም አይነት ምርቶች በዳይናሚክ ያስሳል - ሁሉንም 6 AI ኪዎች ይጠቀማል"""
+    SiteConfig = get_model('SiteConfig')
+    clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
 
-        last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
-        if last:
-            try:
-                last_time = datetime.fromisoformat(last.value['time'])
-                if timezone.is_naive(last_time):
-                    last_time = timezone.make_aware(last_time)
-                if (timezone.now() - last_time) < timedelta(hours=1):
-                    return
-            except Exception as e:
-                logger.warning(f"Error checking harvest timestamp: {e}")
-
-        harvester = MultiChannelHarvester()
-        raw_data_pool = harvester.discover_and_harvest_niche_sources(self.site)
-
-        if not raw_data_pool:
-            return
-
-        prompt = (
-            f"Extract ANY products from these texts.\n"
-            f"Don't filter by niche. Include ALL products:\n"
-            f"- Electronics, Clothes, Furniture, Cars\n"
-            f"- Properties, Tools, Machines, Books\n"
-            f"- ANY product you find\n\n"
-            f"Return JSON with key 'products' containing:\n"
-            f"- title, price, desc, seller_contact, image_url\n\n"
-            f"Data: {json.dumps(raw_data_pool, ensure_ascii=False)}"
-        )
-
-        products = []
+    last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
+    if last:
         try:
-            data = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
-            if data and isinstance(data, dict):
-                products = data.get('products', [])
-        except Exception as ai_err:
-            logger.warning(f"AI parsing failed, switching to heuristic parser: {ai_err}")
+            last_time = datetime.fromisoformat(last.value['time'])
+            if timezone.is_naive(last_time):
+                last_time = timezone.make_aware(last_time)
+            if (timezone.now() - last_time) < timedelta(hours=1):
+                return
+        except Exception as e:
+            logger.warning(f"Error checking harvest timestamp: {e}")
 
-        if not products:
-            logger.warning("⚠️ Fallback Activated: Parsing scraped dataset heuristically without AI...")
-            for item in raw_data_pool:
-                parsed = self._heuristic_parse_text(item.get('text', ''))
-                if parsed:
-                    parsed['image_url'] = item.get('image_url', '')
-                    products.append(parsed)
+    harvester = MultiChannelHarvester()
+    raw_data_pool = harvester.discover_and_harvest_niche_sources(self.site)
 
-        if products:
-            self._seed_listings_bulk(products)
-            try:
-                SiteConfig.objects.update_or_create(
-                    key=f"LAST_HARVEST_{self.site.name}",
-                    defaults={'value': {'time': timezone.now().isoformat()}}
-                )
-            except Exception as e:
-                logger.debug("Failed to update last harvest config: %s", e)
+    if not raw_data_pool:
+        return
+
+    prompt = (
+        f"Extract ANY products from these texts.\n"
+        f"Don't filter by niche. Include ALL products:\n"
+        f"- Electronics, Clothes, Furniture, Cars\n"
+        f"- Properties, Tools, Machines, Books\n"
+        f"- ANY product you find\n\n"
+        f"Return JSON with key 'products' containing:\n"
+        f"- title, price, desc, seller_contact, image_url\n\n"
+        f"Data: {json.dumps(raw_data_pool, ensure_ascii=False)}"
+    )
+
+    products = []
+    
+    # ============================================================
+    # 🚀 STEP 1: ሁሉንም 6 AI ኪዎች በቅደም ተከተል ይሞክራል
+    # ============================================================
+    ai_providers = [
+        'GEMINI',
+        'GROQ', 
+        'MISTRAL',
+        'OPENROUTER',
+        'HUGGINGFACE',
+        'GITHUB'
+    ]
+    
+    # የመጨረሻ ስህተት መዝገብ
+    last_error = None
+    data = None
+    
+    for provider in ai_providers:
+        try:
+            # የኤአይ ቁልፍ ለዚህ አቅራቢ
+            api_key = os.getenv(f'{provider}_API_KEY', '')
+            if provider == 'GITHUB':
+                api_key = os.getenv('GITHUB_TOKEN', '')
+                
+            if not api_key:
+                continue
+                
+            # የ10 ሰከንድ ጊዜ ገደብ
+            response = self._call_ai_with_timeout(provider, prompt)
+            
+            if response:
+                data = clean_and_parse_json(response)
+                if data and isinstance(data, dict) and data.get('products'):
+                    products = data.get('products', [])
+                    logger.info(f"✅ {provider} successfully parsed {len(products)} products")
+                    break
+                    
+        except Exception as e:
+            last_error = f"{provider}: {str(e)}"
+            logger.warning(f"⚠️ {provider} failed: {e}")
+            continue
+    
+    # ============================================================
+    # 🛡️ STEP 2: NO-API FALLBACK (ሁሉም AI ቢወድቅ)
+    # ============================================================
+    if not products:
+        logger.warning(f"⚠️ All AI providers failed. Last error: {last_error}")
+        logger.warning("🌐 Activating No-API Fallback (DuckDuckGo + Regex)...")
+        
+        # NO-API Fallback: ያለ AI በ DuckDuckGo እና Regex መፈለግ
+        fallback_products = self._no_api_fallback_harvest()
+        if fallback_products:
+            products = fallback_products
+            logger.info(f"✅ No-API Fallback found {len(products)} products")
+    
+    # ============================================================
+    # 📦 STEP 3: ምርቶችን ወደ ዳታቤዝ ይጭናል
+    # ============================================================
+    if products:
+        self._seed_listings_bulk(products)
+        try:
+            SiteConfig.objects.update_or_create(
+                key=f"LAST_HARVEST_{self.site.name}",
+                defaults={'value': {'time': timezone.now().isoformat()}}
+            )
+            logger.info(f"✅ Successfully seeded {len(products)} products")
+        except Exception as e:
+            logger.debug(f"Failed to update last harvest config: %s", e)
+    else:
+        logger.warning("⚠️ No products found in this harvest cycle")
+
+
+def _call_ai_with_timeout(self, provider: str, prompt: str, timeout: int = 10) -> Optional[str]:
+    """
+    አንድ የተወሰነ AI አቅራቢን በ10 ሰከንድ ጊዜ ገደብ ይጠራል
+    """
+    try:
+        if provider == 'GEMINI':
+            return self._call_gemini(prompt, timeout)
+        elif provider == 'GROQ':
+            return self._call_groq(prompt, timeout)
+        elif provider == 'MISTRAL':
+            return self._call_mistral(prompt, timeout)
+        elif provider == 'OPENROUTER':
+            return self._call_openrouter(prompt, timeout)
+        elif provider == 'HUGGINGFACE':
+            return self._call_huggingface(prompt, timeout)
+        elif provider == 'GITHUB':
+            return self._call_github(prompt, timeout)
+        else:
+            logger.warning(f"Unknown provider: {provider}")
+            return None
+    except requests.exceptions.Timeout:
+        logger.warning(f"⏱️ {provider} timed out after {timeout}s")
+        return None
+    except Exception as e:
+        logger.warning(f"⚠️ {provider} error: {e}")
+        return None
+
+
+def _call_gemini(self, prompt: str, timeout: int) -> Optional[str]:
+    """የ GEMINI ጥሪ"""
+    api_key = os.getenv('GEMINI_API_KEY')
+    if not api_key:
+        return None
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    res = requests.post(url, json=payload, timeout=timeout)
+    if res.status_code == 200:
+        return res.json()['candidates'][0]['content']['parts'][0]['text']
+    return None
+
+
+def _call_groq(self, prompt: str, timeout: int) -> Optional[str]:
+    """የ GROQ ጥሪ"""
+    api_key = os.getenv('GROQ_API_KEY')
+    if not api_key:
+        return None
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}]}
+    res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if res.status_code == 200:
+        return res.json()['choices'][0]['message']['content']
+    return None
+
+
+def _call_mistral(self, prompt: str, timeout: int) -> Optional[str]:
+    """የ MISTRAL ጥሪ"""
+    api_key = os.getenv('MISTRAL_API_KEY')
+    if not api_key:
+        return None
+    url = "https://api.mistral.ai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"model": "mistral-small-latest", "messages": [{"role": "user", "content": prompt}]}
+    res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if res.status_code == 200:
+        return res.json()['choices'][0]['message']['content']
+    return None
+
+
+def _call_openrouter(self, prompt: str, timeout: int) -> Optional[str]:
+    """የ OPENROUTER ጥሪ"""
+    api_key = os.getenv('OPENROUTER_API_KEY')
+    if not api_key:
+        return None
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"model": "meta-llama/llama-3-8b-instruct:free", "messages": [{"role": "user", "content": prompt}]}
+    res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if res.status_code == 200:
+        return res.json()['choices'][0]['message']['content']
+    return None
+
+
+def _call_huggingface(self, prompt: str, timeout: int) -> Optional[str]:
+    """የ HUGGINGFACE ጥሪ - የቀን ገደብ የሌለው"""
+    api_key = os.getenv('HUGGINGFACE_API_KEY')
+    if not api_key:
+        return None
+    url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"inputs": f"<|system|>\nYou are a helpful assistant.\n<|user|>\n{prompt}\n<|assistant|>\n"}
+    res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if res.status_code == 200:
+        data = res.json()
+        if data and 'generated_text' in data[0]:
+            return data[0]['generated_text'].strip()
+    return None
+
+
+def _call_github(self, prompt: str, timeout: int) -> Optional[str]:
+    """የ GITHUB ጥሪ - የቀን ገደብ የሌለው"""
+    token = os.getenv('GITHUB_TOKEN')
+    if not token:
+        return None
+    url = "https://models.github.ai/inference/chat/completions"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    payload = {"model": "meta/meta-llama-3.1-8b-instruct", "messages": [{"role": "user", "content": prompt}]}
+    res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if res.status_code == 200:
+        return res.json()['choices'][0]['message']['content']
+    return None
+
+
+def _no_api_fallback_harvest(self) -> List[Dict]:
+    """
+    🛡️ NO-API FALLBACK: ሁሉም AI ቢወድቅ የሚሰራ
+    DuckDuckGo + Regex በመጠቀም ምርቶችን ያስሳል
+    """
+    logger.info("🌐 No-API Fallback: Searching DuckDuckGo for products...")
+    
+    products = []
+    search_terms = [
+        "Ethiopia market products for sale",
+        "Ethiopian online marketplace products",
+        "Buy and sell Ethiopia products",
+        "Ethiopia classifieds products"
+    ]
+    
+    for term in search_terms:
+        try:
+            url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(term)}"
+            res = requests.get(url, timeout=8)
+            
+            if res.status_code == 200:
+                # ምርቶችን በ Regex ፈልጎ ማውጣት
+                items = re.findall(r'<a[^>]*>(.*?)</a>', res.text)
+                
+                for item in items[:5]:  # ከእያንዳንዱ ፍለጋ 5 ውጤቶች
+                    clean_text = re.sub(r'<[^>]+>', '', item).strip()
+                    if len(clean_text) > 20:  # ትርጉም ያለው ጽሁፍ
+                        parsed = self._heuristic_parse_text(clean_text)
+                        if parsed and parsed.get('title'):
+                            products.append(parsed)
+                
+        except Exception as e:
+            logger.debug(f"DuckDuckGo search failed: {e}")
+            continue
+    
+    return products
 
     def _save_image_to_cloudinary_permanently(self, raw_img_url):
         """scraped የተደረጉ ምስሎችን ወደ Cloudinary ያስቀምጣል"""

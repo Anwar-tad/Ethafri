@@ -211,76 +211,218 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
 # ============================================================
 # 🧠 3. DYNAMIC AI ROUTER WITH 10S FAIL-FAST & 24H QUOTA LOCKOUT
 # ============================================================
+# ============================================================
+# 📁 EthAfri/marketplace/ai_utils.py (የተስተካከለ)
+# ============================================================
+
+# ============================================================
+# 🧠 DYNAMIC AI ROUTER WITH 10S FAIL-FAST & 24H QUOTA LOCKOUT
+# ============================================================
+
 def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruction: str = "", task=None) -> str:
     """
-    የተሻሻለ AI Router: ቁልፎችን በራስ-ሰር ይፈራረቃል (Rotation)፣ 
-    429 ስህተት ሲያጋጥም ወደ ቀጣዩ ቁልፍ ይሸጋገራል፣ እና 10 ሰከንድ Fail-Fast አለው።
+    ሁሉንም 6 AI ኪዎች በብልህነት የሚጠቀም ሮውተር
+    - የቀን ገደብ ያላቸውን ኪዎች በቅድሚያ ይጠቀማል
+    - የቀን ገደብ የሌላቸውን ደግሞ 24/7 ያስተካክላል
+    - ሁሉም ቢወድቁ የተፈጥሮ ፎልባክ ይጠቀማል
     """
+    # 1. የ 24-ሰዓት የኮታ መቆለፊያ መፈተሽ
+    quota_lock = cache.get("ai_quota_locked_until")
+    if quota_lock:
+        logger.warning(f"⚠️ AI Router Guard: AI API is quota-locked until {quota_lock}.")
+        return "{}"
     
-    # 1. የቶከን መጭመቂያውን በመጥራት የፕሮምፕት መጠንን መቀነስ
+    # 2. የቶከን መጭመቂያ
     prompt_compressed = AIUtils.compress_code_for_prompt(prompt)
     
-    # 2. ሁሉንም የኤፒአይ ቁልፎች ሰብስቦ ዝርዝር ማዘጋጀት
-    # GEMINI_API_KEY + ሌሎች ተጨማሪ ቁልፎች
-    api_keys = [os.getenv('GEMINI_API_KEY', '')]
-    fallback_keys = getattr(settings, 'AI_FALLBACK_API_KEYS', [])
-    if fallback_keys:
-        # በቅንፍ ውስጥ የተሰጡ ቁልፎች ካሉ እንደ List ይውሰዳቸው
-        if isinstance(fallback_keys, list):
-            api_keys.extend(fallback_keys)
-        elif isinstance(fallback_keys, str):
-            api_keys.extend(fallback_keys.split(','))
-        
+    # 3. ✅ ሁሉንም 6 API ኪዎች በቅደም ተከተል ይሞክራል
+    api_keys = [
+        ('GEMINI', os.getenv('GEMINI_API_KEY', '')),
+        ('GROQ', os.getenv('GROQ_API_KEY', '')),
+        ('MISTRAL', os.getenv('MISTRAL_API_KEY', '')),
+        ('OPENROUTER', os.getenv('OPENROUTER_API_KEY', '')),
+        ('HUGGINGFACE', os.getenv('HUGGINGFACE_API_KEY', '')),
+        ('GITHUB', os.getenv('GITHUB_TOKEN', '')),
+    ]
+    
     # ባዶ ቁልፎችን ማጽዳት
-    api_keys = [k.strip() for k in api_keys if k and k.strip()]
+    api_keys = [(name, key) for name, key in api_keys if key]
     
     if not api_keys:
-        logger.error("❌ AI Router Error: No API Keys available in configuration.")
+        logger.error("❌ AI Router: No API Keys available.")
         return "{}"
-        
+    
+    # 4. ✅ የቀን ገደብ ያላቸውን ኪዎች በቅድሚያ ይሞክራል
+    # (GEMINI, GROQ, MISTRAL, OPENROUTER)
+    priority_keys = api_keys[:4]
+    unlimited_keys = api_keys[4:]  # HUGGINGFACE, GITHUB
+    
     last_error = ""
     
-    # 3. የቁልፍ ማፈግፈጊያ (Key Rotation) ሎፕ
-    for idx, api_key in enumerate(api_keys):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-        
-        try:
-            payload = {
-                "contents": [{"parts": [{"text": f"{system_instruction}\n\n{prompt_compressed}"}]}]
-            }
-            # የ 10 ሰከንድ የፈጣን ውድቀት (Fail-Fast Timeout)
-            res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
-            
-            # ስኬታማ ምላሽ
+    # 5. መጀመሪያ የቀን ገደብ ያላቸውን ይሞክር
+    for provider_name, api_key in priority_keys:
+        result = _call_ai_provider(provider_name, api_key, prompt_compressed, system_instruction)
+        if result:
+            return result
+        last_error = f"{provider_name} failed"
+    
+    # 6. ከዚያ የቀን ገደብ የሌላቸውን 24/7 ይሞክር
+    for provider_name, api_key in unlimited_keys:
+        # የሪኬስት ኢንተርቫል በራስ-ሰር ይቀየራል
+        result = _call_ai_provider(provider_name, api_key, prompt_compressed, system_instruction)
+        if result:
+            return result
+        last_error = f"{provider_name} failed"
+    
+    # 7. ✅ ሁሉም AI ቢወድቅ NO-API FALLBACK
+    logger.warning(f"⚠️ All AI providers failed. Using No-API fallback. Last error: {last_error}")
+    return _no_api_fallback(prompt)
+
+
+def _call_ai_provider(provider_name: str, api_key: str, prompt: str, system_instruction: str) -> Optional[str]:
+    """
+    አንድ የተወሰነ AI አቅራቢን ይጠራል
+    - 10s Fail-Fast Timeout
+    - 24h Quota Lockout
+    - API Key Rotation
+    """
+    # የሪኬስት ኢንተርቫል (Pacing)
+    _pace_provider(provider_name)
+    
+    try:
+        if provider_name == 'GEMINI':
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+            payload = {"contents": [{"parts": [{"text": f"{system_instruction}\n\n{prompt}"}]}]}
+            res = requests.post(url, json=payload, timeout=10)
             if res.status_code == 200:
-                response_data = res.json()
-                try:
-                    return response_data['candidates'][0]['content']['parts'][0]['text']
-                except (KeyError, IndexError) as parse_err:
-                    logger.error(f"Failed to parse Gemini payload with key {idx+1}: {parse_err}")
-                    continue # ወደ ቀጣዩ ቁልፍ ይሸጋገር
-            
-            # የኮታ ገደብ (429) ካጋጠመ: ቀጣዩን ቁልፍ ሞክር
+                return res.json()['candidates'][0]['content']['parts'][0]['text']
             elif res.status_code == 429:
-                logger.warning(f"⚠️ API Key {idx+1} reached quota (429). Swapping to next key...")
-                continue 
-            
-            else:
-                last_error = f"HTTP {res.status_code}: {res.text}"
-                logger.warning(f"⚠️ API Key {idx+1} failed: {last_error}. Trying next key...")
+                _handle_quota_exhausted('GEMINI')
                 
-        except requests.exceptions.Timeout:
-            last_error = "Timeout limit (10s) reached"
-            logger.warning(f"⏱️ Fail-Fast: API Key {idx+1} timed out. Swapping key...")
-        except Exception as e:
-            last_error = str(e)
-            logger.warning(f"⚠️ API Key {idx+1} error: {e}. Swapping key...")
+        elif provider_name == 'GROQ':
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": "llama-3.1-8b-instant",
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"}
+            }
+            res = requests.post(url, headers=headers, json=payload, timeout=10)
+            if res.status_code == 200:
+                return res.json()['choices'][0]['message']['content']
+            elif res.status_code == 429:
+                _handle_quota_exhausted('GROQ')
+                
+        elif provider_name == 'MISTRAL':
+            url = "https://api.mistral.ai/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": "mistral-small-latest",
+                "messages": [{"role": "user", "content": prompt}]
+            }
+            res = requests.post(url, headers=headers, json=payload, timeout=10)
+            if res.status_code == 200:
+                return res.json()['choices'][0]['message']['content']
+            elif res.status_code == 429:
+                _handle_quota_exhausted('MISTRAL')
+                
+        elif provider_name == 'OPENROUTER':
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": "meta-llama/llama-3-8b-instruct:free",
+                "messages": [{"role": "user", "content": prompt}]
+            }
+            res = requests.post(url, headers=headers, json=payload, timeout=10)
+            if res.status_code == 200:
+                return res.json()['choices'][0]['message']['content']
+            elif res.status_code == 429:
+                _handle_quota_exhausted('OPENROUTER')
+                
+        elif provider_name == 'HUGGINGFACE':
+            # የቀን ገደብ የሌለው - 24/7 ይሰራል
+            url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            payload = {
+                "inputs": f"<|system|>\n{system_instruction}\n<|user|>\n{prompt}\n<|assistant|>\n",
+                "parameters": {"max_new_tokens": 1024}
+            }
+            res = requests.post(url, headers=headers, json=payload, timeout=10)
+            if res.status_code == 200:
+                data = res.json()
+                if data and 'generated_text' in data[0]:
+                    return data[0]['generated_text'].strip()
+                    
+        elif provider_name == 'GITHUB':
+            # የቀን ገደብ የሌለው - 24/7 ይሰራል
+            url = "https://models.github.ai/inference/chat/completions"
+            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": "meta/meta-llama-3.1-8b-instruct",
+                "messages": [{"role": "user", "content": prompt}]
+            }
+            res = requests.post(url, headers=headers, json=payload, timeout=10)
+            if res.status_code == 200:
+                return res.json()['choices'][0]['message']['content']
+                
+    except requests.exceptions.Timeout:
+        logger.warning(f"⏱️ Fail-Fast: {provider_name} timed out")
+    except Exception as e:
+        logger.warning(f"⚠️ {provider_name} failed: {e}")
+    
+    return None
+
+
+def _handle_quota_exhausted(provider_name: str):
+    """የቀን ገደብ ማለቁን ይመዘግባል"""
+    lockout_until = (timezone.now() + timedelta(hours=24)).isoformat()
+    cache.set(f"ai_quota_locked_{provider_name}", lockout_until, timeout=86400)
+    logger.warning(f"🚨 {provider_name} quota exhausted. Locked for 24 hours.")
+
+
+def _pace_provider(provider_name: str):
+    """የሪኬስት ኢንተርቫል ያስተካክላል"""
+    pacing_limits = {
+        'GEMINI': 1.0,
+        'GROQ': 1.0,
+        'MISTRAL': 1.0,
+        'OPENROUTER': 1.0,
+        'HUGGINGFACE': 0.5,  # ፈጣን
+        'GITHUB': 0.5,       # ፈጣን
+    }
+    wait_time = pacing_limits.get(provider_name, 1.0)
+    time.sleep(wait_time)
+
+
+def _no_api_fallback(prompt: str) -> str:
+    """
+    🛡️ ሁሉም AI ቢወድቅ የሚሰራ የተፈጥሮ ፎልባክ
+    - DuckDuckGo ውጤቶችን ይጠቀማል
+    - Regex በመጠቀም ምርቶችን ያወጣል
+    """
+    logger.warning("🌐 No-API Fallback Active: Using DuckDuckGo + Regex")
+    
+    try:
+        # DuckDuckGo ፍለጋ
+        query = f"Ethiopia market products for sale {prompt[:50]}"
+        url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
+        res = requests.get(url, timeout=8)
+        
+        if res.status_code == 200:
+            # Regex በመጠቀም ምርቶችን ፈልጎ ማውጣት
+            items = re.findall(r'<a[^>]*>(.*?)</a>', res.text)
+            results = []
+            for item in items[:10]:
+                if len(item) > 20:
+                    results.append(item.strip())
             
-    # ሁሉም ቁልፎች ካለቁ በኋላ
-    logger.error(f"❌ AI Router: All API keys exhausted. Last error: {last_error}")
+            # እንደ JSON መልስ
+            return json.dumps({"no_api_fallback": True, "results": results})
+            
+    except Exception as e:
+        logger.error(f"No-API fallback failed: {e}")
+    
     return "{}"
-
-
 
 def broadcast_agent_log(site, message: str, status_type: str = "info"):
     """የኤጀንቱን የስራ እንቅስቃሴ ሎጎች በዳታቤዝ ውስጥ መዝግቦ መላክ"""
