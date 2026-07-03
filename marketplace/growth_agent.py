@@ -330,10 +330,13 @@ class RecursiveOptimizer:
 # ============================================================
 # 🔴 META SELF-ARCHITECT ENGINE (የላቀ ራስ-መቀረጽ እና ራስ-ዝግመተ-ለውጥ ሞተር)
 # ============================================================
+# ============================================================
+# 🔴 META SELF-ARCHITECT ENGINE (የተስተካከለ - Scoping & f-string Guard)
+# ============================================================
 class MetaSelfArchitectEngine:
     """
-    ኤጀንቱ የራሱን የኮድ ጤንነት አጥንቶ፣ የጎደሉ ክፍተቶችን በመለየት፣
-    አዳዲስ ፋይሎችን በራሱ ዲስክ ላይ በመፍጠር ራሱን Recursively የሚያሳድግበት ማዕከል [1, 2]።
+    ኤጀንቱ የራሱን የኮድ ጤንነት አጥንቶ፣ የጎደሉ ክፍተቶችን በመለየት በባክሎግ ውስጥ
+    የሚከተትበትና ራሱን Recursively የሚያሳድግበት ማዕከል [1, 2]።
     """
     def __init__(self, site):
         self.site = site
@@ -347,6 +350,7 @@ class MetaSelfArchitectEngine:
         state_summary = {k: "Present" if "❌" not in v else "Missing" for k, v in state.items()}
         
         # 2. የላቀ የራስ-መቀረጽ መመሪያ (Prompt)
+        # 🛡️ F-STRING GUARD: የ JSON አወቃቀሩ የቅንፍ ምልክቶች ስህተት እንዳይፈጥሩ የ f መለያዎች ከታችኛው ፅሑፍ ላይ ተወግደዋል [1]
         prompt = (
             f"You are the Master AI Systems Architect of EthAfri. Audit your own system state: {json.dumps(state_summary)}.\n"
             f"Identify exactly 3 highly optimized, non-redundant, and advanced coding, SEO, or security features "
@@ -354,8 +358,8 @@ class MetaSelfArchitectEngine:
             f"You have full permission to architect, name, and suggest new python file creations in the backlog.\n"
             f"Ensure that any proposed python code strictly includes necessary standard imports (import time, logging, json, os, re, gc) at the top.\n"
             f"Rank these tasks from most critical (1) to lowest (3).\n"
-            f"Return JSON with key 'self_architected_tasks' containing list of objects: "
-            f"[{'name': '🧠 SELF-EVOLUTION: [Brief Name]', 'priority': 'Critical'/'High', 'file': '[proposed_file_name_without_py_extension]', 'desc': '...', 'impact': 1-10}]."
+            "Return JSON with key 'self_architected_tasks' containing list of objects: "
+            "[{'name': '🧠 SELF-EVOLUTION: [Brief Name]', 'priority': 'Critical'/'High', 'file': '[proposed_file_name_without_py_extension]', 'desc': '...', 'impact': 1-10}]."
         )
         
         try:

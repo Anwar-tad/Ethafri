@@ -14,7 +14,7 @@ from playwright.async_api import async_playwright
 logger = logging.getLogger(__name__)
 
 # Render ላይ ብሮውዘር የሚገኝበትን ቦታ በግልጽ እንጠቁማለን
-BROWSER_PATH = "/opt/render/.cache/ms-playwright"
+BROWSER_PATH = "/opt/render/project/src/ms-playwright"
 
 class ScrapperEngine:
     @staticmethod
