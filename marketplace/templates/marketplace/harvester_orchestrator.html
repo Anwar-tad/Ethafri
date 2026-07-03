@@ -1,8 +1,10 @@
+
+
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/harvester_orchestrator.html
 📝 ስሪት፦ v10.16 (Harvester Control Center - Complete Edition)
-  ✅ የተፈቱ ችግሮች፦ Dynamic 7-day Chart.js crawl trend, manual source injection form, active vs dropped sources log, and outbox notification queue stats.
-📝 ቀን፦ Thursday, July 02, 2026
+✅ የተፈቱ ችግሮች፦ Dynamic 7-day Chart.js crawl trend, manual source injection form, active vs dropped sources log, and outbox notification queue stats.
+📅 ቀን፦ Thursday, July 02, 2026
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -154,20 +156,16 @@
             📊 4. CRAWLING TRENDS & DROPPED SOURCES (ቀኝ)
             ============================================================ -->
             <div class="col-xl-6">
-                <!-- የ 7-ቀን የምርት አሰሳ የዕድገት ሰንጠረዥ -->
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
                     <div class="card-header bg-white py-3 border-0">
-                        <h5 class="mb-0 fw-bold"><i class="fa-solid fa-chart-line me-2 text-success"></i> 7-Day Crawling Trends</h5>
+                        <h5 class="mb-0 fw-bold"><i class="fa-solid fa-chart-line me-2"></i> Crawling Trends</h5>
                     </div>
-                    <div class="card-body p-4 bg-light rounded-bottom-4">
-                        <div style="height: 250px; position: relative;">
-                            <!-- የ Chart.js ግራፍ መያዣ ካንቫስ -->
-                            <canvas id="crawlingTrendChart"></canvas>
-                        </div>
+                    <div class="card-body">
+                        <canvas id="crawlingTrendsChart" height="200"></canvas>
                     </div>
                 </div>
 
-                <!-- የታገዱ/ያልሰሩ (Dropped) ዌብሳይቶች መዛግብት -->
+                <!-- የታገዱ/ያልሰሩ (Dropped) ዌብሳይቶች ሰሌዳ -->
                 <div class="card border-0 shadow-sm rounded-4">
                     <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold"><i class="fa-solid fa-ban me-2 text-danger"></i> Auto-Cleaned Inactive Sources</h5>
@@ -198,7 +196,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Chart.js ቤተ-መጽሐፍት ጭነት (Defer የፍጥነት ማሻሻያውን ይጠብቃል) -->
+<!-- Chart.js ቤተ-መጽሐፍት ጭነት -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 
 <script>
@@ -209,16 +207,13 @@
 
     // 📈 Chart.js የ 7-ቀን የምርት አሰሳ ግራፍ አኒሜሽን
     document.addEventListener("DOMContentLoaded", function() {
-        // በጀርባ ተሰብስቦ የመጣውን የ JSON ዳታ መፍታት
         const trendData = JSON.parse('{{ daily_trend_json|safe }}');
         
         const labels = trendData.map(item => item.date);
         const counts = trendData.map(item => item.count);
 
-        // የ Chart.js ግራፉን በጥንቃቄ መሳል
-        const ctx = document.getElementById('crawlingTrendChart');
+        const ctx = document.getElementById('crawlingTrendsChart');
         if (ctx) {
-            // ስክሪፕቱ ሙሉ በሙሉ እስኪጫን ለመጠበቅ ቼክ ማካሄድ
             const checkChartJS = setInterval(() => {
                 if (typeof Chart !== 'undefined') {
                     clearInterval(checkChartJS);
@@ -246,12 +241,10 @@
                             scales: {
                                 y: {
                                     beginAtZero: true,
-                                    grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                                    ticks: { font: { family: 'Inter' } }
+                                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
                                 },
                                 x: {
-                                    grid: { display: false },
-                                    ticks: { font: { family: 'Inter' } }
+                                    grid: { display: false }
                                 }
                             }
                         }
@@ -261,11 +254,10 @@
         }
     });
 
-    // 📟 WebSocket Connection — የቀጥታ አሰሳ ቁጥሮችን በእውነተኛ ሰዓት ለማዘመን
+    // 📟 WebSocket Auto-Updater
     document.addEventListener('agent_update', function(event) {
         const data = event.detail;
         if (data.type === 'status_update' || data.type === 'live_stats') {
-            // ምርቶች አሰሳ ሲፈጸም ዛሬ የተጫኑትን ቁጥሮች በእውነተኛ ሰዓት ማዘመን
             const todayCountEl = document.getElementById('scraped-today-val');
             if (todayCountEl && data.scraped_today_count) {
                 todayCountEl.innerText = data.scraped_today_count;
