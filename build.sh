@@ -1,9 +1,8 @@
-
 #!/bin/bash
 # ============================================================
 # 📁 ፋይል፦ EthAfri/build.sh
-# 📝 ለውጥ፦ v10.16 Lightning Build Script — Complete Browser Installer
-# ✅ የተፈቱ ችግሮች፦ Dynamic Playwright browser path export, complete browser dependency installation, and fast pip caching.
+# 📝 ለውጥ፦ v10.22 Lightning Build Script — Production Persistent Browser
+# ✅ የተፈቱ ችግሮች፦ Dynamic persistent Playwright browser path to prevent runtime binary loss on Render.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
@@ -19,11 +18,10 @@ echo ""
 echo "📦 Installing Python packages with cache-enabled..."
 pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
 
-# 2. የ Playwright ማውጫ ጥበቃ (Browser Path Alignment) [2]
-echo "🌐 Configuring Playwright browser path..."
-export PLAYWRIGHT_BROWSERS_PATH="/opt/render/.cache/ms-playwright"
+# 2. 🛡️ PERSISTENT BROWSER PATH: ብሮውዘሩ ከዲፕሎይመንት በኋላ እንዳይጠፋ በ src ውስጥ እንዲጫን ማድረግ [1]
+echo "🌐 Configuring Playwright persistent browser path..."
+export PLAYWRIGHT_BROWSERS_PATH="/opt/render/project/src/ms-playwright"
 
-# 🛡️ COMPLETE INSTALL: chromium-headless-shell ስህተት እንዳይፈጠር ሙሉውን የ playwright install ማስኬድ [2]
 echo "🌐 Installing Playwright browser dependencies..."
 playwright install
 
@@ -32,7 +30,7 @@ echo ""
 echo "📂 Collecting static files..."
 python manage.py collectstatic --no-input --clear || true
 
-# 4. የቋንቋ ማህደሮችን አስቀድሞ ማረጋገጥ እና ማጠናቀር [1]
+# 4. የቋንቋ ማህደሮችን ማጠናቀር
 echo ""
 mkdir -p locale staticfiles media logs tmp
 

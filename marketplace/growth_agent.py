@@ -1,9 +1,8 @@
-
 # ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
-# 📝 ስሪት፦ v10.16 (Ultimate Master-Brain CEO Agent - Complete & Consolidated)
-# ✅ የተፈቱ ችግሮች፦ Circular import prevention, system pre-flight verification, dynamic progress tracker, and safe file rollback handlers.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 1/2)
+# 📝 ስሪት፦ v10.23 (Ultimate Master-Brain CEO Agent - Part 1/2)
+# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading, circular import prevention, pre-flight verification, and recursive backlog planning.
+# 📅 ቀን፦ Friday, July 03, 2026
 # ============================================================
 
 from __future__ import annotations
@@ -424,7 +423,7 @@ class StrategicCEO:
         last_self_audit = SiteConfig.objects.filter(key=f"LAST_SELF_AUDIT_{self.site.name}").first()
 
         if not last_self_audit or (timezone.now() - last_self_audit.updated_at) >= timedelta(hours=3):
-            # የላቀውን ራሱን የመቀረጽ እና የማሳደግ ሞተር በቀጥታ በግሎባል ስኮፕ መጥራት
+            # የላቀውን ራሱን የመቀረጽ እና የማሳደግ ሞተር መጥራት [1]
             architect = MetaSelfArchitectEngine(self.site)
             architect.analyze_and_architect_self()
             
@@ -639,8 +638,7 @@ class RecursiveBuilder:
         except Exception:
             pass
         return "Success"
-
-
+        
 # ============================================================
 # 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
 # ============================================================
@@ -648,7 +646,7 @@ class RecursiveBuilder:
 def _autonomous_no_api_search_fallback(niche):
     """
     የጌሚኒ ቁልፎች ሙሉ በሙሉ ቢቋረጡም፣ ያለ ምንም API DuckDuckGo HTML በመጠየቅ
-    ንቁ የሆኑ የኢትዮጵያ የቴሌግራም ቻናሎችን እና Classified ዌብሳይቶችን በሪጀክስ ፈልቅቆ ያወጣል
+    ንቁ የሆኑ የኢትዮጵያ የቴሌግራም ቻናሎችን እና Classified ዌብሳይቶችን በሪጀክስ ፈልቅቆ ያወጣል [1]
     """
     logger.warning(f"⚠️ Search Fallback: Running non-AI DuckDuckGo search for niche '{niche}'...")
     query = f"Ethiopia buying and selling telegram channel {niche}"
@@ -659,11 +657,13 @@ def _autonomous_no_api_search_fallback(niche):
     try:
         res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 200:
+            # የቴሌግራም ቻናል ሊንኮችን በሪጀክስ ፈልቅቆ ማውጣት (t.me/username)
             telegram_usernames = re.findall(r't\.me/([a-zA-Z0-9_]{5,32})', res.text)
             for username in list(set(telegram_usernames))[:3]:
                 if username.lower() not in ['s', 'joinchat', 'share']:
                     fallback_sources.append({"url_or_channel": username, "platform_type": "Telegram"})
                     
+            # የሀገር ውስጥ የሽያጭ ድረ-ገጽ ሊንኮችን መፈለግ (.com / .et)
             web_domains = re.findall(r'https?://(?:www\.)?([a-zA-Z0-9-]+\.(?:com\.et|com|et))', res.text)
             for domain in list(set(web_domains))[:2]:
                 if not any(x in domain for x in ['google', 'duckduckgo', 'yandex', 'yahoo', 'telesco']):
@@ -883,7 +883,7 @@ class MultiChannelHarvester:
 
 
 # ============================================================
-# 🕵️ COMPETITOR INTELLIGENCE ENGINE
+# 🕵️ COMPETITOR INTELLIGENCE ENGINE (ተፎካካሪ ስለላ)
 # ============================================================
 
 class CompetitorIntelligenceEngine:
@@ -1550,6 +1550,8 @@ def bootstrap_system_safely():
 
 
 def get_site_project_state_dynamic(site):
+    AIProjectBacklog = get_model('AIProjectBacklog') # 🛡️ Fixed: 'AIProjectBacklog' is not defined error resolved [1]
+    
     if not site:
         return {}, {}
 
