@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.19 (Production Grade - Ultimate Brain Engine)
-# ✅ የተፈቱ ችግሮች፦ Dynamic task-based routing, Gemini 4-key rotator, adaptive request pacing for GitHub/HuggingFace, Markdown JSON parser, and translate_text_incremental included.
+# 📝 ስሪት፦ v10.19 (Production Grade - Ultimate Brain Engine - Aligned)
+# ✅ የተፈቱ ችግሮች፦ Fixed GitHub Llama model case-sensitivity issue, dynamic task-based routing, Gemini 4-key rotator, and adaptive request pacing for GitHub/HuggingFace.
 # 📅 ቀን፦ Thursday, July 02, 2026
 # ============================================================
 
@@ -244,7 +244,8 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
         url = "https://models.inference.ai.azure.com/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            "model": "meta-llama-3.1-8b-instruct",
+            # 🛡️ FIXED: Gsc GitHub Models case-sensitivity ስህተት ተስተካክሏል [1]
+            "model": "Meta-Llama-3.1-8B-Instruct",
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
