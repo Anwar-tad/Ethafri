@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.30 (Production Grade - Ultimate Brain - Google Search Grounded Fallback)
-# ✅ የተፈቱ ችግሮች፦ Dynamic Search Context Grounding for offline LLMs (Groq/Mistral) when Gemini is offline/timed out, Gemini 4-key rate-limit cooldown system, and case-sensitive GitHub Llama alignment.
+# 📝 ስሪት፦ v10.32 (Production Grade - Ultimate Brain - API Failover Hardened)
+# ✅ የተፈቱ ችግሮች፦ Replaced GITHUB Llama model with guaranteed free 'gpt-4o-mini', integrated dynamic DNS/Connection failure cooldown caching, and extended Mistral timeout limit to 15s.
 # 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
@@ -211,7 +211,7 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
 
 def _fetch_raw_search_results(query: str) -> str:
     """
-    🛡️ FIXED: ጌሚኒ ቢያልቅ ወይም ቢሰናከል፣ ያለ ምንም ኤፒአይ ኪይ
+    🛡️ Dynamic Search Scraper: ጌሚኒ ቢያልቅ ወይም ቢሰናከል፣ ያለ ምንም ኤፒአይ ኪይ
     ቀጥታ ከ DuckDuckGo ላይ የፍለጋ መረጃዎችን በፅሁፍ ደረጃ የሚስብ ረዳት [1]
     """
     url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
@@ -266,7 +266,8 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
         url = "https://models.inference.ai.azure.com/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            "model": "Meta-Llama-3.1-8B-Instruct",
+            # 🛡️ FIXED: 100% ቋሚና ክፍት በሆነው የ 'gpt-4o-mini' የነጻ ሞዴል መተካቱ (የ Llama 400 ስህተት መከላከያ) [1]
+            "model": "gpt-4o-mini",
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
@@ -395,14 +396,15 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
             
             url, headers, payload_builder = _detect_and_route_provider_specs(provider, api_key)
             
-            # 🛡️ ADAPTIVE REQUEST PACING
+            # 🛡️ ADAPTIVE REQUEST PACING (🔴 FIXED: Mistral timeout limit extended to 15s to bypass latency)
+            timeout_limit = 15 if provider == "MISTRAL" else 10
             if provider in ["GITHUB", "HUGGINGFACE"]:
                 sleep_time = random.uniform(1.5, 3.5)
                 time.sleep(sleep_time)
                 
             try:
                 payload = payload_builder(active_prompt, system_instruction)
-                res = requests.post(url, json=payload, headers=headers, timeout=10)
+                res = requests.post(url, json=payload, headers=headers, timeout=timeout_limit)
                 
                 if res.status_code == 429:
                     logger.warning(f"⚠️ {provider_tag} hit rate limit (429). Activating 60s cooldown cache...")
@@ -417,11 +419,15 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
                 logger.warning(f"⚠️ {provider_tag} failed with {last_error}. Trying next fallback...")
                 
             except requests.exceptions.Timeout:
-                last_error = f"Timeout (10s) reached for {provider_tag}"
+                last_error = f"Timeout ({timeout_limit}s) reached for {provider_tag}"
                 logger.warning(f"⏱️ Fail-Fast: {provider_tag} timed out. Swapping...")
+                # 🛡️ ኔትወርክ በሚዘገይበት ወቅት መቆለፊያ በካሽ መመዝገቢያ (Cooldown)
+                cache.set(cooldown_key, True, timeout=60)
             except Exception as e:
                 last_error = str(e)
                 logger.warning(f"⚠️ Connection to {provider_tag} failed: {e}. Swapping...")
+                # 🛡️ FIXED: የዲኤንኤስ/የኔትወርክ ግንኙነት ስህተቶች ሲያጋጥሙ ወዲያውኑ በካሽ Cooldown መቆለፍ [1]
+                cache.set(cooldown_key, True, timeout=60)
                 
     logger.error(f"❌ AI Router: All 9 configured keys exhausted. Last error: {last_error}")
     return "{}"
