@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.25 (Production Grade - Ultimate Brain Engine - Hardened)
-# ✅ የተፈቱ ችግሮች፦ Dynamic Gemini 429 Cooldown Cache, Gated HuggingFace bypass, DeepSeek R1 support, and unified logger broadcast.
+# 📝 ስሪት፦ v10.30 (Production Grade - Ultimate Brain - Google Search Grounded Fallback)
+# ✅ የተፈቱ ችግሮች፦ Dynamic Search Context Grounding for offline LLMs (Groq/Mistral) when Gemini is offline/timed out, Gemini 4-key rate-limit cooldown system, and case-sensitive GitHub Llama alignment.
 # 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
@@ -18,7 +18,6 @@ from typing import Dict, List, Optional, Union, Any, Tuple
 
 from django.utils import timezone
 from django.core.cache import cache
-from django.core.cache.backends.base import DEFAULT_TIMEOUT
 from django.conf import settings
 from django import template
 
@@ -199,13 +198,40 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
         return json.loads(cleaned)
     except Exception as e:
         logger.error(f"❌ JSON Parsing failed after sanitization: {e}")
-        # ጥቃቅን የኮማ ወይም የቅንፍ ስህተቶች ካሉ ለመጠገን ሙከራ ማድረግ
         try:
-            # በስተመጨረሻ ላይ ያሉ ተደጋጋሚ ኮማዎችን ማስወገድ
             repaired = re.sub(r',\s*([\]}])', r'\1', cleaned)
             return json.loads(repaired)
         except Exception:
             return {}
+
+
+# ============================================================
+# 📡 2. DYNAMIC WEB SEARCH COG (የበይነመረብ ራስ-ገዝ ፍለጋ መሳቢያ)
+# ============================================================
+
+def _fetch_raw_search_results(query: str) -> str:
+    """
+    🛡️ FIXED: ጌሚኒ ቢያልቅ ወይም ቢሰናከል፣ ያለ ምንም ኤፒአይ ኪይ
+    ቀጥታ ከ DuckDuckGo ላይ የፍለጋ መረጃዎችን በፅሁፍ ደረጃ የሚስብ ረዳት [1]
+    """
+    url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+    }
+    try:
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            # የውጤት ፅሁፎችን (Snippets) በሪጀክስ ፈልቅቆ ማውጣት
+            results = re.findall(r'<a class="result__snippet"[^>]*>(.*?)</a>', res.text, re.DOTALL)
+            snippets = []
+            for r in results[:5]:
+                clean_r = re.sub(r'<[^>]+>', ' ', r).strip()
+                if clean_r:
+                    snippets.append(clean_r)
+            return "\n".join(snippets)
+    except Exception as e:
+        logger.debug(f"Raw DuckDuckGo fetch failed: {e}")
+    return ""
 
 
 # ============================================================
@@ -217,23 +243,18 @@ def _get_priority_providers(task_type: str) -> List[str]:
     በታስኩ ዓይነት (Task Type) መሠረት ምርጥ የሆኑትን የ AI አቅራቢዎች
     ቅደም-ተከተል በዳይናሚክ መንገድ የሚወስን የስራ ክፍፍል ማዕከል [1]።
     """
-    # 1. የትርጉምና የሲስተም ትንተና ስራዎች በቅድሚያ ለጌሚኒ ይሰጣሉ
     if task_type in ["translation", "analysis", "critical"]:
         return ["GEMINI", "HUGGINGFACE", "GITHUB", "MISTRAL"]
         
-    # 2. የኮድ አጻጻፍ እና ራስ-ዝግመተ ለውጥ ለ GitHub/HuggingFace ይሰጣሉ (ቶከን ለመቆጠብ)
     elif task_type in ["coding", "self_evolution"]:
         return ["GITHUB", "HUGGINGFACE", "MISTRAL", "GEMINI"]
         
-    # 3. የይዘት ማጣሪያዎች እና የ SEO ስራዎች ለ ፈጣኑ ግሮቅ ይሰጣሉ
     elif task_type in ["seo", "curation", "spam_filter"]:
         return ["GROQ", "OPENROUTER", "MISTRAL"]
         
-    # 4. የገበያ ጥናቶች ለ ሚስትረል ይሰጣሉ
     elif task_type == "market_research":
-        return ["MISTRAL", "GEMINI", "OPENROUTER"]
+        return ["GEMINI", "MISTRAL", "OPENROUTER", "GITHUB", "HUGGINGFACE"]
         
-    # የዲፎልት ቅደም-ተከተል
     return ["GEMINI", "GROQ", "MISTRAL", "OPENROUTER", "HUGGINGFACE", "GITHUB"]
 
 
@@ -245,13 +266,11 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
         url = "https://models.inference.ai.azure.com/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            # 🛡️ FIXED: Gsc GitHub Models case-sensitivity ስህተት ተስተካክሏል
             "model": "Meta-Llama-3.1-8B-Instruct",
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
     elif provider == "HUGGINGFACE":
-        # 🛡️ FIXED: Gated/License barrierን ለመቅረፍ NousResearch ስሪት መጠቀም (Bypasses Meta signature gate) [2]
         url = "https://api-inference.huggingface.co/models/NousResearch/Meta-Llama-3-8B-Instruct"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
@@ -278,7 +297,6 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            # 🛡️ FIXED: የቅርብ ጊዜውን የ DeepSeek R1 ነፃ Reasoning ሞዴል አጠቃቀም ማሳደግ
             "model": "deepseek/deepseek-r1:free",
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
@@ -360,26 +378,34 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
         for idx, api_key in enumerate(api_keys_to_use):
             provider_tag = f"{provider}_KEY_{idx+1}" if provider == "GEMINI" else provider
             
-            # 🛡️ FIXED: 429 Cooldown Cache ቼክ - የኔትወርክ መዘግየትን ለመከላከል (Skip blocked keys instantly) [1]
+            # 🛡️ 429 Cooldown Cache ቼክ
             cooldown_key = f"ai_cooldown_{provider_tag}"
             if cache.get(cooldown_key):
-                logger.debug(f"Skip {provider_tag} due to active 60-second 429 cooldown.")
                 continue
                 
+            # 🛡️ FIXED: ጌሚኒ ቢያልቅ ሌሎች ኤፒአይዎች (Groq, Mistral) ኢንተርኔት ላይ እንዲፈልጉ የፍለጋ መረጃን በዳይናሚክ መመገብ [1]
+            active_prompt = prompt_compressed
+            if task_type == "market_research" and provider != "GEMINI":
+                search_context = _fetch_raw_search_results(prompt)
+                if search_context:
+                    active_prompt = (
+                        f"Live Web Search Results Context:\n{search_context}\n\n"
+                        f"Based on the above real-time web search results, answer the user request:\n{prompt_compressed}"
+                    )
+            
             url, headers, payload_builder = _detect_and_route_provider_specs(provider, api_key)
             
-            # 🛡️ ADAPTIVE REQUEST PACING: የ GitHub ወይም HuggingFace የጥሪ ጊዜዎችን ማፈራረቅ [1]
+            # 🛡️ ADAPTIVE REQUEST PACING
             if provider in ["GITHUB", "HUGGINGFACE"]:
                 sleep_time = random.uniform(1.5, 3.5)
                 time.sleep(sleep_time)
                 
             try:
-                payload = payload_builder(prompt_compressed, system_instruction)
+                payload = payload_builder(active_prompt, system_instruction)
                 res = requests.post(url, json=payload, headers=headers, timeout=10)
                 
                 if res.status_code == 429:
                     logger.warning(f"⚠️ {provider_tag} hit rate limit (429). Activating 60s cooldown cache...")
-                    # 🛡️ Cooldown ለ 60 ሰከንድ በካሽ ማስቀመጥ [1]
                     cache.set(cooldown_key, True, timeout=60)
                     continue
                     
@@ -434,7 +460,6 @@ def broadcast_agent_log(site, message: str, status_type: str = "info"):
     except Exception as e:
         logger.debug(f"Failed to broadcast agent activity log to database: {e}")
     
-    # 🛡️ FIXED: ሎግ መረጃውን በሰርቨሩ የቀጥታ ሎግ ተርሚናል (stdout/Render console) ላይ እንዲታይ ማድረግ
     logger.info(f"📣 Agent Broadcast [{status_type.upper()}]: {message}")
 
 

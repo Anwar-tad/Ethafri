@@ -168,6 +168,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                     lock_fut, tasks_fut, pending_fut, sites_fut, errors_fut, healing_fut, cycle_logs_fut, api_health_fut
                 )
             
+            # 🛡️ FIXED: JSONEncoder 'encoder' ስህተት ወደ 'cls' ተስተካክሏል [1]
             await self.send(text_data=json.dumps({
                 'type': 'status_update',
                 'task_stats': tasks,
@@ -180,7 +181,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'api_cooldowns': api_health.get('api_cooldowns', {}),
                 'api_configured': api_health.get('api_configured', {}),
                 'timestamp': timezone.now().isoformat()
-            }, encoder=DjangoJSONEncoder))
+            }, cls=DjangoJSONEncoder)) # <--- ወደ cls ተስተካክሏል [1]
         except Exception as e:
             logger.error(f"Failed to compile status check: {e}")
     

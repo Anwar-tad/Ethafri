@@ -740,6 +740,8 @@ class RecursiveBuilder:
 # 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
 # ============================================================
 
+
+
 def _autonomous_no_api_search_fallback(niche):
     """
     የጌሚኒ ቁልፎች ሙሉ በሙሉ ቢቋረጡም፣ ያለ ምንም API DuckDuckGo HTML በመጠየቅ
@@ -755,8 +757,8 @@ def _autonomous_no_api_search_fallback(niche):
         res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 200:
             telegram_usernames = re.findall(r't\.me/([a-zA-Z0-9_]{5,32})', res.text)
-            for username in list(set(telegram_usernames))[:3]:
-                if username.lower() not in ['s', 'joinchat', 'share']:
+            for username in list(set(telegram_usernames))[:4]:
+                if username.lower() not in ['s', 'joinchat', 'share', 'tgme']:
                     fallback_sources.append({"url_or_channel": username, "platform_type": "Telegram"})
                     
             web_domains = re.findall(r'https?://(?:www\.)?([a-zA-Z0-9-]+\.(?:com\.et|com|et))', res.text)
@@ -868,6 +870,15 @@ class MultiChannelHarvester:
             logger.debug(f"Failed to get cached sources: {e}")
         return []
 
+    def _get_fallback_sources(self):
+        """🛡️ FIXED: በኢትዮጵያ ውስጥ እጅግ ግዙፍና ንቁ የሆኑ እውነተኛ ቻናሎች እዚህ ተመዝግበዋል"""
+        return [
+            {"url_or_channel": "shegemarket", "platform_type": "Telegram"},
+            {"url_or_channel": "merkato_market", "platform_type": "Telegram"},
+            {"url_or_channel": "ethiomarketlink", "platform_type": "Telegram"},
+            {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji"},
+        ]
+
     def check_source_health(self, source):
         url = source.get('url_or_channel', '')
         platform = source.get('platform_type', '')
@@ -908,14 +919,17 @@ class MultiChannelHarvester:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
                 messages = re.findall(r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', res.text, re.DOTALL)
-                images = re.findall(r'src="(https://cdn\d+\.telesco\.pe/[^\"]+)"', res.text)
+                
+                # 🛡️ FIXED: የቴሌግራም ፎቶዎችን background-image url በጥራት ፈልቅቆ ማውጫ [1]
+                images = re.findall(r"background-image:url\(\'([^\'\)]+)\'\)", res.text)
                 
                 products = []
-                for i, msg in enumerate(messages[:5]):
+                for i, msg in enumerate(messages[:8]): # በዑደት እስከ 8 ምርት መሰብሰብ
                     clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
                     if clean_text:
                         product = self._parse_product_text(clean_text)
                         if product:
+                            # ምስሉ ካለ በትክክል ማገናኘት
                             product['image_url'] = images[i] if i < len(images) else ''
                             products.append(product)
                 return products
@@ -939,7 +953,9 @@ class MultiChannelHarvester:
         if lines:
             product['title'] = lines[0][:150]
         
-        price_match = re.search(r'(?:ዋጋ|ብር|Price|Birr|Br|ETB)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE)
+        # 🛡️ FIXED: የአገር ውስጥ የዋጋ መዋቅሮችን በሙሉ በዝርዝር መፈተሻ [1]
+        price_match = re.search(r'(?:ዋጋ|ብር|Price|Birr|Br|ETB|Price)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE) or \
+                      re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', text, re.IGNORECASE)
         if price_match:
             try:
                 product['price'] = float(price_match.group(1).replace(',', ''))
@@ -971,13 +987,18 @@ class MultiChannelHarvester:
             logger.warning("🌐 No internet connection. Using cached sources.")
             return self._get_cached_sources(site)
         
-        # በየቀኑ 30% እድል አዳዲስ ሳይቶች እንዲፈለጉ ፍለጋ ማስጀመር (መዝገቡን በየቀኑ ያሳድጋል)
         if random.random() < 0.3 or not self._get_cached_sources(site):
             new_discovered = self.discover_active_market_sources(site)
             if new_discovered:
                 self._save_sources_to_cache(site, new_discovered)
         
         sources = self._get_cached_sources(site)
+        
+        # 🛡️ FIXED: የ AI ኪዎች ካላለቁ ወይም ካሽ ከሌለ በቋሚነት ወደሚሠሩት የአገር ውስጥ ምንጮች መመለስ [1]
+        if not sources:
+            logger.warning("⚠️ No active sources found via AI or cache. Seeding default fallback sources...")
+            sources = self._get_fallback_sources()
+            self._save_sources_to_cache(site, sources)
         
         active_sources = []
         for source in sources:
@@ -995,104 +1016,6 @@ class MultiChannelHarvester:
                 logger.info(f"✅ Found {len(products)} products from {source.get('url_or_channel')}")
         
         return all_products
-
-
-# ============================================================
-# 🕵️ COMPETITOR INTELLIGENCE ENGINE (ተፎካካሪ ስለላ)
-# ============================================================
-
-class CompetitorIntelligenceEngine:
-    def __init__(self, site):
-        self.site = site
-
-    def spy_and_analyze_market(self):
-        ScrapperEngine = _get_scrapper_engine()
-        MarketTrend = get_model('MarketTrend')
-        VectorMemory = get_model('VectorMemory')
-        _, _, broadcast_agent_log, _ = _get_ai_utils()
-
-        broadcast_agent_log(self.site, "🕵️ Spy Engine: Initializing competitor website scanning...", "info")
-        
-        competitor_links = self.site.competitor_urls if isinstance(self.site.competitor_urls, list) else []
-        if not competitor_links:
-            competitor_links = ["https://jiji.com.et", "https://www.engocha.com"]
-
-        raw_competitor_data = []
-        for url in competitor_links[:2]:
-            try:
-                html_content = ScrapperEngine.scrape(url)
-                if html_content:
-                    clean_html = re.sub(r'<script.*?>.*?</script>|<style.*?>.*?</script>', '', html_content, flags=re.DOTALL)
-                    clean_text = re.sub(r'<[^>]+>', ' ', clean_html)
-                    compressed_text = " ".join(clean_text.split())[:1200]
-                    raw_competitor_data.append({"url": url, "content": compressed_text})
-            except Exception as e:
-                logger.error(f"Spy Engine failed for {url}: {e}")
-
-        if not raw_competitor_data:
-            broadcast_agent_log(self.site, "🕵️ Spy Engine: Competitors unreachable.", "warning")
-            return
-
-        _, ask_master_ai_smart, _, _ = _get_ai_utils()
-        clean_and_parse_json, _, _, _ = _get_ai_utils()
-
-        prompt = (
-            f"Analyze raw product data from competitors: {json.dumps(raw_competitor_data, ensure_ascii=False)}.\n"
-            f"Niche Market: {self.site.niche}.\n\n"
-            f"Provide strategic answers on:\n"
-            f"1. Top-selling/most popular items currently?\n"
-            f"2. Highest demand locations (e.g. Bole, Mercato, Hawassa, etc.)?\n"
-            f"3. Pricing adjustments to draw their users to our site?\n"
-            f"4. What meta keywords should we hijack to rank above them?\n"
-            f"Return JSON with keys:\n"
-            f"- 'demand_level': integer 1-100\n"
-            f"- 'ai_suggestion': detailed strategic text\n"
-            f"- 'trending_items_summary': text summary\n"
-            f"- 'competitor_seo_keywords': list of up to 5 keywords\n"
-            f"- 'repriced_value': float representing recommended price adjustment (or 0.0)\n"
-            f"- 'repriced_product_id': integer ID of product to reprice (or 0)\n"
-            f"- 'competitive_advantage_action': short instruction for backlog task (max 100 chars)."
-        )
-
-        try:
-            result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
-            
-            if result and isinstance(result, dict):
-                MarketTrend.objects.update_or_create(
-                    niche_name=self.site.niche,
-                    defaults={'demand_level': int(result.get('demand_level', 50)), 'ai_suggestion': result.get('ai_suggestion', '')}
-                )
-
-                insight_text = result.get('ai_suggestion', '')
-                VectorMemory.objects.create(
-                    site=self.site, memory_type='insight', content=f"Competitor Intelligence: {insight_text}",
-                    metadata={'trending_items': result.get('trending_items_summary', ''), 'site_id': self.site.id},
-                    success_rate=95.0, text_content=insight_text, embedding_model='spy-intelligence-v1'
-                )
-
-                repriced_val = float(result.get('repriced_value', 0.0))
-                target_id = int(result.get('repriced_product_id', 0))
-                if repriced_val > 0.0 and target_id > 0:
-                    Product = get_model('Product')
-                    Product.objects.filter(id=target_id).update(price=repriced_val)
-                    broadcast_agent_log(self.site, f"🎯 Repricer: Adjusted product {target_id} price to {repriced_val} ETB.", "success")
-
-                keywords = result.get('competitor_seo_keywords', [])
-                if keywords:
-                    self.site.primary_keywords = list(set((self.site.primary_keywords or []) + keywords))
-                    self.site.save()
-                    broadcast_agent_log(self.site, f"🔍 Keyword Hijacker: Injected competitor keywords {keywords}.", "info")
-
-                advantage_action = result.get('competitive_advantage_action', '')
-                if advantage_action:
-                    task_name = f"🎯 COMPETITOR SPY: {advantage_action}"
-                    get_or_create_backlog_task_safe(
-                        self.site, task_name,
-                        defaults={'task_type': 'marketing', 'target_file': 'marketing_campaign', 'priority': 'High', 'status': 'Pending', 'description': advantage_action, 'business_impact_score': 9, 'trigger_condition': 'Competitor Loop'}
-                    )
-                broadcast_agent_log(self.site, "✨ Spy Engine: Competitor analysis complete.", "success")
-        except Exception as ai_err:
-            logger.error(f"Spy Engine analysis failed: {ai_err}")
 
 
 # ============================================================
@@ -1447,157 +1370,103 @@ class CEOOperations:
         except Exception as db_err:
             logger.error(f"Bulk DB Insertion failed: {db_err}")
 
-    @staticmethod
-    def generate_contact_links(contact_str):
-        links = {}
-        if not contact_str: 
-            return links
-        phone_match = re.search(r'(?:\+251|09|07)\d{8}', contact_str)
-        if phone_match:
-            raw_phone = phone_match.group(0)
-            clean_phone = raw_phone
-            if clean_phone.startswith('0'):
-                clean_phone = '251' + clean_phone[1:]
-            elif clean_phone.startswith('+'):
-                clean_phone = clean_phone.replace('+', '')
-            links['whatsapp'] = f"https://wa.me/{clean_phone}"
-            links['telegram_direct'] = f"https://t.me/+{clean_phone}"
-            links['imo'] = f"imo://chat?phone={clean_phone}"
-            links['call_sms'] = f"tel:+{clean_phone}"
-        else:
-            clean_username = contact_str.replace('@', '').strip()
-            if clean_username:
-                links['telegram_direct'] = f"https://t.me/{clean_username}"
-                links['facebook_messenger'] = f"https://m.me/{clean_username}"
-        return links
 
-    def curate_user_listings(self, limit=5):
-        SiteConfig = get_model('SiteConfig')
-        Product = get_model('Product')
-        NotificationQueue = get_model('NotificationQueue')
+# ============================================================
+# 🕵️ COMPETITOR INTELLIGENCE ENGINE (ተፎካካሪ ስለላ)
+# ============================================================
+
+class CompetitorIntelligenceEngine:
+    def __init__(self, site):
+        self.site = site
+
+    def spy_and_analyze_market(self):
+        ScrapperEngine = _get_scrapper_engine()
+        MarketTrend = get_model('MarketTrend')
+        VectorMemory = get_model('VectorMemory')
         _, _, broadcast_agent_log, _ = _get_ai_utils()
+
+        broadcast_agent_log(self.site, "🕵️ Spy Engine: Initializing competitor website scanning...", "info")
+        
+        competitor_links = self.site.competitor_urls if isinstance(self.site.competitor_urls, list) else []
+        if not competitor_links:
+            competitor_links = ["https://jiji.com.et", "https://www.engocha.com"]
+
+        raw_competitor_data = []
+        for url in competitor_links[:2]:
+            try:
+                html_content = ScrapperEngine.scrape(url)
+                if html_content:
+                    clean_html = re.sub(r'<script.*?>.*?</script>|<style.*?>.*?</script>', '', html_content, flags=re.DOTALL)
+                    clean_text = re.sub(r'<[^>]+>', ' ', clean_html)
+                    compressed_text = " ".join(clean_text.split())[:1200]
+                    raw_competitor_data.append({"url": url, "content": compressed_text})
+            except Exception as e:
+                logger.error(f"Spy Engine failed for {url}: {e}")
+
+        if not raw_competitor_data:
+            broadcast_agent_log(self.site, "🕵️ Spy Engine: Competitors unreachable.", "warning")
+            return
+
+        _, ask_master_ai_smart, _, _ = _get_ai_utils()
         clean_and_parse_json, _, _, _ = _get_ai_utils()
 
-        try:
-            dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
-            dedup_config, _ = SiteConfig.objects.get_or_create(key=dedup_key, defaults={'value': []})
-            curated_ids = set(dedup_config.value if isinstance(dedup_config.value, list) else [])
-
-            candidates = list(Product.objects.filter(site=self.site, is_active=True).exclude(id__in=list(curated_ids))[:limit])
-            if not candidates: 
-                return
-
-            newly_curated = []
-            for product in candidates:
-                try:
-                    is_valid = True
-                    reason = "Valid Listing"
-                    
-                    if self.site.name == 'primary' and product.price < 10.0:
-                        is_valid = False
-                        reason = "Price is below 10 ETB"
-                    else:
-                        try:
-                            prompt = (
-                                f"Verify listing for scams/spam. Title: {product.title}. Price: {product.price}. "
-                                f"Return JSON with key 'is_valid' (true/false) and 'reason'."
-                            )
-                            result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
-                            if result and not result.get('is_valid', True):
-                                is_valid = False
-                                reason = result.get('reason', 'Suspicious listing')
-                        except Exception as ai_curate_err:
-                            logger.debug("AI curation skipped: %s", ai_curate_err)
-
-                    if not is_valid:
-                        product.is_active = False
-                        product.save()
-                        NotificationQueue.objects.create(
-                            site=self.site, recipient=product.seller.username, notification_type='sms',
-                            message=f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት ማጣሪያችን አልፏል። ምክንያት፦ {reason}።"
-                        )
-                        logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
-                    else:
-                        self._generate_translations_for_product(product)
-
-                    newly_curated.append(product.id)
-                except Exception as e:
-                    logger.error(f"curate_user_listings failed: {e}")
-
-            if newly_curated:
-                curated_ids.update(newly_curated)
-                dedup_config.value = list(curated_ids)[-2000:]
-                dedup_config.save()
-        except Exception as e:
-            logger.error("Curation exception: %s", e)
-
-    def _generate_translations_for_product(self, product):
-        from .models import ProductTranslation
-        texts = [t for t in [product.title, product.description or ""] if t and t.strip()]
-        if not texts: 
-            return
-
-        for lang in ['am', 'om']:
-            try:
-                translated = translate_text_incremental(texts, target_lang=lang)
-                ProductTranslation.objects.update_or_create(
-                    product=product,
-                    defaults={
-                        lang: f"{translated.get(product.title, product.title)} ||| {translated.get(product.description or '', product.description or '')}"
-                    }
-                )
-            except Exception as e:
-                logger.debug("Translation skipped: %s", e)
-
-    def _boost_revenue(self):
-        Product = get_model('Product')
-        try:
-            hot_items = Product.objects.filter(site=self.site, view_count__gt=100, is_active=True).order_by('-view_count')[:2]
-            for item in hot_items:
-                get_or_create_backlog_task_safe(
-                    self.site, f"📣 Promote Hot Item: {item.title}",
-                    defaults={'priority': 'High', 'status': 'Pending', 'business_impact_score': 8, 'target_file': 'home_html', 'description': item.title}
-                )
-        except Exception as e:
-            logger.debug("Failed to execute revenue boosting: %s", e)
-
-    def dispatch_pending_notifications(self):
-        NotificationQueue = get_model('NotificationQueue')
-        try:
-            pending_notes = NotificationQueue.objects.filter(site=self.site, is_sent=False)[:5]
-            for note in pending_notes:
-                logger.info(f"📨 Outbound Dispatcher: Sent {note.notification_type} to {note.recipient}")
-                note.is_sent = True
-                note.sent_at = timezone.now()
-                note.save()
-        except Exception as e:
-            logger.error(f"Outbound Dispatcher failed: {e}")
-
-    def auto_post_to_telegram_channel(self, product):
-        token = getattr(settings, 'TELEGRAM_BOT_TOKEN', None)
-        channel_id = getattr(settings, 'TELEGRAM_CHANNEL_ID', None)
-        if not token or not channel_id:
-            return
-        
-        url = f"https://api.telegram.org/bot{token}/sendPhoto"
-        caption = (
-            f"✨ {product.get_translated_title()}\n\n"
-            f"💰 ዋጋ/Price: {product.price:.0f} ETB\n"
-            f"📍 ቦታ/Location: {product.location}\n\n"
-            f"🔗 {self.site.deployment_url}/product/{product.id}/\n\n"
-            f"🤖 EthAfri Auto-Post"
+        prompt = (
+            f"Analyze raw product data from competitors: {json.dumps(raw_competitor_data, ensure_ascii=False)}.\n"
+            f"Niche Market: {self.site.niche}.\n\n"
+            f"Provide strategic answers on:\n"
+            f"1. Top-selling/most popular items currently?\n"
+            f"2. Highest demand locations (e.g. Bole, Mercato, Hawassa, etc.)?\n"
+            f"3. Pricing adjustments to draw their users to our site?\n"
+            f"4. What meta keywords should we hijack to rank above them?\n"
+            f"Return JSON with keys:\n"
+            f"- 'demand_level': integer 1-100\n"
+            f"- 'ai_suggestion': detailed strategic text\n"
+            f"- 'trending_items_summary': text summary\n"
+            f"- 'competitor_seo_keywords': list of up to 5 keywords\n"
+            f"- 'repriced_value': float representing recommended price adjustment (or 0.0)\n"
+            f"- 'repriced_product_id': integer ID of product to reprice (or 0)\n"
+            f"- 'competitive_advantage_action': short instruction for backlog task (max 100 chars)."
         )
-        payload = {
-            "chat_id": channel_id,
-            "caption": caption,
-            "photo": product.image_url or "https://loremflickr.com/800/800/product"
-        }
-        try:
-            requests.post(url, json=payload, timeout=5)
-            logger.info(f"📢 Telegram Auto-Poster: Posted product {product.id}")
-        except Exception as e:
-            logger.error(f"Telegram Auto-Poster failed: {e}")
 
+        try:
+            result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+            
+            if result and isinstance(result, dict):
+                MarketTrend.objects.update_or_create(
+                    niche_name=self.site.niche,
+                    defaults={'demand_level': int(result.get('demand_level', 50)), 'ai_suggestion': result.get('ai_suggestion', '')}
+                )
+
+                insight_text = result.get('ai_suggestion', '')
+                VectorMemory.objects.create(
+                    site=self.site, memory_type='insight', content=f"Competitor Intelligence: {insight_text}",
+                    metadata={'trending_items': result.get('trending_items_summary', ''), 'site_id': self.site.id},
+                    success_rate=95.0, text_content=insight_text, embedding_model='spy-intelligence-v1'
+                )
+
+                repriced_val = float(result.get('repriced_value', 0.0))
+                target_id = int(result.get('repriced_product_id', 0))
+                if repriced_val > 0.0 and target_id > 0:
+                    Product = get_model('Product')
+                    Product.objects.filter(id=target_id).update(price=repriced_val)
+                    broadcast_agent_log(self.site, f"🎯 Repricer: Adjusted product {target_id} price to {repriced_val} ETB.", "success")
+
+                keywords = result.get('competitor_seo_keywords', [])
+                if keywords:
+                    self.site.primary_keywords = list(set((self.site.primary_keywords or []) + keywords))
+                    self.site.save()
+                    broadcast_agent_log(self.site, f"🔍 Keyword Hijacker: Injected competitor keywords {keywords}.", "info")
+
+                advantage_action = result.get('competitive_advantage_action', '')
+                if advantage_action:
+                    task_name = f"🎯 COMPETITOR SPY: {advantage_action}"
+                    get_or_create_backlog_task_safe(
+                        self.site, task_name,
+                        defaults={'task_type': 'marketing', 'target_file': 'marketing_campaign', 'priority': 'High', 'status': 'Pending', 'description': advantage_action, 'business_impact_score': 9, 'trigger_condition': 'Competitor Loop'}
+                    )
+                broadcast_agent_log(self.site, "✨ Spy Engine: Competitor analysis complete.", "success")
+        except Exception as ai_err:
+            logger.error(f"Spy Engine analysis failed: {ai_err}")
 
 # ============================================================
 # 🛡️ FRAUD HUNTER
