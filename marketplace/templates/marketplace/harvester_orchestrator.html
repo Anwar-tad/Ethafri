@@ -52,7 +52,8 @@
             <!-- የንዑስ ጣቢያዎች መራጭ (Site Selector Dropdown) -->
             <div class="d-flex gap-2 align-items-center">
                 <span class="small fw-bold text-muted text-uppercase">Niche:</span>
-                <select class="form-select rounded-pill px-3 py-1" id="harvesterSiteSelector" style="width: auto; font-weight: bold; cursor: pointer;" onchange="switchHarvesterSite(this.value)">
+                <!-- 🛡️ FIXED: ረዥም የኒች ስሞች መራጩን አዝራር እንዳይዘረጡ በ max-width እና በ text-overflow ተገድቧል [1] -->
+<select class="form-select rounded-pill px-3 py-1" id="harvesterSiteSelector" style="width: auto; max-width: 170px; font-weight: bold; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onchange="switchHarvesterSite(this.value)">
                     {% for site in sites %}
                         <option value="{{ site.id }}" {% if current_site.id == site.id %}selected{% endif %}>{{ site.display_name }} ({{ site.niche|upper }})</option>
                     {% endfor %}
