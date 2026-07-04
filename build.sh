@@ -18,17 +18,19 @@ echo ""
 echo "📦 Installing Python packages with cache-enabled..."
 pip install --cache-dir /opt/render/project/src/.cache/pip -r requirements.txt
 
-# 2. 🛡️ Playwright በ requirements ውስጥ ከሌለ ወይም ካልተጫነ ግንባታው እንዳይደናቀፍ መከላከያ (Zero-Crash Fallback)
-# ፕሌይራይት ከተጫነ ብቻ ብሮውዘሮቹን ያወርዳል፤ ከሌለ ግን ግንባታውን ሳይረብሽ በሰላም ያልፋል
+# ... (የቀድሞው ኮድ)
+
+# 2. 🛡️ Playwright Zero-Crash Fallback
 if pip show playwright &> /dev/null; then
     echo "🌐 Configuring Playwright persistent browser path..."
     export PLAYWRIGHT_BROWSERS_PATH="/opt/render/project/src/ms-playwright"
 
-    echo "🌐 Installing Playwright browser dependencies..."
-    playwright install
+    echo "🌐 Installing Chromium browser only..."
+    playwright install chromium  # ✅ እዚህ ላይ chromium ብቻ ተብሎ ተስተካክሏል
 else
-    echo "⏭️ Playwright package is not installed in requirements.txt. Skipping browser binaries download to save 8 minutes of build time."
+    echo "⏭️ Playwright package is not installed. Skipping..."
 fi
+
 
 # 3. የስታቲክ ፋይሎችን መሰብሰብ
 echo ""

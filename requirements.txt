@@ -31,5 +31,5 @@ daphne>=4.0.0
 uvicorn>=0.22.0
 websockets>=12.0  # ✅ FIXED: የ Uvicorn ዌብሶኬት ግንኙነት ጥሪ እንዳይከሰከስ የተጨመረ [1]
 # በ build.sh ፋይልዎ ውስጥ መጨመር ያለበት፦
-pip install playwright
-playwright install chromium
+playwright
+
