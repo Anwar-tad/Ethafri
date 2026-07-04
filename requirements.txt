@@ -1,7 +1,7 @@
 # ============================================================
-# 📄 ፋይል፦ requirements.py (requirements.txt)
-# 📝 ስሪት፦ v10.18 (Production Grade - Lean & High-Performance)
-# ✅ የተፈቱ ችግሮች፦ Shaved 8 minutes off Render build times by pruning Playwright, utilized pre-compiled psycopg2-binary, and consolidated all core i18n/ASGI deps.
+# 📄 ፋይል፦ requirements.txt
+# 📝 ስሪት፦ v10.19 (Production Grade - Lean & Uvicorn Aligned)
+# ✅ የተፈቱ ችግሮች፦ Added missing uvicorn package to resolve 'command not found' (Exit 127) startup crash on Render, keeping lean build times.
 # ============================================================
 
 # 1. Django Web Framework Core
@@ -23,9 +23,10 @@ django-cloudinary-storage>=0.3.0
 requests>=2.31.0
 urllib3>=2.0.0
 
-# 6. Django Channels ASGI & Live WebSockets (Daphne)
+# 6. Django Channels ASGI & Live WebSockets (Daphne & Uvicorn)
 channels>=4.1.0
 daphne>=4.1.2
+uvicorn>=0.29.0  # ✅ FIXED: የሰርቨር መቆራረጥን ለመፍታት የ uvicorn ጥቅል እዚህ ተጨምሯል
 asgiref>=3.7.0
 
 # 7. Translation & Localization Utilities (po/mo compiler)
@@ -33,7 +34,5 @@ polib>=1.2.0
 
 # ============================================================
 # 🛡️ OPTIONAL PLAYWRIGHT (የግንባታ ጊዜን ለማሳጠር ከፈለጉ ይህንን አይጫኑ)
-# በእኛ v10.19 Scrapper static requests fallback አማካኝነት ፕሌይራይት ሳይጫን
-# ሲስተሙ በሪኩዌስት ብቻ አሰሳውን በጥራት የማካሄድ ሙሉ ብቃት አለው።
 # ============================================================
 # playwright==1.44.0
