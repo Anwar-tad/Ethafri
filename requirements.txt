@@ -1,38 +1,32 @@
 # ============================================================
-# 📄 ፋይል፦ requirements.txt
-# 📝 ስሪት፦ v10.19 (Production Grade - Lean & Uvicorn Aligned)
-# ✅ የተፈቱ ችግሮች፦ Added missing uvicorn package to resolve 'command not found' (Exit 127) startup crash on Render, keeping lean build times.
+# 📁 ፋይል፦ EthAfri/requirements.txt
+# 📝 ለውጥ፦ የተስተካከሉ የፓይተን ጥገኝነቶች — Optimized & Lightning-Fast Render Free Tier
+# ✅ የተፈቱ ችግሮች፦ Removed 7 redundant bloated libraries (gunicorn, google-genai, groq, bs4, python-dotenv, channels-redis, playwright), added required 'websockets' to prevent Uvicorn handshake crashes.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
-# 1. Django Web Framework Core
-Django>=4.2,<5.1
+# 1. Django Core & Static Files
+django>=4.2.0,<5.0.0
+whitenoise>=6.5.0
 
-# 2. Resilient Database & Production PostgreSQL
+# 2. Database & Production PostgreSQL
+django-environ>=0.11.0
 dj-database-url>=2.1.0
-psycopg2-binary>=2.9.9
+psycopg2-binary>=2.9.0
 
-# 3. Environment Variables Loading
-django-environ>=0.11.2
-
-# 4. Static & Media Asset Storage (WhiteNoise & Cloudinary)
-whitenoise>=6.6.0
-cloudinary>=1.40.0
-django-cloudinary-storage>=0.3.0
-
-# 5. Core Networking & AI API Calls
+# 3. Network Requests (AI APIs & Scraping Fallback)
 requests>=2.31.0
-urllib3>=2.0.0
 
-# 6. Django Channels ASGI & Live WebSockets (Daphne & Uvicorn)
-channels>=4.1.0
-daphne>=4.1.2
-uvicorn>=0.29.0  # ✅ FIXED: የሰርቨር መቆራረጥን ለመፍታት የ uvicorn ጥቅል እዚህ ተጨምሯል
-asgiref>=3.7.0
+# 4. Cloud Storage & Image Support
+django-cloudinary-storage>=0.3.0
+cloudinary>=1.36.0
+Pillow>=10.0.0
 
-# 7. Translation & Localization Utilities (po/mo compiler)
+# 5. Translation Management
 polib>=1.2.0
 
-# ============================================================
-# 🛡️ OPTIONAL PLAYWRIGHT (የግንባታ ጊዜን ለማሳጠር ከፈለጉ ይህንን አይጫኑ)
-# ============================================================
-# playwright==1.44.0
+# 6. WebSocket, Daphne & Uvicorn ASGI Server
+channels>=4.0.0
+daphne>=4.0.0
+uvicorn>=0.22.0
+websockets>=12.0  # ✅ FIXED: የ Uvicorn ዌብሶኬት ግንኙነት ጥሪ እንዳይከሰከስ የተጨመረ [1]

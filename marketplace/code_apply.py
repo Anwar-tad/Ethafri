@@ -11,6 +11,7 @@ import re
 import logging
 import requests
 import base64
+from typing import Tuple
 from django.conf import settings
 from .models import AIEvolutionLog
 

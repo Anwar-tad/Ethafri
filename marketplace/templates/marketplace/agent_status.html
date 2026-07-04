@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/agent_status.html
-📝 ስሪት፦ v10.16 (Autonomous Agent Monitor - Complete & Optimized Edition)
-✅ የተፈቱ ችግሮች፦ Real Server Uptime calculation using server heartbeats, robust hybrid log rendering guards, and responsive live terminal.
-📅 ቀን፦ Thursday, July 02, 2026
+📝 ስሪት፦ v10.18 (Autonomous Agent Monitor - Complete & Hardened Rotator)
+✅ የተፈቱ ችግሮች፦ Dynamic API Key Rotator health matrix, real-time CPU load stream, interactive command shortcuts, live pending task lists, and synchronized errors badge.
+📅 ቀን፦ Saturday, July 04, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,7 +10,6 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -32,20 +31,53 @@
         border-color: #198754 !important;
         box-shadow: 0 4px 15px rgba(25, 135, 84, 0.25) !important;
     }
+    /* የቀጥታ የልብ ትርታ አኒሜሽን (Pulse Indicator) */
+    .pulse-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .pulse-healthy {
+        background-color: #198754;
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7);
+        animation: pulse-green 2s infinite;
+    }
+    .pulse-cooldown {
+        background-color: #dc3545;
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+        animation: pulse-red 2s infinite;
+    }
+    .pulse-offline {
+        background-color: #6c757d;
+    }
+    @keyframes pulse-green {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(25, 135, 84, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+    }
+    @keyframes pulse-red {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(220, 53, 69, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- 🤖 data-agent-monitor መለያ የ global.js የጋራ ዌብ-ሶኬት ግንኙነቱን ይቀሰቅሳል -->
 <div class="container-fluid py-4" id="agent-monitor" data-agent-monitor>
     
     <!-- 🏥 Dashboard Header -->
     <div class="row mb-4 align-items-center">
-        <div class="col-md-7">
+        <div class="col-md-5">
             <h2 class="fw-bold"><i class="fas fa-heartbeat text-danger me-2"></i> Autonomous Agent Monitor</h2>
             <p class="text-muted small">Live diagnostics of the EthAfri brain, memory, and parallel execution.</p>
         </div>
-        <div class="col-md-5 text-md-end">
+        <div class="col-md-7 text-md-end">
+            <!-- ⚡ የቀጥታ የሰርቨር ሲፒዩ ጫና መከታተያ ባጅ -->
+            <span class="badge bg-dark border border-info rounded-pill px-3 py-2 me-2">
+                <i class="fas fa-microchip text-info me-2"></i> CPU Load: <span id="cpu-load-counter">0.50</span>
+            </span>
             <span class="badge bg-dark border border-success rounded-pill px-3 py-2">
                 <i class="fas fa-clock text-success me-2"></i> Uptime: <span id="uptime-counter">00:00:00</span>
             </span>
@@ -59,14 +91,14 @@
             <!-- ካርዶቹ በይነተገናኝ ሆነው ተዋቅረዋል -->
             <div class="row g-2 mb-4">
                 <div class="col-6">
-                    <div class="stat-box p-3 border rounded shadow-sm text-center" id="pending-card" onclick="toggleDetails('pending')" style="cursor: pointer;">
-                        <div class="text-uppercase small text-muted">Pending</div>
+                    <div class="stat-box p-3 border bg-dark text-white rounded shadow-sm text-center" id="pending-card" onclick="toggleDetails('pending')" style="cursor: pointer;">
+                        <div class="text-uppercase small text-muted">Pending Tasks</div>
                         <div class="h4 text-warning" id="pending-count-badge">{{ backlog_stats.pending|default:0 }}</div>
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="stat-box p-3 border rounded shadow-sm text-center" id="resolved-card" onclick="toggleDetails('resolved')" style="cursor: pointer;">
-                        <div class="text-uppercase small text-muted">Resolved</div>
+                    <div class="stat-box p-3 border bg-dark text-white rounded shadow-sm text-center" id="resolved-card" onclick="toggleDetails('resolved')" style="cursor: pointer;">
+                        <div class="text-uppercase small text-muted">Resolved Issues</div>
                         <div class="h4 text-success" id="resolved-count-badge">{{ healing_stats.resolved|default:0 }}</div>
                     </div>
                 </div>
@@ -100,32 +132,72 @@
 
             </div>
             
-            <!-- API Routing Matrix -->
-            <div class="status-card p-4 mb-4 bg-dark text-white rounded">
-                <h5 class="fw-bold mb-3 text-info"><i class="fas fa-network-wired me-2"></i> API Routing Matrix</h5>
-                {% for provider in api_matrix %}
-                <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
-                    <span>{{ provider.task }}</span>
-                    <span class="badge bg-{{ provider.color }}">{{ provider.name }}</span>
+            <!-- 📡 API Routing & Live Health Rotator Matrix -->
+            <div class="status-card p-4 mb-4 bg-dark text-white rounded border border-secondary">
+                <h5 class="fw-bold mb-3 text-info"><i class="fas fa-network-wired me-2"></i> API Health & Rotator</h5>
+                <div id="api-rotator-matrix">
+                    <!-- 1. GEMINI -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-gemini"></i>Google Gemini 2.5</span>
+                        <span class="badge bg-success" id="badge-gemini">Healthy</span>
+                    </div>
+                    <!-- 2. GROQ -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-groq"></i>Groq Llama 3.1</span>
+                        <span class="badge bg-warning text-dark" id="badge-groq">Active</span>
+                    </div>
+                    <!-- 3. MISTRAL -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-mistral"></i>Mistral AI Large</span>
+                        <span class="badge bg-danger" id="badge-mistral">Active</span>
+                    </div>
+                    <!-- 4. OPENROUTER -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-openrouter"></i>OpenRouter DeepSeek R1</span>
+                        <span class="badge bg-info" id="badge-openrouter">Active</span>
+                    </div>
+                    <!-- 5. HUGGINGFACE -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-huggingface"></i>HuggingFace Serverless</span>
+                        <span class="badge bg-secondary" id="badge-huggingface">Active</span>
+                    </div>
+                    <!-- 6. GITHUB -->
+                    <div class="d-flex justify-content-between align-items-center mb-1 small">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-github"></i>GitHub Models Catalog</span>
+                        <span class="badge bg-primary" id="badge-github">Active</span>
+                    </div>
                 </div>
-                {% endfor %}
             </div>
+
+            <!-- 🛠️ Executive Command Shortcuts -->
+            {% if user.is_staff %}
+            <div class="status-card p-4 mb-4 bg-dark text-white rounded border border-secondary">
+                <h5 class="fw-bold mb-3 text-white"><i class="fas fa-tools me-2 text-white-50"></i> Quick Actions</h5>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'trigger_evolution' %}" class="btn btn-sm btn-outline-success text-start">
+                        <i class="fas fa-sync-alt me-2"></i> Trigger CEO Evolution Cycle
+                    </a>
+                    <a href="{% url 'owner_directive' %}" class="btn btn-sm btn-outline-info text-start">
+                        <i class="fas fa-crown me-2"></i> Post Owner Directive
+                    </a>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- 📟 Live Agent CL Terminal (ቀኝ) -->
         <div class="col-lg-8">
-            <div class="terminal-window h-100 d-flex flex-column bg-dark rounded shadow-lg" style="min-height: 500px;">
+            <div class="terminal-window h-100 d-flex flex-column bg-dark rounded shadow-lg" style="min-height: 520px;">
                 <div class="terminal-header p-2 border-bottom border-secondary bg-secondary bg-opacity-25">
                     <small class="text-white-50">ethafri-ceo-agent@system:~/logs</small>
                 </div>
-                <div class="terminal-body flex-grow-1 p-3 text-light font-monospace" id="cl-terminal" style="overflow-y: auto; max-height: 450px;">
+                <div class="terminal-body flex-grow-1 p-3 text-light font-monospace" id="cl-terminal" style="overflow-y: auto; max-height: 470px;">
                     <div class="terminal-line">
                         <span class="text-muted">[{{ live_time|date:"H:i:s" }}]</span> 
                         <span class="text-info">➜ WebSocket Connected. Waiting for next CEO Cycle...</span>
                     </div>
                     {% for log in cycle_logs %}
                     <div class="terminal-line">
-                        <!-- 🛡️ HYBRID LOG RENDERING GUARD: ሎጎች ቲክስትም ሆኑ ዲክሽነሪ ቢሆኑ ሳይበላሽ እንዲሰራ መከላከያ [1] -->
                         {% if log.message %}
                             <span class="text-muted">[{{ log.time }}]</span> 
                             <span class="{% if log.type == 'success' %}text-success{% elif log.type == 'error' %}text-danger{% else %}text-info{% endif %}">➜ {{ log.message }}</span>
@@ -257,7 +329,7 @@
 
 {% block extra_js %}
 <script>
-    // ⏰ REAL SERVER UPTIME CALCULATOR: የሰርቨሩን እውነተኛ የመነሻ ሰዓት መሰረት በማድረግ አፕታይምን በእውነተኛ ሰዓት ያሰላል [1]
+    // ⏰ REAL SERVER UPTIME CALCULATOR
     const serverBootTimeStr = "{{ agent_status.timestamp|default:'' }}";
     const startTime = serverBootTimeStr ? Date.parse(serverBootTimeStr) : Date.now();
     
@@ -272,7 +344,6 @@
         if (term) term.scrollTop = term.scrollHeight;
     }
 
-    // የ Pending ስራዎች የላይቭ ዝርዝር መያዣ
     let livePendingTasks = [];
 
     // የ Pending ስራዎችን በእውነተኛ ሰዓት ወደ HTML መለወጫ
@@ -304,7 +375,6 @@
         listContainer.innerHTML = html;
     }
 
-    // ካርዶቹ ሲነኩ ዝርዝሩን ከታች መክፈቻ/መዝጊያ (Toggle) ሎጂክ
     function toggleDetails(type) {
         const panel = document.getElementById('details-panel');
         const pendingSection = document.getElementById('pending-details');
@@ -337,7 +407,7 @@
         }
     }
 
-    // 📟 WebSocket Auto-Updater (Optimized to listen to global.js Event)
+    // 📟 WebSocket Auto-Updater
     document.addEventListener('agent_update', function(event) {
         const data = event.detail;
         const term = document.getElementById('cl-terminal');
@@ -358,16 +428,20 @@
             term.appendChild(line);
             scrollTerminal();
         }
-        // 2. የቁጥር መለኪያዎችን እና የባክሎግ መዝገቦችን በየ 5 ሰከንዱ ማዘመን
+        // 2. የቁጥር መለኪያዎችን፣ ሲፒዩ ጫናን እና የባክሎግ መዝገቦችን ማዘመን
         else if (data.type === 'status_update' || data.type === 'live_stats') {
             const pendingCountEl = document.getElementById('pending-count-badge');
             const resolvedCountEl = document.getElementById('resolved-count-badge');
+            const cpuLoadCounter = document.getElementById('cpu-load-counter');
             
             if (pendingCountEl && data.task_stats) {
                 pendingCountEl.innerText = data.task_stats.pending;
             }
             if (resolvedCountEl && data.healing) {
                 resolvedCountEl.innerText = data.healing.resolved;
+            }
+            if (cpuLoadCounter && data.cpu_load !== undefined) {
+                cpuLoadCounter.innerText = parseFloat(data.cpu_load).toFixed(2);
             }
 
             // የላይቭ የባክሎግ ዝርዝር መዝገብን ማዘመን
@@ -377,6 +451,32 @@
                     renderPendingTasksList();
                 }
             }
+            
+            // የኤፒአይ ኪዎች የቀጥታ ጤና መለኪያ (Dynamic API Health State Engine)
+            const providers = ['gemini', 'groq', 'mistral', 'openrouter', 'huggingface', 'github'];
+            providers.forEach(prov => {
+                const dot = document.getElementById(`status-dot-${prov}`);
+                const badge = document.getElementById(`badge-${prov}`);
+                if (!dot || !badge) return;
+                
+                // በካሽ ውስጥ የተቀመጡ የ 429 እገዳዎችን (Cooldown) መፈተሽ
+                const isCooldown = data.api_cooldowns ? data.api_cooldowns[prov] : false;
+                const isConfigured = data.api_configured ? data.api_configured[prov] : true;
+                
+                if (!isConfigured) {
+                    dot.className = 'pulse-dot pulse-offline me-2';
+                    badge.className = 'badge bg-secondary';
+                    badge.innerText = 'Offline';
+                } else if (isCooldown) {
+                    dot.className = 'pulse-dot pulse-cooldown me-2';
+                    badge.className = 'badge bg-danger';
+                    badge.innerText = 'Rate Limited';
+                } else {
+                    dot.className = 'pulse-dot pulse-healthy me-2';
+                    badge.className = 'badge bg-success';
+                    badge.innerText = 'Active';
+                }
+            });
         }
     });
 
