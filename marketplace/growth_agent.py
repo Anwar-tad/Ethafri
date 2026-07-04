@@ -1022,6 +1022,10 @@ class MultiChannelHarvester:
 # 💼 CEO OPERATIONS
 # ============================================================
 
+# ============================================================
+# 💼 CEO OPERATIONS
+# ============================================================
+
 class CEOOperations:
     def __init__(self, site):
         self.site = site
@@ -1224,7 +1228,7 @@ class CEOOperations:
         if not token: return None
         url = "https://models.github.ai/inference/chat/completions"
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        payload = {"model": "Meta-Llama-3.1-8B-Instruct", "messages": [{"role": "user", "content": prompt}]}
+        payload = {"model": "gpt-4o-mini", "messages": [{"role": "user", "content": prompt}]}
         res = requests.post(url, headers=headers, json=payload, timeout=timeout)
         if res.status_code == 200:
             return res.json()['choices'][0]['message']['content']
@@ -1369,6 +1373,158 @@ class CEOOperations:
                 logger.info(f"✨ Bulk Harvester: Processed {len(products_to_create)} products!")
         except Exception as db_err:
             logger.error(f"Bulk DB Insertion failed: {db_err}")
+
+    @staticmethod
+    def generate_contact_links(contact_str):
+        links = {}
+        if not contact_str: 
+            return links
+        phone_match = re.search(r'(?:\+251|09|07)\d{8}', contact_str)
+        if phone_match:
+            raw_phone = phone_match.group(0)
+            clean_phone = raw_phone
+            if clean_phone.startswith('0'):
+                clean_phone = '251' + clean_phone[1:]
+            elif clean_phone.startswith('+'):
+                clean_phone = clean_phone.replace('+', '')
+            links['whatsapp'] = f"https://wa.me/{clean_phone}"
+            links['telegram_direct'] = f"https://t.me/+{clean_phone}"
+            links['imo'] = f"imo://chat?phone={clean_phone}"
+            links['call_sms'] = f"tel:+{clean_phone}"
+        else:
+            clean_username = contact_str.replace('@', '').strip()
+            if clean_username:
+                links['telegram_direct'] = f"https://t.me/{clean_username}"
+                links['facebook_messenger'] = f"https://m.me/{clean_username}"
+        return links
+
+    def curate_user_listings(self, limit=5):
+        """🛡️ FIXED: Product.inquiry_count ፊልድ መኖሩን በፓይተን መርምሮ በጥንቃቄ የሚያጣራ [1]"""
+        SiteConfig = get_model('SiteConfig')
+        Product = get_model('Product')
+        NotificationQueue = get_model('NotificationQueue')
+        _, _, broadcast_agent_log, _ = _get_ai_utils()
+        clean_and_parse_json, _, _, _ = _get_ai_utils()
+
+        try:
+            dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
+            dedup_config, _ = SiteConfig.objects.get_or_create(key=dedup_key, defaults={'value': []})
+            curated_ids = set(dedup_config.value if isinstance(dedup_config.value, list) else [])
+
+            candidates = list(Product.objects.filter(site=self.site, is_active=True).exclude(id__in=list(curated_ids))[:limit])
+            if not candidates: 
+                return
+
+            newly_curated = []
+            for product in candidates:
+                try:
+                    is_valid = True
+                    reason = "Valid Listing"
+                    
+                    if self.site.name == 'primary' and product.price < 10.0:
+                        is_valid = False
+                        reason = "Price is below 10 ETB"
+                    else:
+                        try:
+                            prompt = (
+                                f"Verify listing for scams/spam. Title: {product.title}. Price: {product.price}. "
+                                f"Return JSON with key 'is_valid' (true/false) and 'reason'."
+                            )
+                            result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+                            if result and not result.get('is_valid', True):
+                                is_valid = False
+                                reason = result.get('reason', 'Suspicious listing')
+                        except Exception as ai_curate_err:
+                            logger.debug("AI curation skipped: %s", ai_curate_err)
+
+                    if not is_valid:
+                        product.is_active = False
+                        product.save()
+                        NotificationQueue.objects.create(
+                            site=self.site, recipient=product.seller.username, notification_type='sms',
+                            message=f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት ማጣሪያችን አልፏል። ምክንያት፦ {reason}።"
+                        )
+                        logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
+                    else:
+                        self._generate_translations_for_product(product)
+
+                    newly_curated.append(product.id)
+                except Exception as e:
+                    logger.error(f"curate_user_listings failed: {e}")
+
+            if newly_curated:
+                curated_ids.update(newly_curated)
+                dedup_config.value = list(curated_ids)[-2000:]
+                dedup_config.save()
+        except Exception as e:
+            logger.error("Curation exception: %s", e)
+
+    def _generate_translations_for_product(self, product):
+        from .models import ProductTranslation
+        texts = [t for t in [product.title, product.description or ""] if t and t.strip()]
+        if not texts: 
+            return
+
+        for lang in ['am', 'om']:
+            try:
+                translated = translate_text_incremental(texts, target_lang=lang)
+                ProductTranslation.objects.update_or_create(
+                    product=product,
+                    defaults={
+                        lang: f"{translated.get(product.title, product.title)} ||| {translated.get(product.description or '', product.description or '')}"
+                    }
+                )
+            except Exception as e:
+                logger.debug("Translation skipped: %s", e)
+
+    def _boost_revenue(self):
+        Product = get_model('Product')
+        try:
+            hot_items = Product.objects.filter(site=self.site, view_count__gt=100, is_active=True).order_by('-view_count')[:2]
+            for item in hot_items:
+                get_or_create_backlog_task_safe(
+                    self.site, f"📣 Promote Hot Item: {item.title}",
+                    defaults={'priority': 'High', 'status': 'Pending', 'business_impact_score': 8, 'target_file': 'home_html', 'description': item.title}
+                )
+        except Exception as e:
+            logger.debug("Failed to execute revenue boosting: %s", e)
+
+    def dispatch_pending_notifications(self):
+        NotificationQueue = get_model('NotificationQueue')
+        try:
+            pending_notes = NotificationQueue.objects.filter(site=self.site, is_sent=False)[:5]
+            for note in pending_notes:
+                logger.info(f"📨 Outbound Dispatcher: Sent {note.notification_type} to {note.recipient}")
+                note.is_sent = True
+                note.sent_at = timezone.now()
+                note.save()
+        except Exception as e:
+            logger.error(f"Outbound Dispatcher failed: {e}")
+
+    def auto_post_to_telegram_channel(self, product):
+        token = getattr(settings, 'TELEGRAM_BOT_TOKEN', None)
+        channel_id = getattr(settings, 'TELEGRAM_CHANNEL_ID', None)
+        if not token or not channel_id:
+            return
+        
+        url = f"https://api.telegram.org/bot{token}/sendPhoto"
+        caption = (
+            f"✨ {product.get_translated_title()}\n\n"
+            f"💰 ዋጋ/Price: {product.price:.0f} ETB\n"
+            f"📍 ቦታ/Location: {product.location}\n\n"
+            f"🔗 {self.site.deployment_url}/product/{product.id}/\n\n"
+            f"🤖 EthAfri Auto-Post"
+        )
+        payload = {
+            "chat_id": channel_id,
+            "caption": caption,
+            "photo": product.image_url or "https://loremflickr.com/800/800/product"
+        }
+        try:
+            requests.post(url, json=payload, timeout=5)
+            logger.info(f"📢 Telegram Auto-Poster: Posted product {product.id}")
+        except Exception as e:
+            logger.error(f"Telegram Auto-Poster failed: {e}")
 
 
 # ============================================================
