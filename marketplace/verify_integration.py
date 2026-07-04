@@ -338,7 +338,7 @@ def call_ai_provider(provider, prompt, system_instruction="You are a helpful ass
             
         elif provider == 'GITHUB':
             url = "https://models.github.ai/inference/chat/completions"
-            payload = {"model": "meta/meta-llama-3.1-8b-instruct", "messages": [{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]}
+            payload = {"model": "Meta-Llama-3.1-8B-Instruct", "messages": [{"role": "system", "content": system_instruction}, {"role": "user", "content": prompt}]}
             response = requests.post(url, headers={"Authorization": f"Bearer {api_key}"}, json=payload, timeout=10)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']

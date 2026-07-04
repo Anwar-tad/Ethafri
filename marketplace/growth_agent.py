@@ -1200,7 +1200,7 @@ class CEOOperations:
         if not token: return None
         url = "https://models.github.ai/inference/chat/completions"
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        payload = {"model": "meta/meta-llama-3.1-8b-instruct", "messages": [{"role": "user", "content": prompt}]}
+        payload = {"model": "Meta-Llama-3.1-8B-Instruct", "messages": [{"role": "user", "content": prompt}]}
         res = requests.post(url, headers=headers, json=payload, timeout=timeout)
         if res.status_code == 200:
             return res.json()['choices'][0]['message']['content']
