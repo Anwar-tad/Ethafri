@@ -1,8 +1,8 @@
 /* ============================================================
-📁 ፋይል፦ EthAfri/marketplace/static/js/global.js
-📝 ለውጥ፦ v1.3 WebSocket Event Publisher (Dashboard Integration)
-✅ የተፈቱ ችግሮች፦ Dynamic CustomEvent 'agent_update' broadcast for templates
-📅 ቀን፦ 2026-06-25
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/static/js/global.js
+📝 ስሪት፦ v1.5 WebSocket Publisher & PWA Service Worker Registered
+✅ የተፈቱ ችግሮች፦ Integrated PWA Service Worker for offline asset caching, WebSocket custom event broadcasting, and global image fallback.
+📅 ቀን፦ Saturday, July 04, 2026
 ============================================================ */
 
 (function() {
@@ -18,12 +18,31 @@
         initProductImageLazyLoading();
         initAgentStatusObserver(); 
         initKeyboardShortcuts();
-        initGlobalImageFallback(); // 📦 አዲስ፡ ምስሎች መጫን ሲሳናቸው ጥበቃ የሚያደርግ የጋራ ሎጂክ
-        initScrollDraggables();    // 📦 አዲስ፡ ማንኛውንም አግድም ማውጫ በጣት እንዲንቀሳቀስ የሚያደርግ
+        initGlobalImageFallback(); // ምስሎች መጫን ሲሳናቸው ጥበቃ የሚያደርግ የጋራ ሎጂክ
+        initScrollDraggables();    // ማንኛውንም አግድም ማውጫ በጣት እንዲንቀሳቀስ የሚያደርግ
+        initServiceWorker();       // 🟢 አዲስ፦ የ PWA Service Worker መመዝገቢያ ፈንክሽን [1]
     });
 
     // ============================================================
-    // 🤖 1. AGENT STATUS OBSERVER (WebSocket Connection)
+    // 🟢 1. PWA SERVICE WORKER REGISTRATION (የኦፍላይን መቆለፍ መከላከያ)
+    // ============================================================
+    function initServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                // service-worker.js ፋይልን በብሮውዘር ላይ በደህንነት መመዝገብ [1]
+                navigator.serviceWorker.register('/static/js/service-worker.js')
+                    .then(function(registration) {
+                        console.log('🟢 PWA Service Worker registered successfully with scope: ', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.warn('⚠️ PWA Service Worker registration failed: ', error);
+                    });
+            });
+        }
+    }
+
+    // ============================================================
+    // 🤖 2. AGENT STATUS OBSERVER (WebSocket Connection)
     // ============================================================
     function initAgentStatusObserver() {
         const dashboard = document.querySelector('[data-agent-monitor]');
@@ -35,7 +54,7 @@
         socket.onmessage = function(e) {
             const data = JSON.parse(e.data);
             
-            // ✅ FIXED: የ CL ተርሚናሉ (agent_status.html) በእውነተኛ ሰዓት እንዲያድግ ክስተቱን በፕሮጀክቱ ውስጥ ማሰራጨት
+            // የ CL ተርሚናሉ (agent_status.html) በእውነተኛ ሰዓት እንዲያድግ ክስተቱን ማሰራጨት [1]
             const event = new CustomEvent('agent_update', { detail: data });
             document.dispatchEvent(event);
             
@@ -62,7 +81,7 @@
     }
 
     // ============================================================
-    // 🌍 2. LANGUAGE & UI HELPERS
+    // 🌍 3. LANGUAGE & UI HELPERS
     // ============================================================
     function initLanguageSwitcher() {
         const langSelect = document.querySelector('select[name="language"]');
@@ -76,7 +95,6 @@
 
     function initBottomNav() {
         const currentPath = window.location.pathname;
-        // ✅ FIXED: የግርጌ ሊንኮችን በሁለቱም የክላስ አይነቶች ፈልጎ ለማግኘት (የሕግ 4 ጥበቃ)
         document.querySelectorAll(".bottom-nav-custom a, .bottom-nav a").forEach(link => {
             if (link.getAttribute("href") === currentPath) {
                 link.classList.add("active");
@@ -95,7 +113,7 @@
     }
 
     // ============================================================
-    // 📦 3. PRODUCT TOOLS (LAZY LOADING & FALLBACK)
+    // 📦 4. PRODUCT TOOLS (LAZY LOADING & FALLBACK)
     // ============================================================
     function initProductImageLazyLoading() {
         if ('IntersectionObserver' in window) {
@@ -112,7 +130,6 @@
         }
     }
 
-    // ✅ FIXED: ምስሎች መጫን ሲሳናቸው በቋሚነት ጥበቃ የሚያደርግ የጋራ ሎጂክ (የሕግ 4 ጥበቃ)
     function initGlobalImageFallback() {
         document.querySelectorAll('img').forEach(img => {
             img.addEventListener('error', function() {
@@ -121,7 +138,6 @@
         });
     }
 
-    // ✅ FIXED: ማንኛውንም በአግድም የሚጎተት ማውጫ (.scroll-draggable) በጣት እንዲንቀሳቀስ የሚያደርግ
     function initScrollDraggables() {
         document.querySelectorAll('.scroll-draggable').forEach(scrollContainer => {
             let isDown = false;
@@ -148,7 +164,7 @@
     }
 
     // ============================================================
-    // ⌨️ 4. ADMIN KEYBOARD SHORTCUTS
+    // ⌨️ 5. KEYBOARD SHORTCUTS
     // ============================================================
     function initKeyboardShortcuts() {
         document.addEventListener('keydown', function(e) {

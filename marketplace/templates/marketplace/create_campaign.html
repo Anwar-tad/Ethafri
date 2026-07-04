@@ -1,46 +1,56 @@
-{% extends "marketplace/base.html" %}
-{% load i18n %}
+<!-- ============================================================
+📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/create_campaign.html
+📝 ስሪት፦ v10.18 (Create Marketing Campaign - Unified Design System Synced)
+✅ የተፈቱ ችግሮች፦ Removed redundant extra_css bloat, fully aligned with global.css (Section 14) design, and integrated double-submit form shield.
+📅 ቀን፦ Saturday, July 04, 2026
+============================================================ -->
 
-{% block extra_css %}
-<style>
-    .form-card { border-radius: 16px; border: none; max-width: 800px; margin: 0 auto; }
-    .form-card .card-header { border-bottom: none; padding: 1.5rem; font-weight: 600; background: linear-gradient(135deg, #1a2a6c, #2d4a8e); color: white; }
-    .form-control, .form-select { border-radius: 10px; padding: 0.65rem 1rem; border: 1.5px solid #e2e8f0; }
-    .form-control:focus, .form-select:focus { border-color: #1a2a6c; box-shadow: 0 0 0 3px rgba(26, 42, 108, 0.1); }
-    .btn-primary { border-radius: 30px; padding: 0.65rem 2.5rem; font-weight: 600; }
-</style>
-{% endblock %}
+{% extends 'marketplace/base.html' %}
+{% load i18n %}
+{% load static %}
 
 {% block content %}
-<div class="container py-4 fade-in">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold mb-1"><i class="fas fa-plus-circle text-primary me-2"></i>{% trans "Create Marketing Campaign" %}</h2>
-            <p class="text-muted">{% trans "Launch a new marketing campaign for your niche sites" %}</p>
-        </div>
-        <a href="{% url 'marketing_dashboard' %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 text-decoration-none"><i class="fas fa-arrow-left me-1"></i>{% trans "Back" %}</a>
+<div class="post-card-container py-4 fade-in">
+    
+    <!-- ⬅️ Back Hook (ወደ መነሻ ገጽ መመለሻ) -->
+    <div class="mb-4">
+        <a href="{% url 'marketing_dashboard' %}" class="text-decoration-none text-muted fw-bold small">
+            <i class="fas fa-arrow-left me-2"></i> {% trans "BACK TO MARKETING" %}
+        </a>
     </div>
 
-    <div class="card form-card shadow-sm bg-white">
-        <div class="card-header rounded-top-4"><i class="fas fa-bullhorn me-2"></i>{% trans "Campaign Details" %}</div>
-        <div class="card-body p-4">
+    <div class="post-card-main">
+        <!-- ርዕስ ባነር (Design System Aligned) -->
+        <div class="post-header" style="background: linear-gradient(135deg, var(--primary-color, #1a2a6c), var(--accent-purple, #4e085e));">
+            <i class="fas fa-bullhorn fa-3x mb-3 text-warning animate-bounce"></i>
+            <h2 class="fw-bold mb-0">{% trans "Create Marketing Campaign" %}</h2>
+            <p class="opacity-75 mb-0">{% trans "Launch a new marketing campaign for your niche sites" %}</p>
+        </div>
+
+        <div class="form-section">
             <form method="POST" action="{% url 'create_marketing_campaign' %}" id="createCampaignForm">
                 {% csrf_token %}
                 
-                <div class="mb-3">
-                    <label for="site_id" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-globe me-1 text-primary"></i>{% trans "Target Site" %} <span class="text-danger">*</span></label>
-                    <select name="site_id" id="site_id" class="form-select" required>
-                        <option value="">{% trans "Select a site..." %}</option>
+                <!-- 🌐 Target Site / Niche (ጣቢያ መራጭ) -->
+                <div class="mb-4">
+                    <label for="site_id" class="form-label fw-bold text-muted small text-uppercase">
+                        <i class="fas fa-globe me-1 text-primary"></i> {% trans "Target Site" %} <span class="text-danger">*</span>
+                    </label>
+                    <select name="site_id" id="site_id" class="form-select ceo-input border-0 shadow-sm" required>
+                        <option value="">-- {% trans "Select a site..." %} --</option>
                         {% for site in sites %}
-                        <option value="{{ site.id }}">{{ site.display_name }} ({{ site.niche }})</option>
+                        <option value="{{ site.id }}">🛒 {{ site.display_name }} ({{ site.niche }})</option>
                         {% endfor %}
                     </select>
                 </div>
 
-                <div class="mb-3">
-                    <label for="campaign_type" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-tag me-1 text-primary"></i>{% trans "Campaign Type" %} <span class="text-danger">*</span></label>
-                    <select name="campaign_type" id="campaign_type" class="form-select" required>
-                        <option value="">{% trans "Select type..." %}</option>
+                <!-- የካምፔን አይነት መምረጫ -->
+                <div class="mb-4">
+                    <label for="campaign_type" class="form-label fw-bold text-muted small text-uppercase">
+                        <i class="fas fa-tag me-1 text-primary"></i> {% trans "Campaign Type" %} <span class="text-danger">*</span>
+                    </label>
+                    <select name="campaign_type" id="campaign_type" class="form-select ceo-input border-0 shadow-sm" required>
+                        <option value="">-- {% trans "Select type..." %} --</option>
                         <option value="email_blast">📧 {% trans "Email Blast" %}</option>
                         <option value="sms_blast">📱 {% trans "SMS Blast" %}</option>
                         <option value="social_post">📢 {% trans "Social Media Post" %}</option>
@@ -49,24 +59,38 @@
                     </select>
                 </div>
 
-                <div class="mb-3">
-                    <label for="name" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-font me-1 text-primary"></i>{% trans "Campaign Name" %} <span class="text-danger">*</span></label>
-                    <input type="text" name="name" id="name" class="form-control" placeholder="e.g. Summer Sale 2026" required>
+                <!-- የካምፔን ስም -->
+                <div class="mb-4">
+                    <label for="name" class="form-label fw-bold text-muted small text-uppercase">
+                        <i class="fas fa-font me-1 text-primary"></i> {% trans "Campaign Name" %} <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" name="name" id="name" class="form-control ceo-input" placeholder="e.g. Summer Sale 2026" required>
                 </div>
 
-                <div class="mb-3">
-                    <label for="subject" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-heading me-1 text-primary"></i>{% trans "Subject (Email only)" %}</label>
-                    <input type="text" name="subject" id="subject" class="form-control" placeholder="e.g. Special Offer for You!">
+                <!-- የኢሜይል ርዕስ (Email Only) -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-muted small text-uppercase">
+                        <i class="fas fa-heading me-1 text-primary"></i> {% trans "Subject (Email only)" %}
+                    </label>
+                    <input type="text" name="subject" id="subject" class="form-control ceo-input" placeholder="e.g. Special Offer for You!">
                 </div>
 
-                <div class="mb-3">
-                    <label for="message" class="form-label fw-bold small text-muted text-uppercase"><i class="fas fa-comment me-1 text-primary"></i>{% trans "Message" %} <span class="text-danger">*</span></label>
-                    <textarea name="message" id="message" class="form-control" rows="6" placeholder="Enter your campaign message..." required></textarea>
+                <!-- የካምፔን መልእክት -->
+                <div class="mb-5">
+                    <label for="message" class="form-label fw-bold text-muted small text-uppercase">
+                        <i class="fas fa-comment me-1 text-primary"></i> {% trans "Message" %} <span class="text-danger">*</span>
+                    </label>
+                    <textarea name="message" id="message" class="form-control ceo-input" rows="6" placeholder="Enter your campaign message..." required></textarea>
                 </div>
 
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                    <button type="reset" class="btn btn-outline-secondary rounded-pill px-4">{% trans "Reset" %}</button>
-                    <button type="submit" class="btn btn-primary rounded-pill px-5" id="submitBtn"><i class="fas fa-paper-plane me-2"></i>{% trans "Create Campaign" %}</button>
+                <!-- የቁጥጥር ቁልፎች (Design System Aligned Buttons) -->
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn-deploy" id="submitBtn">
+                        <i class="fas fa-bolt text-warning"></i> {% trans "Issue Royal Decree" %}
+                    </button>
+                    <a href="{% url 'growth_dashboard' %}" class="btn-outline-custom text-center py-2">
+                        {% trans "Cancel" %}
+                    </a>
                 </div>
             </form>
         </div>
@@ -75,7 +99,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- 🟢 Double-Submit Guard Handler (የደህንነት ጥበቃ) [1.1.2] -->
+<!-- 🟢 Double-Submit Guard Handler (የደህንነት ጥበቃ) -->
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         const campaignForm = document.getElementById('createCampaignForm');
@@ -84,7 +108,7 @@
                 const submitBtn = document.getElementById('submitBtn');
                 if (submitBtn) {
                     submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> {% trans "Launching Campaign..." %}';
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> {% trans "Issuing Decree..." %}';
                 }
             });
         }

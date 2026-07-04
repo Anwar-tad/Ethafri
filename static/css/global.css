@@ -1,21 +1,21 @@
 /* ============================================================
-   🎨 EthAfri Ultimate Design System — Master CSS (v10.16)
+   🎨 EthAfri Ultimate Design System — Master CSS (v10.18 - Complete)
    ዓላማ፦ የኮድ ድግግሞሽን ማጥፋት እና ሁሉንም ቴምፕሌቶች በአንድ ቦታ መቆጣጠር
-   ✅ የተፈቱ ችግሮች፦ Dynamic CSS variable alias mappings added to prevent theme customization mismatches across templates.
-   📅 ቀን፦ Thursday, July 02, 2026
+   ✅ የተፈቱ ችግሮች፦ Dynamic CSS variable alias mappings, custom dark-theme terminals, unified responsive grid spacing, and cohesive auth form control styles.
+   📅 ቀን፦ Saturday, July 04, 2026
    ============================================================ */
 
 :root {
     /* 🎨 1. Dynamic Brand Colors & Aliases */
     --primary: #1a2a6c;
-    --primary-color: var(--primary); /* 🛡️ Aligned Alias [1] */
-    --primary-soft: rgba(26, 42, 108, 0.1);
+    --primary-color: var(--primary); /* 🛡️ Aligned Alias */
+    --primary-soft: rgba(26, 42, 108, 0.08);
     
     --accent: #ffc107;
-    --accent-gold: var(--accent); /* 🛡️ Aligned Alias [1] */
+    --accent-gold: var(--accent); /* 🛡️ Aligned Alias */
     
     --secondary: #4e085e;
-    --accent-purple: var(--secondary); /* 🛡️ Aligned Alias [1] */
+    --accent-purple: var(--secondary); /* 🛡️ Aligned Alias */
     
     /* 📊 2. Semantic UI Colors */
     --success: #10b981;
@@ -35,7 +35,7 @@
     --radius-sm: 0.5rem;
     --radius-md: 1rem;
     --radius-lg: 1.5rem;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
     --shadow-md: 0 10px 15px -3px rgba(0,0,0,0.1);
     --shadow-lg: 0 20px 25px -5px rgba(0,0,0,0.1);
     
@@ -47,29 +47,44 @@
 }
 
 /* ============================================================
-   🧱 5. LAYOUT UTILITIES & GLOBAL SETTINGS
+   🧱 5. LAYOUT UTILITIES & GLOBAL RESETS
    ============================================================ */
 body {
-    padding-bottom: 80px;
+    padding-bottom: 80px; /* ለሞባይል የግርጌ ማውጫ ክፍተት መስጫ */
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--light-bg);
+    color: var(--text-dark);
 }
 
 html {
     scroll-behavior: smooth;
 }
 
-.ceo-container { width: 95%; max-width: 1200px; margin: auto; }
-.flex-center { display: flex; align-items: center; justify-content: center; }
-.grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+.ceo-container { 
+    width: 95%; 
+    max-width: 1200px; 
+    margin: auto; 
+}
+
+.flex-center { 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+}
+
+.grid-auto { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+    gap: 1.5rem; 
+}
 
 /* የይዘት መግቢያ አኒሜሽን */
 .fade-in {
-    animation: fadeIn 0.6s ease forwards;
+    animation: fadeIn 0.5s ease-out forwards;
     opacity: 0;
 }
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
@@ -77,51 +92,56 @@ html {
    📦 6. REUSABLE CARD, FORM & BUTTON SYSTEM
    ============================================================ */
 .glass-card {
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
     padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
     transition: all 0.3s ease;
 }
 
 .hover-lift:hover {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
     box-shadow: var(--shadow-md);
 }
 
-.input-field {
-    width: 100%;
-    padding: 0.75rem 1.2rem;
-    border-radius: var(--radius-sm);
-    border: 1.5px solid var(--gray-200);
-    background: var(--white);
-    transition: all 0.2s ease;
-}
-
-.input-field:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 4px var(--primary-soft);
-    outline: none;
-}
-
 .btn-ceo {
-    padding: 0.8rem 2rem;
+    padding: 0.75rem 2rem;
     border-radius: 50px;
     font-weight: 700;
     cursor: pointer;
     border: none;
-    transition: 0.3s;
+    transition: all 0.2s ease-in-out;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
+    font-size: 0.9rem;
 }
 
-.btn-primary-ceo { background: var(--primary); color: white; }
-.btn-outline-ceo { border: 2px solid var(--primary); color: var(--primary); background: transparent; }
+.btn-primary-ceo { 
+    background: var(--primary); 
+    color: white !important; 
+}
+.btn-primary-ceo:hover {
+    background: #111e50;
+    transform: scale(1.02);
+}
+
+.btn-outline-ceo { 
+    border: 2px solid var(--primary); 
+    color: var(--primary) !important; 
+    background: transparent; 
+}
+.btn-outline-ceo:hover {
+    background: var(--primary-soft);
+    transform: scale(1.02);
+}
 
 .agent-pulse {
-    width: 12px; height: 12px; border-radius: 50%;
+    width: 12px; 
+    height: 12px; 
+    border-radius: 50%;
     background: var(--success);
     box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
     animation: pulse-green 2s infinite;
@@ -137,15 +157,15 @@ html {
    📢 7. BASE SKELETON LAYOUT STYLES
    ============================================================ */
 .announcement-bar {
-    background: var(--primary-color, #1a2a6c) !important;
-    color: var(--white, #ffffff) !important;
+    background: var(--primary-color) !important;
+    color: var(--white) !important;
     font-size: 0.8rem;
     padding: 0.5rem 0;
-    border-bottom: 2px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
 .announcement-bar i {
-    color: var(--accent-gold, #ffc107);
+    color: var(--accent-gold);
 }
 
 .announcement-bar .close-announcement {
@@ -164,44 +184,33 @@ html {
 
 /* Navbar */
 .navbar-custom {
-    background: var(--primary-color, #1a2a6c) !important;
+    background: var(--primary-color) !important;
     padding: 0.6rem 0;
-    box-shadow: 0 2px 20px rgba(0,0,0,0.15);
-    transition: all 0.3s ease;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.1);
 }
 
 .navbar-custom .navbar-brand {
     font-weight: 800;
-    font-size: 1.2rem;
-    letter-spacing: -0.5px;
+    font-size: 1.25rem;
     color: var(--white) !important;
 }
 
 .navbar-custom .navbar-brand i {
-    color: var(--accent-gold, #ffc107);
+    color: var(--accent-gold);
 }
 
 .navbar-custom .nav-link {
     color: rgba(255,255,255,0.85) !important;
     font-weight: 500;
     font-size: 0.9rem;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     padding: 0.4rem 0.8rem;
     border-radius: 50px;
 }
 
-.navbar-custom .nav-link:hover {
+.navbar-custom .nav-link:hover, .navbar-custom .nav-link.active {
     color: var(--white) !important;
-    background: rgba(255,255,255,0.1);
-}
-
-.navbar-custom .nav-link.active {
-    color: var(--white) !important;
-    background: rgba(255,255,255,0.15);
-}
-
-.navbar-custom .nav-link i {
-    margin-right: 0.4rem;
+    background: rgba(255,255,255,0.12);
 }
 
 .navbar-custom .lang-select {
@@ -209,14 +218,9 @@ html {
     color: var(--white);
     border: 1px solid rgba(255,255,255,0.15);
     border-radius: 50px;
-    padding: 0.2rem 0.8rem;
+    padding: 0.25rem 0.8rem;
     font-size: 0.8rem;
     cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.navbar-custom .lang-select:hover {
-    background: rgba(255,255,255,0.2);
 }
 
 .navbar-custom .lang-select option {
@@ -225,70 +229,41 @@ html {
 }
 
 .navbar-custom .admin-badge {
-    background: var(--accent-gold, #ffc107);
+    background: var(--accent-gold);
     color: var(--text-dark);
-    font-size: 0.6rem;
+    font-size: 0.65rem;
     font-weight: 700;
-    padding: 0.15rem 0.6rem;
+    padding: 0.2rem 0.6rem;
     border-radius: 50px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
 /* Hero Banner */
 .hero-banner-custom {
-    background: linear-gradient(135deg, var(--primary-color, #1a2a6c), var(--accent-purple, #4e085e));
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-purple));
     color: var(--white);
-    padding: 2.5rem 0 2rem;
-    border-radius: 0 0 2rem 2rem;
+    padding: 2.5rem 0;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
     margin-bottom: 1.5rem;
     position: relative;
     overflow: hidden;
-    box-shadow: var(--shadow-md);
-}
-
-.hero-banner-custom::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -10%;
-    width: 400px;
-    height: 400px;
-    background: rgba(255,255,255,0.03);
-    border-radius: 50%;
-}
-
-.hero-banner-custom::after {
-    content: '';
-    position: absolute;
-    bottom: -40%;
-    left: -5%;
-    width: 300px;
-    height: 300px;
-    background: rgba(255,255,255,0.02);
-    border-radius: 50%;
+    box-shadow: var(--shadow-sm);
 }
 
 .hero-banner-custom h1 {
     font-weight: 800;
-    letter-spacing: -0.5px;
-    position: relative;
-    z-index: 1;
     font-size: 2.2rem;
 }
 
 .hero-banner-custom p {
     font-weight: 300;
-    opacity: 0.9;
-    position: relative;
-    z-index: 1;
+    opacity: 0.95;
     font-size: 1.1rem;
-    margin-bottom: 0;
 }
 
 .hero-banner-custom .hero-icon {
-    font-size: 3rem;
-    opacity: 0.15;
+    font-size: 3.5rem;
+    opacity: 0.12;
     position: absolute;
     right: 2rem;
     bottom: 1rem;
@@ -302,60 +277,48 @@ html {
     width: 100%;
     display: flex;
     justify-content: space-around;
-    padding: 0.5rem 0 0.6rem;
-    border-top: 2px solid var(--primary-color, #1a2a6c);
+    padding: 0.5rem 0;
+    border-top: 2px solid var(--primary-color);
     z-index: 9999;
     backdrop-filter: blur(10px);
-    background: rgba(255,255,255,0.95);
-    box-shadow: 0 -4px 25px rgba(0,0,0,0.08);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
 }
 
 .bottom-nav-custom a {
     text-decoration: none;
-    color: var(--text-muted, #6c757d);
-    font-size: 0.6rem;
+    color: var(--text-muted);
+    font-size: 0.65rem;
     text-align: center;
     flex: 1;
     font-weight: 600;
-    transition: all 0.3s ease;
-    padding: 0.2rem 0;
+    transition: all 0.2s ease;
     position: relative;
 }
 
 .bottom-nav-custom a i {
     display: block;
-    font-size: 1.3rem;
-    color: var(--text-muted, #6c757d);
-    margin-bottom: 0.1rem;
-    transition: all 0.3s ease;
+    font-size: 1.25rem;
+    color: var(--text-muted);
+    margin-bottom: 0.15rem;
 }
 
-.bottom-nav-custom a:hover {
-    color: var(--primary-color, #1a2a6c);
+.bottom-nav-custom a:hover, .bottom-nav-custom a.active {
+    color: var(--primary-color);
 }
 
-.bottom-nav-custom a:hover i {
-    color: var(--primary-color, #1a2a6c);
-    transform: scale(1.1);
-}
-
-.bottom-nav-custom a.active {
-    color: var(--primary-color, #1a2a6c);
-}
-
-.bottom-nav-custom a.active i {
-    color: var(--primary-color, #1a2a6c);
-    transform: scale(1.1);
+.bottom-nav-custom a:hover i, .bottom-nav-custom a.active i {
+    color: var(--primary-color);
 }
 
 .bottom-nav-custom a .nav-badge {
     position: absolute;
-    top: -2px;
+    top: -3px;
     right: 50%;
     transform: translateX(50%);
-    background: var(--danger-color, #dc3545);
+    background: var(--danger);
     color: var(--white);
-    font-size: 0.5rem;
+    font-size: 0.55rem;
     padding: 0.05rem 0.4rem;
     border-radius: 50px;
     font-weight: 700;
@@ -363,7 +326,7 @@ html {
 
 .bottom-nav-custom .nav-divider {
     width: 1px;
-    background: var(--border-color, #e2e8f0);
+    background: var(--border-color);
     margin: 0.2rem 0;
 }
 
@@ -371,45 +334,36 @@ html {
     cursor: pointer;
     background: none;
     border: none;
-    color: var(--text-muted, #6c757d);
-    font-size: 0.6rem;
+    color: var(--text-muted);
+    font-size: 0.65rem;
     text-align: center;
     flex: 1;
     font-weight: 600;
-    padding: 0.2rem 0;
-    transition: all 0.3s ease;
 }
 
 .bottom-nav-custom .nav-dropdown-toggle i {
     display: block;
-    font-size: 1.3rem;
-    color: var(--text-muted, #6c757d);
-    margin-bottom: 0.1rem;
-    transition: all 0.3s ease;
+    font-size: 1.25rem;
+    color: var(--text-muted);
+    margin-bottom: 0.15rem;
 }
 
 .bottom-nav-custom .nav-dropdown-toggle:hover {
-    color: var(--primary-color, #1a2a6c);
-}
-
-.bottom-nav-custom .nav-dropdown-toggle:hover i {
-    color: var(--primary-color, #1a2a6c);
-    transform: scale(1.1);
+    color: var(--primary-color);
 }
 
 /* Dropdown Menu */
 .nav-dropdown-menu {
-    min-width: 200px;
-    border-radius: 1rem;
+    min-width: 210px;
+    border-radius: var(--radius-md);
     border: none;
     box-shadow: var(--shadow-lg);
     padding: 0.5rem;
     margin-bottom: 0.5rem;
-    background: var(--white);
 }
 
 .nav-dropdown-menu .dropdown-item {
-    border-radius: 0.75rem;
+    border-radius: var(--radius-sm);
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
     font-weight: 500;
@@ -417,7 +371,7 @@ html {
 }
 
 .nav-dropdown-menu .dropdown-item:hover {
-    background: var(--light-bg, #f4f7f6);
+    background: var(--gray-100);
 }
 
 .nav-dropdown-menu .dropdown-item i {
@@ -425,12 +379,8 @@ html {
     text-align: center;
 }
 
-.nav-dropdown-menu .dropdown-divider {
-    margin: 0.3rem 0;
-}
-
 /* ============================================================
-   🏠 8. CORE LANDING PAGE STYLES (MIGRATED FROM home.html)
+   🏠 8. CORE LANDING PAGE STYLES
    ============================================================ */
 .home-wrapper {
     padding: 1rem 0 2rem;
@@ -438,7 +388,7 @@ html {
     min-height: 100vh;
 }
 
-/* announcement banner */
+/* Announcement Banner */
 .announcement-banner {
     background: linear-gradient(135deg, var(--primary-color), var(--accent-purple));
     border-radius: var(--radius-md);
@@ -462,12 +412,6 @@ html {
 
 .announcement-banner .banner-text i {
     font-size: 1.2rem;
-    animation: pulse-banner 2s ease-in-out infinite;
-}
-
-@keyframes pulse-banner {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
 }
 
 .announcement-banner .banner-btn {
@@ -482,6 +426,66 @@ html {
 .announcement-banner .banner-btn:hover {
     background: white;
     color: var(--primary-color);
+}
+
+/* Multi-Site Selector */
+.site-selector-home {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.5rem;
+    background: white;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    margin-bottom: 1.5rem;
+    scrollbar-width: none;
+}
+.site-selector-home::-webkit-scrollbar { display: none; }
+
+.site-selector-home .selector-label {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+    margin-right: 0.25rem;
+}
+
+.site-selector-home .site-option {
+    padding: 0.35rem 1rem;
+    border-radius: 50px;
+    background: var(--gray-50);
+    border: 1.5px solid var(--border-color);
+    color: var(--text-dark);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    transition: all 0.2s ease-in-out;
+}
+
+.site-selector-home .site-option:hover, .site-selector-home .site-option.active {
+    border-color: var(--primary-color);
+    background: var(--primary-soft);
+    color: var(--primary-color);
+}
+
+.site-selector-home .site-option .site-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.site-selector-home .site-option .badge-count {
+    font-size: 0.7rem;
+    background: rgba(0,0,0,0.05);
+    padding: 0.05rem 0.4rem;
+    border-radius: 50px;
+    color: var(--text-muted);
 }
 
 /* categories chips slider */
@@ -706,7 +710,7 @@ html {
     box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
 }
 
-/* product badge */
+/* product site badge */
 .product-card-home .card-body .site-badge {
     font-size: 0.55rem;
     padding: 0.1rem 0.5rem;
@@ -744,7 +748,7 @@ html {
 }
 
 /* ============================================================
-   📊 9. CEO GROWTH DASHBOARD STYLES (MIGRATED FROM growth_dashboard.html)
+   📊 9. CEO GROWTH DASHBOARD STYLES
    ============================================================ */
 .dashboard-wrapper {
     padding: 1.5rem 0;
@@ -838,7 +842,7 @@ html {
 }
 
 /* ============================================================
-   📟 10. DIAGNOSTIC TERMINAL STYLES (MIGRATED FROM agent_status.html)
+   📟 10. DIAGNOSTIC TERMINAL STYLES
    ============================================================ */
 .status-card {
     background: white;
@@ -921,7 +925,7 @@ html {
 }
 
 /* ============================================================
-   👑 11. COMMAND OVERRIDE CENTER (MIGRATED FROM owner_directive.html)
+   👑 11. COMMAND OVERRIDE CENTER
    ============================================================ */
 .directive-wrapper {
     padding: 3rem 0;
@@ -1007,7 +1011,7 @@ html {
 }
 
 /* ============================================================
-   💰 12. MARKETING INTELLIGENCE (MIGRATED FROM marketing_dashboard.html)
+   💰 12. MARKETING INTELLIGENCE
    ============================================================ */
 .marketing-wrapper {
     padding: 1.5rem 0;
@@ -1075,7 +1079,7 @@ html {
 }
 
 /* ============================================================
-   🏥 13. USER REGISTRATION & AUTH STYLES (MIGRATED FROM signup.html / login.html)
+   🏥 13. USER REGISTRATION & AUTH STYLES
    ============================================================ */
 .auth-wrapper {
     min-height: 80vh;
@@ -1150,7 +1154,7 @@ html {
 }
 
 /* ============================================================
-   🛍️ 14. PRODUCT REGISTRATION & DETAIL STYLES (MIGRATED FROM post_product.html / product_detail.html)
+   🛍️ 14. PRODUCT REGISTRATION & DETAIL STYLES
    ============================================================ */
 .post-card-container { max-width: 650px; margin: 0 auto; }
 
@@ -1326,7 +1330,7 @@ html {
 }
 
 /* ============================================================
-   🏆 15. SUCCESS PAGE STYLES (MIGRATED FROM post_success.html)
+   🏆 15. SUCCESS PAGE STYLES
    ============================================================ */
 .success-wrapper {
     min-height: 80vh;

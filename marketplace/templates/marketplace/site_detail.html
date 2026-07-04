@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/site_detail.html
-📝 ስሪት፦ v10.16 (Site Specific Intelligence - Optimized Edition)
-✅ የተፈቱ ችግሮች፦ Defused WebSocket query flood via 10-second debounce throttling, prevented Render CPU spikes, and protected database from starvation.
-📅 ቀን፦ Thursday, July 02, 2026
+📝 ስሪት፦ v10.18 (Site Specific Intelligence - Clean & DRY Synced)
+✅ የተፈቱ ችግሮች፦ Resolved tab target ID "backlog" mismatch bug, removed redundant inline styles, integrated dynamic GSC indexing updates, and secured 10-second debounce pacing.
+📅 ቀን፦ Saturday, July 04, 2026
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -10,7 +10,6 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -22,7 +21,7 @@
 <div class="site-detail-wrapper py-4">
     
     <!-- 🚀 Site Executive Header -->
-    <div class="site-hero" style="background: linear-gradient(135deg, var(--primary-color, #1a2a6c), var(--accent-purple, #4e085e)); color: white; padding: 2.5rem; border-radius: 1.5rem; margin-bottom: 2rem; box-shadow: var(--shadow-md);">
+    <div class="site-hero">
         <div class="row align-items-center">
             <div class="col-lg-7">
                 <div class="d-flex align-items-center gap-3 mb-3">
@@ -39,7 +38,7 @@
                     <i class="fas fa-code-branch ms-2 me-1"></i> {{ site.name }}
                 </p>
                 
-                <div class="metric-grid" style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                <div class="metric-grid">
                     <div class="metric-item d-flex flex-column">
                         <span class="metric-val fs-3 fw-bold" id="site-products-val">{{ site.total_products }}</span>
                         <span class="metric-lbl small opacity-75">{% trans "Products" %}</span>
@@ -49,7 +48,7 @@
                         <span class="metric-lbl small opacity-75">{% trans "Visitors" %}</span>
                     </div>
                     <div class="metric-item d-flex flex-column">
-                        <span class="site-revenue-val stat-val text-success fw-bold" style="font-size: 1.5rem; font-weight: bold;">ETB {{ site.monthly_revenue|floatformat:0 }}</span>
+                        <span class="site-revenue-val stat-val text-success fw-bold">ETB {{ site.monthly_revenue|floatformat:0 }}</span>
                         <span class="stat-label d-block small text-white-50">{% trans "Revenue" %}</span>
                     </div>
                 </div>
@@ -67,28 +66,30 @@
         </div>
     </div>
 
-        <!-- 🧭 Tab Navigation -->
-        <ul class="nav nav-pills mb-4 bg-white p-2 rounded-4 shadow-sm d-flex gap-2" id="backlogTabs" role="tablist">
-            <li class="nav-item">
-                <button class="nav-link active rounded-pill" id="backlog-tab" data-bs-toggle="pill" data-bs-target="#backlog" type="button" role="tab">
-                    <i class="fa-solid fa-rectangle-list me-1 text-primary"></i> {% trans "Backlog" %}
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link rounded-pill" id="evolutions-tab" data-bs-toggle="pill" data-bs-target="#evolutions" type="button" role="tab">
-                    <i class="fas fa-dna me-1 text-info"></i> {% trans "Evolutions" %}
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link rounded-pill" id="errors-tab" data-bs-toggle="pill" data-bs-target="#errors" type="button" role="tab">
-                    <i class="fas fa-bug me-1 text-danger"></i> {% trans "Errors" %}
-                </button>
-            </li>
-        </ul>
+    <!-- 🧭 Tab Navigation -->
+    <ul class="nav nav-pills mb-4 bg-white p-2 rounded-4 shadow-sm d-flex gap-2" id="backlogTabs" role="tablist">
+        <li class="nav-item">
+            <!-- 🛡️ FIXED: የታብ ሊንኩ መድረሻ '#backlog' ተብሎ ተስተካክሏል -->
+            <button class="nav-link active rounded-pill" id="backlog-tab" data-bs-toggle="pill" data-bs-target="#backlog" type="button" role="tab">
+                <i class="fa-solid fa-rectangle-list me-1 text-primary"></i> {% trans "Backlog" %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link rounded-pill" id="evolutions-tab" data-bs-toggle="pill" data-bs-target="#evolutions" type="button" role="tab">
+                <i class="fas fa-dna me-1 text-info"></i> {% trans "Evolutions" %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link rounded-pill" id="errors-tab" data-bs-toggle="pill" data-bs-target="#errors" type="button" role="tab">
+                <i class="fas fa-bug me-1 text-danger"></i> {% trans "Errors" %}
+            </button>
+        </li>
+    </ul>
 
     <div class="tab-content">
         <!-- 📋 Backlog Tab -->
-        <div class="tab-pane fade show active" id="tab-backlog">
+        <!-- 🛡️ FIXED: ID 'tab-backlog' ወደ ትክክለኛው 'backlog' ተቀይሯል (የታብ መቆጣጠሪያው ይሰራል) -->
+        <div class="tab-pane fade show active" id="backlog" role="tabpanel">
             <div class="tab-pane-content bg-white p-4 rounded-4 shadow-sm border" id="backlog-container">
                 <h5 class="fw-bold mb-4">{% trans "Pending Strategic Tasks" %}</h5>
                 {% for task in backlog %}
@@ -113,7 +114,7 @@
 
         <!-- 🧬 Evolutions Tab -->
         <div class="tab-pane fade" id="evolutions" role="tabpanel">
-            <div class="glass-card" style="background: white; border-radius: 1rem; padding: 2rem;">
+            <div class="glass-card">
                 <h5 class="fw-bold mb-3 text-primary"><i class="fas fa-dna me-2"></i> {% trans "Evolution History" %}</h5>
                 {% for log in evolutions %}
                 <div class="p-3 border-bottom border-light">
@@ -134,7 +135,7 @@
             <div class="glass-card">
                 <h5 class="fw-bold mb-3 text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i> {% translate "Blocked / Failed Compilations" %}</h5>
                 {% for err in error_logs %}
-                    <div class="p-4 mb-3 rounded-4 bg-white border shadow-sm" style="border-left: 5px solid #dc3545;">
+                    <div class="p-4 mb-3 rounded-4 bg-white border shadow-sm priority-Critical">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <h5 class="fw-bold text-dark mb-2">{{ err.task_name }}</h5>
@@ -193,11 +194,8 @@
             if (backlogContainer) {
                 if (tasks.length === 0) {
                     backlogContainer.innerHTML = `
-                        <h5 class="fw-bold mb-4">{% trans "Pending Strategic Tasks" %}</h5>
-                        <div class="text-center py-5 text-muted">
-                            <i class="fas fa-check-circle fa-3x mb-3 opacity-25 text-success"></i>
-                            <p>{% trans "No pending work for this niche. Everything is up to date." %}</p>
-                        </div>`;
+                        <h5 class="fw-bold mb-3 text-warning"><i class="fa-solid fa-clock me-2"></i> {% trans "Pending Backlog" %}</h5>
+                        <div class="text-muted small py-2">No pending tasks. Backlog is clear!</div>`;
                 } else {
                     let html = '<h5 class="fw-bold mb-4">{% trans "Pending Strategic Tasks" %}</h5>';
                     tasks.forEach(task => {

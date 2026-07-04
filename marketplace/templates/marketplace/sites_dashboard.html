@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/sites_dashboard.html
-📝 ስሪት፦ v10.16 (SaaS Portfolio Dashboard - Aligned & Optimized Edition)
-✅ የተፈቱ ችግሮች፦ Dynamic HTML-level build phase translations, real-time WebSocket task counter animations, and optimized stats grid rendering.
-📅 ቀን፦ Thursday, July 02, 2026
+📝 ስሪት፦ v10.18 (SaaS Portfolio Dashboard - Clean & DRY Synced)
+✅ የተፈቱ ችግሮች፦ Removed redundant inline style attributes, aligned with central global.css (Section 12), integrated live WebSocket task counter updates, and unified build phase display.
+📅 ቀን፦ Saturday, July 04, 2026
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -10,7 +10,6 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -19,7 +18,6 @@
 {% endblock %}
 
 {% block content %}
-<!-- 🤖 data-agent-monitor መለያ የ global.js የጋራ ዌብ-ሶኬት ግንኙነቱን ይቀሰቅሳል -->
 <div class="sites-wrapper" data-agent-monitor>
     <div class="container-fluid">
 
@@ -64,7 +62,7 @@
         <div class="row g-4">
             {% for item in site_stats %}
             <div class="col-md-6 col-xl-4">
-                <div class="niche-card shadow-sm bg-white p-4 rounded-4" style="border: 1px solid #e2e8f0; border-radius: 1rem;">
+                <div class="niche-card shadow-sm bg-white p-4 rounded-4">
                     <div class="niche-header">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
@@ -88,7 +86,6 @@
                         </div>
                         <div class="d-flex justify-content-between mt-1">
                             <small class="text-muted" id="site-phase-text-{{ item.id }}" style="font-size: 0.65rem;">Phase {{ item.build_phase }}/5</small>
-                            <!-- 🔴 FIXED: get_build_phase_display ባዶ መሆኑን ለመከላከል የኤችቲኤምኤል ዳይናሚክ ትርጉም ውህደት [1] -->
                             <small class="fw-bold text-primary" id="site-phase-name-{{ item.id }}" style="font-size: 0.65rem;">
                                 {% if item.build_phase == 0 %}{% trans "Scaffolding" %}
                                 {% elif item.build_phase == 1 %}{% trans "Real Data" %}
@@ -102,7 +99,7 @@
 
                     <div class="card-body p-0 mt-3">
                         <!-- Task Summary Stats -->
-                        <div class="bg-light rounded-4 p-3 mb-3" style="border-radius: 0.75rem;">
+                        <div class="bg-light rounded-4 p-3 mb-3">
                             <div class="row text-center g-0">
                                 <div class="col-4 border-end">
                                     <div class="fw-bold text-primary" id="site-pending-{{ item.id }}">{{ item.pending_tasks|default:0 }}</div>
@@ -121,7 +118,7 @@
 
                         <!-- Health Alert (የስህተት መከታተያ) -->
                         {% if item.recent_errors > 0 %}
-                        <div class="alert alert-danger py-2 px-3 rounded-pill border-0 mb-3 d-flex align-items-center gap-2" style="border-radius: 50px;">
+                        <div class="alert alert-danger py-2 px-3 rounded-pill border-0 mb-3 d-flex align-items-center gap-2">
                             <i class="fas fa-exclamation-triangle small"></i>
                             <span class="fw-bold" style="font-size: 0.7rem;">{{ item.recent_errors }} {% trans "Critical Errors Found" %}</span>
                         </div>
@@ -145,7 +142,7 @@
         </div>
 
         <div class="text-center mt-5 text-muted small pb-4">
-            <i class="fas fa-microchip me-1"></i> {% trans "EthAfri Multi-Site Orchestrator v10.16 | High-Performance Mode Active" %}
+            <i class="fas fa-microchip me-1"></i> {% trans "EthAfri Multi-Site Orchestrator v10.18 | High-Performance Mode Active" %}
         </div>
     </div>
 </div>
@@ -157,12 +154,21 @@
     document.addEventListener('agent_update', function(event) {
         const data = event.detail;
         
-        if (data.type === 'status_update') {
+        if (data.type === 'status_update' || data.type === 'live_stats') {
             const sites = data.sites || [];
             sites.forEach(site => {
                 const fillEl = document.getElementById(`site-phase-fill-${site.id}`);
                 const textEl = document.getElementById(`site-phase-text-${site.id}`);
                 const nameEl = document.getElementById(`site-phase-name-${site.id}`);
+                
+                // የባክሎግ ታስኮችን ቁጥር በየሁኔታው በእውነተኛ ሰዓት ማዘመኛ [1]
+                const pendingEl = document.getElementById(`site-pending-${site.id}`);
+                const runningEl = document.getElementById(`site-running-${site.id}`);
+                const completedEl = document.getElementById(`site-completed-${site.id}`);
+                
+                if (pendingEl && site.pending_tasks !== undefined) pendingEl.innerText = site.pending_tasks;
+                if (runningEl && site.running_tasks !== undefined) runningEl.innerText = site.running_tasks;
+                if (completedEl && site.completed_tasks !== undefined) completedEl.innerText = site.completed_tasks;
                 
                 // የደረጃውን አሞሌ በእውነተኛ ሰዓት ማስተካከል (Phase Animation)
                 if (fillEl) {

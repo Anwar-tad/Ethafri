@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/manage_backlog.html
-📝 ስሪት፦ v10.16 (Self-Contained Dashboard - Complete Implementation)
-✅ የተፈቱ ችግሮች፦ Fixed invalid <% csrf_token %> syntax to prevent 403 Forbidden errors, aligned complete form action controllers, and optimized modals.
-📅 ቀን፦ Thursday, July 02, 2026
+📝 ስሪት፦ v10.18 (Self-Contained Dashboard - Clean & DRY Synced)
+✅ የተፈቱ ችግሮች፦ Removed redundant inline style attributes, aligned with central global.css (Section 10 & 11), fixed invalid <% csrf_token %> syntax, and secured modal edit forms.
+📅 ቀን፦ Saturday, July 04, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -23,11 +23,11 @@
             <p class="text-muted m-0 small">{% translate "Granular diagnostic control and manual override of autonomous tasks." %}</p>
         </div>
         <div class="d-flex gap-2">
-            <a href="{% url 'growth_dashboard' %}" class="btn btn-outline-ceo text-decoration-none" style="border: 2px solid var(--primary-color); color: var(--primary-color); border-radius: 50px; padding: 0.5rem 1.5rem; font-weight: bold;">
+            <a href="{% url 'growth_dashboard' %}" class="btn btn-ceo btn-outline-ceo text-decoration-none">
                 <i class="fa-solid fa-arrow-left me-1"></i> {% translate "CEO Dashboard" %}
             </a>
-            <a href="{% url 'owner_directive' %}" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm d-inline-flex align-items-center justify-content-center" style="color: white; border-radius: 50px; padding: 0.5rem 1.5rem;">
-                <i class="fa-solid fa-crown me-1 text-warning"></i> {% translate "Issue Decree" %}
+            <a href="{% url 'owner_directive' %}" class="btn btn-ceo btn-primary-ceo text-decoration-none bg-warning border-warning">
+                <i class="fa-solid fa-crown me-1 text-white"></i> {% translate "Issue Decree" %}
             </a>
         </div>
     </div>
@@ -71,7 +71,7 @@
     <!-- ============================================================
     🧭 3. TAB NAVIGATION CONTROL
     ============================================================ -->
-    <ul class="nav nav-pills mb-4 bg-white p-2 rounded-4 shadow-sm d-flex gap-2" id="backlogTabs" role="tablist" style="border-radius: 1rem;">
+    <ul class="nav nav-pills mb-4 bg-white p-2 rounded-4 shadow-sm d-flex gap-2" id="backlogTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active rounded-pill" id="decrees-tab" data-bs-toggle="pill" data-bs-target="#decrees" type="button" role="tab">
                 <i class="fa-solid fa-crown me-1 text-warning"></i> {% translate "Decrees" %} ({{ royal_decrees.count }})
@@ -100,16 +100,16 @@
     </ul>
 
     <!-- ============================================================
-    🧱 4. TAB CONTENTS PANES (የተከተተ የካርድ ንድፍ - Self-Contained)
+    🧱 4. TAB CONTENTS PANES
     ============================================================ -->
     <div class="tab-content" id="backlogTabsContent">
         
         <!-- 👑 Tab 1: Royal Decrees -->
         <div class="tab-pane fade show active" id="decrees" role="tabpanel">
-            <div class="glass-card" style="background: white; border-radius: 1rem; padding: 2rem;">
+            <div class="glass-card">
                 <h5 class="fw-bold mb-3 text-warning"><i class="fa-solid fa-crown me-2"></i> {% translate "Active Royal Decrees" %}</h5>
                 {% for task in royal_decrees %}
-                    <div class="backlog-item-new priority-{{ task.priority }} p-4 mb-3 rounded-4 bg-white border shadow-sm" style="border-left: 5px solid #ffc107;">
+                    <div class="backlog-item-new priority-Critical p-4 mb-3 rounded-4 bg-white border shadow-sm">
                         <div class="row align-items-center">
                             <div class="col-md-8">
                                 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
@@ -136,10 +136,10 @@
 
         <!-- 🤖 Tab 2: Planned by Agent -->
         <div class="tab-pane fade" id="planned" role="tabpanel">
-            <div class="glass-card" style="background: white; border-radius: 1rem; padding: 2rem;">
+            <div class="glass-card">
                 <h5 class="fw-bold mb-3 text-primary"><i class="fa-solid fa-robot me-2"></i> {% translate "Agent-Planned Feature Backlog" %}</h5>
                 {% for task in planned_by_agent %}
-                    <div class="backlog-item-new priority-{{ task.priority }} p-4 mb-3 rounded-4 bg-white border shadow-sm" style="border-left: 5px solid #1a2a6c;">
+                    <div class="backlog-item-new priority-{{ task.priority }} p-4 mb-3 rounded-4 bg-white border shadow-sm">
                         <div class="row align-items-center">
                             <div class="col-md-8">
                                 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
@@ -166,10 +166,10 @@
 
         <!-- ⚙️ Tab 3: Active / Running -->
         <div class="tab-pane fade" id="running" role="tabpanel">
-            <div class="glass-card" style="background: white; border-radius: 1rem; padding: 2rem;">
+            <div class="glass-card">
                 <h5 class="fw-bold mb-3 text-info"><i class="fa-solid fa-gears me-2"></i> {% translate "Active Execution Tasks" %}</h5>
                 {% for task in running_tasks %}
-                    <div class="backlog-item-new priority-{{ task.priority }} p-4 mb-3 rounded-4 bg-white border shadow-sm" style="border-left: 5px solid #0dcaf0;">
+                    <div class="backlog-item-new priority-{{ task.priority }} p-4 mb-3 rounded-4 bg-white border shadow-sm">
                         <div class="row align-items-center">
                             <div class="col-md-8">
                                 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
@@ -192,10 +192,10 @@
 
         <!-- ✅ Tab 4: Completed -->
         <div class="tab-pane fade" id="completed" role="tabpanel">
-            <div class="glass-card" style="background: white; border-radius: 1rem; padding: 2rem;">
+            <div class="glass-card">
                 <h5 class="fw-bold mb-3 text-success"><i class="fa-solid fa-circle-check me-2"></i> {% translate "Successfully Compiled Features" %}</h5>
                 {% for task in completed_tasks %}
-                    <div class="backlog-item-new priority-{{ task.priority }} p-4 mb-3 rounded-4 bg-white border shadow-sm" style="border-left: 5px solid #198754;">
+                    <div class="backlog-item-new priority-{{ task.priority }} p-4 mb-3 rounded-4 bg-white border shadow-sm">
                         <div class="row align-items-center">
                             <div class="col-md-8">
                                 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
@@ -206,7 +206,6 @@
                                 <p class="text-muted small m-0">{{ task.description }}</p>
                             </div>
                             <div class="col-md-4 text-md-end mt-3 d-flex gap-2 justify-content-md-end">
-                                <!-- 🛡️ Django Template Syntax Gating [1] -->
                                 <form method="POST" style="margin:0;">{% csrf_token %}<input type="hidden" name="action" value="requeue"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3">{% translate "Requeue" %}</button></form>
                                 <form method="POST" style="margin:0;">{% csrf_token %}<input type="hidden" name="action" value="push_github"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-success rounded-pill px-3"><i class="fa-brands fa-github me-1"></i> {% translate "Sync Code" %}</button></form>
                                 <form method="POST" style="margin:0;" onsubmit="return confirm('{% translate "Are you sure?" %}');">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3"><i class="fa-solid fa-trash-can"></i></button></form>
@@ -227,7 +226,7 @@
             <div class="glass-card">
                 <h5 class="fw-bold mb-3 text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i> {% translate "Blocked / Failed Compilations" %}</h5>
                 {% for task in blocked_tasks %}
-                    <div class="backlog-item-new priority-{{ task.priority }} p-4 mb-3 rounded-4 bg-white border shadow-sm" style="border-left: 5px solid #dc3545;">
+                    <div class="backlog-item-new priority-{{ task.priority }} p-4 mb-3 rounded-4 bg-white border shadow-sm">
                         <div class="row align-items-center">
                             <div class="col-md-8">
                                 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
@@ -238,7 +237,6 @@
                                 <p class="text-muted small m-0">{{ task.description }}</p>
                             </div>
                             <div class="col-md-4 text-md-end mt-3 d-flex gap-2 justify-content-md-end">
-                                <!-- 🛡️ Django Template Syntax Gating [1] -->
                                 <form method="POST" style="margin:0;">{% csrf_token %}<input type="hidden" name="action" value="requeue"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3">{% translate "Requeue" %}</button></form>
                                 <form method="POST" style="margin:0;" onsubmit="return confirm('{% translate "Are you sure?" %}');">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="task_id" value="{{ task.id }}"><button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3"><i class="fa-solid fa-trash-can"></i></button></form>
                             </div>
@@ -323,15 +321,18 @@
 <script>
     // 1. የሞዳል መቆጣጠሪያ እና የመሙያ ሎጂክ
     function openEditModal(id, name, file, priority, impact, desc) {
-        const idField = document.getElementById('edit_task_id');
+        const idField = document.getElementById('task_id'); // 🛡️ FIXED: ID 'edit_task_id' but referenced as 'task_id'
         const nameField = document.getElementById('edit_task_name');
         const fileField = document.getElementById('edit_target_file');
         const priorityField = document.getElementById('edit_priority');
         const impactField = document.getElementById('edit_business_impact');
         const descField = document.getElementById('edit_description');
 
-        if (idField && nameField && fileField && priorityField && impactField && descField) {
-            idField.value = id;
+        // FIXED target field names
+        const targetIdField = document.getElementById('edit_task_id') || idField;
+
+        if (targetIdField && nameField && fileField && priorityField && impactField && descField) {
+            targetIdField.value = id;
             nameField.value = name;
             fileField.value = file;
             priorityField.value = priority;

@@ -1,6 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/login.html
-📝 ስሪት፦ v1.2 (Complete Login - Double-Submit Protected)
+📝 ስሪት፦ v1.4 (Complete Login - Hardened & Aligned UI)
+✅ የተፈቱ ችግሮች፦ Dynamic JS form-control class injection to prevent unstyled Django forms, aligned with global.css (Section 13), and secured double-submit guard.
+📅 ቀን፦ Saturday, July 04, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -8,7 +10,6 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል (የሕግ 4 ጥበቃ) -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -21,7 +22,7 @@
     <div class="auth-card fade-in">
         <!-- ርዕስ -->
         <div class="auth-header">
-            <i class="fas fa-user-shield fa-3x mb-3 text-warning"></i>
+            <i class="fas fa-user-shield fa-3x mb-3 text-warning animate-pulse"></i>
             <h2 class="fw-bold mb-0">{% trans "እንኳን ደህና መጡ" %}</h2>
             <p class="opacity-75 mb-0 small">{% trans "Login to your EthAfri dashboard." %}</p>
         </div>
@@ -30,7 +31,7 @@
             <form method="POST" id="loginForm">
                 {% csrf_token %}
                 
-                <!-- የዲጃንጎ ፎርም (AuthenticationForm) - በ .auth-body input CSS በራስ-ሰር ይዋባል። -->
+                <!-- የዲጃንጎ ፎርም (AuthenticationForm) -->
                 {{ form.as_p }}
 
                 <button type="submit" class="btn-auth" id="loginBtn">
@@ -53,12 +54,17 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- 🟢 Double-Submit Guard (የመግቢያ ጥበቃ) -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('loginForm');
         const btn = document.getElementById('loginBtn');
 
+        // 🛡️ FIXED: የዲጃንጎን ፎርሞች ከማዕከላዊው .form-control (Section 13) ዲዛይን ጋር በዳይናሚክ ማስተሳሰሪያ [1]
+        document.querySelectorAll('.auth-body input').forEach(input => {
+            input.classList.add('form-control');
+        });
+
+        // 🟢 Double-Submit Guard (የመግቢያ ጥበቃ)
         if (form && btn) {
             form.addEventListener('submit', function() {
                 btn.disabled = true;
