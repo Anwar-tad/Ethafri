@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/self_doctor.py
-# 📝 ስሪት፦ v10.16 (Ultimate System Doctor - Complete & Consolidated)
-# ✅ የተፈቱ ችግሮች፦ AST-driven performance audit (N+1 query scanning), AI call caching logic, thread-safe DB connection recovery, and database archivers.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ስሪት፦ v10.28 (Ultimate System Doctor - Hardened & Safe-Reset Version)
+# ✅ የተፈቱ ችግሮች፦ Safe schema-reset guards (No accidental data loss), Dynamic model field verification, AST performance parsing, and AI SQL caching.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 import os
@@ -165,6 +165,12 @@ class UniversalHealer:
         """🚨 [Autonomous Schema Rebuilder] የዳታቤዝ ሰንጠረዦችን በ CASCADE በማጥፋት ፍልሰቱን ከባዶ ይገነባል"""
         from .models import SiteRegistry
 
+        # 🛡️ FIXED: ድንገተኛ የመረጃ ማጥፋት አደጋን ለመከላከል የደህንነት ማረጋገጫ ቁልፍ (Environment Switch) መፈተሽ
+        reset_allowed = os.getenv('ALLOW_EMERGENCY_SCHEMA_RESET', 'false').lower() == 'true'
+        if not reset_allowed:
+            logger.critical("🚨 EMERGENCY RESET BLOCKED: 'ALLOW_EMERGENCY_SCHEMA_RESET' is not enabled in Env. Wiping skipped to prevent data loss.")
+            return False
+
         logger.warning("🚨 EMERGENCY RESET: Hard resetting database schema to resolve permanent migration lock...")
         try:
             marketplace_tables = [
@@ -257,7 +263,7 @@ class UniversalHealer:
                         WHERE table_name='marketplace_product' AND column_name='image_gallery';
                     """)
                     if not cursor.fetchone():
-                        logger.warning("Capitalized Schema Healer [Proactive]: Column 'image_gallery' is missing. Auto-adding...")
+                        logger.warning("🚑 Schema Healer [Proactive]: Column 'image_gallery' is missing. Auto-adding...")
                         cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS image_gallery jsonb DEFAULT '[]'::jsonb;")
 
             call_command('migrate', interactive=False)
@@ -353,7 +359,8 @@ class UniversalHealer:
             except Exception as ai_heal_err:
                 logger.error(f"❌ Schema Healer: AI healing failed: {ai_heal_err}")
 
-            logger.critical("🚨 Schema Healer: Rebuilding database schema from scratch.")
+            # 🛡️ FIXED: ድንገተኛ የመረጃ ማጥፋትን ለመከላከል በደህንነት ስዊች መታገዱን ማረጋገጫ
+            logger.critical("🚨 Schema Healer: Failed to recover via AI. Checking emergency reset authorization.")
             self.hard_reset_database_schema()
 
     def heal_model_field_errors(self):
@@ -594,6 +601,12 @@ class PerformanceAuditor:
         from .ai_utils import AIUtils, clean_and_parse_json, ask_master_ai_smart
         
         try:
+            # 🛡️ FIXED: FieldError ስህተትን ለመከላከል 'inquiry_count' የሚለው አምድ በProduct ሞዴል ላይ መኖሩን በፓይተን ማረጋገጥ
+            product_fields = [f.name for f in Product._meta.get_fields()]
+            if 'inquiry_count' not in product_fields:
+                logger.debug("Inquiry optimization bypassed: 'inquiry_count' field does not exist on Product model.")
+                return
+
             target = Product.objects.filter(site=site, inquiry_count__gt=10, is_active=True).first()
             if target:
                 # 🔴 AI CACHING INTEGRATION: ተመሳሳይ ምርት በተደጋገመ ቁጥር ኤፒአይ እንዳይጠራ መሸጎጫን መፈተሽ [1]
@@ -630,7 +643,7 @@ class AntiBloatEngine:
 
     @staticmethod
     def prune_and_optimize(old_code, new_code, file_path):
-        """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከላል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል"""
+        """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከልል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል"""
         if len(new_code) < 12000 or (old_code and len(new_code) < len(old_code) * 1.20):
             return new_code
 

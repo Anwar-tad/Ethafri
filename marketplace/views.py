@@ -1,3 +1,5 @@
+
+
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py
 # 📝 ስሪት፦ v10.17 (Master CEO Views Orchestration - Part 1/2)
@@ -9,7 +11,7 @@ import logging
 import uuid
 import json
 import threading
-import re
+import re,os
 import random # ✅ A/B ሙከራ ቫሪያንት በዳይናሚክ ለመምረጥ የተጨመረ [1]
 from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404

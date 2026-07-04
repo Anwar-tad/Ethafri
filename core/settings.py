@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/core/settings.py
-# 📝 ስሪት፦ v10.16 (Production Grade - Central System Settings)
-# ✅ የተፈቱ ችግሮች፦ Dynamic environment loading, Django 4.2+ STORAGES, zero registry-crash direct handler imports, and consolidated AI fallback keys.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ስሪት፦ v10.18 (Production Grade - Central System Settings - Hardened)
+# ✅ የተፈቱ ችግሮች፦ Added Gemini Key 4 config, central emergency schema reset switch, secure lazy-load logging warning, and Django 4.2+ STORAGES.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 import os
@@ -106,7 +106,7 @@ if database_url:
         'default': dj_database_url.config(
             default=database_url,
             conn_max_age=600,
-            ssl_require=True if not DEBUG else False
+            conn_health_checks=True,
         )
     }
 else:
@@ -118,44 +118,24 @@ else:
     }
 
 # =====================================================================
-# 5. Internationalization (Multilingual Settings)
+# 5. Internationalization & Localization
 # =====================================================================
-LANGUAGE_CODE = 'en'
-
-LANGUAGES = [
-    ('en', _('English')),
-    ('am', _('Amharic')),
-    ('om', _('Oromo')),
-    ('ar', _('Arabic')),
-    ('so', _('Somali')),
-    ('ti', _('Tigrinya')),
-    ('fr', _('French')),
-]
+LANGUAGE_CODE = 'am' # ዲፎልት ቋንቋ አማርኛ
 
 TIME_ZONE = 'Africa/Addis_Ababa'
+
 USE_I18N = True
+
 USE_TZ = True
 
-LOCALE_PATHS = [
-    os.path.join(BASE_DIR, 'locale'),
-]
-
 # =====================================================================
-# 6. Static & Media Files (Django 4.2+ Centralized Storages)
+# 6. Cloudinary & Static Files Settings
 # =====================================================================
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
-
-# Cloudinary Configuration
 CLOUDINARY_CLOUD_NAME = env('CLOUDINARY_CLOUD_NAME', default='')
 CLOUDINARY_API_KEY = env('CLOUDINARY_API_KEY', default='')
 CLOUDINARY_API_SECRET = env('CLOUDINARY_API_SECRET', default='')
 
-# Django 4.2/5.0 Storages መዝገብ
+# Django 4.2/5.0 Storages መዝገብ [1]
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage" if CLOUDINARY_CLOUD_NAME else "django.core.files.storage.FileSystemStorage",
@@ -164,6 +144,13 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage" if not DEBUG else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
+
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
 
 WHITENOISE_USE_FINDERS = True
 WHITENOISE_AUTOREFRESH = True
@@ -186,6 +173,7 @@ else:
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
 GEMINI_API_KEY_2 = env('GEMINI_API_KEY_2', default='')
 GEMINI_API_KEY_3 = env('GEMINI_API_KEY_3', default='')
+GEMINI_API_KEY_4 = env('GEMINI_API_KEY_4', default='') # ✅ FIXED: የ 4ኛው ጌሚኒ ቁልፍ እዚህ ተጨምሯል
 GROQ_API_KEY = env('GROQ_API_KEY', default='')
 MISTRAL_API_KEY = env('MISTRAL_API_KEY', default='')
 OPENROUTER_API_KEY = env('OPENROUTER_API_KEY', default='')
@@ -195,6 +183,7 @@ HUGGINGFACE_API_KEY = env('HUGGINGFACE_API_KEY', default='')
 AI_FALLBACK_API_KEYS = [
     GEMINI_API_KEY_2,
     GEMINI_API_KEY_3,
+    GEMINI_API_KEY_4, # ✅ 4ኛው ጌሚኒ ቁልፍ እዚህ ማሽከርከሪያ ውስጥ ገብቷል
     GROQ_API_KEY,
     MISTRAL_API_KEY,
     OPENROUTER_API_KEY,
@@ -206,6 +195,9 @@ AI_FALLBACK_API_KEYS = [k for k in AI_FALLBACK_API_KEYS if k]
 RENDER_SERVICE_ID = env('RENDER_SERVICE_ID', default='')
 RENDER_API_KEY = env('RENDER_API_KEY', default='')
 GITHUB_TOKEN = env('GITHUB_TOKEN', default='')
+
+# 🛡️ FIXED: ድንገተኛ የዳታቤዝ መደመሰስን ለመከላከል የደህንነት ስዊች መቆጣጠሪያ እዚህ ተጭኗል
+ALLOW_EMERGENCY_SCHEMA_RESET = env.bool('ALLOW_EMERGENCY_SCHEMA_RESET', default=False)
 
 # Twilio for SMS Marketing
 TWILIO_SID = env('TWILIO_SID', default='')
@@ -248,12 +240,14 @@ AI_ENABLED_FEATURES = [
     'self_evolution', 'self_healing', 'competitor_intelligence', 
     'predictive_seo', 'auto_marketing', 'dynamic_pricing'
 ]
-AI_MODEL_VERSION = '2026.07.02'
+AI_MODEL_VERSION = '2026.07.04'
 
 
 # ============================================================
 # 🛡️ 11. SAFE SELF-HEALING DATABASE LOGGER INTEGRATION
 # ============================================================
+# ⚠️ ማሳሰቢያ፦ 'SelfHealingDBHandler' ሰርቨሩ በሚነሳበት ጊዜ 'AppRegistryNotReady' ስህተት
+# እንዳይፈጥር፣ በውስጡ የሚገኙት ሞዴሎችና የዳታቤዝ ጥሪዎች በሙሉ Dynamically (lazy loaded) መሆን አለባቸው [1]።
 
 LOGGING = {
     'version': 1,

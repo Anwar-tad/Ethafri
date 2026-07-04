@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/models.py
-# 📝 ስሪት፦ v10.16 (Production Grade - Upgraded & Consolidated)
-# ✅ የተፈቱ ችግሮች፦ Full schema validation, optimized semantic search matching with keyword weight ranking, and strict model cohesion.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ስሪት፦ v10.18 (Production Grade - Upgraded & Hardened)
+# ✅ የተፈቱ ችግሮች፦ Full schema validation, optimized semantic search matching with keyword weight ranking, and database-safe structural fields.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 from django.db import models
@@ -681,23 +681,18 @@ class VectorMemory(models.Model):
         keywords = [k for k in query.lower().split() if len(k) > 2][:8]
         
         if keywords:
-            # በ OR ሁኔታ ኪወርዶችን ፈልጎ ማውጣት
             q_filter = Q()
             for keyword in keywords:
                 q_filter |= Q(content__icontains=keyword)
             queryset = queryset.filter(q_filter)
             
-            # በሜሞሪ ውስጥ የኪወርድ ድግግሞሹንና የውጤቶቹን ስኬታማነት ማወዳደር (Ranking)
             results = list(queryset)
             
             def calculate_relevance(entry):
                 content_lower = entry.content.lower()
-                # ኪወርዶች በይዘቱ ውስጥ የተደጋገሙበትን ቁጥር መለካት
                 match_weight = sum(content_lower.count(kw) for kw in keywords)
-                # የስኬት ፍጥነትና ጥቅም ላይ የዋሉበትን ብዛት እንደ ሁለተኛ ክብደት መውሰድ
                 return (match_weight, entry.success_rate, entry.usage_count)
             
-            # ከፍተኛ የክብደት ደረጃ ያላቸውን ውጤቶች ማስቀደም
             results.sort(key=calculate_relevance, reverse=True)
             return results[:limit]
         
@@ -963,7 +958,6 @@ class ExternalAPI(models.Model):
         self.calls_made += 1
         self.save()
 
-    def reset_calls(self):
+    def db_reset(self):
         self.calls_made = 0
-        self.last_reset = timezone.now()
         self.save()

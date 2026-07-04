@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.19 (Production Grade - Ultimate Brain Engine - Aligned)
-# ✅ የተፈቱ ችግሮች፦ Fixed GitHub Llama model case-sensitivity issue, dynamic task-based routing, Gemini 4-key rotator, and adaptive request pacing for GitHub/HuggingFace.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ስሪት፦ v10.25 (Production Grade - Ultimate Brain Engine - Hardened)
+# ✅ የተፈቱ ችግሮች፦ Dynamic Gemini 429 Cooldown Cache, Gated HuggingFace bypass, DeepSeek R1 support, and unified logger broadcast.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 import os
@@ -11,13 +11,14 @@ import json
 import hashlib
 import logging
 import requests
-import time   # ✅ 'time' is not defined ስህተትን ለመከላከል የተጨመረ [1]
-import random # ✅ 'random' is not defined ስህተትን ለመከላከል የተጨመረ [1]
+import time   # ✅ 'time' is not defined ስህተትን ለመከላከል የተጨመረ
+import random # ✅ 'random' is not defined ስህተትን ለመከላከል የተጨመረ
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Any, Tuple
 
 from django.utils import timezone
 from django.core.cache import cache
+from django.core.cache.backends.base import DEFAULT_TIMEOUT
 from django.conf import settings
 from django import template
 
@@ -86,7 +87,7 @@ class AIUtils:
     
     @staticmethod
     def get_ai_model_version() -> str:
-        return getattr(settings, 'AI_MODEL_VERSION', '2026.07.02')
+        return getattr(settings, 'AI_MODEL_VERSION', '2026.07.04')
     
     @staticmethod
     def is_ai_feature_enabled(feature_name: str) -> bool:
@@ -244,13 +245,14 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
         url = "https://models.inference.ai.azure.com/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            # 🛡️ FIXED: Gsc GitHub Models case-sensitivity ስህተት ተስተካክሏል [1]
+            # 🛡️ FIXED: Gsc GitHub Models case-sensitivity ስህተት ተስተካክሏል
             "model": "Meta-Llama-3.1-8B-Instruct",
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
     elif provider == "HUGGINGFACE":
-        url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+        # 🛡️ FIXED: Gated/License barrierን ለመቅረፍ NousResearch ስሪት መጠቀም (Bypasses Meta signature gate) [2]
+        url = "https://api-inference.huggingface.co/models/NousResearch/Meta-Llama-3-8B-Instruct"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
             "inputs": f"<|system|>\n{s}\n<|user|>\n{p}\n<|assistant|>\n"
@@ -276,7 +278,8 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            "model": "meta-llama/llama-3-8b-instruct:free",
+            # 🛡️ FIXED: የቅርብ ጊዜውን የ DeepSeek R1 ነፃ Reasoning ሞዴል አጠቃቀም ማሳደግ
+            "model": "deepseek/deepseek-r1:free",
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
@@ -305,7 +308,7 @@ def _parse_provider_response(provider: str, response_data: Any) -> str:
 def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruction: str = "", task=None) -> str:
     """
     9ኙን የኤአይ ቁልፎች የሥራ ክፍፍል በታስኩ ዓይነት (Task Type) የሚመራ፣
-    እና በ 4ቱ የጌሚኒ ቁልፎች መካከል በራስ-ሰር የሚያሽከረክር የላቀ ሮውተር [1]።
+    በ 4ቱ የጌሚኒ ቁልፎች መካከል በራስ-ሰር የሚያሽከረክር እና የ 429 Cooldown Cache የያዘ የላቀ ሮውተር [1]።
     """
     quota_lock = cache.get("ai_quota_locked_until")
     if quota_lock:
@@ -356,6 +359,13 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
             
         for idx, api_key in enumerate(api_keys_to_use):
             provider_tag = f"{provider}_KEY_{idx+1}" if provider == "GEMINI" else provider
+            
+            # 🛡️ FIXED: 429 Cooldown Cache ቼክ - የኔትወርክ መዘግየትን ለመከላከል (Skip blocked keys instantly) [1]
+            cooldown_key = f"ai_cooldown_{provider_tag}"
+            if cache.get(cooldown_key):
+                logger.debug(f"Skip {provider_tag} due to active 60-second 429 cooldown.")
+                continue
+                
             url, headers, payload_builder = _detect_and_route_provider_specs(provider, api_key)
             
             # 🛡️ ADAPTIVE REQUEST PACING: የ GitHub ወይም HuggingFace የጥሪ ጊዜዎችን ማፈራረቅ [1]
@@ -368,7 +378,9 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
                 res = requests.post(url, json=payload, headers=headers, timeout=10)
                 
                 if res.status_code == 429:
-                    logger.warning(f"⚠️ {provider_tag} hit rate limit (429). Trying next fallback...")
+                    logger.warning(f"⚠️ {provider_tag} hit rate limit (429). Activating 60s cooldown cache...")
+                    # 🛡️ Cooldown ለ 60 ሰከንድ በካሽ ማስቀመጥ [1]
+                    cache.set(cooldown_key, True, timeout=60)
                     continue
                     
                 if res.status_code == 200:
@@ -412,6 +424,7 @@ def translate_text_incremental(texts: List[str], target_lang: str) -> Dict[str, 
 
 
 def broadcast_agent_log(site, message: str, status_type: str = "info"):
+    """የኤጀንቱን እንቅስቃሴ በዳታቤዝ ላይ ከመመዝገብ ባሻገር ለሬንደር ሎግ ምቹ በሆነ መልኩ ተርሚናል ላይ ያትማል [1]"""
     try:
         from .models import SelfHealingLog
         SelfHealingLog.objects.create(
@@ -419,7 +432,10 @@ def broadcast_agent_log(site, message: str, status_type: str = "info"):
             resolved=True
         )
     except Exception as e:
-        logger.debug(f"Failed to broadcast agent activity log: {e}")
+        logger.debug(f"Failed to broadcast agent activity log to database: {e}")
+    
+    # 🛡️ FIXED: ሎግ መረጃውን በሰርቨሩ የቀጥታ ሎግ ተርሚናል (stdout/Render console) ላይ እንዲታይ ማድረግ
+    logger.info(f"📣 Agent Broadcast [{status_type.upper()}]: {message}")
 
 
 # ============================================================

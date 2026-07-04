@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.2 - Surgical Patch Edition)
-# ✅ የተፈቱ ችግሮች፦ Integrated Feature 30 (Surgical Code Patching) using Python AST, prevented IndentationError via indent matching, and secured path traversal protections.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.3 - Hardened Surgical Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic base indentation stripping (No IndentationError on AST patch), Path Traversal protections, and clean syntax sandbox validation.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 import os
@@ -18,7 +18,43 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# 🩺 1. AST SURGICAL PATCH ENGINE (የቀዶ-ጥገና ኮድ ማያያዣ)
+# 🛡️ 1. BASE INDENT STRIPPER (ድርብ ሰፔስ እና IndentationError መከላከያ)
+# ============================================================
+
+def strip_base_indent(text: str) -> str:
+    """
+    ኤአይ ያመነጨውን ኮድ የራሱን መነሻ ክፍተቶች (Base Indent) በመለየት
+    ድርብ ኢንዴንቴሽን እንዳይፈጠር የሚያጸዳ ረዳት ፈንክሽን [1]
+    """
+    lines = text.splitlines()
+    if not lines:
+        return text
+        
+    # ባዶ ያልሆነውን የመጀመሪያ መስመር መነሻ ሰፔስ መለየት
+    base_indent = ""
+    for line in lines:
+        if line.strip():
+            match = re.match(r'^\s*', line)
+            if match:
+                base_indent = match.group(0)
+            break
+            
+    if not base_indent:
+        return text
+        
+    # በእያንዳንዱ መስመር ላይ ያለውን ቤዝ ኢንዴንቴሽን ብቻ ቆርጦ ማውጣት
+    cleaned_lines = []
+    for line in lines:
+        if line.startswith(base_indent):
+            cleaned_lines.append(line[len(base_indent):])
+        else:
+            cleaned_lines.append(line.lstrip())
+            
+    return "\n".join(cleaned_lines)
+
+
+# ============================================================
+# 🩺 2. AST SURGICAL PATCH ENGINE (የቀዶ-ጥገና ኮድ ማያያዣ)
 # ============================================================
 
 def apply_surgical_patch(path, target_name, new_code_segment):
@@ -50,17 +86,20 @@ def apply_surgical_patch(path, target_name, new_code_segment):
         start_line = target_node.lineno - 1
         end_line = target_node.end_lineno
         
-        # የእጅ ኢንዴንቴሽን (Indentation) ጥበቃ፦ የድሮውን spacing ለይቶ ማውጣት
+        # የድሮውን መነሻ spacing (Indentation) ለይቶ ማውጣት
         match_indent = re.match(r'^\s*', lines[start_line])
         indent_prefix = match_indent.group(0) if match_indent else ""
         
+        # 🛡️ FIXED: ድርብ ኢንዴንቴሽንን ለመከላከል የኤአይን ቤዝ ኢንዴንት በቅድሚያ ማጽዳት
+        clean_segment = strip_base_indent(new_code_segment)
+        
         # በእያንዳንዱ አዲስ የኮድ መስመር ላይ የአሰላለፍ spacing መጨመር
         indented_lines = []
-        for i, line in enumerate(new_code_segment.splitlines()):
-            if i == 0:
-                indented_lines.append(indent_prefix + line.lstrip())
-            else:
+        for line in clean_segment.splitlines():
+            if line.strip():
                 indented_lines.append(indent_prefix + line)
+            else:
+                indented_lines.append("")
                 
         patched_segment = "\n".join(indented_lines)
         
@@ -83,7 +122,7 @@ def apply_surgical_patch(path, target_name, new_code_segment):
 
 
 # ============================================================
-# 🛠️ 2. MAIN CODE APPLICATION (apply_code_change)
+# 🛠️ 3. MAIN CODE APPLICATION (apply_code_change)
 # ============================================================
 
 def apply_code_change(site, file_key, new_content, reason="", path=None,  confidence_score=100, backlog_task=None, push_to_github=False, target_name=None):

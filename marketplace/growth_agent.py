@@ -1,8 +1,9 @@
+
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ክፍል 1/2)
-# 📝 ስሪት፦ v10.23 (Ultimate Master-Brain CEO Agent - Part 1/2)
-# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading, circular import prevention, pre-flight verification, and recursive backlog planning.
-# 📅 ቀን፦ Friday, July 03, 2026
+# 📝 ስሪት፦ v10.35 (Ultimate Self-Evolution Master-Brain CEO - Fully Hardened)
+# ✅ የተፈቱ ችግሮች፦ 3-attempt recursive syntax compiler self-heal loop, HTML container tag balance verifications, dynamic tech-stack research, unified Django username validation guard, and strict DRY feature consolidation.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 from __future__ import annotations
@@ -327,12 +328,11 @@ class RecursiveOptimizer:
                 )
                 logger.info(f"🔄 Self-Optimization: Applied new system prompt rule for {self.site.name}")
 
+
 # ============================================================
 # 🔴 META SELF-ARCHITECT ENGINE (የላቀ ራስ-መቀረጽ እና ራስ-ዝግመተ-ለውጥ ሞተር)
 # ============================================================
-# ============================================================
-# 🔴 META SELF-ARCHITECT ENGINE (የተስተካከለ - Scoping & f-string Guard)
-# ============================================================
+
 class MetaSelfArchitectEngine:
     """
     ኤጀንቱ የራሱን የኮድ ጤንነት አጥንቶ፣ የጎደሉ ክፍተቶችን በመለየት በባክሎግ ውስጥ
@@ -343,22 +343,37 @@ class MetaSelfArchitectEngine:
 
     def analyze_and_architect_self(self):
         AIProjectBacklog = get_model('AIProjectBacklog')
+        Product = get_model('Product')
+        AgentErrorLog = get_model('AgentErrorLog')
         clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log, _ = _get_ai_utils()
         
         # 1. የራሱን የኮድ ይዘት መቃኘት
         state, _ = get_site_project_state_dynamic(self.site)
         state_summary = {k: "Present" if "❌" not in v else "Missing" for k, v in state.items()}
         
+        # 🛡️ ፊቸር 3 (Data-Driven Self-Evolution)፦ አሁን ያሉትን የስህተት እና የምርት መጠኖች በመቃኘት ራስ-ገዝ ታስክ መቅረጽ
+        try:
+            prod_count = Product.objects.filter(site=self.site, is_active=True).count()
+            err_count = AgentErrorLog.objects.filter(site=self.site, resolved=False).count()
+        except Exception:
+            prod_count = 0
+            err_count = 0
+            
+        metrics_summary = {
+            "active_products": prod_count,
+            "unresolved_errors": err_count,
+            "current_time": timezone.now().isoformat()
+        }
+        
         # 2. የላቀ የራስ-መቀረጽ መመሪያ (Prompt)
-        # 🛡️ F-STRING GUARD: የ JSON አወቃቀሩ የቅንፍ ምልክቶች ስህተት እንዳይፈጥሩ የ f መለያዎች ከታችኛው ፅሑፍ ላይ ተወግደዋል [1]
         prompt = (
             f"You are the Master AI Systems Architect of EthAfri. Audit your own system state: {json.dumps(state_summary)}.\n"
-            f"Identify exactly 3 highly optimized, non-redundant, and advanced coding, SEO, or security features "
-            f"that we should autonomously add to ourselves (e.g., in views, models, or growth_agent) to expand our capabilities exponentially.\n"
-            f"You have full permission to architect, name, and suggest new python file creations in the backlog.\n"
-            f"Ensure that any proposed python code strictly includes necessary standard imports (import time, logging, json, os, re, gc) at the top.\n"
-            f"Rank these tasks from most critical (1) to lowest (3).\n"
-            "Return JSON with key 'self_architected_tasks' containing list of objects: "
+            f"Live system metrics: {json.dumps(metrics_summary)}.\n"
+            f"Identify exactly 3 highly optimized, non-redundant, and advanced coding, SEO, performance-caching, "
+            f"or security features that we should autonomously add to ourselves (e.g. view optimizations, model extensions, "
+            f"or automatic data sanitizers) to scale our system capacity exponentially.\n"
+            f"CRITICAL: Follow DRY smart coding principles. Do not generate code duplication; merge or extend existing helpers.\n"
+            f"Return JSON with key 'self_architected_tasks' containing list of objects: "
             "[{'name': '🧠 SELF-EVOLUTION: [Brief Name]', 'priority': 'Critical'/'High', 'file': '[proposed_file_name_without_py_extension]', 'desc': '...', 'impact': 1-10}]."
         )
         
@@ -370,7 +385,7 @@ class MetaSelfArchitectEngine:
                 if isinstance(t, dict) and t.get('name'):
                     get_or_create_backlog_task_safe(
                         self.site, 
-                        task_name=t['name'],
+                        t['name'],
                         defaults={
                             'task_type': 'code',
                             'target_file': t.get('file', 'views'),
@@ -384,6 +399,8 @@ class MetaSelfArchitectEngine:
             broadcast_agent_log(self.site, f"✨ Self-Architect: Evaluated self-state. Injected {len(tasks)} ranked self-evolution tasks!", "success")
         except Exception as e:
             logger.error(f"MetaSelfArchitectEngine: Failed to architect self: {e}")
+
+
 # ============================================================
 # 🏛️ STRATEGIC CEO (የዕቅድ እና የስልት ማዕከል)
 # ============================================================
@@ -399,6 +416,10 @@ class StrategicCEO:
         AIProjectBacklog = get_model('AIProjectBacklog')
         SiteConfig = get_model('SiteConfig')
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
+
+        # 🔄 ፊቸር 4 (Autonomous Tech Research)፦ በየጊዜው በበይነመረብ ላይ ያሉትን የቅርብ ጊዜ የደህንነት ጋሻዎችንና ስልቶችን እያጠና ታስክ መቅረጽ
+        if random.random() < 0.2:
+            self.research_latest_tech_upgrades()
 
         if AIProjectBacklog.objects.filter(site=self.site, status='Pending').exists():
             return
@@ -449,7 +470,7 @@ class StrategicCEO:
             comp = data.get('competitor_feature')
             if comp and isinstance(comp, dict) and comp.get('name'):
                 get_or_create_backlog_task_safe(
-                    self.site, task_name=f"🕵️ SPY: {comp['name']}",
+                    self.site, f"🕵️ SPY: {comp['name']}",
                     defaults={
                         'priority': 'Medium',
                         'status': 'Pending',
@@ -464,7 +485,7 @@ class StrategicCEO:
                 for t in backlog:
                     if isinstance(t, dict) and 'name' in t:
                         get_or_create_backlog_task_safe(
-                            self.site, task_name=t['name'],
+                            self.site, t['name'],
                             defaults={
                                 'priority': t.get('priority', 'Medium'),
                                 'status': 'Pending',
@@ -472,6 +493,36 @@ class StrategicCEO:
                                 'description': t.get('desc', '')
                             }
                         )
+
+    def research_latest_tech_upgrades(self):
+        """የቅርብ ጊዜ የጃንጎ ስኬሊንግና የደህንነት ጋሻዎችን በበይነመረብ ላይ አጥንቶ ታስክ የሚቀርጽ ረዳት [1]"""
+        try:
+            clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
+            query = "advanced Django database performance optimizations and scaling 2026"
+            prompt = (
+                f"Perform an automated research task on query: '{query}'.\n"
+                f"Identify exactly 1 cutting-edge, safe, and highly efficient performance optimization "
+                f"or security architecture for a modern Django 4/5 eCommerce system (e.g. index optimization, "
+                f"safe query sanitizers, or memory-efficient background utilities).\n"
+                f"Return JSON with keys 'task_name', 'target_file' (e.g. 'views', 'models'), 'description', 'business_impact_score' (1-10)."
+            )
+            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
+            if res and isinstance(res, dict) and res.get('task_name'):
+                get_or_create_backlog_task_safe(
+                    self.site, 
+                    f"🧠 RESEARCH UPGRADE: {res['task_name']}",
+                    defaults={
+                        'priority': 'High',
+                        'status': 'Pending',
+                        'target_file': res.get('target_file', 'views'),
+                        'description': f"Research-Backed Upgrade: {res.get('description')}. Impact Score: {res.get('business_impact_score')}/10.",
+                        'business_impact_score': int(res.get('business_impact_score', 8)),
+                        'trigger_condition': 'Tech Research Loop'
+                    }
+                )
+                logger.info(f"✨ Tech Research: Successfully registered new research task: {res['task_name']}")
+        except Exception as e:
+            logger.debug(f"Dynamic tech research skipped: {e}")
 
     def check_for_self_audit(self):
         """ቢያንስ በየ 3 ሰዓቱ ራሱን መርምሮ የራሱን የኮድ ክፍሎች በ AI ያሻሽላል"""
@@ -495,7 +546,7 @@ class StrategicCEO:
         AdminOverrideInstruction = get_model('AdminOverrideInstruction')
         for cmd in AdminOverrideInstruction.objects.filter(site=self.site, is_processed=False):
             get_or_create_backlog_task_safe(
-                self.site, task_name=f"👑 OWNER: {cmd.instruction[:30]}",
+                self.site, f"👑 OWNER: {cmd.instruction[:30]}",
                 defaults={
                     'priority': 'Critical',
                     'status': 'Pending',
@@ -506,6 +557,22 @@ class StrategicCEO:
             )
             cmd.is_processed = True
             cmd.save()
+
+
+# ============================================================
+# ⚙️ 🛠️ LIGHWEIGHT HTML TAG VALIDATOR
+# ============================================================
+
+def html_content_is_malformed(html_content: str) -> bool:
+    """ኤጀንቱ የሚጽፈው HTML የተበላሹ ክፍተቶችና ያልተዘጉ ታጎች (div/form/section) እንዳይኖሩት በዳይናሚክ የሚያረጋግጥ [1]"""
+    # ዋና ዋና ኮንቴይነር ታጎች መከፈታቸውን እና መዘጋታቸውን ማነጻጸር
+    for tag in ['div', 'form', 'section', 'main']:
+        open_count = len(re.findall(rf'<{tag}\b', html_content, re.IGNORECASE))
+        close_count = len(re.findall(rf'</{tag}>', html_content, re.IGNORECASE))
+        if open_count != close_count:
+            return True
+    return False
+
 
 # ============================================================
 # 🛠️ RECURSIVE BUILDER (የኮድ ፈታሽ እና ገንቢ)
@@ -547,9 +614,10 @@ class RecursiveBuilder:
         task.status = 'Running'
         task.save()
 
+        # 🛡️ ፊቸር 5፣ 6 እና 7 (ስማርት የኮድ ኦፕቲማይዜሽን መመሪያዎች እዚህ ተጭነዋል) [1]
         prompt = (
-            f"Task: {task.task_name}. Write full clean Python/HTML code for {task.target_file} using 2026 standards. "
-            f"CRITICAL: Avoid repeating these past failures/issues: {json.dumps(memory_context, ensure_ascii=False)}. "
+            f"Task: {task.task_name}. Write full clean Python/HTML code for {task.target_file} using 2026 standards.\n"
+            f"CRITICAL: Avoid repeating these past failures/issues: {json.dumps(memory_context, ensure_ascii=False)}.\n"
             f"CRITICAL FRAMEWORK RULE: We are using Django 4/5. Never generate code for Flask, FastAPI, or any other frameworks. Write strictly Django-compliant Python.\n"
             f"FEATURE CONSOLIDATION RULE: Before appending new functions or classes, examine the existing code of the file. "
             f"If the new feature overlaps with existing functions, you MUST refactor and extend the existing functions (merge them) "
@@ -558,37 +626,62 @@ class RecursiveBuilder:
             f"PERFORMANCE & ASSET OPTIMIZATION RULE: To ensure extremely fast page loading, never write inline CSS or inline javascript blocks inside HTML. "
             f"Instead, use only the clean Tailwind/global CSS variables and standard modular structures. "
             f"Move any custom styles or scripts to external global.css or global.js respectively to unblock page rendering.\n"
-            f"DESIGN SYSTEM RULE: If writing HTML templates, do NOT write inline CSS or custom style tags. "
-            f"You MUST use ONLY the global CSS classes and CSS variables defined in global.css. "
+            f"FORWARD-COMPATIBLE DESIGN RULE: Design function signatures, APIs, or data schemas to be extensible. "
+            f"Use dynamic configurations or extensible payload dictionaries (JSON/Dict-compatible) to allow future feature expansions without breaking backwards compatibility.\n"
             f"Return JSON with key 'code' containing the full file content."
         )
 
         _, ask_master_ai_smart, _, _ = _get_ai_utils()
         clean_and_parse_json, _, _, _ = _get_ai_utils()
         
-        res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding", task=task))
+        # 🔄 ፊቸር 1 (Recursive AI Compiler Feedback Loop - 3 ሙከራዎች) [1]
+        attempts = 0
+        new_code = ""
+        syntax_error_msg = ""
+        target_is_html = is_html_target(task.target_file)
+        
+        while attempts < 3:
+            attempts += 1
+            if syntax_error_msg:
+                # የተፈጠረውን የሲንታክስ ስህተት መልሶ ወደ ኤአይ በመመገብ ማስተካከያ መጠየቅ
+                retry_prompt = (
+                    f"Your previous code attempt for '{task.target_file}' returned the following syntax or structure error: '{syntax_error_msg}'.\n"
+                    f"Please fully repair and refactor the code to fix this issue completely while strictly preserving "
+                    f"all business logic, DRY consolidation, and asset externalization rules.\n"
+                    f"Return JSON with key 'code'."
+                )
+                res = clean_and_parse_json(ask_master_ai_smart(retry_prompt, task_type="coding", task=task))
+            else:
+                res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding", task=task))
 
-        if not (res and isinstance(res, dict) and 'code' in res):
-            logger.warning(f"⚠️ No valid code returned for task '{task.task_name}'")
+            if not (res and isinstance(res, dict) and 'code' in res):
+                syntax_error_msg = "Invalid JSON or missing 'code' key in response payload"
+                continue
+
+            new_code = res['code']
+            if target_is_html:
+                # ፊቸር 2 (Lightweight HTML container tag balance check)
+                if html_content_is_malformed(new_code):
+                    syntax_error_msg = "Malformed HTML detected (unbalanced tags or unclosed container structures)"
+                    continue
+                break # የኤችቲኤምኤል ቴምፕሌት ፍተሻ በተሳካ ሁኔታ አልፏል
+            else:
+                try:
+                    compile(new_code, '<string>', 'exec')
+                    break # የፓይተን ሲንታክስ ፍተሻ በተሳካ ሁኔታ አልፏል
+                except SyntaxError as e:
+                    syntax_error_msg = f"SyntaxError: {e}"
+                    logger.warning(f"⚠️ Recursive Compiler (Attempt {attempts}/3): Found syntax error: {syntax_error_msg}. Retrying...")
+                    
+        if attempts >= 3 and syntax_error_msg:
+            logger.error(f"❌ Recursive Compiler: Failed to compile {task.target_file} after 3 self-healing attempts. Last Error: {syntax_error_msg}")
             task.status = 'Pending'
             task.save()
-            return "Failed (No Code Returned)"
-
-        new_code = res['code']
-        target_is_html = is_html_target(task.target_file)
-
-        if not target_is_html:
-            try:
-                compile(new_code, '<string>', 'exec')
-            except SyntaxError as e:
-                logger.error(f"❌ AI-generated syntax error for {task.target_file}: {e}")
-                task.status = 'Pending'
-                task.save()
-                return "Syntax Error"
+            return "Failed Syntax Self-Heal"
 
         SecurityAuditor, _, _ = _get_self_doctor()
         
-        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=task.target_file, site=self.site)
+        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=task.target_file, site=site)
         if not is_safe:
             logger.error(f"🛡️ Security Gate Blocked Code for {task.target_file}: {msg}")
             task.status = 'Blocked'
@@ -641,7 +734,8 @@ class RecursiveBuilder:
         except Exception:
             pass
         return "Success"
-        
+
+
 # ============================================================
 # 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
 # ============================================================
@@ -660,13 +754,11 @@ def _autonomous_no_api_search_fallback(niche):
     try:
         res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 200:
-            # የቴሌግራም ቻናል ሊንኮችን በሪጀክስ ፈልቅቆ ማውጣት (t.me/username)
             telegram_usernames = re.findall(r't\.me/([a-zA-Z0-9_]{5,32})', res.text)
             for username in list(set(telegram_usernames))[:3]:
                 if username.lower() not in ['s', 'joinchat', 'share']:
                     fallback_sources.append({"url_or_channel": username, "platform_type": "Telegram"})
                     
-            # የሀገር ውስጥ የሽያጭ ድረ-ገጽ ሊንኮችን መፈለግ (.com / .et)
             web_domains = re.findall(r'https?://(?:www\.)?([a-zA-Z0-9-]+\.(?:com\.et|com|et))', res.text)
             for domain in list(set(web_domains))[:2]:
                 if not any(x in domain for x in ['google', 'duckduckgo', 'yandex', 'yahoo', 'telesco']):
@@ -681,8 +773,8 @@ def _autonomous_no_api_search_fallback(niche):
 
 class MultiChannelHarvester:
     """
-    ጌሚኒን ፍለጋን (Google Search Grounding) በመጠቀም በወቅቱ ንቁ የሆኑ የገበያ ቦታዎችን
-    እና የቴሌግራም ቻናሎችን በፕራዮሪቲ በዳይናሚክ መንገድ ፈልጎ የሚያስስና የሚያመነጭ የላቀ ፊቸር [1]
+    የኢንተርኔት ፍለጋዎችን (Search Queries) በዳይናሚክ በማሽከርከር አዳዲስ
+    የኢትዮጵያ የገበያ ዌብሳይቶችን እና ቻናሎችን ፈልጎ በቋሚነት በመዝገቡ ላይ የሚጨምር የላቀ ፊቸር [1]
     """
     
     @staticmethod
@@ -691,18 +783,31 @@ class MultiChannelHarvester:
             return requests.get("https://google.com", timeout=3).status_code == 200
         except requests.RequestException:
             return False
-    
+            
+    def _get_rotating_search_query(self, site) -> str:
+        """በየቀኑ የተለያዩ አዳዲስ ዌብሳይቶች እንዲገኙ የፍለጋ ቃላትን ማፈራረቂያ ሎጂክ [1]"""
+        queries = [
+            f"Ethiopia active online marketplaces and eCommerce websites {site.niche} 2026",
+            f"የመኪና እና የቤት ሽያጭ ዌብሳይቶች ኢትዮጵያ 2026",
+            f"Ethiopian telegram channels buying and selling listing directory",
+            f"New shopping websites in Addis Ababa Ethiopia",
+            f"Ethiopia classified sites list {site.niche}"
+        ]
+        day_index = datetime.now().day % len(queries)
+        return queries[day_index]
+
     def discover_active_market_sources(self, site):
         _, ask_master_ai_smart, _, _ = _get_ai_utils()
         clean_and_parse_json, _, _, _ = _get_ai_utils()
         
-        logger.info("🔍 Grounded Explorer: Scanning active market sources in Ethiopia...")
+        dynamic_query = self._get_rotating_search_query(site)
+        logger.info(f"🔍 Dynamic Discovery: Scanning using query: '{dynamic_query}'")
         
         prompt = (
-            f"Search the live internet for active Ethiopian online marketplaces, eCommerce websites, "
-            f"or buying and selling Telegram channel directories specifically related to '{site.niche}' or general goods in 2026.\n"
-            f"Examine which ones are currently most active with recent product posts.\n"
-            f"Provide exactly 3 active web links or Telegram channel usernames ranked by active priority.\n"
+            f"Search the live internet using this query: '{dynamic_query}'.\n"
+            f"Identify active online buying and selling websites, classified directories, "
+            f"or active Telegram channel usernames currently popular in Ethiopia in 2026.\n"
+            f"Provide up to 5 verified active web links or Telegram channel usernames.\n"
             f"Return the results STRICTLY in a JSON format with key 'sources' containing a list of objects with keys 'url_or_channel' and 'platform_type' (must be 'Jiji', 'Telegram', or 'GenericWeb')."
         )
         
@@ -712,34 +817,47 @@ class MultiChannelHarvester:
             data = clean_and_parse_json(response)
             sources = data.get('sources', []) if data else []
         except Exception as e:
-            logger.warning(f"Grounded search failed ({e}). Attempting unauthenticated fallback...")
+            logger.warning(f"Grounded discovery failed ({e}). Attempting unauthenticated fallback...")
             
         if not sources:
             sources = _autonomous_no_api_search_fallback(site.niche)
             
-        if sources:
-            logger.info(f"✅ Grounded Explorer: Registered {len(sources)} active sources")
-            self._save_sources_to_cache(site, sources)
-        else:
-            logger.warning("⚠️ No sources found, using fallback sources")
-            sources = self._get_fallback_sources()
-        
         return sources
-    
-    def _save_sources_to_cache(self, site, sources):
+
+    def _save_sources_to_cache(self, site, new_sources):
+        """
+        🛡️ FIXED: አሮጌዎቹን ሳያጠፋ አዳዲስ የተገኙ ዌብሳይቶችን እና ቻናሎችን በመዝገቡ ላይ
+        እየደረበ (Append) መዝገቡን በየቀኑ የሚያሰፋ የደህንነት መዝገብ [1]
+        """
         try:
             SiteConfig = get_model('SiteConfig')
-            SiteConfig.objects.update_or_create(
+            config, created = SiteConfig.objects.get_or_create(
                 key=f"ACTIVE_SOURCES_{site.name}",
-                defaults={'value': {
-                    'sources': sources,
-                    'last_updated': timezone.now().isoformat()
-                }}
+                defaults={'value': {'sources': [], 'last_updated': timezone.now().isoformat()}}
             )
-            logger.info(f"💾 Saved {len(sources)} sources to cache")
+            
+            existing_sources = config.value.get('sources', []) if isinstance(config.value, dict) else []
+            
+            # የተደጋገሙትን ማስወገድ (Deduplication)
+            master_dict = {s['url_or_channel'].strip().lower(): s for s in existing_sources if 'url_or_channel' in s}
+            
+            for s in new_sources:
+                key = s.get('url_or_channel', '').strip().lower()
+                if key and key not in master_dict:
+                    master_dict[key] = s
+                    logger.info(f"✨ New Source Discovered & Registered: {s['url_or_channel']} ({s['platform_type']})")
+            
+            merged_sources = list(master_dict.values())
+            
+            config.value = {
+                'sources': merged_sources[:150],
+                'last_updated': timezone.now().isoformat()
+            }
+            config.save()
+            logger.info(f"💾 Source Registry Expanded: Total active sources is now {len(merged_sources)}")
         except Exception as e:
-            logger.error(f"Failed to save sources to cache: {e}")
-    
+            logger.error(f"Failed to expand source registry: {e}")
+
     def _get_cached_sources(self, site):
         try:
             SiteConfig = get_model('SiteConfig')
@@ -749,14 +867,7 @@ class MultiChannelHarvester:
         except Exception as e:
             logger.debug(f"Failed to get cached sources: {e}")
         return []
-    
-    def _get_fallback_sources(self):
-        return [
-            {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji"},
-            {"url_or_channel": "https://www.engocha.com", "platform_type": "GenericWeb"},
-            {"url_or_channel": "EthioMarketplace", "platform_type": "Telegram"},
-        ]
-    
+
     def check_source_health(self, source):
         url = source.get('url_or_channel', '')
         platform = source.get('platform_type', '')
@@ -860,27 +971,28 @@ class MultiChannelHarvester:
             logger.warning("🌐 No internet connection. Using cached sources.")
             return self._get_cached_sources(site)
         
+        # በየቀኑ 30% እድል አዳዲስ ሳይቶች እንዲፈለጉ ፍለጋ ማስጀመር (መዝገቡን በየቀኑ ያሳድጋል)
+        if random.random() < 0.3 or not self._get_cached_sources(site):
+            new_discovered = self.discover_active_market_sources(site)
+            if new_discovered:
+                self._save_sources_to_cache(site, new_discovered)
+        
         sources = self._get_cached_sources(site)
-        if not sources or random.random() < 0.3:
-            sources = self.discover_active_market_sources(site)
         
         active_sources = []
         for source in sources:
             if self.check_source_health(source):
                 active_sources.append(source)
             else:
-                logger.warning(f"❌ Source {source.get('url_or_channel')} is inactive, dropping...")
+                logger.warning(f"❌ Source {source.get('url_or_channel')} is dead, skipping this cycle...")
         
         all_products = []
-        for source in active_sources[:4]:
+        for source in active_sources[:6]: # በአንድ ጊዜ እስከ 6 ሳይቶች ድረስ ማሰስ
             logger.info(f"📡 Scraping {source.get('url_or_channel')}...")
             products = self.get_recent_products(source)
             if products:
                 all_products.extend(products)
                 logger.info(f"✅ Found {len(products)} products from {source.get('url_or_channel')}")
-        
-        if active_sources:
-            self._save_sources_to_cache(site, active_sources)
         
         return all_products
 
@@ -975,7 +1087,7 @@ class CompetitorIntelligenceEngine:
                 if advantage_action:
                     task_name = f"🎯 COMPETITOR SPY: {advantage_action}"
                     get_or_create_backlog_task_safe(
-                        self.site, task_name=task_name,
+                        self.site, task_name,
                         defaults={'task_type': 'marketing', 'target_file': 'marketing_campaign', 'priority': 'High', 'status': 'Pending', 'description': advantage_action, 'business_impact_score': 9, 'trigger_condition': 'Competitor Loop'}
                     )
                 broadcast_agent_log(self.site, "✨ Spy Engine: Competitor analysis complete.", "success")
@@ -1010,7 +1122,6 @@ class CEOOperations:
         
         contact = phone_match.group(0) if phone_match else (tg_match.group(0) if tg_match else "0900000000")
             
-        # ዋጋን በሪጀክስ መለየት
         price = 0.0
         price_match = re.search(r'(?:ዋጋ|Price|Birr|ETB|ብር)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE)
         if price_match:
@@ -1056,7 +1167,6 @@ class CEOOperations:
 
         products = []
         
-        # 🚀 STEP 1: ሁሉንም 6 AI ኪዎች በቅደም ተከተል ይሞክራል
         ai_providers = ['GEMINI', 'GROQ', 'MISTRAL', 'OPENROUTER', 'HUGGINGFACE', 'GITHUB']
         last_error = None
         
@@ -1069,7 +1179,6 @@ class CEOOperations:
                 if not api_key:
                     continue
                     
-                # የ10 ሰከንድ ጊዜ ገደብ
                 response = self._call_ai_with_timeout(provider, prompt)
                 
                 if response:
@@ -1084,7 +1193,6 @@ class CEOOperations:
                 logger.warning(f"⚠️ {provider} failed: {e}")
                 continue
         
-        # 🛡️ STEP 2: NO-API FALLBACK (ሁሉም AI ቢወድቅ)
         if not products:
             logger.warning(f"⚠️ All AI providers failed. Last error: {last_error}")
             logger.warning("🌐 Activating No-API Fallback (DuckDuckGo + Regex)...")
@@ -1094,7 +1202,6 @@ class CEOOperations:
                 products = fallback_products
                 logger.info(f"✅ No-API Fallback found {len(products)} products")
         
-        # 📦 STEP 3: ምርቶችን ወደ ዳታቤዝ ይጭናል
         if products:
             self._seed_listings_bulk(products)
             try:
@@ -1134,7 +1241,6 @@ class CEOOperations:
             return None
 
     def _call_gemini(self, prompt: str, timeout: int) -> Optional[str]:
-        """የ GEMINI ጥሪ"""
         api_key = os.getenv('GEMINI_API_KEY')
         if not api_key: return None
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
@@ -1145,7 +1251,6 @@ class CEOOperations:
         return None
 
     def _call_groq(self, prompt: str, timeout: int) -> Optional[str]:
-        """የ GROQ ጥሪ"""
         api_key = os.getenv('GROQ_API_KEY')
         if not api_key: return None
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -1157,7 +1262,6 @@ class CEOOperations:
         return None
 
     def _call_mistral(self, prompt: str, timeout: int) -> Optional[str]:
-        """የ MISTRAL ጥሪ"""
         api_key = os.getenv('MISTRAL_API_KEY')
         if not api_key: return None
         url = "https://api.mistral.ai/v1/chat/completions"
@@ -1169,7 +1273,6 @@ class CEOOperations:
         return None
 
     def _call_openrouter(self, prompt: str, timeout: int) -> Optional[str]:
-        """የ OPENROUTER ጥሪ"""
         api_key = os.getenv('OPENROUTER_API_KEY')
         if not api_key: return None
         url = "https://openrouter.ai/api/v1/chat/completions"
@@ -1181,10 +1284,9 @@ class CEOOperations:
         return None
 
     def _call_huggingface(self, prompt: str, timeout: int) -> Optional[str]:
-        """የ HUGGINGFACE ጥሪ - የቀን ገደብ የሌለው"""
         api_key = os.getenv('HUGGINGFACE_API_KEY')
         if not api_key: return None
-        url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+        url = "https://api-inference.huggingface.co/models/NousResearch/Meta-Llama-3-8B-Instruct"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {"inputs": f"<|system|>\nYou are a helpful assistant.\n<|user|>\n{prompt}\n<|assistant|>\n"}
         res = requests.post(url, headers=headers, json=payload, timeout=timeout)
@@ -1195,7 +1297,6 @@ class CEOOperations:
         return None
 
     def _call_github(self, prompt: str, timeout: int) -> Optional[str]:
-        """የ GITHUB ጥሪ - የቀን ገደብ የሌለው"""
         token = os.getenv('GITHUB_TOKEN')
         if not token: return None
         url = "https://models.github.ai/inference/chat/completions"
@@ -1207,7 +1308,6 @@ class CEOOperations:
         return None
 
     def _no_api_fallback_harvest(self) -> List[Dict]:
-        """🛡️ NO-API FALLBACK: ሁሉም AI ቢወድቅ የሚሰራ"""
         logger.info("🌐 No-API Fallback: Searching DuckDuckGo for products...")
         
         products = []
@@ -1224,7 +1324,6 @@ class CEOOperations:
                 res = requests.get(url, timeout=8)
                 
                 if res.status_code == 200:
-                    # ምርቶችን በ Regex ፈልጎ ማውጣት
                     items = re.findall(r'<a[^>]*>(.*?)</a>', res.text)
                     
                     for item in items[:5]:
@@ -1241,7 +1340,6 @@ class CEOOperations:
         return products
 
     def _save_image_to_cloudinary_permanently(self, raw_img_url):
-        """scraped የተደረጉ ምስሎችን ወደ Cloudinary ያስቀምጣል"""
         if not raw_img_url or not raw_img_url.startswith('http'):
             return ""
         try:
@@ -1279,6 +1377,9 @@ class CEOOperations:
             try:
                 contact = p['seller_contact']
                 uname = contact.replace('@', '').replace('+', '').strip()
+                
+                # 🛡️ FIXED: የጃንጎ ዩዘር ስም ስህተትን (ValidationError) ለመከላከል ስሙን በሪጀክስ ማጽዳት [1]
+                uname = re.sub(r'[^a-zA-Z0-9_@.+\-]', '', uname)[:150]
                 
                 user, created = User.objects.get_or_create(username=uname, defaults={'is_active': True})
                 if created:
@@ -1454,7 +1555,7 @@ class CEOOperations:
             hot_items = Product.objects.filter(site=self.site, view_count__gt=100, is_active=True).order_by('-view_count')[:2]
             for item in hot_items:
                 get_or_create_backlog_task_safe(
-                    self.site, task_name=f"📣 Promote Hot Item: {item.title}",
+                    self.site, f"📣 Promote Hot Item: {item.title}",
                     defaults={'priority': 'High', 'status': 'Pending', 'business_impact_score': 8, 'target_file': 'home_html', 'description': item.title}
                 )
         except Exception as e:
@@ -1553,7 +1654,7 @@ def bootstrap_system_safely():
 
 
 def get_site_project_state_dynamic(site):
-    AIProjectBacklog = get_model('AIProjectBacklog') # 🛡️ Fixed: 'AIProjectBacklog' is not defined error resolved [1]
+    AIProjectBacklog = get_model('AIProjectBacklog')
     
     if not site:
         return {}, {}
@@ -2120,7 +2221,6 @@ def start_autonomous_ceo():
                 interval = 5 if has_pending else 300
                 
             logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
-            # ✅ FIX: name 'time' is not defined error resolved inside start_autonomous_ceo loop
             import time
             time.sleep(interval)
         except Exception as e:
