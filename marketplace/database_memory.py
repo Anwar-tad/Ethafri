@@ -1,16 +1,18 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/database_memory.py
-# 📝 ዓላማ፦ Safe Offline-First & Semantic Cache Memory Controller (v10.16 - Complete Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic app model loading, network graceful degradation, local cache vector fallback, and automatic database sync.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/database_memory.py
+# 📝 ዓላማ፦ Safe Offline-First & Semantic Cache Memory Controller (v10.18 - Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Fixed AttributeError on timezone.datetime, integrated Self-Doctor DB connection refresher, network graceful degradation, and automatic database task repair.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 import json
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta # ✅ datetime የጊዜ መፍቻ እዚህ ተጨምሯል
 from django.utils import timezone
 from django.db import connection, transaction
 from django.apps import apps
+
+from marketplace.self_doctor import refresh_db_connection_on_error # ✅ የዳታቤዝ ግንኙነት ራስ-ጥገና እዚህ መጥቷል
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,8 @@ class OfflineCacheManager:
         # 1. ትኩስ ካሽ ካለ በቀጥታ ካሹን መጠቀም (Cache-First)
         if cached_data and isinstance(cached_data.value, dict):
             try:
-                timestamp = timezone.datetime.fromisoformat(cached_data.value.get('cached_at', ''))
+                # 🛡️ FIXED: module 'django.utils.timezone' has no attribute 'datetime' ስህተት ተስተካክሏል
+                timestamp = datetime.fromisoformat(cached_data.value.get('cached_at', ''))
                 if timezone.is_naive(timestamp):
                     timestamp = timezone.make_aware(timestamp)
                 
@@ -122,36 +125,43 @@ class OfflineCacheManager:
 
         logger.info(f"🧹 Offline-First Maintenance: Scanning for blocked or stale tasks on site '{site.name}'.")
         
-        # 1. ከ 15 ደቂቃ በላይ 'Running' የነበሩ ታስኮችን 'Pending' ማድረግ
-        stuck_limit = timezone.now() - timedelta(minutes=15)
-        stuck_tasks = AIProjectBacklog.objects.filter(site=site, status='Running', updated_at__lt=stuck_limit)
-        
-        stuck_count = stuck_tasks.count()
-        if stuck_count > 0:
-            with transaction.atomic():
-                stuck_tasks.update(status='Pending')
-            logger.info(f"🩹 Repaired {stuck_count} stuck tasks by resetting status to Pending.")
+        try:
+            # 1. ከ 15 ደቂቃ በላይ 'Running' የነበሩ ታስኮችን 'Pending' ማድረግ
+            stuck_limit = timezone.now() - timedelta(minutes=15)
+            stuck_tasks = AIProjectBacklog.objects.filter(site=site, status='Running', updated_at__lt=stuck_limit)
             
-        # 2. የተደጋገሙ ታስኮችን ማጽዳት (Deduplication)
-        from django.db.models import Count
-        duplicates = (
-            AIProjectBacklog.objects.filter(site=site, status='Pending')
-            .values('task_name')
-            .annotate(name_count=Count('id'))
-            .filter(name_count__gt=1)
-        )
-        
-        cleared_count = 0
-        for dup in duplicates:
-            task_name = dup['task_name']
-            keep_task = AIProjectBacklog.objects.filter(site=site, task_name=task_name).first()
-            if keep_task:
-                deleted, _ = AIProjectBacklog.objects.filter(
-                    site=site, 
-                    task_name=task_name, 
-                    status='Pending'
-                ).exclude(id=keep_task.id).delete()
-                cleared_count += deleted
+            stuck_count = stuck_tasks.count()
+            if stuck_count > 0:
+                with transaction.atomic():
+                    stuck_tasks.update(status='Pending')
+                logger.info(f"🩹 Repaired {stuck_count} stuck tasks by resetting status to Pending.")
                 
-        if cleared_count > 0:
-            logger.info(f"🧹 Cleaned up {cleared_count} duplicate backlog tasks from queue.")
+            # 2. የተደጋገሙ ታስኮችን ማጽዳት (Deduplication)
+            from django.db.models import Count
+            duplicates = (
+                AIProjectBacklog.objects.filter(site=site, status='Pending')
+                .values('task_name')
+                .annotate(name_count=Count('id'))
+                .filter(name_count__gt=1)
+            )
+            
+            cleared_count = 0
+            for dup in duplicates:
+                task_name = dup['task_name']
+                keep_task = AIProjectBacklog.objects.filter(site=site, task_name=task_name).first()
+                if keep_task:
+                    deleted, _ = AIProjectBacklog.objects.filter(
+                        site=site, 
+                        task_name=task_name, 
+                        status='Pending'
+                    ).exclude(id=keep_task.id).delete()
+                    cleared_count += deleted
+                    
+            if cleared_count > 0:
+                logger.info(f"🧹 Cleaned up {cleared_count} duplicate backlog tasks from queue.")
+                
+        except Exception as e:
+            # 🛡️ FIXED: OperationalError ከተከሰተ በራስ-ሰር ሪፍሬሽ በማድረግ ግንኙነቱን መጠገን
+            db_refreshed = refresh_db_connection_on_error(str(e))
+            if db_refreshed:
+                logger.warning("🚑 Database connection refreshed safely during offline-first maintenance.")

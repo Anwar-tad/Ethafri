@@ -1,8 +1,8 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/management/commands/sync_translations.py
-# 📝 ለውጥ፦ Dynamic API Pacing Translation Guard + Naming Sync (v10.16)
-# ✅ የተፈቱ ችግሮች፦ Dynamic API pacing (preventing 429 lockouts), polib safe import shielding, and dynamic model registry loading.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/sync_translations.py
+# 📝 ዓላማ፦ Safe & Intelligent Translation Sync Command (v10.18 - Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Integrated Self-Doctor DB connection refresher on OperationalError, dynamic API pacing to prevent 429 lockouts, polib safe import shielding, and dynamic model registry loading.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 import os
@@ -17,8 +17,10 @@ from django.core.management import call_command
 from django.conf import settings
 from django.apps import apps
 from typing import Dict, List, Optional, Union, Any
+
 # የዲፔንደንሲ ክራሽን ለመከላከል ወደ smart_ai_router መፍቻ አቅጣጫ ተቀይሯል
 from marketplace.ai_utils import ask_master_ai_smart, clean_and_parse_json
+from marketplace.self_doctor import refresh_db_connection_on_error # ✅ የዳታቤዝ ግንኙነት ራስ-ጥገና እዚህ መጥቷል
 
 logger = logging.getLogger(__name__)
 
@@ -70,32 +72,45 @@ class Command(BaseCommand):
         
         sites_to_process = []
         
-        if site_name:
-            try:
-                site = SiteRegistry.objects.get(name=site_name, is_active=True)
-                sites_to_process = [site]
-                self.stdout.write(f"📍 Processing translations for site: {site_name}")
-            except SiteRegistry.DoesNotExist:
-                self.stdout.write(self.style.ERROR(f"❌ Site '{site_name}' not found or inactive."))
-                return
-        elif all_sites:
-            sites_to_process = SiteRegistry.objects.filter(is_active=True)
-            self.stdout.write(f"📍 Processing translations for all {sites_to_process.count()} active sites")
-        else:
-            default_site = SiteRegistry.objects.filter(name='primary', is_active=True).first()
-            if default_site:
-                sites_to_process = [default_site]
-                self.stdout.write("📍 Processing translations for primary site")
+        try:
+            if site_name:
+                try:
+                    site = SiteRegistry.objects.get(name=site_name, is_active=True)
+                    sites_to_process = [site]
+                    self.stdout.write(f"📍 Processing translations for site: {site_name}")
+                except SiteRegistry.DoesNotExist:
+                    self.stdout.write(self.style.ERROR(f"❌ Site '{site_name}' not found or inactive."))
+                    return
+            elif all_sites:
+                sites_to_process = SiteRegistry.objects.filter(is_active=True)
+                self.stdout.write(f"📍 Processing translations for all {sites_to_process.count()} active sites")
             else:
-                self.stdout.write(self.style.WARNING("⚠️ No active sites found. Using default translation mode."))
-                sites_to_process = []
-        
-        for site in sites_to_process:
-            self.stdout.write(self.style.SUCCESS(f"\n📝 Translating for site: {site.display_name} ({site.name})"))
-            self._process_site_translations(site)
-        
-        self._process_system_translations()
-        self.stdout.write(self.style.SUCCESS("🎉 የትርጉም ስራው እና ማጠናቀሪያው ሙሉ በሙሉ ተጠናቋል!"))
+                default_site = SiteRegistry.objects.filter(name='primary', is_active=True).first()
+                if default_site:
+                    sites_to_process = [default_site]
+                    self.stdout.write("📍 Processing translations for primary site")
+                else:
+                    self.stdout.write(self.style.WARNING("⚠️ No active sites found. Using default translation mode."))
+                    sites_to_process = []
+            
+            for site in sites_to_process:
+                self.stdout.write(self.style.SUCCESS(f"\n📝 Translating for site: {site.display_name} ({site.name})"))
+                self._process_site_translations(site)
+            
+            self._process_system_translations()
+            self.stdout.write(self.style.SUCCESS("🎉 የትርጉም ስራው እና ማጠናቀሪያው ሙሉ በሙሉ ተጠናቋል!"))
+            
+        except Exception as e:
+            # 🛡️ FIXED: OperationalError ከተከሰተ በራስ-ሰር ሪፍሬሽ በማድረግ ግንኙነቱን መጠገን
+            db_refreshed = refresh_db_connection_on_error(str(e))
+            if db_refreshed:
+                self.stdout.write(self.style.WARNING("🚑 Database connection refreshed safely across all active threads."))
+                # ድጋሚ ለማስኬድ መሞከር
+                self.stdout.write("🔄 Retrying translations after successful recovery...")
+                call_command('sync_translations', **kwargs)
+            else:
+                logger.error(f"❌ Critical error in Translation Sync: {e}")
+                self.stdout.write(self.style.ERROR(f"Error: {e}"))
 
     def _clean_and_parse_json(self, raw_data):
         """AI የሚመልሰውን ጥሬ ምላሽ አጽድቶ ወደ ዲክሽነሪ ይቀይራል"""

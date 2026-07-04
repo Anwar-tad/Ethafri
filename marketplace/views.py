@@ -127,9 +127,8 @@ def home(request):
     }
     return render(request, 'marketplace/home.html', context)
 
-
 def product_detail(request, pk):
-    """የምርት ዝርዝር — እይታን ይቆጥራል፣ ተዛማጅ ምርቶችን ያሳያል፣ ባለብዙ-ቋንቋ ትርጉምና A/B ሙከራዎችን ይደግፋል [1]"""
+    """የምርት ዝርዝር — እይታን ይቆጥራል፣ ተዛማጅ ምርቶችን ያሳያል (optimized to prevent N+1 queries)፣ ባለብዙ-ቋንቋ ትርጉምና A/B ሙከራዎችን ይደግፋል [1]"""
     Product = apps.get_model('marketplace', 'Product')
     ABTest = apps.get_model('marketplace', 'ABTest')
 
@@ -167,7 +166,9 @@ def product_detail(request, pk):
         active_test.record_view(variant)
 
     contact_links = _generate_contact_links(product.contact_info)
-    related = Product.objects.filter(category=product.category).exclude(pk=pk)[:4]
+    
+    # 🛡️ OPTIMIZED: የ N+1 የዳታቤዝ ኳሪዎች መዘግየትን ለመከላከል select_related ተጨምሯል [1]
+    related = Product.objects.select_related('seller', 'site', 'category').filter(category=product.category).exclude(pk=pk)[:4]
     
     image_gallery_raw = getattr(product, 'image_gallery', '[]')
     image_gallery = _safe_json_decode(image_gallery_raw, [])
@@ -183,7 +184,6 @@ def product_detail(request, pk):
         'ab_test': active_test,
         'ab_variant': variant
     })
-
 
 @login_required
 def post_product(request):
@@ -378,10 +378,10 @@ def trigger_evolution(request):
         finally:
             cache.delete("evolution_thread_active")
             connections.close_all()
-
+            
     threading.Thread(target=run_bg_evolution, daemon=True).start()
     messages.success(request, "🔄 የራስ-ገዝ ኤጀንት የዕድገት ዑደት በተሳካ ሁኔታ ተጀምሯል።")
-    return redirect('growth_dashboard')
+    return redirect('evolution_result')
     
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py (ክፍል 2/2)
@@ -1015,3 +1015,27 @@ def harvester_orchestrator_view(request):
         'live_time': timezone.now()
     }
     return render(request, 'marketplace/harvester_orchestrator.html', context)
+@staff_member_required
+def evolution_result_view(request):
+    """
+    የኤጀንቱን የመጨረሻ ስኬታማ የዝግመተ-ለውጥ ሪፖርት (v1.4)
+    የሚያሳይና ቴምፕሌቱን ወደ ሥራ የሚያስገባ አዲስ ቪው [1]
+    """
+    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+    AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
+    
+    # የመጨረሻውን የተከናወነ ታስክ ማግኘት
+    latest_task = AIProjectBacklog.objects.all().order_by('-updated_at').first()
+    evolution_logs = AIEvolutionLog.objects.all().order_by('-created_at')[:5]
+    
+    status_msg = "የኤጀንቱ የዕድገት ዑደት በተሳካ ሁኔታ ተጠናቆ የሲስተም ዝግመተ-ለውጥ ተከናውኗል።"
+    if latest_task and latest_task.status == 'Blocked':
+        status_msg = f"⚠️ ማስጠንቀቂያ፦ ታስክ '{latest_task.task_name}' በደህንነት ጋሻ ወይም በሲንታክስ ስህተት ታግዷል።"
+        
+    context = {
+        'task': latest_task,
+        'evolution_logs': evolution_logs,
+        'status': status_msg,
+        'live_time': timezone.now()
+    }
+    return render(request, 'marketplace/evolution_result.html', context)

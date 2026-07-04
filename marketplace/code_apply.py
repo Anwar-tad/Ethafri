@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.3 - Hardened Surgical Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic base indentation stripping (No IndentationError on AST patch), Path Traversal protections, and clean syntax sandbox validation.
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.4 - Import Injection Hardened)
+# ✅ የተፈቱ ችግሮች፦ Dynamic import injection to prevent NameError on modular splitting, base indentation stripping, path traversal protections, and GitHub push early return guards.
 # 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
@@ -18,7 +18,50 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# 🛡️ 1. BASE INDENT STRIPPER (ድርብ ሰፔስ እና IndentationError መከላከያ)
+# 💉 1. DYNAMIC IMPORT INJECTOR (የራስ-ገዝ አውቶማቲክ ኢምፖርት መትከያ)
+# ============================================================
+
+def inject_import_to_file(path: str, import_line: str) -> Tuple[bool, str]:
+    """
+    በፓይተን ፋይል አናት ላይ አዳዲስ የ import መግለጫዎችን (ለምሳሌ from .helper import Class)
+    ሳይደገሙ በደህንነት የሚቀስቅስ እና የሚተክል የቀዶ-ጥገና ሎጂክ [1]
+    """
+    if not os.path.exists(path):
+        return False, "Target file for import injection not found"
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # አስቀድሞ ኢምፖርቱ መኖሩን መፈተሽ (ተደጋጋሚ እንዳይሆን)
+        if import_line.strip() in content:
+            return True, "Import already exists in file"
+            
+        lines = content.splitlines()
+        insert_idx = 0
+        
+        # 'from __future__' ወይም '📁' የፋይል አቅጣጫ ኮሜንቶች ካሉ ከእነሱ በታች ለመትከል መፈተሽ
+        for idx, line in enumerate(lines[:15]):
+            if line.strip().startswith('from __future__') or line.strip().startswith('#'):
+                insert_idx = idx + 1
+                
+        lines.insert(insert_idx, import_line)
+        updated_code = "\n".join(lines)
+        
+        # sandbox syntax check
+        ast.parse(updated_code)
+        
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(updated_code)
+            
+        logger.info(f"💉 Import Injector: Injected '{import_line}' successfully into {path}")
+        return True, "Import injected successfully"
+    except Exception as e:
+        logger.error(f"Import injection failed: {e}")
+        return False, str(e)
+
+
+# ============================================================
+# 🛡️ 2. BASE INDENT STRIPPER (ድርብ ሰፔስ እና IndentationError መከላከያ)
 # ============================================================
 
 def strip_base_indent(text: str) -> str:
@@ -34,27 +77,26 @@ def strip_base_indent(text: str) -> str:
     base_indent = ""
     for line in lines:
         if line.strip():
-            match = re.match(r'^\s*', line)
-            if match:
-                base_indent = match.group(0)
+            match = re.match(r'^\s*', lines[start_line]) if 'start_line' in locals() else re.match(r'^\s*', line)
+            base_indent = match.group(0) if match else ""
             break
-            
+        
     if not base_indent:
         return text
-        
-    # በእያንዳንዱ መስመር ላይ ያለውን ቤዝ ኢንዴንቴሽን ብቻ ቆርጦ ማውጣት
-    cleaned_lines = []
+
+    # በእያንዳንዱ መስመር ላይ የድሮውን ኢንዴንት ብቻ ማስወገድ
+    stripped_lines = []
     for line in lines:
         if line.startswith(base_indent):
-            cleaned_lines.append(line[len(base_indent):])
+            stripped_lines.append(line[len(base_indent):])
         else:
-            cleaned_lines.append(line.lstrip())
+            stripped_lines.append(line)
             
-    return "\n".join(cleaned_lines)
+    return "\n".join(stripped_lines)
 
 
 # ============================================================
-# 🩺 2. AST SURGICAL PATCH ENGINE (የቀዶ-ጥገና ኮድ ማያያዣ)
+# 🩺 3. AST SURGICAL PATCH ENGINE (የቀዶ-ጥገና ኮድ ማያያዣ)
 # ============================================================
 
 def apply_surgical_patch(path, target_name, new_code_segment):
@@ -75,6 +117,9 @@ def apply_surgical_patch(path, target_name, new_code_segment):
         target_node = None
         # በፋይሉ ውስጥ ያሉትን ሁሉንም ክላሶች እና ፈንክሽኖች መፈለግ
         for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                # Call nodes are skipped
+                continue
             if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name == target_name:
                 target_node = node
                 break
@@ -122,10 +167,10 @@ def apply_surgical_patch(path, target_name, new_code_segment):
 
 
 # ============================================================
-# 🛠️ 3. MAIN CODE APPLICATION (apply_code_change)
+# 🛠️ 4. MAIN CODE APPLICATION (apply_code_change)
 # ============================================================
 
-def apply_code_change(site, file_key, new_content, reason="", path=None,  confidence_score=100, backlog_task=None, push_to_github=False, target_name=None):
+def apply_code_change(site, file_key, new_content, reason="", path=None,  confidence_score=100, backlog_task=None, push_to_github=False, target_name=None, inject_import=None):
     """
     ኮድን በደህንነት ይተገብራል፣ የፓይተን ሲንታክስ በ Sandbox ይፈትሻል፣ 
     እና በአስተዳዳሪው ትዕዛዝ መሠረት ብቻ ወደ GitHub ያመሳስላል (Sync)
@@ -163,7 +208,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
     real_path = os.path.abspath(path)
     real_base = os.path.abspath(base)
     
-    # ከየራሱ ደንበኛ workspace ውጪ ለመፃፍ ሲሞከር ወዲያውኑ ማገድ
+    # የፋይል መሄጃው ከዋናው ማውጫ ውጭ ለመፃፍ እንዳይሞክር መቆጣጠሪያ
     try:
         if os.path.commonpath([real_path, real_base]) != real_base:
             raise ValueError("Path Traversal Blocked")
@@ -175,7 +220,17 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
             'path': path, 'file_key': file_key
         }
 
-    # 3. የሲንታክስ (Syntax) ፍተሻ - ለፓይተን ፋይሎች ብቻ!
+    # 3. 🛡️ FIXED: አውቶማቲክ የኢምፖርት መስመር መትከያ (Import Injection) [1]
+    if inject_import and isinstance(inject_import, dict):
+        target_file_path = inject_import.get('target_path')
+        import_line = inject_import.get('import_line')
+        if target_file_path and import_line:
+            success, msg = inject_import_to_file(target_file_path, import_line)
+            if not success:
+                logger.error(f"❌ Import Injection Blocked: {msg}")
+                return {'success': False, 'applied': False, 'message': f"Import Injection Failed: {msg}", 'path': path, 'file_key': file_key}
+
+    # 4. የሲንታክስ (Syntax) ፍተሻ - ለፓይተን ፋይሎች ብቻ!
     if path.endswith('.py') and not target_name:
         try:
             ast.parse(new_content)
@@ -186,7 +241,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
                 'path': path, 'file_key': file_key
             }
 
-    # 4. የአሮጌውን ኮድ አስቀምጥ (Backup for Rollback)
+    # 5. የድሮውን ኮድ ባክአፕ መውሰድ (Backup for Rollback)
     old_code = ""
     if os.path.exists(path):
         try:
@@ -195,7 +250,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
         except Exception as e:
             logger.warning(f"⚠️ Could not read old file for backup: {e}")
 
-    # 5. ወደ ፋይል ጻፍ (Local File Write / Surgical Patch Fallback) [1, 2]
+    # 6. ወደ ፋይል ጻፍ (Local File Write / Surgical Patch Fallback) [1, 2]
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if target_name:
@@ -208,27 +263,22 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
             # Full File Override
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
-            logger.info(f"💾 Written successfully to: {path}")
+            logger.info(f"💾 File overwritten successfully: {path}")
     except Exception as e:
-        error_msg = f"❌ File write error: {e}"
-        logger.error(error_msg)
-        return {
-            'success': False, 'applied': False, 'message': error_msg,
-            'path': path, 'file_key': file_key
-        }
+        logger.error(f"❌ Failed to write file: {e}")
+        return {'success': False, 'applied': False, 'message': str(e), 'path': path, 'file_key': file_key}
 
-    # 6. ወደ GitHub ግፋ (GitHub Push - Decoupled Guardrail)
+    # 7. ወደ ጊትሃብ ማመሳሰል (GitHub Push)
     push_status = "Skipped (Local Only)"
     if push_to_github:
         try:
-            # ሪፖዚተሪ-አንጻራዊ አቅጣጫን በሳይቱ ማህደር መሰረት በትክክል ማስላት
             rel_path = os.path.relpath(path, base).replace('\\', '/')
             push_status = push_to_github_raw(rel_path, new_content, reason, site=site)
         except Exception as e:
             push_status = f"GitHub Error: {e}"
             logger.error(push_status)
 
-    # 7. ለውጥ መዝግብ (Evolution Log)
+    # 8. ለውጥ መዝግብ (Evolution Log)
     try:
         AIEvolutionLog.objects.create(
             site=site,
@@ -241,7 +291,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
     except Exception as e:
         logger.warning(f"⚠️ Could not log evolution entry: {e}")
 
-    # 8. ተዛማጅ ስራ ሁኔታ አዘምን
+    # 9. ተዛማጅ ስራ ሁኔታ አዘምን
     if backlog_task:
         try:
             backlog_task.status = 'Completed'
@@ -266,11 +316,9 @@ def push_to_github_raw(file_path, content, message, site=None):
     """GitHub API በመጠቀም ኮድን በቀጥታ ወደየሳይቱ ሪፖዚተሪ መግፋት"""
     token = getattr(settings, 'GITHUB_TOKEN', None)
     
-    # 🔴 አዲስ ፊቸር ውህደት፦ የ GitHub ቁልፍ ከሌለ ግንኙነት ከመሞከር በፊት ወዲያውኑ መመለስ (Early Return Guard) [1]
     if not token:
         return "Local only (No Token)"
     
-    # ጊትሃብ ሪፖን በሳይት ደረጃ በዳይናሚክ መወሰን (የማከማቻ አድራሻ መዛባትን ይከላከላል) [1, 2]
     repo_name = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
     if site and site.repo_path and ('github.com' in site.repo_path):
         match = re.search(r"github\.com/([^/]+/[^\/]+)", site.repo_path)
@@ -285,13 +333,11 @@ def push_to_github_raw(file_path, content, message, site=None):
     }
         
     try:
-        # 1. በቅድሚያ የፋይሉን SHA ማግኘት (ለመተካት SHA ማቅረብ ግዴታ ነው)
         sha = ""
         res_get = requests.get(url, headers=headers, timeout=5)
         if res_get.status_code == 200:
             sha = res_get.json().get('sha', '')
             
-        # 2. ፋይሉን በ base64 መክተት
         b64_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
         
         payload = {

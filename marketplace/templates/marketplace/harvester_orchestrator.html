@@ -1,10 +1,8 @@
-
-
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/harvester_orchestrator.html
-📝 ስሪት፦ v10.16 (Harvester Control Center - Complete Edition)
-✅ የተፈቱ ችግሮች፦ Dynamic 7-day Chart.js crawl trend, manual source injection form, active vs dropped sources log, and outbox notification queue stats.
-📅 ቀን፦ Thursday, July 02, 2026
+📝 ስሪት፦ v10.18 (Harvester Control Center - Unified Live Diagnostics Edition)
+✅ የተፈቱ ችግሮች፦ Dynamic 7-day Chart.js crawl trend integration, manual source injection, active vs dropped sources pulse logs, and outbox notification queue stats.
+📅 ቀን፦ Saturday, July 04, 2026
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -12,6 +10,28 @@
 {% load static %}
 
 {% block title %}{% trans "Harvester Control Center" %} - EthAfri{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* የቀጥታ የልብ ትርታ አኒሜሽን (Pulse Indicator) */
+    .pulse-dot-mini {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .pulse-healthy-mini {
+        background-color: #198754;
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7);
+        animation: pulse-green-mini 2s infinite;
+    }
+    @keyframes pulse-green-mini {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 4px rgba(25, 135, 84, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="harvester-wrapper py-4" data-agent-monitor>
@@ -50,31 +70,31 @@
             <div class="col-6 col-lg">
                 <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
                     <div class="small text-muted fw-bold">{% trans "Scraped Today" %}</div>
-                    <div class="h3 fw-bold text-success mt-1" id="scraped-today-val">{{ stats.scraped_today }}</div>
+                    <div class="h3 fw-bold text-success mt-1" id="scraped-today-val">{{ stats.scraped_today|default:0 }}</div>
                 </div>
             </div>
             <div class="col-6 col-lg">
                 <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
                     <div class="small text-muted fw-bold">{% trans "Scraped Yesterday" %}</div>
-                    <div class="h3 fw-bold text-primary mt-1">{{ stats.scraped_yesterday }}</div>
+                    <div class="h3 fw-bold text-primary mt-1">{{ stats.scraped_yesterday|default:0 }}</div>
                 </div>
             </div>
             <div class="col-6 col-lg">
                 <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
                     <div class="small text-muted fw-bold">{% trans "Scraped This Month" %}</div>
-                    <div class="h3 fw-bold text-info mt-1">{{ stats.scraped_this_month }}</div>
+                    <div class="h3 fw-bold text-info mt-1">{{ stats.scraped_this_month|default:0 }}</div>
                 </div>
             </div>
             <div class="col-6 col-lg">
                 <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
                     <div class="small text-muted fw-bold">{% trans "Pending Outbound SMS" %}</div>
-                    <div class="h3 fw-bold text-warning mt-1">{{ stats.pending_outbox_sms }}</div>
+                    <div class="h3 fw-bold text-warning mt-1">{{ stats.pending_outbox_sms|default:0 }}</div>
                 </div>
             </div>
             <div class="col-6 col-lg">
                 <div class="stat-box p-3 bg-white border rounded-4 shadow-sm">
                     <div class="small text-muted fw-bold">{% trans "Sent Outbound SMS" %}</div>
-                    <div class="h3 fw-bold text-dark mt-1">{{ stats.sent_outbox_sms }}</div>
+                    <div class="h3 fw-bold text-dark mt-1">{{ stats.sent_outbox_sms|default:0 }}</div>
                 </div>
             </div>
         </div>
@@ -125,7 +145,10 @@
                         {% for src in active_sources %}
                         <div class="p-3 mb-2 rounded-3 bg-light d-flex justify-content-between align-items-center border">
                             <div>
-                                <h6 class="fw-bold mb-1 text-dark">{{ src.url_or_channel }}</h6>
+                                <h6 class="fw-bold mb-1 text-dark">
+                                    <i class="pulse-dot-mini pulse-healthy-mini me-2"></i>
+                                    {{ src.url_or_channel }}
+                                </h6>
                                 <span class="badge bg-{% if src.platform_type == 'Telegram' %}info{% else %}primary{% endif %} small">
                                     {{ src.platform_type }}
                                 </span>
@@ -196,7 +219,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Chart.js ቤተ-መጽሐፍት ጭነት -->
+<!-- Chart.js ቤተ-መጽሐፍት ጭነት (Symmetric Asset Loading - loaded only here) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 
 <script>
@@ -254,13 +277,14 @@
         }
     });
 
-    // 📟 WebSocket Auto-Updater
+    // 📟 WebSocket Auto-Updater (🛡️ FIXED: Aligned payload integration)
     document.addEventListener('agent_update', function(event) {
         const data = event.detail;
         if (data.type === 'status_update' || data.type === 'live_stats') {
             const todayCountEl = document.getElementById('scraped-today-val');
-            if (todayCountEl && data.scraped_today_count) {
-                todayCountEl.innerText = data.scraped_today_count;
+            // የዛሬውን የምርት አሰሳ ቁጥር በእውነተኛ ሰዓት ማዘመን
+            if (todayCountEl && (data.scraped_today_count !== undefined || data.scraped_today !== undefined)) {
+                todayCountEl.innerText = data.scraped_today_count !== undefined ? data.scraped_today_count : data.scraped_today;
             }
         }
     });

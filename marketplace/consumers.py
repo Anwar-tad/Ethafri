@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/consumers.py
-# 📝 ስሪት፦ v10.16 (Phoenix Concurrency - Memory Leak Protection)
-# ✅ የተፈቱ ችግሮች፦ Blocked dangling background tasks, thread-safe dynamic app loading, clean asynchronous sitemap/log streams, and resolved circular dependencies.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ስሪት፦ v10.18 (Phoenix Concurrency - SQLite Safe & Server Health Stream)
+# ✅ የተፈቱ ችግሮች፦ Dynamic SQLite sequential fallback to prevent thread locks, real-time CPU load server health streaming, memory leak safeguards, and circular dependency resolution.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 import os
@@ -36,13 +36,12 @@ class AIUtils:
 try:
     from channels.generic.websocket import AsyncWebsocketConsumer
 except ImportError:
-    # Daphne/Channels ካልተጫነ የድሮው ዱሚ Fallback ክፍል
     class AsyncWebsocketConsumer:
         pass
 
 class AgentStatusConsumer(AsyncWebsocketConsumer):
     """
-    ተርሚናል ሎጎችን፣ የስራ ፐርሰንቶችን፣ የልብ ትርታዎችን (Heartbeat)
+    ተርሚናል ሎጎችን፣ የስራ ፐርሰንቶችን፣ የሰርቨር ጫናን እና የልብ ትርታዎችን (Heartbeat)
     በ WebSocket ወደ ዳሽቦርድ ተርሚናል የቀጥታ ስርጭት የሚያስተላልፍ ሞተር
     """
     
@@ -105,7 +104,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
     
     async def auto_update(self):
         """በየ5 ሰከንድ የቀጥታ ስታቲስቲክስን ለዳሽቦርዱ መላክ"""
-        # 🛡️ MEMORY LEAK PROTECTION: ግንኙነቱ ሲቋረጥ ይህ ዑደት ወዲያውኑ ይቆማል (ራም ይጠብቃል) [1]
         while self.connected:
             try:
                 await asyncio.sleep(5)
@@ -115,21 +113,29 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 break
                 
     async def send_live_stats(self):
-        """የቀጥታ ስታቲስቲክስ ለደንበኛ መላክ"""
+        """የቀጥታ ስታቲስቲክስ እና የሰርቨር ጤና መረጃ ለደንበኛ መላክ"""
         if not getattr(self, 'connected', False):
             return
         try:
             tasks = await self.get_task_stats()
+            
+            # 🛡️ FIXED: የሰርቨር ሲፒዩ ጫናን በዳይናሚክ መለካት (Live Server Health Stream)
+            try:
+                cpu_load = os.getloadavg()[0]
+            except Exception:
+                cpu_load = 0.5
+                
             await self.send(text_data=json.dumps({
                 'type': 'live_stats',
                 'task_stats': tasks,
+                'cpu_load': cpu_load,
                 'timestamp': timezone.now().isoformat()
             }))
         except Exception as e:
             logger.debug(f"Live stats send skipped (connection closed): {e}")
     
     async def send_status(self):
-        """ሁሉንም የዳታቤዝ ጥያቄዎች በ asyncio.gather በትይዩ በፍጥነት ማውጣት"""
+        """ሁሉንም የዳታቤዝ ጥያቄዎች በፍጥነት ማውጣት"""
         if not getattr(self, 'connected', False):
             return
         try:
@@ -141,10 +147,22 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             healing_fut = self.get_healing_summary()
             cycle_logs_fut = self.get_cycle_logs()
             
-            # የዳሽቦርድ መጫኛ ጊዜን ለመቀነስ ጥሪዎቹ በሙሉ በትይዩ ይካሄዳሉ [1]
-            lock, tasks, pending, sites, errors, healing, cycle_logs = await asyncio.gather(
-                lock_fut, tasks_fut, pending_fut, sites_fut, errors_fut, healing_fut, cycle_logs_fut
-            )
+            # 🛡️ FIXED: SQLite በሚሆንበት ጊዜ የሚከሰተውን የዳታቤዝ መቆለፍ ለመከላከል ተለዋዋጭ ኳሪ መፍቻ [1]
+            from django.db import connection
+            if connection.vendor == 'sqlite':
+                # SQLite ከሆነ ኳሪዎቹን በተናጠል (Sequentially) በሰላም ማስኬድ
+                lock = await lock_fut
+                tasks = await tasks_fut
+                pending = await pending_fut
+                sites = await sites_fut
+                errors = await errors_fut
+                healing = await healing_fut
+                cycle_logs = await cycle_logs_fut
+            else:
+                # PostgreSQL ከሆነ በጥራት Concurrently በትይዩ gather ማድረግ
+                lock, tasks, pending, sites, errors, healing, cycle_logs = await asyncio.gather(
+                    lock_fut, tasks_fut, pending_fut, sites_fut, errors_fut, healing_fut, cycle_logs_fut
+                )
             
             status_data = {
                 'type': 'status_update',

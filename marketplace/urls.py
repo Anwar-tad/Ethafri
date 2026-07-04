@@ -78,4 +78,7 @@ urlpatterns = [
     path('api/agent/gsc-index/', views.google_search_console_index_view, name='api_gsc_index'),
     # 📡 9. የይዘት አሰሳ መቆጣጠሪያ አድራሻ (Harvester Orchestrator)
     path('harvester/', views.harvester_orchestrator_view, name='harvester_orchestrator'),
+    # urls.py ውስጥ የሚጨመር አድራሻ [1]
+    path('evolution-result/', views.evolution_result_view, name='evolution_result'),
+    
 ]

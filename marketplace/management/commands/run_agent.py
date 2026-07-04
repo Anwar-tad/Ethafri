@@ -1,8 +1,8 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/management/commands/run_agent.py
-# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with CPU-Load Adaptive Pacing (v10.16)
-# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading, CPU-Load adaptive pacing, debug query memory leak prevention, and WebSocket log streaming.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/run_agent.py
+# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with CPU-Load Adaptive Pacing (v10.18 - Hardened Healing Edition)
+# ✅ የተፈቱ ችግሮች፦ Integrated Self-Doctor DB connection refresher on OperationalError, dynamic app model registry loading, CPU-Load adaptive pacing, and memory leak protection.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
@@ -17,6 +17,7 @@ import os
 
 from marketplace.growth_agent import execute_master_cycle
 from marketplace.ai_utils import broadcast_agent_log
+from marketplace.self_doctor import refresh_db_connection_on_error # ✅ የዳታቤዝ ግንኙነት ራስ-ጥገና እዚህ መጥቷል
 
 # 🛡️ Logger setup
 logger = logging.getLogger(__name__)
@@ -111,6 +112,12 @@ class Command(BaseCommand):
             except Exception as e:
                 logger.error(f"❌ Fatal Agent Loop Exception: {e}", exc_info=True)
                 self.stdout.write(self.style.ERROR(f"Fatal Loop Error: {e}"))
+                
+                # 🛡️ FIXED: OperationalError ከተከሰተ በራስ-ሰር ሪፍሬሽ በማድረግ ግንኙነቱን መጠገን
+                db_refreshed = refresh_db_connection_on_error(str(e))
+                if db_refreshed:
+                    self.stdout.write(self.style.WARNING("🚑 Database connection refreshed safely across all active threads."))
+                
                 time.sleep(30)  # ከስህተት በኋላ ዳግም ከመነሳቱ በፊት እረፍት መስጠት
             
             finally:

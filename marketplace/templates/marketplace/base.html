@@ -1,403 +1,485 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/base.html
-📝 ስሪት፦ v10.16 (Master CEO Unified Base - Harvester Integrated)
-✅ የተፈቱ ችግሮች፦ Integrated new Harvester Control Center links in desktop Navbar & mobile Dropup menu, aligned floating Sell FAB, and synchronized WebSocket status badges.
-📅 ቀን፦ Thursday, July 02, 2026
+📝 ስሪት፦ v10.18 (Master CEO Unified Base - Admin Sidebar Hardened Edition)
+✅ የተፈቱ ችግሮች፦ Hides all admin links from non-staff, integrates desktop sliding Offcanvas Admin Sidebar, responsive server uptime, and dynamic mobile navigation.
+📅 ቀን፦ Saturday, July 04, 2026
 ============================================================ -->
 
+{% extends 'marketplace/base.html' %}
 {% load i18n %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="{{ LANGUAGE_CODE }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{{ theme.logo_text|default:"EthAfri" }} - Smart Marketplace{% endblock %}</title>
-    
-    <!-- SEO Meta Tags -->
-    <meta name="description" content="{% trans 'EthAfri - AI-powered marketplace for Ethiopian products. Buy and sell with ease.' %}">
-    <meta name="keywords" content="ethiopia, marketplace, e-commerce, africa, ethafri, ai">
-    <meta name="author" content="EthAfri Team">
-    
-    <!-- Open Graph (ማህበራዊ ሚዲያ ማጋሪያ) -->
-    <meta property="og:title" content="{{ theme.logo_text|default:'EthAfri' }} - Smart Marketplace">
-    <meta property="og:description" content="{% trans 'AI-powered marketplace for Ethiopian products' %}">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ request.build_absolute_uri }}">
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-    
-    <!-- ============================================================
-    ⚡ የፍጥነት ማሻሻያ ማከማቻ (DNS Preconnect for Faster Latency)
-    ============================================================ -->
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <!-- Bootstrap 5.3 CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome Icons CDN -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    
-    <!-- Google Fonts with Swap display -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    
-    <!-- የጋራ ስታይል ፋይል (Global CSS) -->
-    <link rel="stylesheet" href="{% static 'css/global.css' %}">
-    
-    <!-- ለአንድ ፔጅ ብቻ የሚያገልግል CSS -->
-    {% block extra_css %}{% endblock %}
-    
-    <!-- Dynamic Theme Variables & Centered Floating Sell CSS -->
-    <style>
-        :root {
-            --primary-color: {{ theme.primary_color|default:"#1a2a6c" }};
-            --accent-purple: {{ theme.accent_purple|default:"#4e085e" }};
-            --accent-gold: {{ theme.accent_gold|default:"#ffc107" }};
-            --light-bg: {{ theme.light_bg|default:"#f4f7f6" }};
-        }
-        {% if theme.custom_css %}
-            {{ theme.custom_css|safe }}
-        {% endif %}
+{% block extra_css %}
+{% if theme.custom_css %}
+<style>
+    {{ theme.custom_css|safe }}
+</style>
+{% endif %}
+<style>
+    /* ካርዶቹ በይነተገናኝ እንዲሆኑ የተገጠመ ስታይል */
+    .stat-box {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .stat-box:hover {
+        transform: translateY(-3px);
+    }
+    .active-pending {
+        border-color: #ffc107 !important;
+        box-shadow: 0 4px 15px rgba(255, 193, 7, 0.25) !important;
+    }
+    .active-resolved {
+        border-color: #198754 !important;
+        box-shadow: 0 4px 15px rgba(25, 135, 84, 0.25) !important;
+    }
+    /* የቀጥታ የልብ ትርታ አኒሜሽን (Pulse Indicator) */
+    .pulse-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .pulse-healthy {
+        background-color: #198754;
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7);
+        animation: pulse-green 2s infinite;
+    }
+    .pulse-cooldown {
+        background-color: #dc3545;
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+        animation: pulse-red 2s infinite;
+    }
+    .pulse-offline {
+        background-color: #6c757d;
+    }
+    @keyframes pulse-green {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(25, 135, 84, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+    }
+    @keyframes pulse-red {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(220, 53, 69, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+    }
+</style>
+{% endblock %}
 
-        /* 🔴 Floating Red Sell Button Style (በትልቁ በቀይ እና በማእከል) */
-        .btn-sell-floating {
-            background-color: #dc3545 !important;
-            color: white !important;
-            border-radius: 50% !important;
-            width: 58px;
-            height: 58px;
-            display: flex !important;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 10px rgba(220, 53, 69, 0.4);
-            transform: translateY(-16px); /* ፍጹም ማዕከላዊ የከፍታ አሰላለፍ */
-            transition: all 0.2s ease-in-out;
-            z-index: 1050;
-            text-decoration: none !important;
-            flex-shrink: 0;
-        }
-        .btn-sell-floating:hover {
-            transform: translateY(-19px) scale(1.05);
-            box-shadow: 0 6px 15px rgba(220, 53, 69, 0.5);
-            background-color: #bd2130 !important;
-        }
-        .btn-sell-floating i {
-            font-size: 1.45rem !important;
-            margin-bottom: 1px !important;
-            color: white !important;
-        }
-        .btn-sell-floating span {
-            font-size: 0.65rem !important;
-            font-weight: bold !important;
-            color: white !important;
-            text-transform: uppercase;
-        }
-
-        /* 📱 የግርጌ ማውጫውን አሰላለፍ ፍጹም የተመጣጠነ እና ማእከላዊ የማድረጊያ ሎጂክ */
-        .bottom-nav-custom {
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            padding: 0.3rem 0;
-        }
-        .bottom-nav-custom a, .bottom-nav-custom .dropup {
-            flex: 1;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-    </style>
-</head>
-<body>
-
-    <!-- ============================================================
-    ማስታወቂያ ባንድ
-    ============================================================ -->
-    {% if theme.show_announcement %}
-    <div class="announcement-bar text-center" id="announcementBar">
-        <div class="container d-flex justify-content-between align-items-center">
-            <span>
-                <i class="fas fa-bullhorn me-2"></i>
-                {{ theme.announcement_text|default:"Welcome to EthAfri - The Smart African Marketplace" }}
+{% block content %}
+<div class="container-fluid py-4" id="agent-monitor" data-agent-monitor>
+    
+    <!-- 🏥 Dashboard Header -->
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-5">
+            <h2 class="fw-bold"><i class="fas fa-heartbeat text-danger me-2"></i> Autonomous Agent Monitor</h2>
+            <p class="text-muted small">Live diagnostics of the EthAfri brain, memory, and parallel execution.</p>
+        </div>
+        <div class="col-md-7 text-md-end">
+            <!-- ⚡ የቀጥታ የሰርቨር ሲፒዩ ጫና መከታተያ ባጅ -->
+            <span class="badge bg-dark border border-info rounded-pill px-3 py-2 me-2">
+                <i class="fas fa-microchip text-info me-2"></i> CPU Load: <span id="cpu-load-counter">0.50</span>
             </span>
-            <button class="close-announcement" onclick="document.getElementById('announcementBar').style.display='none'" aria-label="Close announcement">
-                <i class="fas fa-times"></i>
-            </button>
+            <span class="badge bg-dark border border-success rounded-pill px-3 py-2">
+                <i class="fas fa-clock text-success me-2"></i> Uptime: <span id="uptime-counter">00:00:00</span>
+            </span>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- 🧠 Memory, Security & Model Matrix (ግራ) -->
+        <div class="col-lg-4">
+            
+            <!-- ካርዶቹ በይነተገናኝ ሆነው ተዋቅረዋል -->
+            <div class="row g-2 mb-4">
+                <div class="col-6">
+                    <div class="stat-box p-3 border bg-dark text-white rounded shadow-sm text-center" id="pending-card" onclick="toggleDetails('pending')" style="cursor: pointer;">
+                        <div class="text-uppercase small text-muted">Pending Tasks</div>
+                        <div class="h4 text-warning" id="pending-count-badge">{{ backlog_stats.pending|default:0 }}</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="stat-box p-3 border bg-dark text-white rounded shadow-sm text-center" id="resolved-card" onclick="toggleDetails('resolved')" style="cursor: pointer;">
+                        <div class="text-uppercase small text-muted">Resolved Issues</div>
+                        <div class="h4 text-success" id="resolved-count-badge">{{ healing_stats.resolved|default:0 }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 📋 በይነተገናኝ የዝርዝር ሰሌዳ (ካርዱ ሲነካ ዝርዝሩን ከታች ማሳያ) -->
+            <div class="status-card p-3 mb-4 bg-dark text-white rounded border border-secondary" id="details-panel" style="display: none;">
+                
+                <!-- የ Pending ስራዎች ዝርዝር ሰሌዳ -->
+                <div id="pending-details" style="display: none;">
+                    <h6 class="fw-bold mb-3 text-warning"><i class="fas fa-clock me-2"></i>{% trans "Pending Backlog" %}</h6>
+                    <div id="pending-tasks-list" style="max-height: 250px; overflow-y: auto;">
+                        <!-- በጃቫስክሪፕት በላይቭ ሰዓት ይሞላል -->
+                    </div>
+                </div>
+
+                <!-- የተጠገኑ ስህተቶች ዝርዝር ሰሌዳ -->
+                <div id="resolved-details" style="display: none;">
+                    <h6 class="fw-bold mb-3 text-success"><i class="fas fa-check-double me-2"></i>{% trans "Resolved Issues" %}</h6>
+                    <div id="resolved-tasks-list" style="max-height: 250px; overflow-y: auto;">
+                        {% for log in healed_logs %}
+                        <div class="p-2 mb-2 border-bottom border-secondary border-opacity-25 small d-flex justify-content-between">
+                            <span><i class="fas fa-check-circle text-success me-2"></i>{{ log.error_message|truncatechars:35 }}</span>
+                            <small class="text-muted">{{ log.created_at|date:"H:i" }}</small>
+                        </div>
+                        {% empty %}
+                        <div class="text-muted small py-2">{% trans "No resolved logs found." %}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+            </div>
+            
+            <!-- 📡 API Routing & Live Health Rotator Matrix -->
+            <div class="status-card p-4 mb-4 bg-dark text-white rounded border border-secondary">
+                <h5 class="fw-bold mb-3 text-info"><i class="fas fa-network-wired me-2"></i> API Health & Rotator</h5>
+                <div id="api-rotator-matrix">
+                    <!-- 1. GEMINI -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-gemini"></i>Google Gemini 2.5</span>
+                        <span class="badge bg-success" id="badge-gemini">Healthy</span>
+                    </div>
+                    <!-- 2. GROQ -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-groq"></i>Groq Llama 3.1</span>
+                        <span class="badge bg-warning text-dark" id="badge-groq">Active</span>
+                    </div>
+                    <!-- 3. MISTRAL -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-mistral"></i>Mistral AI Large</span>
+                        <span class="badge bg-danger" id="badge-mistral">Active</span>
+                    </div>
+                    <!-- 4. OPENROUTER -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-openrouter"></i>OpenRouter DeepSeek R1</span>
+                        <span class="badge bg-info" id="badge-openrouter">Active</span>
+                    </div>
+                    <!-- 5. HUGGINGFACE -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 small border-bottom border-secondary pb-1">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-huggingface"></i>HuggingFace Serverless</span>
+                        <span class="badge bg-secondary" id="badge-huggingface">Active</span>
+                    </div>
+                    <!-- 6. GITHUB -->
+                    <div class="d-flex justify-content-between align-items-center mb-1 small">
+                        <span><i class="pulse-dot pulse-healthy me-2" id="status-dot-github"></i>GitHub Models Catalog</span>
+                        <span class="badge bg-primary" id="badge-github">Active</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🛠️ Executive Command Shortcuts -->
+            {% if user.is_staff %}
+            <div class="status-card p-4 mb-4 bg-dark text-white rounded border border-secondary">
+                <h5 class="fw-bold mb-3 text-white"><i class="fas fa-tools me-2 text-white-50"></i> Quick Actions</h5>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'trigger_evolution' %}" class="btn btn-sm btn-outline-success text-start">
+                        <i class="fas fa-sync-alt me-2"></i> Trigger CEO Evolution Cycle
+                    </a>
+                    <a href="{% url 'owner_directive' %}" class="btn btn-sm btn-outline-info text-start">
+                        <i class="fas fa-crown me-2"></i> Post Owner Directive
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 📟 Live Agent CL Terminal (ቀኝ) -->
+        <div class="col-lg-8">
+            <div class="terminal-window h-100 d-flex flex-column bg-dark rounded shadow-lg" style="min-height: 520px;">
+                <div class="terminal-header p-2 border-bottom border-secondary bg-secondary bg-opacity-25">
+                    <small class="text-white-50">ethafri-ceo-agent@system:~/logs</small>
+                </div>
+                <div class="terminal-body flex-grow-1 p-3 text-light font-monospace" id="cl-terminal" style="overflow-y: auto; max-height: 470px;">
+                    <div class="terminal-line">
+                        <span class="text-muted">[{{ live_time|date:"H:i:s" }}]</span> 
+                        <span class="text-info">➜ WebSocket Connected. Waiting for next CEO Cycle...</span>
+                    </div>
+                    {% for log in cycle_logs %}
+                    <div class="terminal-line">
+                        {% if log.message %}
+                            <span class="text-muted">[{{ log.time }}]</span> 
+                            <span class="{% if log.type == 'success' %}text-success{% elif log.type == 'error' %}text-danger{% else %}text-info{% endif %}">➜ {{ log.message }}</span>
+                        {% else %}
+                            <span class="text-info">➜ {{ log }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    👑 3. ADMIN DIAGNOSTIC CENTER (የአድሚን መመርመሪያ ማዕከል)
+    ============================================================ -->
+    {% if user.is_staff %}
+    <div class="row g-4 mt-2">
+        <!-- 1. የትውስታ መዝገብ (RAG Memory) -->
+        <div class="col-md-4">
+            <div class="status-card p-4 bg-dark text-white rounded border border-info h-100">
+                <h5 class="fw-bold mb-3 text-info"><i class="fas fa-brain me-2"></i> RAG Memory Map</h5>
+                <div class="d-flex justify-content-between mb-2 pb-1 border-bottom border-secondary small">
+                    <span>{% trans "Overall Success Rate" %}</span>
+                    <span class="text-success fw-bold">{{ success_rate|floatformat:1 }}%</span>
+                </div>
+                {% for stat in memory_stats %}
+                <div class="d-flex justify-content-between align-items-center mb-1 text-white-50 small">
+                    <span><i class="fas fa-database me-2" style="font-size: 0.7rem;"></i>{{ stat.memory_type|title }} Memories</span>
+                    <span class="badge bg-secondary">{{ stat.count }}</span>
+                </div>
+                {% empty %}
+                <div class="text-muted small py-2">{% trans "No semantic memories stored yet." %}</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 2. የደህንነት ኦዲት (Security Log) -->
+        <div class="col-md-4">
+            <div class="status-card p-4 bg-dark text-white rounded border border-danger h-100">
+                <h5 class="fw-bold mb-3 text-danger"><i class="fas fa-shield-halved me-2"></i> Security Shield Logs</h5>
+                <div class="d-flex justify-content-between mb-2 pb-1 border-bottom border-secondary small">
+                    <span>{% trans "Vulnerabilities Found" %}</span>
+                    <span class="text-danger fw-bold">
+                        {% if security_issues %}
+                            {{ security_issues|length }} Active
+                        {% else %}
+                            0 Active
+                        {% endif %}
+                    </span>
+                </div>
+                <div style="max-height: 150px; overflow-y: auto;">
+                    {% for issue in security_issues %}
+                    <div class="p-1 mb-1 border-bottom border-secondary border-opacity-25 small text-white-50">
+                        <span class="badge bg-danger me-1" style="font-size: 0.55rem;">{{ issue.severity|upper }}</span>
+                        {{ issue.description|truncatechars:45 }}
+                    </div>
+                    {% empty %}
+                    <div class="text-success small py-2"><i class="fas fa-check-circle me-2"></i>{% trans "No vulnerabilities detected. AST Shield is solid!" %}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. የ AI የትንበያ መዝገቦች (Predictions) -->
+        <div class="col-md-4">
+            <div class="status-card p-4 bg-dark text-white rounded border border-warning h-100">
+                <h5 class="fw-bold mb-3 text-warning"><i class="fas fa-chart-line me-2"></i> Predictive Brain Forecasts</h5>
+                <div class="d-flex justify-content-between mb-2 pb-1 border-bottom border-secondary small">
+                    <span>{% trans "Total System Predictions" %}</span>
+                    <span class="text-warning fw-bold">{{ prediction_stats.total|default:0 }}</span>
+                </div>
+                <div class="small text-white-50">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>Traffic Forecasts</span>
+                        <span>{{ prediction_stats.traffic|default:0 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>SEO Forecasts</span>
+                        <span>{{ prediction_stats.seo|default:0 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Marketing Notifications</span>
+                        <span>{{ marketing_stats.notifications|default:0 }} pending</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🛠️ 4. ንቁ የሰርቨር ስህተቶች ሰሌዳ (Active Unresolved Errors Table) -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="status-card p-4 bg-dark text-white rounded border border-secondary">
+                <h5 class="fw-bold mb-3 text-danger"><i class="fas fa-bug me-2"></i> Active Unresolved Server Errors</h5>
+                <div class="table-responsive small">
+                    <table class="table table-dark table-hover table-borderless align-middle mb-0">
+                        <thead>
+                            <tr class="border-bottom border-secondary text-white-50">
+                                <th>{% trans "Task Name" %}</th>
+                                <th>{% trans "Error Type" %}</th>
+                                <th>{% trans "Error Message" %}</th>
+                                <th>{% trans "Logged At" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for err in unresolved_errors %}
+                            <tr class="border-bottom border-secondary border-opacity-10 text-white-50">
+                                <td class="fw-bold text-white">{{ err.task_name }}</td>
+                                <td><span class="badge bg-secondary">{{ err.error_type }}</span></td>
+                                <td class="text-danger">{{ err.error_message|truncatechars:80 }}</td>
+                                <td>{{ err.created_at|date:"Y-m-d H:i" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-success text-center py-3"><i class="fas fa-check-circle me-2"></i>{% trans "Zero active unresolved errors! The healer is completely caught up." %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
     {% endif %}
 
-    <!-- ============================================================
-    Navbar (የላይኛው ማውጫ)
-    ============================================================ -->
-    <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
-        <div class="container">
-            <a class="navbar-brand" href="/">
-                <i class="fas fa-globe-africa me-2"></i>
-                {{ theme.logo_text|default:"EthAfri" }}
-            </a>
-            
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="navbarMain">
-                <ul class="navbar-nav ms-auto align-items-lg-center gap-1 gap-lg-2">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
-                            <i class="fas fa-home"></i> {% trans "Home" %}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if 'post_product' in request.path %}active{% endif %}" href="{% url 'post_product' %}">
-                            <i class="fas fa-plus-circle"></i> {% trans "Sell" %}
-                        </a>
-                    </li>
-                    {% if user.is_authenticated %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'logout' %}">
-                            <i class="fas fa-sign-out-alt"></i> {% trans "Logout" %}
-                        </a>
-                    </li>
-                    {% else %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if 'login' in request.path %}active{% endif %}" href="{% url 'login' %}">
-                            <i class="fas fa-sign-in-alt"></i> {% trans "Login" %}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if 'signup' in request.path %}active{% endif %}" href="{% url 'signup' %}">
-                            <i class="fas fa-user-plus"></i> {% trans "Sign Up" %}
-                        </a>
-                    </li>
-                    {% endif %}
-                    
-                    {% if user.is_staff %}
-                    <!-- 🔴 አዲስ የተጨመረ፦ የይዘት አሰሳ (Harvester) ሊንክ በNavbar ላይ -->
-                    <li class="nav-item">
-                        <a class="nav-link {% if 'harvester' in request.path %}active{% endif %}" href="{% url 'harvester_orchestrator' %}">
-                            <i class="fa-solid fa-satellite-dish text-success"></i> {% trans "Harvester" %}
-                        </a>
-                    </li>
-                    <!-- የBacklog ማኔጀር ቁልፍ በNavbar ላይ -->
-                    <li class="nav-item">
-                        <a class="nav-link {% if 'backlog' in request.path %}active{% endif %}" href="{% url 'manage_backlog' %}">
-                            <i class="fa-solid fa-rectangle-list text-warning"></i> {% trans "Orchestrator" %}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <span class="admin-badge ms-1">
-                            <i class="fas fa-user-shield me-1"></i> {% trans "Admin" %}
-                        </span>
-                    </li>
-                    {% endif %}
-                    
-                    <li class="nav-item">
-                        <form action="{% url 'set_language' %}" method="post" class="d-inline">
-                            {% csrf_token %}
-                            <select name="language" class="lang-select" onchange="this.form.submit()">
-                                {% get_current_language as LANGUAGE_CODE %}
-                                {% get_available_languages as LANGUAGES %}
-                                {% for lang in LANGUAGES %}
-                                    <option value="{{ lang.0 }}" {% if lang.0 == LANGUAGE_CODE %}selected{% endif %}>
-                                        {{ lang.1 }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </form>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+</div>
+{% endblock %}
 
-    <!-- ============================================================
-    Hero Banner
-    ============================================================ -->
-    <div class="hero-banner-custom">
-        <div class="container position-relative">
-            <div class="hero-icon">
-                <i class="fas fa-robot"></i>
-            </div>
-            {% get_current_language as LANG %}
-            <h1>
-                {% if LANG == 'am' %}
-                    {{ theme.banner_title_am|default:"አዳዲስ የገበያ ዘርፎች በእጅዎ" }}
-                {% else %}
-                    {{ theme.banner_title_en|default:"Welcome to EthAfri" }}
-                {% endif %}
-            </h1>
-            <p>
-                {% if LANG == 'am' %}
-                    {{ theme.banner_sub_am|default:"በቀላሉ ይፈልጉ፣ በቀላሉ ያግኙ" }}
-                {% else %}
-                    {{ theme.banner_sub_en|default:"The Smart Global African Marketplace" }}
-                {% endif %}
-            </p>
-        </div>
-    </div>
-
-    <!-- ============================================================
-    Main Content (ዋናው ይዘት መድረክ)
-    ============================================================ -->
-    <main class="container fade-in">
-        {% block content %}{% endblock %}
-    </main>
-
-    <!-- ============================================================
-    Bottom Navigation (የታችኛው የሞባይል ማውጫ)
-    ============================================================ -->
-    <nav class="bottom-nav-custom">
-        <a href="/" class="{% if request.path == '/' %}active{% endif %}">
-            <i class="fas fa-home"></i>
-            {% trans "Home" %}
-        </a>
-        
-        <!-- 🏥 Status ቁልፍ (የቀጥታ ስህተቶችን በእውነተኛ ሰዓት በዳሽቦርዱ Status Badge ያሳያል) -->
-        <a href="{% url 'agent_status' %}" class="{% if 'agent_status' in request.path %}active{% endif %}">
-            <i class="fas fa-heartbeat text-primary"></i>
-            {% trans "Status" %}
-            <span class="nav-badge" id="live-unresolved-errors-badge" style="display: none;">0</span>
-        </a>
-        
-        <!-- 🔴 Floating Red Action Button (በትልቁ በቀይ) -->
-        <a href="{% url 'post_product' %}" class="btn-sell-floating {% if 'post_product' in request.path %}active{% endif %}">
-            <i class="fas fa-plus-circle"></i>
-            <span>{% trans "Sell" %}</span>
-        </a>
-        
-        {% if user.is_staff %}
-        <div class="nav-divider"></div>
-        <div class="dropup">
-            <button class="nav-dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="fas fa-robot text-warning"></i>
-                {% trans "AI" %}
-                <i class="fas fa-chevron-up ms-1" style="font-size: 0.4rem; display: inline;"></i>
-            </button>
-            <ul class="dropdown-menu nav-dropdown-menu">
-                <li>
-                    <a class="dropdown-item" href="{% url 'growth_dashboard' %}">
-                        <i class="fas fa-chart-line text-primary"></i> {% trans "Dashboard" %}
-                    </a>
-                </li>
-                <!-- 🔴 አዲስ የተጨመረ፦ የይዘት አሰሳ እዝ ማዕከል ሊንክ በታችኛው AI Dropdown ላይ [1] -->
-                <li>
-                    <a class="dropdown-item" href="{% url 'harvester_orchestrator' %}">
-                        <i class="fa-solid fa-satellite-dish text-success"></i> {% trans "Harvester" %}
-                    </a>
-                </li>
-                <!-- የBacklog ማኔጀር ሊንክ በታችኛው AI Dropdown ላይ -->
-                <li>
-                    <a class="dropdown-item" href="{% url 'manage_backlog' %}">
-                        <i class="fa-solid fa-rectangle-list text-warning"></i> {% trans "Orchestrator" %}
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item" href="{% url 'sites_dashboard' %}">
-                        <i class="fas fa-globe text-success"></i> {% trans "Sites" %}
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item" href="{% url 'marketing_dashboard' %}">
-                        <i class="fas fa-bullhorn text-info"></i> {% trans "Marketing" %}
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item" href="{% url 'agent_status' %}">
-                        <i class="fas fa-heartbeat text-danger"></i> {% trans "Agent Status" %}
-                    </a>
-                </li>
-                <li><hr class="dropdown-divider"></li>
-                <li>
-                    <form method="POST" action="{% url 'trigger_evolution' %}" class="px-2">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-warning w-100 rounded-pill fw-bold">
-                            <i class="fas fa-sync-alt me-1"></i> {% trans "Run Evolution" %}
-                        </button>
-                    </form>
-                </li>
-                <li>
-                    <a class="dropdown-item text-danger" href="{% url 'admin:index' %}">
-                        <i class="fas fa-cog"></i> {% trans "Django Admin" %}
-                    </a>
-                </li>
-            </ul>
-        </div>
-        {% endif %}
-
-        {% if user.is_authenticated %}
-        <a href="{% url 'logout' %}">
-            <i class="fas fa-sign-out-alt"></i>
-            {% trans "Logout" %}
-        </a>
-        {% else %}
-        <a href="{% url 'login' %}">
-            <i class="fas fa-sign-in-alt"></i>
-            {% trans "Login" %}
-        </a>
-        {% endif %}
-    </nav>
-
-    <!-- ============================================================
-    ⚡ የፍጥነት ማሻሻያ ስክሪፕቶች
-    ============================================================ -->
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
-    <!-- የጋራ ጃቫስክሪፕት -->
-    <script src="{% static 'js/global.js' %}" defer></script>
+{% block extra_js %}
+<script>
+    // ⏰ REAL SERVER UPTIME CALCULATOR
+    const serverBootTimeStr = "{{ agent_status.timestamp|default:'' }}";
+    const startTime = serverBootTimeStr ? Date.parse(serverBootTimeStr) : Date.now();
     
-    <!-- ለአንድ ፔጅ ብቻ የሚያገልግል ጃቫስክሪፕት -->
-    {% block extra_js %}{% endblock %}
-    
-    <!-- የአኒሜሽን ማስነሻ እና የቀጥታ ዌብሶኬት ስህተት ጠቋሚ -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const hero = document.querySelector('.hero-banner-custom');
-            if (hero) {
-                hero.style.opacity = '0';
-                hero.style.transform = 'translateY(-10px)';
-                setTimeout(() => {
-                    hero.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-                    hero.style.opacity = '1';
-                    hero.style.transform = 'translateY(0)';
-                }, 100);
-            }
+    setInterval(() => {
+        const diff = Math.floor((Date.now() - startTime) / 1000);
+        document.getElementById('uptime-counter').innerText = new Date(diff * 1000).toISOString().substr(11, 8);
+    }, 1000);
+
+    // 📟 Terminal Auto-Scroll
+    function scrollTerminal() {
+        const term = document.getElementById('cl-terminal');
+        if (term) term.scrollTop = term.scrollHeight;
+    }
+
+    let livePendingTasks = [];
+
+    // የ Pending ስራዎችን በእውነተኛ ሰዓት ወደ HTML መለወጫ
+    function renderPendingTasksList() {
+        const listContainer = document.getElementById('pending-tasks-list');
+        if (!listContainer) return;
+        
+        if (livePendingTasks.length === 0) {
+            listContainer.innerHTML = '<div class="text-muted small py-2">No pending tasks. Backlog is clear!</div>';
+            return;
+        }
+
+        let html = '';
+        livePendingTasks.forEach(task => {
+            let badgeColor = 'bg-info';
+            if (task.priority === 'Critical') badgeColor = 'bg-danger';
+            else if (task.priority === 'High') badgeColor = 'bg-warning text-dark';
             
-            const announcementBar = document.getElementById('announcementBar');
-            if (announcementBar) {
-                setTimeout(() => {
-                    announcementBar.style.transition = 'opacity 0.5s ease, max-height 0.5s ease';
-                    announcementBar.style.opacity = '0';
-                    announcementBar.style.maxHeight = '0';
-                    setTimeout(() => {
-                        announcementBar.style.display = 'none';
-                    }, 500);
-                }, 10000);
-            }
+            html += `
+                <div class="p-2 mb-2 border-bottom border-secondary border-opacity-25 small d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge ${badgeColor} me-2" style="font-size: 0.6rem;">${task.priority}</span>
+                        <span class="fw-bold">${task.name}</span>
+                    </div>
+                    <small class="text-muted">📁 ${task.site || 'Global'}</small>
+                </div>
+            `;
         });
+        listContainer.innerHTML = html;
+    }
 
-        // 📟 WebSocket Event Listener — የቀጥታ ንቁ ስህተቶችን በሞባይል Status Badge ላይ ማሳያ [1]
-        document.addEventListener('agent_update', function(event) {
-            const data = event.detail;
-            if (data.type === 'status_update' || data.type === 'live_stats') {
-                const badge = document.getElementById('live-unresolved-errors-badge');
-                if (badge && data.errors) {
-                    const unresolved = data.errors.unresolved || 0;
-                    if (unresolved > 0) {
-                        badge.style.display = 'inline';
-                        badge.innerText = unresolved;
-                    } else {
-                        badge.style.display = 'none';
-                    }
+    function toggleDetails(type) {
+        const panel = document.getElementById('details-panel');
+        const pendingSection = document.getElementById('pending-details');
+        const resolvedSection = document.getElementById('resolved-details');
+        const pendingCard = document.getElementById('pending-card');
+        const resolvedCard = document.getElementById('resolved-card');
+
+        if (panel.style.display === 'block' && 
+            ((type === 'pending' && pendingSection.style.display === 'block') || 
+             (type === 'resolved' && resolvedSection.style.display === 'block'))) {
+            panel.style.display = 'none';
+            pendingCard.classList.remove('active-pending');
+            resolvedCard.classList.remove('active-resolved');
+            return;
+        }
+
+        panel.style.display = 'block';
+
+        if (type === 'pending') {
+            pendingSection.style.display = 'block';
+            resolvedSection.style.display = 'none';
+            pendingCard.classList.add('active-pending');
+            resolvedCard.classList.remove('active-resolved');
+            renderPendingTasksList();
+        } else {
+            pendingSection.style.display = 'none';
+            resolvedSection.style.display = 'block';
+            resolvedCard.classList.add('active-resolved');
+            pendingCard.classList.remove('active-pending');
+        }
+    }
+
+    // 📟 WebSocket Auto-Updater
+    document.addEventListener('agent_update', function(event) {
+        const data = event.detail;
+        const term = document.getElementById('cl-terminal');
+        if (!term) return;
+        
+        const timestamp = new Date().toLocaleTimeString();
+        
+        // 1. የቀጥታ ተርሚናል ሎጎችን ማሳየት
+        if (data.type === 'terminal_log') {
+            const log = data.log || {};
+            let logClass = 'text-info';
+            if (log.type === 'success') logClass = 'text-success';
+            else if (log.type === 'error') logClass = 'text-danger';
+            
+            const line = document.createElement('div');
+            line.className = 'terminal-line mb-1';
+            line.innerHTML = `<span class="text-muted">[${log.time || timestamp}]</span> ➜ <span class="${logClass}">${log.message || ''}</span>`;
+            term.appendChild(line);
+            scrollTerminal();
+        }
+        // 2. የቁጥር መለኪያዎችን፣ ሲፒዩ ጫናን እና የባክሎግ መዝገቦችን ማዘመን
+        else if (data.type === 'status_update' || data.type === 'live_stats') {
+            const pendingCountEl = document.getElementById('pending-count-badge');
+            const resolvedCountEl = document.getElementById('resolved-count-badge');
+            const cpuLoadCounter = document.getElementById('cpu-load-counter');
+            
+            if (pendingCountEl && data.task_stats) {
+                pendingCountEl.innerText = data.task_stats.pending;
+            }
+            if (resolvedCountEl && data.healing) {
+                resolvedCountEl.innerText = data.healing.resolved;
+            }
+            if (cpuLoadCounter && data.cpu_load !== undefined) {
+                cpuLoadCounter.innerText = parseFloat(data.cpu_load).toFixed(2);
+            }
+
+            // የላይቭ የባክሎግ ዝርዝር መዝገብን ማዘመን
+            if (data.pending_tasks) {
+                livePendingTasks = data.pending_tasks;
+                if (document.getElementById('pending-details').style.display === 'block') {
+                    renderPendingTasksList();
                 }
             }
-        });
-    </script>
-</body>
-</html>
+            
+            // የኤፒአይ ኪዎች የቀጥታ ጤና መለኪያ (Dynamic API Health State Engine)
+            const providers = ['gemini', 'groq', 'mistral', 'openrouter', 'huggingface', 'github'];
+            providers.forEach(prov => {
+                const dot = document.getElementById(`status-dot-${prov}`);
+                const badge = document.getElementById(`badge-${prov}`);
+                if (!dot || !badge) return;
+                
+                // በካሽ ውስጥ የተቀመጡ የ 429 እገዳዎችን (Cooldown) መፈተሽ
+                const isCooldown = data.api_cooldowns ? data.api_cooldowns[prov] : false;
+                const isConfigured = data.api_configured ? data.api_configured[prov] : true;
+                
+                if (!isConfigured) {
+                    dot.className = 'pulse-dot pulse-offline me-2';
+                    badge.className = 'badge bg-secondary';
+                    badge.innerText = 'Offline';
+                } else if (isCooldown) {
+                    dot.className = 'pulse-dot pulse-cooldown me-2';
+                    badge.className = 'badge bg-danger';
+                    badge.innerText = 'Rate Limited';
+                } else {
+                    dot.className = 'pulse-dot pulse-healthy me-2';
+                    badge.className = 'badge bg-success';
+                    badge.innerText = 'Active';
+                }
+            });
+        }
+    });
+
+    scrollTerminal();
+</script>
+{% endblock %}

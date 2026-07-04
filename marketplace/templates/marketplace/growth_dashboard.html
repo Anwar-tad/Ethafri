@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/growth_dashboard.html
-📝 ለውጥ፦ v10.16 Master CEO Dashboard — Live Progress Bar & Web Autopilot Synced (DRY Sync)
-✅ የተፈቱ ችግሮች፦ Real-time progress bar animation (0%-100%), version synced to v10.16, Agent Autopilot Switch, secure DB purger button, dynamic stats update
-📅 ቀን፦ Thursday, July 02, 2026
+📝 ስሪት፦ v10.18 (Master CEO Dashboard — DRY Event-Driven & Hardened)
+✅ የተፈቱ ችግሮች፦ Prevented double WebSocket connection leak via global.js event integration, real-time dynamic progress bar animation, and secure database purge integration.
+📅 ቀን፦ Saturday, July 04, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -10,7 +10,6 @@
 {% load static %}
 
 {% block extra_css %}
-<!-- የዚህ ገጽ ቋሚ CSS በሙሉ ወደ static/css/global.css ተዛውሯል -->
 {% if theme.custom_css %}
 <style>
     {{ theme.custom_css|safe }}
@@ -28,7 +27,7 @@
                 <div class="col-md-7">
                     <h2 class="fw-bold mb-2">
                         <i class="fas fa-brain me-2 text-info"></i>
-                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v10.16</span>
+                        EthAfri CEO Agent <span class="fs-6 fw-normal opacity-75">v10.18</span>
                     </h2>
                     <p class="opacity-75 mb-4">Autonomous Strategic Growth & System Evolution Engine</p>
                     
@@ -196,14 +195,11 @@
 
 {% block extra_js %}
 <script>
-    // 📟 WebSocket Connection
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/agent-status/`);
-
-    socket.onmessage = function(event) {
-        const data = JSON.parse(event.data);
+    // 🛡️ FIXED: ድርብ የዌብሶኬት ግንኙነትን ለማስቀረት እና ራም ለመቆጠብ ከ global.js የሚመጣውን ክስተት መከታተል [1]
+    document.addEventListener('agent_update', function(event) {
+        const data = event.detail;
         
-        // 1. የባክሎግ ቁጥር መዘመኛ
+        // 1. የባክሎግ እና የስታቲስቲክስ ቁጥሮች በእውነተኛ ሰዓት ማዘመኛ
         if (data.type === 'status_update' || data.type === 'live_stats') {
             const pendingTasksCountEl = document.getElementById('pending-tasks-count');
             if (pendingTasksCountEl && data.task_stats) {
@@ -239,7 +235,7 @@
                 runningTaskEl.innerText = displayMsg;
             }
         }
-    };
+    });
 
     // የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል (Toggle Switch AJAX Handler)
     const toggle = document.getElementById('autopilotToggle');

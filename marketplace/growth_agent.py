@@ -1654,6 +1654,10 @@ def bootstrap_system_safely():
 
 
 def get_site_project_state_dynamic(site):
+    """
+    የሳይቱን የኮድ ይዘት በዳይናሚክ መዝገብ የሚቃኝ ሲሆን፣ ኤጀንቱ ራሱን ሲሰነጥቅ 
+    በዲስክ ላይ የሚፈጥራቸውን አዳዲስ የረዳት ፋይሎች (Surgical Helpers) ራሱ ፈልጎ ያዋህዳል [1]።
+    """
     AIProjectBacklog = get_model('AIProjectBacklog')
     
     if not site:
@@ -1673,6 +1677,7 @@ def get_site_project_state_dynamic(site):
 
     base = repo_path if not is_remote else os.path.join('/tmp', 'ethafri_agent', site.name)
 
+    # 1. መሠረታዊ የሆኑት የሲስተሙ ኮር ፋይሎች ዝርዝር
     core_files = {
         'models': 'marketplace/models.py',
         'views': 'marketplace/views.py',
@@ -1684,6 +1689,17 @@ def get_site_project_state_dynamic(site):
         'self_doctor': 'marketplace/self_doctor.py',
         'code_apply': 'marketplace/code_apply.py',
     }
+
+    # 🛡️ ፊቸር 1 (Cumulative Scaffolder Map)፦ ኤጀንቱ በራሱ የፈጠራቸውን ረዳት ፋይሎች (Helpers) በዳይናሚክ መዝገብ ውስጥ ማካተት [1]
+    local_marketplace_dir = os.path.join(settings.BASE_DIR, 'marketplace')
+    if os.path.exists(local_marketplace_dir) and not is_remote:
+        try:
+            for filename in os.listdir(local_marketplace_dir):
+                if "_helper_" in filename and filename.endswith(".py"):
+                    key_name = filename.replace(".py", "")
+                    core_files[key_name] = f"marketplace/{filename}"
+        except Exception as e:
+            logger.debug(f"Failed to scan local dynamic helpers: {e}")
 
     state = {}
     file_paths = {}
@@ -1760,7 +1776,6 @@ def get_site_project_state_dynamic(site):
                 state[bk.target_file] = "❌ MISSING_FILE"
 
     return state, file_paths
-
 
 def get_or_create_backlog_task_safe(site, task_name, defaults):
     AIProjectBacklog = get_model('AIProjectBacklog')
@@ -2074,6 +2089,7 @@ def execute_master_cycle():
 
 
 def _run_site_cycle(site):
+    """የአንድ ንዑስ ጣቢያን ሙሉ የዕድገት እና የዕድገት ማጠናከሪያ ዑደት ያስፈጽማል"""
     _, _, broadcast_agent_log, _ = _get_ai_utils()
     SecurityAuditor, UniversalHealer, AntiBloatEngine = _get_self_doctor()
     FeatureEvolutionEngine = _get_feature_evolution()
@@ -2090,6 +2106,14 @@ def _run_site_cycle(site):
                 update_agent_progress(site, "Track A: Planning Codebase Backlog...", 40)
                 ceo = StrategicCEO(site)
                 ceo.execute_planning_cycle()
+                
+                # 🛡️ ፊቸር 2 (Recursive Code Refactoring & Optimization Trigger)
+                # በየዑደቱ የቆዩ ኮዶችን እያነጻጸረ ተደጋጋሚነት ካገኘ ራሱ የሪፋክተሪንግ ታስኮችን ይፈጥራል
+                try:
+                    optimizer = RecursiveOptimizer(site)
+                    optimizer.refine_strategy()
+                except Exception as opt_err:
+                    logger.debug(f"Code optimizer loop skipped: {opt_err}")
                 
                 update_agent_progress(site, "Track A: Building Strategic Features in Sandbox...", 80)
                 run_recursive_code_builder(site)

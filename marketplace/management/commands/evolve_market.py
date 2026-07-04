@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ዓላማ፦ Robust Growth Engine + Fixed Naming & Import Sync (v10.16 - Optimized Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading, circular import fallbacks, safe close_old_connections integration, and resource cleaning.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ዓላማ፦ Robust Growth Engine + Safe Connection Healing (v10.18 - Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Integrated Self-Doctor DB connection refresher on OperationalError, dynamic app model registry loading, and cron statistics logging.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
@@ -11,6 +11,8 @@ from django.utils import timezone
 from django.apps import apps
 import logging
 import gc
+
+from marketplace.self_doctor import refresh_db_connection_on_error # ✅ የዳታቤዝ ግንኙነት ራስ-ጥገና እዚህ መጥቷል
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +165,12 @@ class Command(BaseCommand):
         except Exception as e:
             logger.error(f"❌ Critical Error in Growth Engine: {e}")
             self.stdout.write(self.style.ERROR(f"Error: {e}"))
+            
+            # 🛡️ FIXED: OperationalError ከተከሰተ በራስ-ሰር ሪፍሬሽ በማድረግ ግንኙነቱን መጠገን
+            db_refreshed = refresh_db_connection_on_error(str(e))
+            if db_refreshed:
+                self.stdout.write(self.style.WARNING("🚑 Database connection refreshed safely across all active threads."))
+                
             try:
                 SiteConfig.objects.update_or_create(
                     key="LAST_CRON_ERROR",

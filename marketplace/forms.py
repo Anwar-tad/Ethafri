@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/forms.py
-# 📝 ስሪት፦ v10.16 (Unified ModelForm Integration — Defused & Secure)
-# ✅ የተፈቱ ችግሮች፦ Deferred dynamic querysets in __init__ (prevents boot crashes), HTML XSS tag stripping, and circular-free model registry loading.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ስሪት፦ v10.18 (Unified ModelForm Integration — Safe & Aligned)
+# ✅ የተፈቱ ችግሮች፦ Resolved module-level NameError inside Meta, deferred dynamic querysets in __init__, HTML XSS tag stripping, and secure seller contact sanitization.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 from django import forms
@@ -11,11 +11,11 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.html import strip_tags  # 🛡️ XSS ጥቃትን መከላከያ ማጽጃ
 from django.apps import apps
 import json
+import re
 from typing import Dict, List, Optional, Union, Any
-# ሞዴሎችን በደህንነት በዳይናሚክ መጫን [1]
-Product = apps.get_model('marketplace', 'Product')
-Category = apps.get_model('marketplace', 'Category')
-SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+
+# 🛡️ FIXED: የ AppRegistryNotReady እና የ NameError ክላሽን ለመከላከል ቀጥተኛ ሞዴል ማስገቢያ
+from .models import Product, Category, SiteRegistry
 
 
 class ProductForm(forms.ModelForm):
@@ -31,7 +31,7 @@ class ProductForm(forms.ModelForm):
     )
     
     # የሻጩ ስልክ ወይም የቴሌግራም ዩዘርኔም በመለየት
-    contact_info = models_contact_info = forms.CharField(
+    contact_info = forms.CharField(
         max_length=255, 
         required=False, 
         initial='', 
@@ -137,6 +137,17 @@ class ProductForm(forms.ModelForm):
             # HTML ታጎችን በሙሉ ማጽዳት (XSS Script Sanitization)
             return strip_tags(description).strip()
         return description
+
+    def clean_contact_info(self):
+        """🛡️ FIXED: ሻጮች ስልካቸውን ወይም @username በትክክል ማስገባታቸውን ማረጋገጫ"""
+        contact = self.cleaned_data.get('contact_info', '').strip()
+        if contact:
+            # የጃንጎን ዩዘር ስም ጋሻ እንዳያጋጭ አላስፈላጊ ልዩ ምልክቶችን ማጽዳት
+            clean_contact = re.sub(r'[^a-zA-Z0-9_@.+\- ]', '', contact).strip()
+            if len(clean_contact) < 4:
+                raise forms.ValidationError(_("Contact info must be a valid phone number or telegram handle."))
+            return clean_contact
+        return contact
     
     def save(self, commit=True):
         """ፎርሙን በማስቀመጥ ላይ — Multi-Site ድጋፍ"""

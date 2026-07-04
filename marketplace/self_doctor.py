@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/self_doctor.py
-# 📝 ስሪት፦ v10.28 (Ultimate System Doctor - Hardened & Safe-Reset Version)
-# ✅ የተፈቱ ችግሮች፦ Safe schema-reset guards (No accidental data loss), Dynamic model field verification, AST performance parsing, and AI SQL caching.
+# 📝 ስሪት፦ v10.30 (Ultimate System Doctor - Symmetric Auditor Hardened)
+# ✅ የተፈቱ ችግሮች፦ Dynamic file-size bloat detector, extended Symmetric Design Auditor (reusability & asset externalization checks), transactional schema recovery, and proactive column scanners.
 # 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
@@ -35,27 +35,37 @@ class DecimalEncoder(json.JSONEncoder):
 
 
 # ============================================================
-# 🛡️ 1. SECURITY AUDITOR & SERVER PATROL
+# 🛡️ 1. SECURITY & SYMMETRIC DESIGN AUDITOR
 # ============================================================
 class SecurityAuditor:
-    """ኮድ ከመጻፉ በፊት አደገኛ የሼል ጥሪዎችን በ AST የሚመረምር እና የሰርቨር ሎጎችን የሚከታተል የደህንነት ጋሻ"""
+    """ኮድ ከመጻፉ በፊት አደገኛ የሼል ጥሪዎችን፣ መደጋገሞችን እና የንብረት አቀማመጦችን በ AST የሚመረምር የደህንነት ጋሻ"""
 
     @staticmethod
     def scan_code_safety(code, file_path="", site=None):
-        """የ SQL Injection, Secrets Exposure, እና የ Shell Execution (Subprocess) ፍተሻ"""
+        """የ SQL Injection, Secrets Exposure, Shell Execution, እና የላቁ የንድፍ መርሆዎች (Symmetric Audit) ፍተሻ"""
         issues = []
         if not code or not isinstance(code, str):
             return True, []
 
         is_python = file_path.endswith('.py') if file_path else True
-        if 'html' in file_path.lower() or not is_python:
-            return True, []
+        
+        # 🛡️ 1. SYMMETRIC DESIGN AUDIT: የኤችቲኤምኤል ቴምፕሌቶችን የስታይል እና የስክሪፕት መደጋገም መፈተሽ (Asset Externalization) [1]
+        if not is_python or 'html' in file_path.lower():
+            if "<style>" in code or "<style " in code:
+                issues.append("Performance Warning: Inline CSS blocks <style> found. Move these to global.css to unblock page rendering.")
+            if "<script>" in code or "<script " in code:
+                issues.append("Performance Warning: Inline JavaScript blocks <script> found. Move these to global.js to enable site-wide caching.")
+            
+            # HTML ከሆነ የፓይተን AST ፍተሻዎችን አልፎ እዚህ ማብቃት
+            self_log_issues(issues, file_path, site)
+            return len(issues) == 0, issues
 
         try:
             tree = ast.parse(code)
             dangerous_builtins = {'eval', 'exec'}
             dangerous_attributes = {'system', 'popen', 'spawn'}
 
+            # 🛡️ 2. SYMMETRIC DESIGN AUDIT: የፓይተን ኮዶች መደጋገምን እና የወደፊት ተለዋዋጭነትን (Extensibility) መፈተሽ [1]
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call):
                     func_name = ""
@@ -71,6 +81,13 @@ class SecurityAuditor:
                             if node.func.value.id.lower() == 'subprocess' and func_name in ['run', 'call', 'popen', 'check_output', 'check_call']:
                                 issues.append(f"Critical: Dangerous subprocess call 'subprocess.{func_name}' detected.")
 
+                # የፈንክሽኖችን የወደፊት እድገት እና ተለዋዋጭነት መመርመር [1]
+                elif isinstance(node, ast.FunctionDef):
+                    has_kwargs = any(isinstance(arg, ast.arg) and arg.arg == 'kwargs' for arg in node.args.kwonlyargs + [node.args.kwarg] if arg)
+                    has_args = node.args.kwarg is not None or node.args.vararg is not None
+                    if len(node.args.args) > 5 and not (has_kwargs or has_args):
+                        issues.append(f"Design Warning: Function '{node.name}' has too many positional arguments ({len(node.args.args)}). Consider using dictionary payloads or **kwargs for extensible design.")
+
             secret_patterns = [
                 (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
                 (r'(?<![\w"])password\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'Possible password exposure'),
@@ -85,26 +102,8 @@ class SecurityAuditor:
         except Exception as e:
             logger.warning(f"AST safety scanning warning: {e}")
 
-        if issues:
-            for issue in issues:
-                try:
-                    from .models import SecurityLog
-                    log_exists = SecurityLog.objects.filter(site=site, description=issue, file_path=file_path).exists()
-                    if not log_exists:
-                        SecurityLog.objects.create(
-                            site=site,
-                            category='code_injection' if any(x in issue for x in ['Dangerous', 'Error']) else 'data_leak',
-                            text_content=issue,
-                            severity='critical' if 'Critical' in issue else 'high',
-                            description=issue,
-                            file_path=file_path,
-                            is_fixed=False
-                        )
-                except Exception as log_err:
-                    logger.error(f"Failed to save SecurityLog: {log_err}")
-            return False, issues
-
-        return True, []
+        self_log_issues(issues, file_path, site)
+        return len(issues) == 0, issues
 
     @staticmethod
     def patrol_server_logs(site):
@@ -120,6 +119,27 @@ class SecurityAuditor:
             )
         except Exception as e:
             logger.debug("Failed to record security patrol metrics: %s", e)
+
+
+def self_log_issues(issues, file_path, site):
+    """የተገኙ የደህንነት እና የንድፍ ስጋቶችን በዳታቤዝ ውስጥ መዝግቦ ማስቀመጫ ረዳት [1]"""
+    if issues:
+        for issue in issues:
+            try:
+                from .models import SecurityLog
+                log_exists = SecurityLog.objects.filter(site=site, description=issue, file_path=file_path).exists()
+                if not log_exists:
+                    SecurityLog.objects.create(
+                        site=site,
+                        category='code_injection' if any(x in issue for x in ['Dangerous', 'Error', 'Syntax']) else 'config',
+                        text_content=issue,
+                        severity='critical' if 'Critical' in issue else ('high' if 'Warning' in issue else 'low'),
+                        description=issue,
+                        file_path=file_path,
+                        is_fixed=False
+                    )
+            except Exception as log_err:
+                logger.error(f"Failed to save SecurityLog: {log_err}")
 
 
 # ============================================================
@@ -554,21 +574,22 @@ class PerformanceAuditor:
         views_path = os.path.join(str(settings.BASE_DIR), 'marketplace', 'views.py')
         if os.path.exists(views_path):
             issues_found.extend(PerformanceAuditor.audit_views_via_ast(views_path))
-
-        templates_dir = os.path.join(str(settings.BASE_DIR), 'marketplace', 'templates', 'marketplace')
-        if os.path.exists(templates_dir):
-            try:
-                for root, dirs, files in os.walk(templates_dir):
-                    for file in files:
-                        if file.endswith('.html'):
-                            full_path = os.path.join(root, file)
+        
+        # HTML ቴምፕሌቶችን መፈተሽ
+        base_templates_dir = os.path.join(settings.BASE_DIR, 'marketplace', 'templates', 'marketplace')
+        if os.path.exists(base_templates_dir):
+            for root, dirs, files in os.walk(base_templates_dir):
+                for file in files:
+                    if file.endswith('.html'):
+                        full_path = os.path.join(root, file)
+                        try:
                             with open(full_path, 'r', encoding='utf-8') as f:
                                 html_content = f.read()
-                            if "<style>" in html_content or "<script>" in html_content:
-                                issues_found.append(f"Performance Warning: Inline CSS/JS blocks found in {file}. Move these to global.css or global.js to unblock page-rendering.")
-                                break
-            except Exception as e:
-                logger.error(f"Performance scanning error for templates: {e}")
+                            is_safe, sec_issues = SecurityAuditor.scan_code_safety(html_content, file_path=full_path, site=site)
+                            if not is_safe:
+                                issues_found.extend(sec_issues)
+                        except Exception as html_err:
+                            logger.debug("HTML template audit failed: %s", html_err)
 
         for issue in issues_found:
             task_name = f"⚡ PERFORMANCE OPTIMIZATION: {issue[:50]}..."
@@ -604,9 +625,9 @@ class PerformanceAuditor:
             # 🛡️ FIXED: FieldError ስህተትን ለመከላከል 'inquiry_count' የሚለው አምድ በProduct ሞዴል ላይ መኖሩን በፓይተን ማረጋገጥ
             product_fields = [f.name for f in Product._meta.get_fields()]
             if 'inquiry_count' not in product_fields:
-                logger.debug("Inquiry optimization bypassed: 'inquiry_count' field does not exist on Product model.")
+                logger.debug("Inquiry optimization bypassed: 'inquiry_count' query disabled.")
                 return
-
+                
             target = Product.objects.filter(site=site, inquiry_count__gt=10, is_active=True).first()
             if target:
                 # 🔴 AI CACHING INTEGRATION: ተመሳሳይ ምርት በተደጋገመ ቁጥር ኤፒአይ እንዳይጠራ መሸጎጫን መፈተሽ [1]
@@ -636,18 +657,31 @@ class PerformanceAuditor:
 
 
 # ============================================================
-# ✂️ 5. ANTI-BLOAT ENGINE (የኮድ ማሳጠሪያና ማጽጃ ሞተር)
+# ✂️ 5. ANTI-BLOAT ENGINE (የኮድ ማሳጠሪያ እና ማሻሻያ ሞተር)
 # ============================================================
+
 class AntiBloatEngine:
-    """ኤጀንቱ ለራሱም ሆነ ለድረ-ገጹ ኮድ ሲጽፍ እንዳያብጥ የሚከላከል መመሪያ"""
+    """የኮድ መደጋገም እና የፋይል መጠን መለኪያ መቆጣጠሪያ"""
+    
+    @staticmethod
+    def is_file_bloated(file_path: str, max_chars: int = 15000) -> bool:
+        """ፋይሉ በይዘት ብዛት በጣም ማበጡን (Bloated) መሆኑን በዳይናሚክ ይለካል [1]"""
+        if not file_path or not os.path.exists(file_path):
+            return False
+        try:
+            return os.path.getsize(file_path) > max_chars
+        except Exception:
+            return False
 
     @staticmethod
     def prune_and_optimize(old_code, new_code, file_path):
-        """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከልል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል"""
-        if len(new_code) < 12000 or (old_code and len(new_code) < len(old_code) * 1.20):
+        """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከላል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል"""
+        # የፋይሉን መጠን ራሱ መርምሮ ካበጠ ብቻ ማሳጠር (v10.18 update)
+        is_bloated = AntiBloatEngine.is_file_bloated(file_path)
+        if not is_bloated and (len(new_code) < 12000 or (old_code and len(new_code) < len(old_code) * 1.20)):
             return new_code
 
-        logger.warning(f"⚠️ Anti-Bloat Guard: Code for {file_path} is bloating ({len(new_code)} chars). Activating self-pruning...")
+        logger.warning(f"⚠️ Anti-Bloat Guard: Code for {file_path} is bloated. Activating self-pruning...")
 
         prompt = (
             f"Optimize and shrink this Python code for '{file_path}'.\n"
@@ -676,7 +710,6 @@ def refresh_db_connection_on_error(error_message):
     if "OperationalError" in error_message or "DatabaseError" in error_message:
         try:
             from django.db import connections
-            # Thread-safe በሆነ መንገድ ሁሉንም ግንኙነቶች መዝጋት
             connections.close_all()
             logger.info("🛡️ Database connection refreshed safely across all active threads due to error.")
             return True

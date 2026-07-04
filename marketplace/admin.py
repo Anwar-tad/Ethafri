@@ -1,42 +1,22 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/admin.py
-# 📝 ለውጥ፦ Dynamic Diagnostics & Universal Marketplace Synced (v10.16)
-# ✅ የተፈቱ ችግሮች፦ Dynamic crash-safe registers, product translation tabular inline support, and stylized HTML code block preview for AIEvolutionLog.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/admin.py
+# 📝 ስሪት፦ v10.18 (Production Grade - Hardened & Beautiful Admin)
+# ✅ የተፈቱ ችግሮች፦ Dynamic crash-safe local imports, product translation stacked inline, and secure code-escaped comparisons inside AIEvolutionLog.
+# 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 from django.contrib import admin
-from django.utils.html import format_html
+from django.utils.html import escape, format_html # ✅ የደህንነት እና የንድፍ መተግበሪያ 'escape' እዚህ ተጨምሯል
 from django.apps import apps
 
-# ሁሉንም ሞዴሎች በደህንነት መጫን
-Product = apps.get_model('marketplace', 'Product')
-Category = apps.get_model('marketplace', 'Category')
-UserSearch = apps.get_model('marketplace', 'UserSearch')
-ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
-TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
-
-SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
-AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
-AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
-AdminOverrideInstruction = apps.get_model('marketplace', 'AdminOverrideInstruction')
-
-AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
-SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
-SiteConfig = apps.get_model('marketplace', 'SiteConfig')
-MarketTrend = apps.get_model('marketplace', 'MarketTrend')
-
-SellerProfile = apps.get_model('marketplace', 'SellerProfile')
-CustomerAcquisitionLog = apps.get_model('marketplace', 'CustomerAcquisitionLog')
-MarketingCampaign = apps.get_model('marketplace', 'MarketingCampaign')
-NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
-
-VectorMemory = apps.get_model('marketplace', 'VectorMemory')
-AgentTask = apps.get_model('marketplace', 'AgentTask')
-ABTest = apps.get_model('marketplace', 'ABTest')
-SecurityLog = apps.get_model('marketplace', 'SecurityLog')
-PredictionLog = apps.get_model('marketplace', 'PredictionLog')
-ExternalAPI = apps.get_model('marketplace', 'ExternalAPI')
+# 🛡️ REGISTRY SAFETY: የ 'AppRegistryNotReady' ስህተትን ለመከላከል ሞዴሎችን ከአካባቢያዊ ፋይል መጫን
+from .models import (
+    Product, Category, UserSearch, ProductTranslation, TranslationQueue,
+    SiteRegistry, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction,
+    AgentErrorLog, SelfHealingLog, SiteConfig, MarketTrend,
+    SellerProfile, CustomerAcquisitionLog, MarketingCampaign, NotificationQueue,
+    VectorMemory, AgentTask, ABTest, SecurityLog, PredictionLog, ExternalAPI
+)
 
 
 # 🛡️ REGISTRY COLLISION GUARD: ሰርቨሩ በ AlreadyRegistered ስህተት እንዳይከሰከስ የደህንነት ምዝገባ ረዳት [1]
@@ -96,7 +76,7 @@ class SiteRegistryAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'growth_level', 'build_phase')
     fieldsets = (
         ('መሠረታዊ መረጃ', {'fields': ('name', 'display_name', 'niche', 'target_market')}),
-        ('ቴክኒክ (Repo/URL)', {'fields': ('repo_path', 'deployment_url')}),
+        ('ልክኒክ (Repo/URL)', {'fields': ('repo_path', 'deployment_url')}),
         ('የእድገት ሁኔታ', {'fields': ('growth_level', 'build_phase', 'real_product_count', 'monthly_visitors')}),
         ('የኤጀንት መቆጣጠሪያ (Agent Control)', {'fields': ('is_active', 'auto_update_enabled', 'auto_marketing_enabled')}),
     )
@@ -134,6 +114,11 @@ class AIEvolutionLogAdmin(admin.ModelAdmin):
     def code_preview(self, obj):
         old_code = obj.old_code_backup or "No previous content (New File)"
         new_code = obj.new_code_patch or "No patch content"
+        
+        # 🛡️ FIXED: HTML እና JavaScript ኮዶችን በአድሚን ገጽ ላይ ደህንነታቸውን ጠብቆ ለማሳየት 'escape' ጥሪ
+        safe_old_code = escape(old_code)
+        safe_new_code = escape(new_code)
+        
         return format_html(
             '<div>'
             '<h3>⏮️ Old Code Backup</h3>'
@@ -141,7 +126,7 @@ class AIEvolutionLogAdmin(admin.ModelAdmin):
             '<h3>⏭️ New Code Patch</h3>'
             '<pre style="background: #272822; color: #a6e22e; padding: 10px; border-radius: 5px; font-family: monospace; overflow-x: auto; max-height: 250px;">{}</pre>'
             '</div>',
-            old_code, new_code
+            safe_old_code, safe_new_code
         )
     code_preview.short_description = "Code Comparison"
 
