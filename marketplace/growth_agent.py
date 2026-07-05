@@ -150,7 +150,17 @@ def is_html_target(target_file):
 # ============================================================
 # 🌱 SEEDING-FIRST GUARDRAIL
 # ============================================================
-
+def extract_telegram_username(url_or_channel: str) -> str:
+    """🛡️ FIXED: ቴሌግራም ሊንክ ወይም ዩዘርኔም በመቃኘት ንጹሕ ዩዘርኔሙን ብቻ ለይቶ ያወጣል [1]"""
+    if not url_or_channel:
+        return ""
+    clean = url_or_channel.strip().replace('@', '')
+    if 't.me/' in clean:
+        clean = clean.split('t.me/')[-1]
+    if '/' in clean:
+        clean = clean.split('/')[0]
+    clean = clean.split('?')[0]
+    return clean.strip()
 def has_seeded_products(site):
     """ምርት ለ ሳይቱ መኖሩን ይለያል፣ site-mismatch/inactive ችግሮችን ራሱ ይጠግናል/ይዘግባል"""
     Product = get_model('Product')
@@ -888,7 +898,9 @@ class MultiChannelHarvester:
         
         try:
             if platform == 'Telegram':
-                test_url = f"https://t.me/s/{url.replace('@', '')}"
+                # 🛡️ FIXED: የተስተካከለ የቴሌግራም ዩዘርኔም ቼክ
+                username = extract_telegram_username(url)
+                test_url = f"https://t.me/s/{username}"
                 res = requests.get(test_url, timeout=5)
                 if res.status_code == 200 and 'tgme_widget_message' in res.text:
                     return True
@@ -914,13 +926,15 @@ class MultiChannelHarvester:
         return []
     
     def _scrape_telegram(self, channel):
-        url = f"https://t.me/s/{channel.replace('@', '')}"
+        # 🛡️ FIXED: የተስተካከለ የቴሌግራም ዩዘርኔም አሰሳ
+        username = extract_telegram_username(channel)
+        url = f"https://t.me/s/{username}"
         try:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
                 messages = re.findall(r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', res.text, re.DOTALL)
                 
-                # 🛡️ FIXED: የቴሌግራም ፎቶዎችን background-image url በጥራት ፈልቅቆ ማውጫ [1]
+                # 🛡️ FIXED: የቴሌግራም ፎቶዎችን background-image url በጥራት ፈልቅቆ ማውጫ
                 images = re.findall(r"background-image:url\(\'([^\'\)]+)\'\)", res.text)
                 
                 products = []
@@ -929,7 +943,6 @@ class MultiChannelHarvester:
                     if clean_text:
                         product = self._parse_product_text(clean_text)
                         if product:
-                            # ምስሉ ካለ በትክክል ማገናኘት
                             product['image_url'] = images[i] if i < len(images) else ''
                             products.append(product)
                 return products
