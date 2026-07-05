@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from django.contrib.auth.models import User
 import ast
 import json
 import os
@@ -1311,7 +1312,7 @@ class CEOOperations:
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
         SiteConfig = get_model('SiteConfig')
-        User = get_model('User')
+        # 🛡️ FIXED: User = get_model('User') የሚለው መስመር ተወግዷል (በአናት ላይ ባለው User ቀጥታ ይተካል) [1]
 
         products_to_create = []
         notifications_to_create = []
@@ -1324,7 +1325,7 @@ class CEOOperations:
                 contact = p['seller_contact']
                 uname = contact.replace('@', '').replace('+', '').strip()
                 
-                # 🛡️ FIXED: የጃንጎ ዩዘር ስም ስህተትን (ValidationError) ለመከላከል ስሙን በሪጀክስ ማጽዳት [1]
+                # የጃንጎ ዩዘር ስም ስህተትን ለመከላከል ስሙን በሪጀክስ ማጽዳት [1]
                 uname = re.sub(r'[^a-zA-Z0-9_@.+\-]', '', uname)[:150]
                 
                 user, created = User.objects.get_or_create(username=uname, defaults={'is_active': True})
