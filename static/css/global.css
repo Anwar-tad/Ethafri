@@ -1460,7 +1460,3 @@ html {
     .navbar-custom .navbar-brand { font-size: 0.9rem; }
     .navbar-custom .nav-link { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
 }
-የተስተካከለውን ግሎባል CSS ላክልኝ ፔጆቹ ኢንተርኔት ሲጠፋ እንዳይዛቡ ያረገውና በተኖቹ እንዳይዘረጡ ያረገው ፊቸር ያለበትን በተለይ ሰታተስ ፔጅ ላይ ፔንዲን ታስኮቹ ያልመጡበትን ችግር በቪዮው ወይም በኮንሲውመር አስተካክለህ  አሳይኝ ሎጉን ቼክ አድርገው
-
-Failed to compile status check: JSONEncoder.__init__() got an unexpected keyword argument 'encoder' የሚለውን ስህተት ፈታኸዋል_
-2026-07-04T18:53:04.01520053Z ⏱️ Fail-Fast: GEMINI_KEY_1 timed out. Swapping... ይህንንም መፍትሄ ካለህ አካትተው
