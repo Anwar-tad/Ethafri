@@ -1317,10 +1317,11 @@ class CEOOperations:
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
         SiteConfig = get_model('SiteConfig')
-        # 🛡️ FIXED: User = get_model('User') የሚለው መስመር ተወግዷል (በአናት ላይ ባለው User ቀጥታ ይተካል) [1]
+        # User በአናት ላይ በቋሚነት ተጭኗል
 
         products_to_create = []
         notifications_to_create = []
+        seen_titles = set() # በባች ውስጥ ያሉትን የተደጋገሙ ርዕሶች መከታተያ
 
         for p in products_list:
             if not isinstance(p, dict) or not p.get('title') or not p.get('seller_contact'):
@@ -1333,12 +1334,29 @@ class CEOOperations:
                 # የጃንጎ ዩዘር ስም ስህተትን ለመከላከል ስሙን በሪጀክስ ማጽዳት [1]
                 uname = re.sub(r'[^a-zA-Z0-9_@.+\-]', '', uname)[:150]
                 
+                # በባች ውስጥ የተደጋገሙ ምርቶችን በቅድሚያ መዝለል
+                title_key = (uname, p['title'].strip().lower())
+                if title_key in seen_titles:
+                    continue
+                seen_titles.add(title_key)
+                
                 user, created = User.objects.get_or_create(username=uname, defaults={'is_active': True})
                 if created:
                     user.set_unusable_password()
                     user.save()
                     
                 SellerProfile.objects.get_or_create(user=user, defaults={'site': self.site})
+
+                # 🛡️ FIXED: ምርቶች በዳታቤዝ ውስጥ በተደጋጋሚ እንዳይለጠፉ መከላከያ (Deduplication Check) [1]
+                product_exists = Product.objects.filter(
+                    seller=user,
+                    site=self.site,
+                    title=p['title'].strip()
+                ).exists()
+                
+                if product_exists:
+                    logger.info(f"⏭️ Bulk Harvester: Skipping duplicate product '{p['title']}' for user '{uname}'")
+                    continue
 
                 try:
                     clean_price = float(p.get('price', 0))
@@ -1395,7 +1413,7 @@ class CEOOperations:
                 self.site.total_sellers = User.objects.filter(product__site=self.site).distinct().count()
                 self.site.save()
                 
-                logger.info(f"✨ Bulk Harvester: Processed {len(products_to_create)} products!")
+                logger.info(f"✨ Bulk Harvester: Processed {len(products_to_create)} new unique products!")
         except Exception as db_err:
             logger.error(f"Bulk DB Insertion failed: {db_err}")
 

@@ -445,17 +445,16 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
                 payload = payload_builder(active_prompt, system_instruction)
                 res = requests.post(url, json=payload, headers=headers, timeout=timeout_limit)
                 
-                if res.status_code == 429:
-                    logger.warning(f"⚠️ {provider_tag} hit rate limit (429). Activating 60s cooldown cache...")
+                # 🛡️ FIXED: 404/410 ወይም የቁልፍ መቋረጦች ሲፈጠሩ ወዲያውኑ በካሽ Cooldown በመቆለፍ የሰርቨር መዘግየትን መከላከል [1]
+                if res.status_code != 200:
+                    last_error = f"HTTP {res.status_code}: {res.text}"
+                    logger.warning(f"⚠️ {provider_tag} failed with {last_error}. Activating 60s cooldown cache...")
                     cache.set(cooldown_key, True, timeout=60)
                     continue
                     
                 if res.status_code == 200:
                     response_data = res.json()
                     return _parse_provider_response(provider, response_data)
-                    
-                last_error = f"HTTP {res.status_code}: {res.text}"
-                logger.warning(f"⚠️ {provider_tag} failed with {last_error}. Trying next fallback...")
                 
             except requests.exceptions.Timeout:
                 last_error = f"Timeout ({timeout_limit}s) reached for {provider_tag}"
