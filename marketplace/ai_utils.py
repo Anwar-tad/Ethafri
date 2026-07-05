@@ -262,30 +262,28 @@ def _get_priority_providers(task_type: str) -> List[str]:
     # የዲፎልት ቅደም-ተከተል
     return ["SAMBANOVA", "CEREBRAS", "NVIDIA", "GEMINI", "GROQ", "MISTRAL", "OPENROUTER", "HUGGINGFACE", "GITHUB"]
 
-
 def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, Dict[str, str], Any]:
     """አቅራቢዎችን በመለየት ትክክለኛውን URL እና Payload ማመንጫ ይወስናል [1]"""
     headers = {"Content-Type": "application/json"}
     
-    # 🛡️ 5. አዲሱ የ SAMBANOVA ክፍት ኤፒአይ ጌትዌይ (Llama 3.1 70B)
+    # 🛡️ 1. FIXED: በ SambaNova ላይ በቋሚነት ወደሚሠራው የ Llama-3.3-70B-Instruct ሞዴል መቀየሩ
     if provider == "SAMBANOVA":
         url = "https://api.sambanova.ai/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            "model": "Meta-Llama-3.1-8B-Instruct",
+            "model": "Meta-Llama-3.3-70B-Instruct", # Meta-Llama-3.1-8B-Instruct was deprecated on SN
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
-    # 🛡️ 6. አዲሱ የ CEREBRAS ክፍት ኤፒአይ ጌትዌይ (በሰከንድ 1000 ቶከን ፍጥነት) [1]
+    # 🛡️ 2. FIXED: በ Cerebras ላይ በቋሚነት ወደሚሠራው የ llama-3.3-70b ሞዴል መቀየሩ
     elif provider == "CEREBRAS":
         url = "https://api.cerebras.ai/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            "model": "llama3.1-8b",
+            "model": "llama-3.3-70b", # llama3.1-8b was not found on Cerebras
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
-    # 🛡️ 7. አዲሱ የ NVIDIA NIM ክፍት ኤፒአይ ጌትዌይ
     elif provider == "NVIDIA":
         url = "https://integrate.api.nvidia.com/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
@@ -298,7 +296,6 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
         url = "https://models.inference.ai.azure.com/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            # 🛡️ FIXED: 100% ቋሚና ክፍት በሆነው የ 'gpt-4o-mini' የነጻ ሞዴል መተካቱ (የ Llama 400 ስህተት መከላከያ) [1]
             "model": "gpt-4o-mini",
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
