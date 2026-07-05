@@ -247,9 +247,14 @@ class FeatureEvolutionEngine:
             error_msg = ""
             break
             
+        # 🛡️ FIXED: 3ቱ ሙከራዎች ካልተሳኩ ወዲያውኑ ስራውን በማቋረጥ የ compile() ስህተትን መከላከል [1]
         if attempts >= 3 and error_msg:
             logger.error(f"❌ Evolution Sandbox: Failed to compile or audit code after 3 recursive healing attempts: {error_msg}")
-            return False
+            task = self.BacklogModel.objects.filter(site=self.site, task_name=feature['name']).first()
+            if task:
+                task.status = 'Pending'
+                task.save()
+            return False # <--- እዚህ ጋር ስራውን ያቋርጣል (ከስህተት ያድናል)
 
         # 💉 3. አውቶማቲክ የኢምፖርት ሎጂክ ማስላት (ይህም በዋናው ፋይል አናት ላይ import ይተክላል)
         if is_bloated and not target_is_html:

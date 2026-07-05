@@ -625,7 +625,6 @@ class RecursiveBuilder:
         task.status = 'Running'
         task.save()
 
-        # 🛡️ ፊቸር 5፣ 6 እና 7 (ስማርት የኮድ ኦፕቲማይዜሽን መመሪያዎች እዚህ ተጭነዋል) [1]
         prompt = (
             f"Task: {task.task_name}. Write full clean Python/HTML code for {task.target_file} using 2026 standards.\n"
             f"CRITICAL: Avoid repeating these past failures/issues: {json.dumps(memory_context, ensure_ascii=False)}.\n"
@@ -645,7 +644,7 @@ class RecursiveBuilder:
         _, ask_master_ai_smart, _, _ = _get_ai_utils()
         clean_and_parse_json, _, _, _ = _get_ai_utils()
         
-        # 🔄 ፊቸር 1 (Recursive AI Compiler Feedback Loop - 3 ሙከራዎች) [1]
+        # 🔄 ፊቸር 1 (Recursive AI Compiler Feedback Loop - 3 ሙከራዎች)
         attempts = 0
         new_code = ""
         syntax_error_msg = ""
@@ -654,7 +653,6 @@ class RecursiveBuilder:
         while attempts < 3:
             attempts += 1
             if syntax_error_msg:
-                # የተፈጠረውን የሲንታክስ ስህተት መልሶ ወደ ኤአይ በመመገብ ማስተካከያ መጠየቅ
                 retry_prompt = (
                     f"Your previous code attempt for '{task.target_file}' returned the following syntax or structure error: '{syntax_error_msg}'.\n"
                     f"Please fully repair and refactor the code to fix this issue completely while strictly preserving "
@@ -671,15 +669,14 @@ class RecursiveBuilder:
 
             new_code = res['code']
             if target_is_html:
-                # ፊቸር 2 (Lightweight HTML container tag balance check)
                 if html_content_is_malformed(new_code):
                     syntax_error_msg = "Malformed HTML detected (unbalanced tags or unclosed container structures)"
                     continue
-                break # የኤችቲኤምኤል ቴምፕሌት ፍተሻ በተሳካ ሁኔታ አልፏል
+                break
             else:
                 try:
                     compile(new_code, '<string>', 'exec')
-                    break # የፓይተን ሲንታክስ ፍተሻ በተሳካ ሁኔታ አልፏል
+                    break
                 except SyntaxError as e:
                     syntax_error_msg = f"SyntaxError: {e}"
                     logger.warning(f"⚠️ Recursive Compiler (Attempt {attempts}/3): Found syntax error: {syntax_error_msg}. Retrying...")
@@ -692,7 +689,8 @@ class RecursiveBuilder:
 
         SecurityAuditor, _, _ = _get_self_doctor()
         
-        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=task.target_file, site=site)
+        # 🛡️ FIXED: site=site ወደ site=self.site ተስተካክሏል (NameError ተቀርፏል) [1]
+        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=task.target_file, site=self.site)
         if not is_safe:
             logger.error(f"🛡️ Security Gate Blocked Code for {task.target_file}: {msg}")
             task.status = 'Blocked'
@@ -745,7 +743,6 @@ class RecursiveBuilder:
         except Exception:
             pass
         return "Success"
-
 
 # ============================================================
 # 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
@@ -1836,7 +1833,7 @@ def get_site_project_state_dynamic(site):
         else:
             logger.warning("Templates directory not found locally.")
 
-    all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
+    all_known_backlogs = AIProjectBacklog.objects.filter(site=self.site)
     for bk in all_known_backlogs:
         if bk.target_file not in file_paths:
             file_paths[bk.target_file] = resolve_local_file_path(site, bk.target_file)
