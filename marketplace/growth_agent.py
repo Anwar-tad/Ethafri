@@ -1076,16 +1076,21 @@ class CEOOperations:
     def _harvest_verified_products_bulk(self):
         """ምርቶችን በጅምላ ያስሳል - 6ቱንም AI ኪዎች በ rotary failover ይጠቀማል"""
         SiteConfig = get_model('SiteConfig')
+        Product = get_model('Product') # ✅ ሞዴሉን በዳይናሚክ መጫን
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
 
         last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
-        if last:
+        
+        # 🛡️ FIXED: በዳታቤዝ ውስጥ 0 ምርት ካለ የ 1 ሰዓት መቆያ ገደቡን በዳይናሚክ ማለፍ (Bypass throttling if empty) [1]
+        is_empty = not Product.objects.filter(site=self.site, is_active=True).exists()
+        
+        if last and not is_empty:
             try:
                 last_time = datetime.fromisoformat(last.value['time'])
                 if timezone.is_naive(last_time):
                     last_time = timezone.make_aware(last_time)
                 if (timezone.now() - last_time) < timedelta(hours=1):
-                    return
+                    return # ምርቶች ካሉ ብቻ የ 1 ሰዓት ገደብን ያከብራል
             except Exception as e:
                 logger.warning(f"Error checking harvest timestamp: {e}")
 
