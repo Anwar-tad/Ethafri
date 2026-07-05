@@ -966,7 +966,7 @@ class MultiChannelHarvester:
         if lines:
             product['title'] = lines[0][:150]
         
-        # 🛡️ FIXED: የአገር ውስጥ የዋጋ መዋቅሮችን በሙሉ በዝርዝር መፈተሻ [1]
+        # የዋጋ አሰላለፍ መፈተሻ
         price_match = re.search(r'(?:ዋጋ|ብር|Price|Birr|Br|ETB|Price)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE) or \
                       re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', text, re.IGNORECASE)
         if price_match:
@@ -975,9 +975,10 @@ class MultiChannelHarvester:
             except ValueError:
                 pass
         
-        phone_match = re.search(r'(?:\+251|09|07)\d{8}', text)
+        # 🛡️ FIXED: የኢትዮጵያን ስልኮች ከክፍተቶች፣ ከቅንፎች እና ከሰረዞች ጋር በጥራት መፈልቀቂያ ረዳት [1]
+        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', text)
         if phone_match:
-            product['seller_contact'] = phone_match.group(0)
+            product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
         else:
             tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text)
             if tg_match:
