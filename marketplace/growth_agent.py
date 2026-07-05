@@ -1041,6 +1041,10 @@ class MultiChannelHarvester:
 # 💼 CEO OPERATIONS
 # ============================================================
 
+# ============================================================
+# 💼 CEO OPERATIONS
+# ============================================================
+
 class CEOOperations:
     def __init__(self, site):
         self.site = site
@@ -1059,10 +1063,11 @@ class CEOOperations:
         if not lines: return None
         
         title = lines[0][:150]
-        phone_match = re.search(r'(?:\+251|09|07)\d{8}', text)
+        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', text)
         tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text)
         
-        contact = phone_match.group(0) if phone_match else (tg_match.group(0) if tg_match else "0900000000")
+        # 🛡️ FIXED: ስልኮችን ከክፍተቶች እና ከሰረዞች ማጽጃ ጋሻ [1]
+        contact = re.sub(r'[^\d+]', '', phone_match.group(0)) if phone_match else (tg_match.group(0) if tg_match else "0900000000")
             
         price = 0.0
         price_match = re.search(r'(?:ዋጋ|Price|Birr|ETB|ብር)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE)
@@ -1399,7 +1404,7 @@ class CEOOperations:
         links = {}
         if not contact_str: 
             return links
-        phone_match = re.search(r'(?:\+251|09|07)\d{8}', contact_str)
+        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', contact_str)
         if phone_match:
             raw_phone = phone_match.group(0)
             clean_phone = raw_phone
