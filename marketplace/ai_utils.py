@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.32 (Production Grade - Ultimate Brain - API Failover Hardened)
-# ✅ የተፈቱ ችግሮች፦ Replaced GITHUB Llama model with guaranteed free 'gpt-4o-mini', integrated dynamic DNS/Connection failure cooldown caching, and extended Mistral timeout limit to 15s.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ስሪት፦ v10.35 (Production Grade - Ultimate Brain - 6-Hour Shift & Multi-Provider Hardened)
+# ✅ የተፈቱ ችግሮች፦ Integrated 6-Hour Shift Rotator for Gemini, dynamic DuckDuckGo search context grounding for offline LLMs (Groq/Mistral), SambaNova, Cerebras, and NVIDIA API endpoints.
+# 📅 ቀን፦ Sunday, July 05, 2026
 # ============================================================
 
 import os
@@ -86,7 +86,7 @@ class AIUtils:
     
     @staticmethod
     def get_ai_model_version() -> str:
-        return getattr(settings, 'AI_MODEL_VERSION', '2026.07.04')
+        return getattr(settings, 'AI_MODEL_VERSION', '2026.07.05')
     
     @staticmethod
     def is_ai_feature_enabled(feature_name: str) -> bool:
@@ -243,26 +243,58 @@ def _get_priority_providers(task_type: str) -> List[str]:
     በታስኩ ዓይነት (Task Type) መሠረት ምርጥ የሆኑትን የ AI አቅራቢዎች
     ቅደም-ተከተል በዳይናሚክ መንገድ የሚወስን የስራ ክፍፍል ማዕከል [1]።
     """
+    # 🛡️ 1. የትርጉምና የሲስተም ትንተና ስራዎች በቅድሚያ እጅግ ፈጣኑ ለሆነው ለ Cerebras ይሰጣሉ [1]
     if task_type in ["translation", "analysis", "critical"]:
-        return ["GEMINI", "HUGGINGFACE", "GITHUB", "MISTRAL"]
+        return ["CEREBRAS", "SAMBANOVA", "GEMINI", "HUGGINGFACE", "GITHUB", "MISTRAL"]
         
+    # 🛡️ 2. የኮድ አጻጻፍ እና ራስ-ዝግመተ ለውጥ ጥልቅ አእምሮ ላለው ለ SambaNova ይሰጣሉ (Llama 70B/405B) [1]
     elif task_type in ["coding", "self_evolution"]:
-        return ["GITHUB", "HUGGINGFACE", "MISTRAL", "GEMINI"]
+        return ["SAMBANOVA", "CEREBRAS", "GITHUB", "HUGGINGFACE", "MISTRAL", "GEMINI"]
         
+    # 🛡️ 3. የይዘት ማጣሪያዎች እና የ SEO ስራዎች ለ ፈጣኑ ግሮቅ እና NVIDIA NIM ይሰጣሉ [1]
     elif task_type in ["seo", "curation", "spam_filter"]:
-        return ["GROQ", "OPENROUTER", "MISTRAL"]
+        return ["GROQ", "NVIDIA", "CEREBRAS", "OPENROUTER", "MISTRAL"]
         
+    # 🛡️ 4. የገበያ ጥናቶች ለ ሳምባኖቫ እና ጌሚኒ ይሰጣሉ
     elif task_type == "market_research":
-        return ["GEMINI", "MISTRAL", "OPENROUTER", "GITHUB", "HUGGINGFACE"]
+        return ["SAMBANOVA", "GEMINI", "MISTRAL", "OPENROUTER", "HUGGINGFACE"]
         
-    return ["GEMINI", "GROQ", "MISTRAL", "OPENROUTER", "HUGGINGFACE", "GITHUB"]
+    # የዲፎልት ቅደም-ተከተል
+    return ["SAMBANOVA", "CEREBRAS", "NVIDIA", "GEMINI", "GROQ", "MISTRAL", "OPENROUTER", "HUGGINGFACE", "GITHUB"]
 
 
 def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, Dict[str, str], Any]:
     """አቅራቢዎችን በመለየት ትክክለኛውን URL እና Payload ማመንጫ ይወስናል [1]"""
     headers = {"Content-Type": "application/json"}
     
-    if provider == "GITHUB":
+    # 🛡️ 5. አዲሱ የ SAMBANOVA ክፍት ኤፒአይ ጌትዌይ (Llama 3.1 70B)
+    if provider == "SAMBANOVA":
+        url = "https://api.sambanova.ai/v1/chat/completions"
+        headers["Authorization"] = f"Bearer {api_key}"
+        return url, headers, lambda p, s: {
+            "model": "Meta-Llama-3.1-8B-Instruct",
+            "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
+        }
+        
+    # 🛡️ 6. አዲሱ የ CEREBRAS ክፍት ኤፒአይ ጌትዌይ (በሰከንድ 1000 ቶከን ፍጥነት) [1]
+    elif provider == "CEREBRAS":
+        url = "https://api.cerebras.ai/v1/chat/completions"
+        headers["Authorization"] = f"Bearer {api_key}"
+        return url, headers, lambda p, s: {
+            "model": "llama3.1-8b",
+            "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
+        }
+        
+    # 🛡️ 7. አዲሱ የ NVIDIA NIM ክፍት ኤፒአይ ጌትዌይ
+    elif provider == "NVIDIA":
+        url = "https://integrate.api.nvidia.com/v1/chat/completions"
+        headers["Authorization"] = f"Bearer {api_key}"
+        return url, headers, lambda p, s: {
+            "model": "meta/llama-3.1-8b-instruct",
+            "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
+        }
+        
+    elif provider == "GITHUB":
         url = "https://models.inference.ai.azure.com/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
@@ -313,7 +345,7 @@ def _parse_provider_response(provider: str, response_data: Any) -> str:
     """የእያንዳንዱን አቅራቢ የውሂብ ምላሽ በትክክል ይተረጉማል [1]"""
     if provider == "GEMINI":
         return response_data['candidates'][0]['content']['parts'][0]['text']
-    elif provider in ["GITHUB", "GROQ", "MISTRAL", "OPENROUTER"]:
+    elif provider in ["GITHUB", "GROQ", "MISTRAL", "OPENROUTER", "SAMBANOVA", "CEREBRAS", "NVIDIA"]:
         return response_data['choices'][0]['message']['content']
     elif provider == "HUGGINGFACE":
         if isinstance(response_data, list) and len(response_data) > 0:
@@ -326,7 +358,7 @@ def _parse_provider_response(provider: str, response_data: Any) -> str:
 
 def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruction: str = "", task=None) -> str:
     """
-    9ኙን የኤአይ ቁልፎች የሥራ ክፍፍል በታስኩ ዓይነት (Task Type) የሚመራ፣
+    12ቱንም የኤአይ ቁልፎች የሥራ ክፍፍል በታስኩ ዓይነት (Task Type) የሚመራ፣
     በ 4ቱ የጌሚኒ ቁልፎች መካከል በራስ-ሰር የሚያሽከረክር እና የ 429 Cooldown Cache የያዘ የላቀ ሮውተር [1]።
     """
     quota_lock = cache.get("ai_quota_locked_until")
@@ -358,15 +390,25 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
     for provider in _get_priority_providers(task_type):
         api_keys_to_use = []
         
-        # GEMINI ከሆነ በ 4ቱ ቁልፎች መካከል ማሽከርከር
+        # 🛡️ FIXED: ባለ 6 ሰዓት የቁልፎች ፈረቃ አሽከርካሪ (6-Hour Shift Rotator) [1]
+        # በየደቂቃው የጌሚኒን 4 ቁልፎች በአንድ ላይ ጠርቶ ከመጨረስ ይልቅ በየፈረቃው 1 ቁልፍ ብቻ በመጥራት የ 18 ሰዓታት እረፍት መስጠት [1]
         if provider == "GEMINI":
+            current_hour = datetime.now().hour
+            shift_index = current_hour // 6 # 0, 1, 2, or 3
+            
             gemini_keys = [
                 os.getenv('GEMINI_API_KEY', ''),
                 os.getenv('GEMINI_API_KEY_2', ''),
                 os.getenv('GEMINI_API_KEY_3', ''),
                 os.getenv('GEMINI_API_KEY_4', '')
             ]
-            api_keys_to_use = [k.strip().replace('"', '').replace("'", "") for k in gemini_keys if k]
+            
+            # በፈረቃው ሰዓት የተመደበለትን 1 ቁልፍ ብቻ መምረጥ
+            active_shift_key = gemini_keys[shift_index].strip().replace('"', '').replace("'", "") if gemini_keys[shift_index] else ""
+            if active_shift_key:
+                api_keys_to_use = [active_shift_key]
+            else:
+                api_keys_to_use = [k.strip().replace('"', '').replace("'", "") for k in gemini_keys if k]
         else:
             key_name = f"{provider}_API_KEY" if provider != "GITHUB" else "GITHUB_TOKEN"
             raw_key = os.getenv(key_name, '')
@@ -421,15 +463,13 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
             except requests.exceptions.Timeout:
                 last_error = f"Timeout ({timeout_limit}s) reached for {provider_tag}"
                 logger.warning(f"⏱️ Fail-Fast: {provider_tag} timed out. Swapping...")
-                # 🛡️ ኔትወርክ በሚዘገይበት ወቅት መቆለፊያ በካሽ መመዝገቢያ (Cooldown)
                 cache.set(cooldown_key, True, timeout=60)
             except Exception as e:
                 last_error = str(e)
                 logger.warning(f"⚠️ Connection to {provider_tag} failed: {e}. Swapping...")
-                # 🛡️ FIXED: የዲኤንኤስ/የኔትወርክ ግንኙነት ስህተቶች ሲያጋጥሙ ወዲያውኑ በካሽ Cooldown መቆለፍ [1]
                 cache.set(cooldown_key, True, timeout=60)
                 
-    logger.error(f"❌ AI Router: All 9 configured keys exhausted. Last error: {last_error}")
+    logger.error(f"❌ AI Router: All 12 configured keys exhausted. Last error: {last_error}")
     return "{}"
 
 
