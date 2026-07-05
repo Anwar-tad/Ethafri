@@ -879,13 +879,77 @@ class MultiChannelHarvester:
         return []
 
     def _get_fallback_sources(self):
-        """🛡️ FIXED: በኢትዮጵያ ውስጥ እጅግ ግዙፍና ንቁ የሆኑ እውነተኛ ቻናሎች እዚህ ተመዝግበዋል"""
+        """🛡️ FIXED: በኢትዮጵያ ውስጥ ያሉ 10 እጅግ ግዙፍና ንቁ የሆኑ እውነተኛ ቻናሎች [1]"""
         return [
             {"url_or_channel": "shegemarket", "platform_type": "Telegram"},
             {"url_or_channel": "merkato_market", "platform_type": "Telegram"},
             {"url_or_channel": "ethiomarketlink", "platform_type": "Telegram"},
+            {"url_or_channel": "habesha_market", "platform_type": "Telegram"},
+            {"url_or_channel": "addismarket", "platform_type": "Telegram"},
+            {"url_or_channel": "gebezamarket", "platform_type": "Telegram"},
+            {"url_or_channel": "addisababadelivery", "platform_type": "Telegram"},
+            {"url_or_channel": "ethio_brand_market", "platform_type": "Telegram"},
+            {"url_or_channel": "sheger_brand", "platform_type": "Telegram"},
             {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji"},
         ]
+
+    def _scrape_telegram(self, channel):
+        username = extract_telegram_username(channel)
+        url = f"https://t.me/s/{username}"
+        try:
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200:
+                messages = re.findall(r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', res.text, re.DOTALL)
+                images = re.findall(r"background-image:url\(\'([^\'\)]+)\'\)", res.text)
+                
+                products = []
+                # 🛡️ FIXED: በአንድ ቻናል ውስጥ የሚቃኙትን የይዘት መጠን ወደ 30 ሜሴጆች አሳድገነዋል [1]
+                for i, msg in enumerate(messages[:30]): 
+                    clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
+                    if clean_text:
+                        product = self._parse_product_text(clean_text)
+                        if product:
+                            product['image_url'] = images[i] if i < len(images) else ''
+                            products.append(product)
+                return products
+        except Exception as e:
+            logger.error(f"Telegram scrape failed for {channel}: {e}")
+        return []
+
+    def discover_and_harvest_niche_sources(self, site):
+        if not self.is_network_available():
+            logger.warning("🌐 No internet connection. Using cached sources.")
+            return self._get_cached_sources(site)
+        
+        if random.random() < 0.3 or not self._get_cached_sources(site):
+            new_discovered = self.discover_active_market_sources(site)
+            if new_discovered:
+                self._save_sources_to_cache(site, new_discovered)
+        
+        sources = self._get_cached_sources(site)
+        
+        if not sources:
+            logger.warning("⚠️ No active sources found. Seeding default fallback sources...")
+            sources = self._get_fallback_sources()
+            self._save_sources_to_cache(site, sources)
+        
+        active_sources = []
+        for source in sources:
+            if self.check_source_health(source):
+                active_sources.append(source)
+            else:
+                logger.warning(f"❌ Source {source.get('url_or_channel')} is dead, skipping...")
+        
+        all_products = []
+        # 🛡️ FIXED: በአንድ ጊዜ የሚጎበኙትን የቻናሎች ብዛት ወደ 15 ቻናሎች ከፍ አድርገነዋል [1]
+        for source in active_sources[:15]: 
+            logger.info(f"📡 Scraping {source.get('url_or_channel')}...")
+            products = self.get_recent_products(source)
+            if products:
+                all_products.extend(products)
+                logger.info(f"✅ Found {len(products)} products from {source.get('url_or_channel')}")
+        
+        return all_products
 
     def check_source_health(self, source):
         url = source.get('url_or_channel', '')
@@ -1079,21 +1143,22 @@ class CEOOperations:
     def _harvest_verified_products_bulk(self):
         """ምርቶችን በጅምላ ያስሳል - 6ቱንም AI ኪዎች በ rotary failover ይጠቀማል"""
         SiteConfig = get_model('SiteConfig')
-        Product = get_model('Product') # ✅ ሞዴሉን በዳይናሚክ መጫን
+        Product = get_model('Product')
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
 
         last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
         
-        # 🛡️ FIXED: በዳታቤዝ ውስጥ 0 ምርት ካለ የ 1 ሰዓት መቆያ ገደቡን በዳይናሚክ ማለፍ (Bypass throttling if empty) [1]
-        is_empty = not Product.objects.filter(site=self.site, is_active=True).exists()
+        # 🛡️ FIXED: ሱቁ በምርቶች እስኪሞላ (ከ 120 በታች እስከሆነ ድረስ) የ 1 ሰዓት መቆያ ገደብ ሙሉ በሙሉ ታግዷል [1]
+        prod_count = Product.objects.filter(site=self.site, is_active=True).count()
+        is_empty_or_low = prod_count < 120
         
-        if last and not is_empty:
+        if last and not is_empty_or_low:
             try:
                 last_time = datetime.fromisoformat(last.value['time'])
                 if timezone.is_naive(last_time):
                     last_time = timezone.make_aware(last_time)
                 if (timezone.now() - last_time) < timedelta(hours=1):
-                    return # ምርቶች ካሉ ብቻ የ 1 ሰዓት ገደብን ያከብራል
+                    return # ምርቶች ከ 120 በላይ ሲሆኑ ብቻ የ 1 ሰዓት ገደብን ያከብራል [1]
             except Exception as e:
                 logger.warning(f"Error checking harvest timestamp: {e}")
 
@@ -2288,6 +2353,7 @@ def start_autonomous_ceo():
             execute_master_cycle()
 
             AIProjectBacklog = get_model('AIProjectBacklog')
+            Product = get_model('Product') # ✅ ሞዴሉን በዳይናሚክ መጫን
 
             has_pending = False
             try:
@@ -2300,14 +2366,19 @@ def start_autonomous_ceo():
             except (AttributeError, OSError, Exception):
                 load_avg = 0.5
                 
-            if load_avg > 2.0:
+            # 🛡️ FIXED: ሱቁ በምርቶች እስኪሞላ ድረስ (ከ 120 በታች) የ 45 ደቂቃ መኝታው ሙሉ በሙሉ ታግዷል [1]
+            prod_count = Product.objects.filter(is_active=True).count()
+            is_empty_or_low = prod_count < 120
+            
+            if load_avg > 2.0 and not is_empty_or_low:
                 interval = 2700
                 logger.warning(f"⚠️ Server CPU Load is heavy ({load_avg:.2f}). Pacing slowed to 45 minutes.")
             elif not MultiChannelHarvester.is_network_available():
                 interval = 1800
                 logger.warning("🌐 Offline Mode detected. Pacing slowed to 30 minutes.")
             else:
-                interval = 5 if has_pending else 300
+                # ሱቁ እስኪሞላ በየ 30 ሰከንዱ ወይም በየ 1 ደቂቃው (60s) በፍጥነት ይነሳል [1]
+                interval = 30 if (has_pending or is_empty_or_low) else 300
                 
             logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
             import time

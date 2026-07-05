@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.38 (Production Grade - Ultimate Brain - Fully Hardened & Cleaned)
-# ✅ የተፈቱ ችግሮች፦ Removed non-functional HUGGINGFACE provider to prevent DNS log clutter, integrated 6-Hour Shift Rotator for Gemini, automated DuckDuckGo search context injection for offline fallback LLMs, used gpt-oss-120b for Cerebras, and fixed JSON Decode 'Extra data' errors via dynamic bracket-matching parser.
+# 📝 ስሪት፦ v10.40 (Production Grade - Ultimate Brain - Adaptive Pacing & Alternating Spacing)
+# ✅ የተፈቱ ችግሮች፦ Integrated adaptive key rotator pacing (prevents duplicate rate limit errors and agent fatigue), 6-Hour Shift Rotator for Gemini, and raw search fallbacks for offline LLMs.
 # 📅 ቀን፦ Sunday, July 05, 2026
 # ============================================================
 
@@ -180,13 +180,10 @@ def clean_json_response(raw_text: str) -> str:
     clean_text = raw_text.strip()
     
     # የ Markdown json አጥርን ማስወገድ (```json ... ```)
-    if clean_text.startswith("```json"):
-        clean_text = clean_text[7:]
-    elif clean_text.startswith("```"):
-        clean_text = clean_text[3:]
-        
-    if clean_text.endswith("```"):
-        clean_text = clean_text[:-3]
+    if "```json" in clean_text:
+        clean_text = clean_text.split("```json")[-1].split("```")[0]
+    elif "```" in clean_text:
+        clean_text = clean_text.split("```")[1].split("```")[0]
         
     clean_text = clean_text.strip()
     
@@ -222,7 +219,7 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
 
 
 # ============================================================
-# 📡 2. DYNAMIC WEB SEARCH COG (የበይነመረብ ራስ-ገዝ ፍለጋ መሳቢያ)
+# 📡 3. DYNAMIC WEB SEARCH COG (የበይነመረብ ራስ-ገዝ ፍለጋ መሳቢያ)
 # ============================================================
 
 def _fetch_raw_search_results(query: str) -> str:
@@ -259,7 +256,6 @@ def _get_priority_providers(task_type: str) -> List[str]:
     በታስኩ ዓይነት (Task Type) መሠረት ምርጥ የሆኑትን የ AI አቅራቢዎች
     ቅደም-ተከተል በዳይናሚክ መንገድ የሚወስን የስራ ክፍፍል ማዕከል [1]።
     """
-    # 🛡️ FIXED: ሎጉ እንዳይጨናነቅ የማይሰራው የ 'HUGGINGFACE' ቁልፍ ከዚህ ሙሉ በሙሉ ተወግዷል [1]
     if task_type in ["translation", "analysis", "critical"]:
         return ["CEREBRAS", "SAMBANOVA", "GEMINI", "GITHUB", "MISTRAL"]
         
@@ -382,6 +378,20 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
     if not cleaned_api_keys:
         logger.error("❌ AI Router Error: No active keys found in settings/env.")
         return "{}"
+    
+    # 🛡️ FIXED: አድቫንስድ የጊዜ ማፈራረቂያ መዘግየት (Adaptive Key Rotator Pacing) [1]
+    # ማንኛውም ቁልፍ በቅርብ Cooldown ላይ ከሆነ በጥሪዎች መካከል የ 2.0-4.5 ሰከንድ መኝታ በመጨመር የ 429 ስህተት መደጋገምን መከላከል [1]
+    try:
+        active_cooldowns = sum(
+            1 for prov in ['gemini', 'groq', 'mistral', 'openrouter', 'github', 'sambanova', 'cerebras', 'nvidia']
+            if cache.get(f"ai_cooldown_{prov}") or any(cache.get(f"ai_cooldown_GEMINI_KEY_{i}") for i in range(1, 5))
+        )
+        if active_cooldowns > 0:
+            adaptive_delay = random.uniform(2.0, 4.5)
+            logger.info(f"⏳ Adaptive Pacing: Spacing out API requests by {adaptive_delay:.2f}s due to active rate limits.")
+            time.sleep(adaptive_delay)
+    except Exception as pacing_err:
+        logger.debug(f"Adaptive pacing bypassed: {pacing_err}")
         
     last_error = ""
     for provider in _get_priority_providers(task_type):
@@ -434,7 +444,7 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
             
             url, headers, payload_builder = _detect_and_route_provider_specs(provider, api_key)
             
-            # 🛡️ ADAPTIVE REQUEST PACING
+            # 🛡️ ADAPTIVE REQUEST PACING (🔴 FIXED: Mistral timeout limit extended to 15s to bypass latency)
             timeout_limit = 15 if provider == "MISTRAL" else 10
             if provider in ["GITHUB", "HUGGINGFACE"]:
                 sleep_time = random.uniform(1.5, 3.5)
@@ -461,10 +471,12 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
             except requests.exceptions.Timeout:
                 last_error = f"Timeout ({timeout_limit}s) reached for {provider_tag}"
                 logger.warning(f"⏱️ Fail-Fast: {provider_tag} timed out. Swapping...")
+                # 🛡️ ኔትወርክ በሚዘገይበት ወቅት መቆለፊያ በካሽ መመዝገቢያ (Cooldown)
                 cache.set(cooldown_key, True, timeout=60)
             except Exception as e:
                 last_error = str(e)
                 logger.warning(f"⚠️ Connection to {provider_tag} failed: {e}. Swapping...")
+                # 🛡️ FIXED: የዲኤንኤስ/የኔትወርክ ግንኙነት ስህተቶች ሲያጋጥሙ ወዲያውኑ በካሽ Cooldown መቆለፍ [1]
                 cache.set(cooldown_key, True, timeout=60)
                 
     logger.error(f"❌ AI Router: All 11 configured keys exhausted. Last error: {last_error}")
