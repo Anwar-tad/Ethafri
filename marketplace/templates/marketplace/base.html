@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/base.html
-📝 ስሪት፦ v10.18 (Master CEO Unified Base - Admin Sidebar Hardened Edition)
-✅ የተፈቱ ችግሮች፦ Hides all admin links from non-staff, integrates desktop sliding Offcanvas Admin Sidebar, responsive server uptime, and dynamic mobile navigation.
-📅 ቀን፦ Saturday, July 04, 2026
+📝 ስሪት፦ v10.19 (Master CEO Unified Base - Redundant Bracket Removed)
+✅ የተፈቱ ችግሮች፦ Removed redundant bracket syntax typo inside style tag, integrated desktop sliding Offcanvas Admin Sidebar, responsive server uptime, and dynamic mobile navigation.
+📅 ቀን፦ Sunday, July 05, 2026
 ============================================================ -->
 
 {% load i18n %}
@@ -79,6 +79,7 @@
             z-index: 1050;
             text-decoration: none !important;
             flex-shrink: 0;
+            flex: none !important;
         }
         .btn-sell-floating:hover {
             transform: translateY(-19px) scale(1.05);
@@ -97,7 +98,6 @@
             text-transform: uppercase;
         }
 
-        /* 📱 የግርጌ ማውጫውን አሰላለፍ ፍጹም የተመጣጠነ እና ማእከላዊ የማድረጊያ ሎጂክ */
         /* 📱 የግርጌ ማውጫውን አሰላለፍ ፍጹም የተመጣጠነ እና ማእከላዊ የማድረጊያ ሎጂክ */
         .bottom-nav-custom {
             display: flex;
@@ -130,7 +130,6 @@
         }
         .bottom-nav-custom .dropdown-menu.show {
             display: block !important;
-        }
         }
     </style>
 </head>

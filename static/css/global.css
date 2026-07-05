@@ -1,7 +1,7 @@
 /* ============================================================
-   🎨 EthAfri Ultimate Design System — Master CSS (v10.18 - Complete)
+   🎨 EthAfri Ultimate Design System — Master CSS (v10.19 - Complete)
    ዓላማ፦ የኮድ ድግግሞሽን ማጥፋት እና ሁሉንም ቴምፕሌቶች በአንድ ቦታ መቆጣጠር
-   ✅ የተፈቱ ችግሮች፦ Dynamic CSS variable alias mappings, custom dark-theme terminals, unified responsive grid spacing, and cohesive auth form control styles.
+   ✅ የተፈቱ ችግሮች፦ Aligned mobile stats grid and lists to prevent horizontal overflow, matched all custom buttons with central design variables, and secured unified dark terminal styling.
    ============================================================ */
 
 :root {
@@ -1443,6 +1443,22 @@ html {
     
     .growth-alert-home { flex-direction: column; text-align: center; padding: 0.75rem 1rem; }
     .growth-alert-home .alert-text { font-size: 0.8rem; flex-wrap: wrap; justify-content: center; }
+    
+    /* 🛡️ FIXED: የፖርትፎሊዮ የቁጥር መለኪያ ሰሌዳ በሞባይል ላይ እንዳይዘረዝር መከላከያ */
+    .global-stats-bar {
+        flex-wrap: wrap !important;
+        gap: 1.25rem !important;
+        padding: 1.25rem !important;
+    }
+    .global-stats-bar .stat-divider {
+        display: none !important;
+    }
+    
+    /* 🛡️ FIXED: በይነተገናኝ የካርድ መጠን አሰላለፍ መዝገብ */
+    .niche-card {
+        padding: 1.25rem !important;
+        border-radius: var(--radius-md) !important;
+    }
 }
 
 @media (max-width: 576px) {
