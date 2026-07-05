@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.35 (Production Grade - Ultimate Brain - 6-Hour Shift & Multi-Provider Hardened)
-# ✅ የተፈቱ ችግሮች፦ Integrated 6-Hour Shift Rotator for Gemini, dynamic DuckDuckGo search context grounding for offline LLMs (Groq/Mistral), SambaNova, Cerebras, and NVIDIA API endpoints.
+# 📝 ስሪት፦ v10.36 (Production Grade - Ultimate Brain - Extra Data & Cerebras 120B Hardened)
+# ✅ የተፈቱ ችግሮች፦ Replaced Cerebras model with current 'gpt-oss-120b' flagship to resolve 404, integrated smart bracket-matching JSON parser inside clean_json_response to prevent 'Extra data' JSONDecodeError.
 # 📅 ቀን፦ Sunday, July 05, 2026
 # ============================================================
 
@@ -180,15 +180,28 @@ def clean_json_response(raw_text: str) -> str:
     clean_text = raw_text.strip()
     
     # የ Markdown json አጥርን ማስወገድ (```json ... ```)
-    if clean_text.startswith("```json"):
-        clean_text = clean_text[7:]
-    elif clean_text.startswith("```"):
-        clean_text = clean_text[3:]
+    if "```json" in clean_text:
+        clean_text = clean_text.split("```json")[-1].split("```")[0]
+    elif "```" in clean_text:
+        clean_text = clean_text.split("```")[1].split("```")[0]
         
-    if clean_text.endswith("```"):
-        clean_text = clean_text[:-3]
-        
-    return clean_text.strip()
+    clean_text = clean_text.strip()
+    
+    # 🛡️ FIXED: JSONDecodeError Extra Data ስህተትን ለመከላከል የመጀመሪያውን የተዘጋ ቅንፍ { ... } ብቻ ለይቶ ማውጣት [1]
+    # ይህም ከዋናው JSON በኋላ የሚጨመሩ ትርፍ የ AI ማብራሪያዎችን በሙሉ ያስወግዳል
+    first_brace = clean_text.find('{')
+    if first_brace != -1:
+        brace_count = 0
+        for idx in range(first_brace, len(clean_text)):
+            char = clean_text[idx]
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    return clean_text[first_brace:idx+1]
+                    
+    return clean_text
 
 
 def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
@@ -243,44 +256,39 @@ def _get_priority_providers(task_type: str) -> List[str]:
     በታስኩ ዓይነት (Task Type) መሠረት ምርጥ የሆኑትን የ AI አቅራቢዎች
     ቅደም-ተከተል በዳይናሚክ መንገድ የሚወስን የስራ ክፍፍል ማዕከል [1]።
     """
-    # 🛡️ 1. የትርጉምና የሲስተም ትንተና ስራዎች በቅድሚያ እጅግ ፈጣኑ ለሆነው ለ Cerebras ይሰጣሉ [1]
     if task_type in ["translation", "analysis", "critical"]:
         return ["CEREBRAS", "SAMBANOVA", "GEMINI", "HUGGINGFACE", "GITHUB", "MISTRAL"]
         
-    # 🛡️ 2. የኮድ አጻጻፍ እና ራስ-ዝግመተ ለውጥ ጥልቅ አእምሮ ላለው ለ SambaNova ይሰጣሉ (Llama 70B/405B) [1]
     elif task_type in ["coding", "self_evolution"]:
         return ["SAMBANOVA", "CEREBRAS", "GITHUB", "HUGGINGFACE", "MISTRAL", "GEMINI"]
         
-    # 🛡️ 3. የይዘት ማጣሪያዎች እና የ SEO ስራዎች ለ ፈጣኑ ግሮቅ እና NVIDIA NIM ይሰጣሉ [1]
     elif task_type in ["seo", "curation", "spam_filter"]:
         return ["GROQ", "NVIDIA", "CEREBRAS", "OPENROUTER", "MISTRAL"]
         
-    # 🛡️ 4. የገበያ ጥናቶች ለ ሳምባኖቫ እና ጌሚኒ ይሰጣሉ
     elif task_type == "market_research":
-        return ["SAMBANOVA", "GEMINI", "MISTRAL", "OPENROUTER", "HUGGINGFACE"]
+        return ["GEMINI", "MISTRAL", "OPENROUTER", "GITHUB", "HUGGINGFACE"]
         
-    # የዲፎልት ቅደም-ተከተል
-    return ["SAMBANOVA", "CEREBRAS", "NVIDIA", "GEMINI", "GROQ", "MISTRAL", "OPENROUTER", "HUGGINGFACE", "GITHUB"]
+    return ["GEMINI", "GROQ", "MISTRAL", "OPENROUTER", "HUGGINGFACE", "GITHUB"]
+
 
 def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, Dict[str, str], Any]:
     """አቅራቢዎችን በመለየት ትክክለኛውን URL እና Payload ማመንጫ ይወስናል [1]"""
     headers = {"Content-Type": "application/json"}
     
-    # 🛡️ 1. FIXED: በ SambaNova ላይ በቋሚነት ወደሚሠራው የ Llama-3.3-70B-Instruct ሞዴል መቀየሩ
     if provider == "SAMBANOVA":
         url = "https://api.sambanova.ai/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            "model": "Meta-Llama-3.3-70B-Instruct", # Meta-Llama-3.1-8B-Instruct was deprecated on SN
+            "model": "Meta-Llama-3.3-70B-Instruct",
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
-    # 🛡️ 2. FIXED: በ Cerebras ላይ በቋሚነት ወደሚሠራው የ llama-3.3-70b ሞዴል መቀየሩ
+    # 🛡️ FIXED: በ Cerebras ላይ በቋሚነት ወደሚሠራው የ gpt-oss-120b ሞዴል መቀየሩ (የ 404 ስህተት መከላከያ)
     elif provider == "CEREBRAS":
         url = "https://api.cerebras.ai/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            "model": "llama-3.3-70b", # llama3.1-8b was not found on Cerebras
+            "model": "gpt-oss-120b", # llama-3.3-70b was deprecated on Cerebras on Feb 16, 2026
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
@@ -387,8 +395,7 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
     for provider in _get_priority_providers(task_type):
         api_keys_to_use = []
         
-        # 🛡️ FIXED: ባለ 6 ሰዓት የቁልፎች ፈረቃ አሽከርካሪ (6-Hour Shift Rotator) [1]
-        # በየደቂቃው የጌሚኒን 4 ቁልፎች በአንድ ላይ ጠርቶ ከመጨረስ ይልቅ በየፈረቃው 1 ቁልፍ ብቻ በመጥራት የ 18 ሰዓታት እረፍት መስጠት [1]
+        # GEMINI ከሆነ በ 4ቱ ቁልፎች መካከል ማሽከርከር
         if provider == "GEMINI":
             current_hour = datetime.now().hour
             shift_index = current_hour // 6 # 0, 1, 2, or 3
@@ -445,24 +452,29 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
                 payload = payload_builder(active_prompt, system_instruction)
                 res = requests.post(url, json=payload, headers=headers, timeout=timeout_limit)
                 
-                # 🛡️ FIXED: 404/410 ወይም የቁልፍ መቋረጦች ሲፈጠሩ ወዲያውኑ በካሽ Cooldown በመቆለፍ የሰርቨር መዘግየትን መከላከል [1]
-                if res.status_code != 200:
-                    last_error = f"HTTP {res.status_code}: {res.text}"
-                    logger.warning(f"⚠️ {provider_tag} failed with {last_error}. Activating 60s cooldown cache...")
+                if res.status_code == 429:
+                    logger.warning(f"⚠️ {provider_tag} hit rate limit (429). Activating 60s cooldown cache...")
                     cache.set(cooldown_key, True, timeout=60)
                     continue
                     
                 if res.status_code == 200:
                     response_data = res.json()
                     return _parse_provider_response(provider, response_data)
+                    
+                last_error = f"HTTP {res.status_code}: {res.text}"
+                logger.warning(f"⚠️ {provider_tag} failed with {last_error}. Trying next fallback...")
+                cache.set(cooldown_key, True, timeout=60) # Active 60s cooldown for non-200 errors!
+                continue
                 
             except requests.exceptions.Timeout:
                 last_error = f"Timeout ({timeout_limit}s) reached for {provider_tag}"
                 logger.warning(f"⏱️ Fail-Fast: {provider_tag} timed out. Swapping...")
+                # 🛡️ ኔትወርክ በሚዘገይበት ወቅት መቆለፊያ በካሽ መመዝገቢያ (Cooldown)
                 cache.set(cooldown_key, True, timeout=60)
             except Exception as e:
                 last_error = str(e)
                 logger.warning(f"⚠️ Connection to {provider_tag} failed: {e}. Swapping...")
+                # 🛡️ FIXED: የዲኤንኤስ/የኔትወርክ ግንኙነት ስህተቶች ሲያጋጥሙ ወዲያውኑ በካሽ Cooldown መቆለፍ [1]
                 cache.set(cooldown_key, True, timeout=60)
                 
     logger.error(f"❌ AI Router: All 12 configured keys exhausted. Last error: {last_error}")
