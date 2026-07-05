@@ -166,9 +166,8 @@ if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
     }
 else:
     print("⚠️ Cloudinary not configured. Using local file storage.")
-
 # =====================================================================
-# 7. AI API & Server Keys (Nvidia, SambaNova & Cerebras Integrated)
+# 7. AI API & Server Keys (HuggingFace Removed to Clean Logs)
 # =====================================================================
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
 GEMINI_API_KEY_2 = env('GEMINI_API_KEY_2', default='')
@@ -177,7 +176,6 @@ GEMINI_API_KEY_4 = env('GEMINI_API_KEY_4', default='')
 GROQ_API_KEY = env('GROQ_API_KEY', default='')
 MISTRAL_API_KEY = env('MISTRAL_API_KEY', default='')
 OPENROUTER_API_KEY = env('OPENROUTER_API_KEY', default='')
-HUGGINGFACE_API_KEY = env('HUGGINGFACE_API_KEY', default='')
 
 # 🛡️ 3 አዳዲስ እጅግ ከፍተኛ አቅም ያላቸው ነፃ የኤአይ ቁልፎች
 SAMBANOVA_API_KEY = env('SAMBANOVA_API_KEY', default='')
@@ -185,17 +183,17 @@ CEREBRAS_API_KEY = env('CEREBRAS_API_KEY', default='')
 NVIDIA_API_KEY = env('NVIDIA_API_KEY', default='')
 
 # 🔴 AI KEY ROTATION: ኤጀንቱ አንዱ ኤፒአይ ሲያልቅበት ወደ ሌላው እንዲያልፍ ዝርዝር ማደራጀት [1]
+# 🛡️ FIXED: ሎጉ እንዳይጨናነቅ የማይሰራው የ HuggingFace ቁልፍ ከዚህ ዝርዝር ውስጥ ሙሉ በሙሉ ተወግዷል [1]
 AI_FALLBACK_API_KEYS = [
-    SAMBANOVA_API_KEY,      # ✅ 1ኛ ተመራጭ (SambaNova)
-    CEREBRAS_API_KEY,        # ✅ 2ኛ ተመራጭ (Cerebras)
-    NVIDIA_API_KEY,          # ✅ 3ኛ ተመራጭ (NVIDIA NIM)
+    SAMBANOVA_API_KEY,      
+    CEREBRAS_API_KEY,        
+    NVIDIA_API_KEY,          
     GEMINI_API_KEY_2,
     GEMINI_API_KEY_3,
     GEMINI_API_KEY_4,
     GROQ_API_KEY,
     MISTRAL_API_KEY,
-    OPENROUTER_API_KEY,
-    HUGGINGFACE_API_KEY
+    OPENROUTER_API_KEY
 ]
 # ባዶ የሆኑ ቁልፎችን ዝርዝር ውስጥ ማስወገድ
 AI_FALLBACK_API_KEYS = [k for k in AI_FALLBACK_API_KEYS if k]
