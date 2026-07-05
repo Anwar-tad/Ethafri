@@ -1148,7 +1148,7 @@ class CEOOperations:
 
         last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
         
-        # 🛡️ FIXED: ሱቁ በምርቶች እስኪሞላ (ከ 120 በታች እስከሆነ ድረስ) የ 1 ሰዓት መቆያ ገደብ ሙሉ በሙሉ ታግዷል [1]
+        # ሱቁ በምርቶች እስኪሞላ (ከ 120 በታች እስከሆነ ድረስ) የ 1 ሰዓት መቆያ ገደብ ሙሉ በሙሉ ታግዷል
         prod_count = Product.objects.filter(site=self.site, is_active=True).count()
         is_empty_or_low = prod_count < 120
         
@@ -1158,7 +1158,7 @@ class CEOOperations:
                 if timezone.is_naive(last_time):
                     last_time = timezone.make_aware(last_time)
                 if (timezone.now() - last_time) < timedelta(hours=1):
-                    return # ምርቶች ከ 120 በላይ ሲሆኑ ብቻ የ 1 ሰዓት ገደብን ያከብራል [1]
+                    return
             except Exception as e:
                 logger.warning(f"Error checking harvest timestamp: {e}")
 
@@ -1168,6 +1168,37 @@ class CEOOperations:
         if not raw_data_pool:
             return
 
+        # 🛡️ ፊቸር 1 (Pre-Inference Deduplication Engine)፦ ጥሬ ጽሑፎችን ወደ AI ከመላካችን በፊት በሀሽ (MD5) ማጣራት [1]
+        try:
+            hash_config, _ = SiteConfig.objects.get_or_create(
+                key=f"PROCESSED_RAW_HASHES_{self.site.name}",
+                defaults={'value': []}
+            )
+            processed_hashes = set(hash_config.value if isinstance(hash_config.value, list) else [])
+        except Exception as cache_err:
+            logger.debug(f"Failed to load raw hashes: {cache_err}")
+            processed_hashes = set()
+
+        new_raw_texts = []
+        new_hashes_in_batch = []
+        
+        for raw_text in raw_data_pool:
+            if not raw_text or not raw_text.strip():
+                continue
+            
+            # የእያንዳንዱን ጥሬ ጽሑፍ ልዩ መለያ (MD5 Hash) ማመንጨት [1]
+            raw_hash = hashlib.md5(raw_text.encode('utf-8')).hexdigest()
+            if raw_hash not in processed_hashes:
+                new_raw_texts.append(raw_text)
+                new_hashes_in_batch.append(raw_hash)
+
+        # 🛡️ ፊቸር 2 (Zero AI Cost Gate)፦ አዲስ ያልተተረጎመ/ያልተመረመረ ምርት ከሌለ የ AI ጥሪዎችን በሙሉ ማገድ [1]
+        if not new_raw_texts:
+            logger.info("✨ Bulk Harvester: No new raw market listings detected. Bypassing AI analysis to save quota.")
+            return
+
+        logger.info(f"🧠 Bulk Harvester: Processing {len(new_raw_texts)} new raw items via AI analysis...")
+        
         prompt = (
             f"Extract ANY products from these texts.\n"
             f"Don't filter by niche. Include ALL products:\n"
@@ -1176,11 +1207,10 @@ class CEOOperations:
             f"- ANY product you find\n\n"
             f"Return JSON with key 'products' containing:\n"
             f"- title, price, desc, seller_contact, image_url\n\n"
-            f"Data: {json.dumps(raw_data_pool, ensure_ascii=False)}"
+            f"Data: {json.dumps(new_raw_texts, ensure_ascii=False)}"
         )
 
         products = []
-        
         ai_providers = ['GEMINI', 'GROQ', 'MISTRAL', 'OPENROUTER', 'HUGGINGFACE', 'GITHUB']
         last_error = None
         
@@ -1219,13 +1249,19 @@ class CEOOperations:
         if products:
             self._seed_listings_bulk(products)
             try:
+                # በስኬት የተጠናቀቁትን የጥሬ ጽሑፎች መለያዎች በ SiteConfig ውስጥ ማስቀመጥ [1]
+                updated_hashes = list(processed_hashes.union(new_hashes_in_batch))[-5000:] # Max 5000
+                SiteConfig.objects.update_or_create(
+                    key=f"PROCESSED_RAW_HASHES_{self.site.name}",
+                    defaults={'value': updated_hashes}
+                )
                 SiteConfig.objects.update_or_create(
                     key=f"LAST_HARVEST_{self.site.name}",
                     defaults={'value': {'time': timezone.now().isoformat()}}
                 )
-                logger.info(f"✅ Successfully seeded {len(products)} products")
+                logger.info(f"✅ Successfully seeded unique products and saved {len(new_hashes_in_batch)} raw hashes.")
             except Exception as e:
-                logger.debug(f"Failed to update last harvest config: %s", e)
+                logger.debug(f"Failed to update last harvest config: {e}")
         else:
             logger.warning("⚠️ No products found in this harvest cycle")
 

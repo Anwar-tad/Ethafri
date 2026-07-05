@@ -98,6 +98,7 @@
         }
 
         /* 📱 የግርጌ ማውጫውን አሰላለፍ ፍጹም የተመጣጠነ እና ማእከላዊ የማድረጊያ ሎጂክ */
+        /* 📱 የግርጌ ማውጫውን አሰላለፍ ፍጹም የተመጣጠነ እና ማእከላዊ የማድረጊያ ሎጂክ */
         .bottom-nav-custom {
             display: flex;
             justify-content: space-around;
@@ -111,6 +112,25 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+        }
+        
+        /* 🛡️ FIXED: የሞባይል አድሚን ድሮፕ-አፕ ዝርዝር ነጠብጣቦች (Bullet Points) ሙሉ በሙሉ ማጥፊያ [1] */
+        .nav-dropdown-menu {
+            list-style-type: none !important;
+            padding-left: 0 !important;
+            margin: 0 !important;
+        }
+        .nav-dropdown-menu li {
+            list-style-type: none !important;
+            width: 100%;
+        }
+        .bottom-nav-custom .dropdown-menu {
+            position: absolute !important;
+            display: none;
+        }
+        .bottom-nav-custom .dropdown-menu.show {
+            display: block !important;
+        }
         }
     </style>
 </head>
