@@ -1650,10 +1650,10 @@ class CompetitorIntelligenceEngine:
             result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
             
             if result and isinstance(result, dict):
-                MarketTrend.objects.update_or_create(
-                    niche_name=self.site.niche,
-                    defaults={'demand_level': int(result.get('demand_level', 50)), 'ai_suggestion': result.get('ai_suggestion', '')}
-                )
+                VectorMemory.objects.create(
+                  site=self.site,  # እዚህ ጋር ID 3ን ሳይሆን self.site-ን ይጠቀማል
+                  memory_type='insight', content=f"Competitor Intelligence: {insight_text}", success_rate=95.0 
+                  )
 
                 insight_text = result.get('ai_suggestion', '')
                 VectorMemory.objects.create(
