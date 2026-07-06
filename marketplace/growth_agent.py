@@ -938,8 +938,10 @@ class MultiChannelHarvester:
         return product
     
     def _extract_products_from_html(self, html):
+        """የ Jiji እና የሌሎች ሳይቶችን አወቃቀር በሰፊው የሚፈልቅቅ (Regex Hardened)"""
         products = []
-        items = re.findall(r'<div[^>]*class="[^"]*product[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
+        # Jiji የሚጠቀምባቸውን የ 'advert' ወይም የ 'card' ክላሶች ጭምር እንዲቃኝ ማድረግ
+        items = re.findall(r'<div[^>]*class="[^"]*(?:product|advert|card|item)[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
         for item in items:
             product = self._parse_product_text(item)
             if product and product['title']:
@@ -1581,9 +1583,22 @@ class CompetitorIntelligenceEngine:
         try:
             result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
             if result and isinstance(result, dict):
+                # 🛡️ FIXED: int('High') ስህተትን ለመከላከል የተጨመረ ሎጂክ (Self-healing)
+                demand_raw = result.get('demand_level', 50)
+                try:
+                    demand_level = int(demand_raw)
+                except (ValueError, TypeError):
+                    # AI "High" ወይም "Medium" ብሎ ቢመልስ በራሱ ወደ ቁጥር ይቀይረዋል
+                    if str(demand_raw).lower() in ['high', 'critical', 'very high', 'active']:
+                        demand_level = 80
+                    elif str(demand_raw).lower() in ['medium', 'moderate']:
+                        demand_level = 50
+                    else:
+                        demand_level = 30
+
                 MarketTrend.objects.update_or_create(
                     niche_name=self.site.niche,
-                    defaults={'demand_level': int(result.get('demand_level', 50)), 'ai_suggestion': result.get('ai_suggestion', '')}
+                    defaults={'demand_level': demand_level, 'ai_suggestion': result.get('ai_suggestion', '')}
                 )
 
                 insight_text = result.get('ai_suggestion', 'No suggestions')
