@@ -902,46 +902,52 @@ class MultiChannelHarvester:
         return []
     
     def _parse_product_text(self, text):
-        """ምርቶችን የሚለይ እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.45)"""
+        """የኤችቲኤምኤል ቆሻሻ ኮዶችን በሙሉ አጽድቶ ንጹሕ የምርት መረጃ ብቻ መለየቻ"""
         if not text: return None
         
-        # 🛡️ የጊዜ ገደብ መፈተሻ (ከ 3 ወር በላይ የሆኑትን መተው)
+        # 🛡️ 1. ማንኛውንም የ HTML ኮድ ታጎች በሙሉ ማጽዳት (Strip all HTML tags completely)
+        # ታጎቹን በ አዲስ መስመር (\n) በመተካት የምርቱ ስም እና ዋጋው እንዳይቀላቀሉ ማድረግ
+        clean_text = re.sub(r'<[^>]+>', '\n', text)
+        clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text) # የ HTML ኮሜንቶችን ማጽዳት
+        
+        # 🛡️ 2. የጊዜ ገደብ መፈተሻ (ከ 3 ወር በላይ የሆኑትን መተው)
         old_patterns = [r'2023', r'2024', r'2025', r'[4-9]\s*months?\s*ago', r'year\s*ago']
         for pattern in old_patterns:
-            if re.search(pattern, text, re.IGNORECASE):
+            if re.search(pattern, clean_text, re.IGNORECASE):
                 return None
 
         product = {'title': '', 'price': 0, 'description': '', 'seller_contact': ''}
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
         if not lines: return None
         
+        # 🛡️ የመጀመሪያው ንጹሕ መስመር የምርቱ ስም (Title) ይሆናል
         product['title'] = lines[0][:150]
         
-        # ዋጋ መፈለጊያ
-        price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE) or \
-                      re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', text, re.IGNORECASE)
+        # ዋጋ መፈለጊያ (በንጹህ ጽሁፍ ላይ)
+        price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
+                      re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
         if price_match:
             try:
                 product['price'] = float(price_match.group(1).replace(',', ''))
             except: pass
             
         # ስልክ መፈለጊያ
-        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', text)
+        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
         if phone_match:
             product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
         else:
-            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text)
+            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', clean_text)
             if tg_match:
                 product['seller_contact'] = tg_match.group(0)
         
-        product['description'] = text[:1000]
+        product['description'] = clean_text[:1000].replace('\n\n', '\n').strip()
         return product
     
     def _extract_products_from_html(self, html):
-        """የ Jiji እና የሌሎች ሳይቶችን አወቃቀር በሰፊው የሚፈልቅቅ (Regex Hardened)"""
+        """የ Jiji ምርቶች የሚገኙባቸውን እውነተኛ ካርዶች ብቻ ለይቶ መሳቢያ (Regex Hardened)"""
         products = []
-        # Jiji የሚጠቀምባቸውን የ 'advert' ወይም የ 'card' ክላሶች ጭምር እንዲቃኝ ማድረግ
-        items = re.findall(r'<div[^>]*class="[^"]*(?:product|advert|card|item)[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
+        # የ Jiji ትክክለኛ ምርቶች የሚገኙባቸው የ CSS Class ስሞች ብቻ
+        items = re.findall(r'<div[^>]*class="[^"]*(?:b-list-advert-single|b-trending-card|qa-advert-list-item)[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
         for item in items:
             product = self._parse_product_text(item)
             if product and product['title']:
