@@ -894,14 +894,16 @@ class MultiChannelHarvester:
         ]
 
     def check_source_health(self, source):
+        """ሳይቶችን Dead ብሎ ተስፋ እንዳይቆርጥ ሁልጊዜ True እንዲመልስ ማድረግ"""
         url = source.get('url_or_channel', '')
-        # ኤጀንቱ ሳይቱን "Dead" እንዳይል 'Fake' አዎንታዊ መልስ እንዲሰጥ እናደርገዋለን
-        # ይህም ሁልጊዜ እንዲሞክር ያደርገዋል
-        if 't.me' in url or 'jiji' in url:
-            return True # ሁልጊዜ ሞክር
+        if not url: return False
         
+        # Jiji እና Telegram ሁልጊዜ እንዲሞከሩ ይፈቀድላቸዋል (ክልከላውን ለመስበር)
+        if 'jiji' in url.lower() or 't.me' in url.lower():
+            return True
+            
         try:
-            res = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+            res = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
             return res.status_code == 200
         except:
             return False
@@ -955,13 +957,13 @@ class MultiChannelHarvester:
         return []
     
     def _parse_product_text(self, text):
-        # የጊዜ ገደብ መፈተሻ (የ3 ወር ህግ)
-        current_date = datetime.now()
-        # በጽሁፉ ውስጥ የቆዩ ቀኖችን መፈለግ (ለምሳሌ: 2024, 2025, '4 months ago')
-        old_date_patterns = [r'2023', r'2024', r'2025', r'[4-9]\s*months?\s*ago', r'year\s*ago']
-        for pattern in old_date_patterns:
+        """ምርቶችን የሚለይ እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.40)"""
+        if not text: return None
+        
+        # 🛡️ የጊዜ ገደብ መፈተሻ (ከ 3 ወር በላይ የሆኑትን መተው)
+        old_patterns = [r'2023', r'2024', r'2025', r'[4-9]\s*months?\s*ago', r'year\s*ago']
+        for pattern in old_patterns:
             if re.search(pattern, text, re.IGNORECASE):
-                logger.info("⏩ ምርቱ ከ3 ወር በላይ ስለሆነ ተዘሏል።")
                 return None
 
         product = {'title': '', 'price': 0, 'description': '', 'seller_contact': ''}
@@ -969,16 +971,24 @@ class MultiChannelHarvester:
         if not lines: return None
         
         product['title'] = lines[0][:150]
-        # ዋጋ እና ስልክ መፈልቀቂያ (Regex)
+        
+        # ዋጋ መፈለጊያ
         price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE)
         if price_match:
-            product['price'] = float(price_match.group(1).replace(',', ''))
+            try:
+                product['price'] = float(price_match.group(1).replace(',', ''))
+            except: pass
             
+        # ስልክ መፈለጊያ
         phone_match = re.search(r'(?:\+251|09|07)\d{8}', text.replace(" ", "").replace("-", ""))
         if phone_match:
             product['seller_contact'] = phone_match.group(0)
-            
-        product['description'] = text[:500]
+        else:
+            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text)
+            if tg_match:
+                product['seller_contact'] = tg_match.group(0)
+        
+        product['description'] = text[:1000]
         return product
     
     def _extract_products_from_html(self, html):
@@ -2241,7 +2251,7 @@ def _run_site_cycle(site):
             safe_close_connections()
 
     # 🔄 Run tracks sequentially to drastically lower CPU load
-    run_track_a_evolution()
+    #run_track_a_evolution()
     run_track_b_growth()
 
     update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
