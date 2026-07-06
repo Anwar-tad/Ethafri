@@ -1589,27 +1589,13 @@ class CompetitorIntelligenceEngine:
         try:
             result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
             if result and isinstance(result, dict):
-                # 🛡️ FIXED: int('High') ስህተትን ለመከላከል የተጨመረ ሎጂክ (Self-healing)
-                demand_raw = result.get('demand_level', 50)
-                try:
-                    demand_level = int(demand_raw)
-                except (ValueError, TypeError):
-                    # AI "High" ወይም "Medium" ብሎ ቢመልስ በራሱ ወደ ቁጥር ይቀይረዋል
-                    if str(demand_raw).lower() in ['high', 'critical', 'very high', 'active']:
-                        demand_level = 80
-                    elif str(demand_raw).lower() in ['medium', 'moderate']:
-                        demand_level = 50
-                    else:
-                        demand_level = 30
-
                 MarketTrend.objects.update_or_create(
                     niche_name=self.site.niche,
-                    defaults={'demand_level': demand_level, 'ai_suggestion': result.get('ai_suggestion', '')}
+                    defaults={'demand_level': int(result.get('demand_level', 50)), 'ai_suggestion': result.get('ai_suggestion', '')}
                 )
 
                 insight_text = result.get('ai_suggestion', 'No suggestions')
                 
-                # Safe memory creation linked directly to verified database site row
                 VectorMemory.objects.create(
                     site=self.site, 
                     memory_type='insight', 
@@ -1618,8 +1604,20 @@ class CompetitorIntelligenceEngine:
                     success_rate=95.0, text_content=insight_text, embedding_model='spy-intelligence-v1'
                 )
 
-                repriced_val = float(result.get('repriced_value', 0.0))
-                target_id = int(result.get('repriced_product_id', 0))
+                # 🛡️ FIXED: float('Competitive pricing...') ስህተትን ለመከላከል (Self-healing)
+                repriced_raw = result.get('repriced_value', 0.0)
+                try:
+                    repriced_val = float(repriced_raw)
+                except (ValueError, TypeError):
+                    repriced_val = 0.0 # AI በስህተት ጽሑፍ ቢመልስ ዋጋው እንዳይቀየር (0.0 መተው)
+
+                # 🛡️ FIXED: int('Invalid ID') ስህተትን ለመከላከል
+                target_raw = result.get('repriced_product_id', 0)
+                try:
+                    target_id = int(target_raw)
+                except (ValueError, TypeError):
+                    target_id = 0
+
                 if repriced_val > 0.0 and target_id > 0:
                     Product = get_model('Product')
                     Product.objects.filter(id=target_id).update(price=repriced_val)
