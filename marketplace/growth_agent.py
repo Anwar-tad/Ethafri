@@ -893,64 +893,6 @@ class MultiChannelHarvester:
             {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji"},
         ]
 
-    def _scrape_telegram(self, channel):
-        username = extract_telegram_username(channel)
-        url = f"https://t.me/s/{username}"
-        try:
-            res = requests.get(url, timeout=10)
-            if res.status_code == 200:
-                messages = re.findall(r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', res.text, re.DOTALL)
-                images = re.findall(r"background-image:url\(\'([^\'\)]+)\'\)", res.text)
-                
-                products = []
-                # 🛡️ FIXED: በአንድ ቻናል ውስጥ የሚቃኙትን የይዘት መጠን ወደ 30 ሜሴጆች አሳድገነዋል [1]
-                for i, msg in enumerate(messages[:30]): 
-                    clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
-                    if clean_text:
-                        product = self._parse_product_text(clean_text)
-                        if product:
-                            product['image_url'] = images[i] if i < len(images) else ''
-                            products.append(product)
-                return products
-        except Exception as e:
-            logger.error(f"Telegram scrape failed for {channel}: {e}")
-        return []
-
-    def discover_and_harvest_niche_sources(self, site):
-        if not self.is_network_available():
-            logger.warning("🌐 No internet connection. Using cached sources.")
-            return self._get_cached_sources(site)
-        
-        if random.random() < 0.3 or not self._get_cached_sources(site):
-            new_discovered = self.discover_active_market_sources(site)
-            if new_discovered:
-                self._save_sources_to_cache(site, new_discovered)
-        
-        sources = self._get_cached_sources(site)
-        
-        if not sources:
-            logger.warning("⚠️ No active sources found. Seeding default fallback sources...")
-            sources = self._get_fallback_sources()
-            self._save_sources_to_cache(site, sources)
-        
-        active_sources = []
-        for source in sources:
-            if self.check_source_health(source):
-                active_sources.append(source)
-            else:
-                logger.warning(f"❌ Source {source.get('url_or_channel')} is dead, skipping...")
-        
-        all_products = []
-        # 🛡️ FIXED: በአንድ ጊዜ የሚጎበኙትን የቻናሎች ብዛት ወደ 15 ቻናሎች ከፍ አድርገነዋል [1]
-        for source in active_sources[:15]: 
-            logger.info(f"📡 Scraping {source.get('url_or_channel')}...")
-            products = self.get_recent_products(source)
-            if products:
-                all_products.extend(products)
-                logger.info(f"✅ Found {len(products)} products from {source.get('url_or_channel')}")
-        
-        return all_products
-
     def check_source_health(self, source):
         url = source.get('url_or_channel', '')
         platform = source.get('platform_type', '')
@@ -1141,14 +1083,13 @@ class CEOOperations:
         return {"title": title, "price": price, "desc": text[:1000], "seller_contact": contact}
 
     def _harvest_verified_products_bulk(self):
-        """ምርቶችን በጅምላ ያስሳል - 6ቱንም AI ኪዎች በ rotary failover ይጠቀማል"""
+        """ምርቶችን በጅምላ ያስሳል - ስህተቶችን ለመከላከል የታረመ ስሪት (v10.36)"""
         SiteConfig = get_model('SiteConfig')
         Product = get_model('Product')
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
 
+        # 1. መቆያ ጊዜ መፈተሻ (Cooldown)
         last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
-        
-        # ሱቁ በምርቶች እስኪሞላ (ከ 120 በታች እስከሆነ ድረስ) የ 1 ሰዓት መቆያ ገደብ ሙሉ በሙሉ ታግዷል
         prod_count = Product.objects.filter(site=self.site, is_active=True).count()
         is_empty_or_low = prod_count < 120
         
@@ -1162,13 +1103,14 @@ class CEOOperations:
             except Exception as e:
                 logger.warning(f"Error checking harvest timestamp: {e}")
 
+        # 2. ዳታ መሰብሰብ (ከቴሌግራም እና ዌብሳይቶች)
         harvester = MultiChannelHarvester()
         raw_data_pool = harvester.discover_and_harvest_niche_sources(self.site)
 
         if not raw_data_pool:
             return
 
-        # 🛡️ ፊቸር 1 (Pre-Inference Deduplication Engine)፦ ጥሬ ጽሑፎችን ወደ AI ከመላካችን በፊት በሀሽ (MD5) ማጣራት [1]
+        # 3. የቆዩ ዳታዎችን በ Hash ማጣራት (Deduplication)
         try:
             hash_config, _ = SiteConfig.objects.get_or_create(
                 key=f"PROCESSED_RAW_HASHES_{self.site.name}",
@@ -1179,78 +1121,67 @@ class CEOOperations:
             logger.debug(f"Failed to load raw hashes: {cache_err}")
             processed_hashes = set()
 
-        new_raw_texts = []
+        new_products_to_seed = []
         new_hashes_in_batch = []
+        raw_texts_for_ai = []
         
-        for raw_text in raw_data_pool:
-            if not raw_text or not raw_text.strip():
-                continue
+        for item in raw_data_pool:
+            if not item: continue
             
-            # የእያንዳንዱን ጥሬ ጽሑፍ ልዩ መለያ (MD5 Hash) ማመንጨት [1]
-            raw_hash = hashlib.md5(raw_text.encode('utf-8')).hexdigest()
-            if raw_hash not in processed_hashes:
-                new_raw_texts.append(raw_text)
-                new_hashes_in_batch.append(raw_hash)
-
-        # 🛡️ ፊቸር 2 (Zero AI Cost Gate)፦ አዲስ ያልተተረጎመ/ያልተመረመረ ምርት ከሌለ የ AI ጥሪዎችን በሙሉ ማገድ [1]
-        if not new_raw_texts:
-            logger.info("✨ Bulk Harvester: No new raw market listings detected. Bypassing AI analysis to save quota.")
-            return
-
-        logger.info(f"🧠 Bulk Harvester: Processing {len(new_raw_texts)} new raw items via AI analysis...")
-        
-        prompt = (
-            f"Extract ANY products from these texts.\n"
-            f"Don't filter by niche. Include ALL products:\n"
-            f"- Electronics, Clothes, Furniture, Cars\n"
-            f"- Properties, Tools, Machines, Books\n"
-            f"- ANY product you find\n\n"
-            f"Return JSON with key 'products' containing:\n"
-            f"- title, price, desc, seller_contact, image_url\n\n"
-            f"Data: {json.dumps(new_raw_texts, ensure_ascii=False)}"
-        )
-
-        products = []
-        ai_providers = ['GEMINI', 'GROQ', 'MISTRAL', 'OPENROUTER', 'HUGGINGFACE', 'GITHUB']
-        last_error = None
-        
-        for provider in ai_providers:
-            try:
-                api_key = os.getenv(f'{provider}_API_KEY', '')
-                if provider == 'GITHUB':
-                    api_key = os.getenv('GITHUB_TOKEN', '')
-                    
-                if not api_key:
-                    continue
-                    
-                response = self._call_ai_with_timeout(provider, prompt)
+            # 🛡️ FIXED: ዳታው Dictionary ከሆነ ወደ String እንቀይረዋለን (ለ Hash ስራ እንዲመች)
+            if isinstance(item, dict):
+                # አስፈላጊ መረጃዎች መኖራቸውን ማረጋገጥ
+                content_to_hash = json.dumps(item, sort_keys=True)
+            else:
+                content_to_hash = str(item)
+            
+            if not content_to_hash.strip(): continue
+            
+            # የእያንዳንዱን ምርት ልዩ መለያ (MD5 Hash) ማመንጨት
+            item_hash = hashlib.md5(content_to_hash.encode('utf-8')).hexdigest()
+            
+            if item_hash not in processed_hashes:
+                new_hashes_in_batch.append(item_hash)
                 
-                if response:
-                    data = clean_and_parse_json(response)
-                    if data and isinstance(data, dict) and data.get('products'):
-                        products = data.get('products', [])
-                        logger.info(f"✅ {provider} successfully parsed {len(products)} products")
-                        break
-                        
-            except Exception as e:
-                last_error = f"{provider}: {str(e)}"
-                logger.warning(f"⚠️ {provider} failed: {e}")
-                continue
-        
-        if not products:
-            logger.warning(f"⚠️ All AI providers failed. Last error: {last_error}")
-            logger.warning("🌐 Activating No-API Fallback (DuckDuckGo + Regex)...")
+                # መረጃው አስቀድሞ በ Harvester/Regex ከተተነተነ (Parsed ከሆነ) በቀጥታ ወደ ሚዘገበው እንጨምረዋለን
+                if isinstance(item, dict) and item.get('title') and (item.get('seller_contact') or item.get('price')):
+                    new_products_to_seed.append(item)
+                else:
+                    # መረጃው ጥሬ ጽሑፍ ከሆነ ለ AI እንዲተነተን እናዘጋጃለን
+                    raw_texts_for_ai.append(content_to_hash)
+
+        # 4. ጥሬ ጽሑፎችን በ AI ማስፈተሽ (አዲስ ጥሬ ጽሑፍ ካለ ብቻ)
+        if raw_texts_for_ai:
+            logger.info(f"🧠 Bulk Harvester: Processing {len(raw_texts_for_ai)} raw items via AI...")
+            prompt = (
+                f"Extract ALL products from these texts. Return JSON with key 'products' containing: "
+                f"title, price, desc, seller_contact, image_url.\n\n"
+                f"Data: {json.dumps(raw_texts_for_ai, ensure_ascii=False)}"
+            )
+
+            ai_providers = ['GEMINI', 'GROQ', 'MISTRAL', 'OPENROUTER', 'GITHUB']
+            for provider in ai_providers:
+                try:
+                    response = self._call_ai_with_timeout(provider, prompt)
+                    if response:
+                        data = clean_and_parse_json(response)
+                        if data and isinstance(data, dict) and data.get('products'):
+                            extracted_products = data.get('products', [])
+                            new_products_to_seed.extend(extracted_products)
+                            logger.info(f"✅ {provider} successfully parsed {len(extracted_products)} products")
+                            break
+                except Exception as e:
+                    logger.warning(f"⚠️ {provider} AI parsing failed: {e}")
+                    continue
+
+        # 5. ውጤቱን ዳታቤዝ ላይ መጫን (Seeding)
+        if new_products_to_seed:
+            logger.info(f"🚀 Seeding {len(new_products_to_seed)} unique products to homepage...")
+            self._seed_listings_bulk(new_products_to_seed)
             
-            fallback_products = self._no_api_fallback_harvest()
-            if fallback_products:
-                products = fallback_products
-                logger.info(f"✅ No-API Fallback found {len(products)} products")
-        
-        if products:
-            self._seed_listings_bulk(products)
             try:
-                # በስኬት የተጠናቀቁትን የጥሬ ጽሑፎች መለያዎች በ SiteConfig ውስጥ ማስቀመጥ [1]
-                updated_hashes = list(processed_hashes.union(new_hashes_in_batch))[-5000:] # Max 5000
+                # በስኬት የተጠናቀቁትን መለያዎች (Hashes) ማስቀመጥ
+                updated_hashes = list(processed_hashes.union(new_hashes_in_batch))[-5000:]
                 SiteConfig.objects.update_or_create(
                     key=f"PROCESSED_RAW_HASHES_{self.site.name}",
                     defaults={'value': updated_hashes}
@@ -1259,11 +1190,11 @@ class CEOOperations:
                     key=f"LAST_HARVEST_{self.site.name}",
                     defaults={'value': {'time': timezone.now().isoformat()}}
                 )
-                logger.info(f"✅ Successfully seeded unique products and saved {len(new_hashes_in_batch)} raw hashes.")
+                logger.info(f"✅ Bulk Harvester Cycle Complete. {len(new_products_to_seed)} products registered.")
             except Exception as e:
-                logger.debug(f"Failed to update last harvest config: {e}")
+                logger.debug(f"Failed to update harvest config: {e}")
         else:
-            logger.warning("⚠️ No products found in this harvest cycle")
+            logger.info("✨ Bulk Harvester: No new or unique market listings found in this cycle.")
 
     def _call_ai_with_timeout(self, provider: str, prompt: str, timeout: int = 10) -> Optional[str]:
         """አንድ የተወሰነ AI አቅራቢን በ10 ሰከንድ ጊዜ ገደብ ይጠራል"""
@@ -1934,7 +1865,7 @@ def get_site_project_state_dynamic(site):
         else:
             logger.warning("Templates directory not found locally.")
 
-    all_known_backlogs = AIProjectBacklog.objects.filter(site=self.site)
+    all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
     for bk in all_known_backlogs:
         if bk.target_file not in file_paths:
             file_paths[bk.target_file] = resolve_local_file_path(site, bk.target_file)
