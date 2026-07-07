@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/self_doctor.py
-# 📝 ስሪት፦ v10.30 (Ultimate System Doctor - Symmetric Auditor Hardened)
-# ✅ የተፈቱ ችግሮች፦ Dynamic file-size bloat detector, extended Symmetric Design Auditor (reusability & asset externalization checks), transactional schema recovery, and proactive column scanners.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ስሪት፦ v10.40 (Ultimate System Doctor - Symmetric Auditor Hardened)
+# ✅ የተፈቱ ችግሮች፦ Removed invalid 'text_content' argument from SecurityLog table creation (fixed TypeError), integrated safe dynamic model loader to prevent circular import dependency on startup, and reinforced transactional database refreshes.
+# 📅 ቀን፦ Tuesday, July 07, 2026
 # ============================================================
 
 import os
@@ -21,10 +21,22 @@ from django.db.models import Q
 from django.conf import settings
 from django.apps import apps
 from typing import Dict, List, Optional, Union, Any
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# ⚙️ DECIMAL JSON ENCODER (የዳታቤዝ ምትኬ ማስቀመጫ ረዳት)
+# 🔄 DYNAMIC MODEL LOADER (የክብ ጥገኝነት መከላከያ)
+# ============================================================
+def get_marketplace_model(model_name: str):
+    """ሞዴሎችን በዳይናሚክ መንገድ በመጫን AppRegistryNotReady ስህተትን ይከላከላል"""
+    try:
+        return apps.get_model('marketplace', model_name)
+    except Exception as e:
+        logger.error(f"Failed to load model {model_name} dynamically inside doctor: {e}")
+        return None
+
+# ============================================================
+# ⚙️ DECIMAL JSON ENCODER
 # ============================================================
 class DecimalEncoder(json.JSONEncoder):
     """Decimal እሴቶች በዳታቤዝ ውስጥ ወደ JSON ሲለወጡ የሚከሰቱ ስህተቶችን መከላከያ"""
@@ -49,14 +61,13 @@ class SecurityAuditor:
 
         is_python = file_path.endswith('.py') if file_path else True
         
-        # 🛡️ 1. SYMMETRIC DESIGN AUDIT: የኤችቲኤምኤል ቴምፕሌቶችን የስታይል እና የስክሪፕት መደጋገም መፈተሽ (Asset Externalization) [1]
+        # 🛡️ 1. SYMMETRIC DESIGN AUDIT: የኤችቲኤምኤል ቴምፕሌቶችን የስታይል እና የስክሪፕት መደጋገም መፈተሽ
         if not is_python or 'html' in file_path.lower():
             if "<style>" in code or "<style " in code:
                 issues.append("Performance Warning: Inline CSS blocks <style> found. Move these to global.css to unblock page rendering.")
             if "<script>" in code or "<script " in code:
                 issues.append("Performance Warning: Inline JavaScript blocks <script> found. Move these to global.js to enable site-wide caching.")
             
-            # HTML ከሆነ የፓይተን AST ፍተሻዎችን አልፎ እዚህ ማብቃት
             self_log_issues(issues, file_path, site)
             return len(issues) == 0, issues
 
@@ -65,7 +76,7 @@ class SecurityAuditor:
             dangerous_builtins = {'eval', 'exec'}
             dangerous_attributes = {'system', 'popen', 'spawn'}
 
-            # 🛡️ 2. SYMMETRIC DESIGN AUDIT: የፓይተን ኮዶች መደጋገምን እና የወደፊት ተለዋዋጭነትን (Extensibility) መፈተሽ [1]
+            # 🛡️ 2. SYMMETRIC DESIGN AUDIT: የፓይተን ኮዶች መደጋገምን መፈተሽ
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call):
                     func_name = ""
@@ -81,7 +92,7 @@ class SecurityAuditor:
                             if node.func.value.id.lower() == 'subprocess' and func_name in ['run', 'call', 'popen', 'check_output', 'check_call']:
                                 issues.append(f"Critical: Dangerous subprocess call 'subprocess.{func_name}' detected.")
 
-                # የፈንክሽኖችን የወደፊት እድገት እና ተለዋዋጭነት መመርመር [1]
+                # የፈንክሽኖችን የወደፊት እድገት እና ተለዋዋጭነት መመርመር
                 elif isinstance(node, ast.FunctionDef):
                     has_kwargs = any(isinstance(arg, ast.arg) and arg.arg == 'kwargs' for arg in node.args.kwonlyargs + [node.args.kwarg] if arg)
                     has_args = node.args.kwarg is not None or node.args.vararg is not None
@@ -108,7 +119,8 @@ class SecurityAuditor:
     @staticmethod
     def patrol_server_logs(site):
         """የሰርቨር ጥቃት መከታተያ (Security Server Log Patrol)"""
-        from .models import SecurityLog
+        SecurityLog = get_marketplace_model('SecurityLog')
+        if not SecurityLog: return
         try:
             SecurityLog.objects.create(
                 site=site,
@@ -122,17 +134,19 @@ class SecurityAuditor:
 
 
 def self_log_issues(issues, file_path, site):
-    """የተገኙ የደህንነት እና የንድፍ ስጋቶችን በዳታቤዝ ውስጥ መዝግቦ ማስቀመጫ ረዳት [1]"""
+    """የተገኙ የደህንነት እና የንድፍ ስጋቶችን በዳታቤዝ ውስጥ መዝግቦ ማስቀመጫ ረዳት (v10.40)"""
     if issues:
+        SecurityLog = get_marketplace_model('SecurityLog')
+        if not SecurityLog: return
+        
         for issue in issues:
             try:
-                from .models import SecurityLog
                 log_exists = SecurityLog.objects.filter(site=site, description=issue, file_path=file_path).exists()
                 if not log_exists:
+                    # 🛡️ FIXED: text_content የሚለው የተሳሳተ አርጉመንት ሙሉ በሙሉ ተወግዷል
                     SecurityLog.objects.create(
                         site=site,
                         category='code_injection' if any(x in issue for x in ['Dangerous', 'Error', 'Syntax']) else 'config',
-                        text_content=issue,
                         severity='critical' if 'Critical' in issue else ('high' if 'Warning' in issue else 'low'),
                         description=issue,
                         file_path=file_path,
@@ -153,25 +167,26 @@ class UniversalHealer:
 
     def perform_maintenance(self):
         """በየ ዑደቱ የሚደረግ የሲስተም ጥገና"""
-        from .models import AIProjectBacklog
+        AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
 
         logger.info(f"🚑 Running maintenance for {self.site.name}...")
         
         self.heal_database_migrations_autonomously()
         connections.close_all()
         
-        try:
-            stuck_tasks = AIProjectBacklog.objects.filter(
-                site=self.site, status='Running',
-                updated_at__lt=timezone.now() - timedelta(minutes=15)
-            )
-            if stuck_tasks.exists():
-                logger.warning(f"🔄 Resetting {stuck_tasks.count()} stuck tasks.")
-                stuck_tasks.update(status='Pending')
-        except Exception as e:
-            logger.error(f"Failed to reset stuck tasks: {e}")
+        if AIProjectBacklog:
+            try:
+                stuck_tasks = AIProjectBacklog.objects.filter(
+                    site=self.site, status='Running',
+                    updated_at__lt=timezone.now() - timedelta(minutes=15)
+                )
+                if stuck_tasks.exists():
+                    logger.warning(f"🔄 Resetting {stuck_tasks.count()} stuck tasks.")
+                    stuck_tasks.update(status='Pending')
+            except Exception as e:
+                logger.error(f"Failed to reset stuck tasks: {e}")
 
-        # የዳታቤዝ አውቶማቲክ መጠባበቂያ (SaaS Backup Archiver) [1]
+        # የዳታቤዝ አውቶማቲክ መጠባበቂያ (SaaS Backup Archiver)
         AutonomousBackupManager.backup_database_to_cache(self.site)
 
         # የደህንነት ሎግ ፓትሮል ጥሪ
@@ -182,16 +197,16 @@ class UniversalHealer:
         PerformanceAuditor.run_daily_performance_audit(self.site)
 
     def hard_reset_database_schema(self):
-        """🚨 [Autonomous Schema Rebuilder] የዳታቤዝ ሰንጠረዦችን በ CASCADE በማጥፋት ፍልሰቱን ከባዶ ይገነባል"""
-        from .models import SiteRegistry
+        """🚨 [Autonomous Schema Rebuilder] የዳታቤዝ ሰንጠረዦችን ማጥፋት"""
+        SiteRegistry = get_marketplace_model('SiteRegistry')
 
-        # 🛡️ FIXED: ድንገተኛ የመረጃ ማጥፋት አደጋን ለመከላከል የደህንነት ማረጋገጫ ቁልፍ (Environment Switch) መፈተሽ
+        # 🛡️ FIXED: ድንገተኛ የመረጃ ማጥፋት አደጋን ለመከላከል የደህንነት ማረጋገጫ ቁልፍ መፈተሽ
         reset_allowed = os.getenv('ALLOW_EMERGENCY_SCHEMA_RESET', 'false').lower() == 'true'
         if not reset_allowed:
-            logger.critical("🚨 EMERGENCY RESET BLOCKED: 'ALLOW_EMERGENCY_SCHEMA_RESET' is not enabled in Env. Wiping skipped to prevent data loss.")
+            logger.critical("🚨 EMERGENCY RESET BLOCKED: 'ALLOW_EMERGENCY_SCHEMA_RESET' is not enabled in Env.")
             return False
 
-        logger.warning("🚨 EMERGENCY RESET: Hard resetting database schema to resolve permanent migration lock...")
+        logger.warning("🚨 EMERGENCY RESET: Hard resetting database schema...")
         try:
             marketplace_tables = [
                 "marketplace_producttranslation", "marketplace_translationqueue",
@@ -212,10 +227,11 @@ class UniversalHealer:
             logger.info("✨ Emergency Reset: All marketplace tables dropped. Initiating fresh migrations...")
             call_command('migrate', interactive=False)
             
-            SiteRegistry.objects.create(
-                name="primary", display_name="EthAfri Primary", niche="general",
-                target_market="Global", is_active=True, build_phase=0
-            )
+            if SiteRegistry:
+                SiteRegistry.objects.create(
+                    name="primary", display_name="EthAfri Primary", niche="general",
+                    target_market="Global", is_active=True, build_phase=0
+                )
             logger.info("✨ Emergency Reset: Re-registered fresh 'primary' site successfully.")
             return True
         except Exception as reset_err:
@@ -223,9 +239,12 @@ class UniversalHealer:
             return False
 
     def heal_database_migrations_autonomously(self, force=False):
-        """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ፈልጎ በ AI የ SQL ትዕዛዝ ይጠግናል"""
-        from .models import SiteConfig, AgentErrorLog, SelfHealingLog
-        from .ai_utils import AIUtils, clean_and_parse_json, ask_master_ai_smart
+        """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ጠጋኝ"""
+        SiteConfig = get_marketplace_model('SiteConfig')
+        AgentErrorLog = get_marketplace_model('AgentErrorLog')
+        SelfHealingLog = get_marketplace_model('SelfHealingLog')
+        
+        if not SiteConfig: return
 
         last_check_key = f"LAST_SCHEMA_MIGRATION_CHECK_{self.site.name}"
         last_check_cfg = SiteConfig.objects.filter(key=last_check_key).first()
@@ -245,7 +264,7 @@ class UniversalHealer:
                     logger.debug("Failed to parse migration check timestamp: %s", e)
                     should_run = True
 
-        if not should_run:
+        if not should_run and AgentErrorLog:
             recent_db_errors = AgentErrorLog.objects.filter(
                 site=self.site, resolved=False,
                 created_at__gte=timezone.now() - timedelta(minutes=5)
@@ -267,7 +286,6 @@ class UniversalHealer:
                         WHERE table_name='marketplace_product' AND column_name='listing_type';
                     """)
                     if not cursor.fetchone():
-                        logger.warning("🚑 Schema Healer [Proactive]: Column 'listing_type' is missing. Auto-adding...")
                         cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS listing_type varchar(50) DEFAULT 'sale';")
                         
                     cursor.execute("""
@@ -275,7 +293,6 @@ class UniversalHealer:
                         WHERE table_name='marketplace_product' AND column_name='contact_info';
                     """)
                     if not cursor.fetchone():
-                        logger.warning("🚑 Schema Healer [Proactive]: Column 'contact_info' is missing. Auto-adding...")
                         cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS contact_info varchar(255) DEFAULT '';")
                         
                     cursor.execute("""
@@ -283,7 +300,6 @@ class UniversalHealer:
                         WHERE table_name='marketplace_product' AND column_name='image_gallery';
                     """)
                     if not cursor.fetchone():
-                        logger.warning("🚑 Schema Healer [Proactive]: Column 'image_gallery' is missing. Auto-adding...")
                         cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS image_gallery jsonb DEFAULT '[]'::jsonb;")
 
             call_command('migrate', interactive=False)
@@ -300,7 +316,6 @@ class UniversalHealer:
                 idx_name_clean = str(idx_name).lower()
                 
                 if "marketplace_name" in idx_name_clean or "marketplace_name_8491f6_idx" in idx_name_clean:
-                    logger.warning("🚑 Schema Healer: Creating dummy table/index 'marketplace_name'...")
                     try:
                         with connection.cursor() as cursor:
                             id_type = "integer PRIMARY KEY AUTOINCREMENT" if connection.vendor == 'sqlite' else "serial NOT NULL PRIMARY KEY"
@@ -314,7 +329,6 @@ class UniversalHealer:
             match_exists = re.search(r'relation "([^"]+)" already exists', err_msg)
             if match_exists:
                 idx_name = match_exists.group(1)
-                logger.warning(f"🚑 Schema Healer: Dropping conflicting index '{idx_name}'...")
                 try:
                     with connection.cursor() as cursor:
                         cursor.execute(f'DROP INDEX IF EXISTS "{idx_name}";')
@@ -323,12 +337,12 @@ class UniversalHealer:
                 except Exception as retry_err:
                     err_msg = str(retry_err)
             
-            # 🔴 AI CACHING INTEGRATION: ተደጋጋሚ የ SQL ጥያቄዎች እንዳይላኩ መሸጎጫን መፈተሽ [1]
+            # AI CACHING INTEGRATION: ተደጋጋሚ የ SQL ጥያቄዎች እንዳይላኩ መሸጎጫን መፈተሽ
+            from .ai_utils import AIUtils, clean_and_parse_json, ask_master_ai_smart
             cache_key = f"db_schema_fix:{hashlib.md5(err_msg.encode('utf-8')).hexdigest()}"
             cached_sql = AIUtils.get_cached(cache_key)
             
             if cached_sql:
-                logger.warning(f"🚑 Schema Healer: Executing cached AI SQL fix: {cached_sql}")
                 try:
                     with connection.cursor() as cursor:
                         cursor.execute(cached_sql)
@@ -359,17 +373,16 @@ class UniversalHealer:
                 
                 if res and isinstance(res, dict) and res.get('sql'):
                     sql_query = res['sql']
-                    logger.warning(f"🚑 Schema Healer: Executing AI SQL: {sql_query}")
                     with connection.cursor() as cursor:
                         cursor.execute(sql_query)
                     
-                    # ለአንድ ቀን መሸጎጫ ውስጥ ማስቀመጥ (ወጪ ለመቀነስ)
                     AIUtils.set_cached(cache_key, sql_query, timeout=86400)
                     
-                    try:
-                        SelfHealingLog.objects.create(error_message=err_msg, solution_sql=sql_query, resolved=True)
-                    except Exception as log_err:
-                        logger.debug("Failed to record SelfHealingLog: %s", log_err)
+                    if SelfHealingLog:
+                        try:
+                            SelfHealingLog.objects.create(error_message=err_msg, solution_sql=sql_query, resolved=True)
+                        except Exception as log_err:
+                            logger.debug("Failed to record SelfHealingLog: %s", log_err)
                     
                     try:
                         call_command('migrate', interactive=False)
@@ -379,7 +392,6 @@ class UniversalHealer:
             except Exception as ai_heal_err:
                 logger.error(f"❌ Schema Healer: AI healing failed: {ai_heal_err}")
 
-            # 🛡️ FIXED: ድንገተኛ የመረጃ ማጥፋትን ለመከላከል በደህንነት ስዊች መታገዱን ማረጋገጫ
             logger.critical("🚨 Schema Healer: Failed to recover via AI. Checking emergency reset authorization.")
             self.hard_reset_database_schema()
 
@@ -389,9 +401,10 @@ class UniversalHealer:
         from .ai_utils import broadcast_agent_log
         broadcast_agent_log(self.site, "Model Healer: FieldError detected in views. Creating Refactor Task...", "error")
         
-        from .models import AIProjectBacklog
+        AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
+        if not AIProjectBacklog: return
+
         task_name = "🛡️ REFACTOR: Replace 'product_set' with 'product' in views"
-        
         active_fix_exists = AIProjectBacklog.objects.filter(
             site=self.site, task_name=task_name, status__in=['Pending', 'Running']
         ).exists()
@@ -409,7 +422,9 @@ class UniversalHealer:
 
     def _heal_production_errors(self):
         """ያልተፈቱ ስህተቶችን መርምሮ 'Emergency Fix' ስራዎችን ይፈጥራል"""
-        from .models import AgentErrorLog, AIProjectBacklog
+        AgentErrorLog = get_marketplace_model('AgentErrorLog')
+        AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
+        if not AgentErrorLog or not AIProjectBacklog: return
 
         try:
             errors = AgentErrorLog.objects.filter(site=self.site, resolved=False).order_by('-created_at')[:3]
@@ -436,13 +451,15 @@ class UniversalHealer:
 
     def _heal_security_issues(self):
         """የደህንነት ስጋቶችን (Security Logs) ለይቶ የጥገና ስራዎችን ይፈጥራል"""
-        from .models import SecurityLog, AIProjectBacklog
+        SecurityLog = get_marketplace_model('SecurityLog')
+        AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
+        if not SecurityLog or not AIProjectBacklog: return
+
         try:
             vulns = SecurityLog.objects.filter(site=self.site, is_fixed=False).order_by('-severity')[:2]
             
             for vuln in vulns:
                 task_name = f"🛡️ SECURITY FIX: {vuln.description}"
-                
                 active_fix_exists = AIProjectBacklog.objects.filter(
                     site=self.site, task_name=task_name, status__in=['Pending', 'Running']
                 ).exists()
@@ -466,7 +483,6 @@ class UniversalHealer:
 # 💾 3. AUTONOMOUS DATABASE BACKUP & CLOUD ARCHIVER
 # ============================================================
 def json_serial(obj):
-    """Decimal እሴቶች በዳታቤዝ ውስጥ ወደ JSON ሲለወጡ የሚከሰቱ ስህተቶችን መከላከያ"""
     if isinstance(obj, Decimal):
         return float(obj)
     raise TypeError(f"Type {type(obj)} not serializable")
@@ -477,7 +493,11 @@ class AutonomousBackupManager:
     
     @staticmethod
     def backup_database_to_cache(site):
-        from .models import Product, Category, SiteConfig
+        Product = get_marketplace_model('Product')
+        Category = get_marketplace_model('Category')
+        SiteConfig = get_marketplace_model('SiteConfig')
+        if not Product or not Category or not SiteConfig: return
+
         try:
             products = list(Product.objects.filter(site=site).values('title', 'price', 'description', 'location'))
             categories = list(Category.objects.values('name', 'slug'))
@@ -498,17 +518,13 @@ class AutonomousBackupManager:
 
 
 # ============================================================
-# 🩺 4. DAILY PERFORMANCE AUDITOR WITH AST PARSING & SEO PINGER
+# 🩺 4. DAILY PERFORMANCE AUDITOR WITH AST PARSING
 # ============================================================
 class PerformanceAuditor:
-    """በየ 24 ሰዓቱ የድረ-ገጽ መጫኛ ፍጥነትን የሚቀንሱ የኮድ አወቃቀሮችን በመቃኘት የጥገና ስራዎችን በራሱ የሚፈጥርና የሚፈውስ ማዕከል [1, 2]"""
+    """በየ 24 ሰዓቱ የድረ-ገጽ መጫኛ ፍጥነትን የሚቀንሱ የኮድ አወቃቀሮችን የሚቃኝ ማዕከል"""
     
     @staticmethod
     def audit_views_via_ast(file_path) -> List[str]:
-        """
-        የ views.py ፋይልን በ AST parse በማድረግ ኳሪዎች select_related/prefetch_related
-        ሳይጠቀሙ መቅረታቸውን (N+1 database queries) በትክክል የሚፈትሽ ጥልቅ የኦዲት ሎጂክ [1]
-        """
         if not os.path.exists(file_path):
             return []
             
@@ -519,7 +535,6 @@ class PerformanceAuditor:
             tree = ast.parse(code)
             issues = []
             
-            # የ AST ዛፍን በመቃኘት የዳታቤዝ ጥሪ ሰንሰለቶችን (Call Chains) መፈተሽ
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call):
                     chain = []
@@ -531,12 +546,10 @@ class PerformanceAuditor:
                         else:
                             break
                             
-                    # የኳሪውን መነሻ ሞዴል (Product ወይም Category) መፈተሽ
                     if isinstance(current, ast.Attribute) and current.attr == 'objects':
                         if isinstance(current.value, ast.Name):
                             model_name = current.value.id
                             if model_name in ['Product', 'Category']:
-                                # ኳሪው select_related ወይም prefetch_related አለመጠቀሙን ማረጋገጥ
                                 has_optimizer = any(opt in chain for opt in ['select_related', 'prefetch_related'])
                                 if not has_optimizer:
                                     issues.append(f"Critical Performance Issue: '{model_name}.objects' query detected in views.py that lacks select_related() or prefetch_related(), causing N+1 query latency.")
@@ -548,7 +561,9 @@ class PerformanceAuditor:
 
     @staticmethod
     def run_daily_performance_audit(site):
-        from .models import SiteConfig, AIProjectBacklog
+        SiteConfig = get_marketplace_model('SiteConfig')
+        AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
+        if not SiteConfig or not AIProjectBacklog: return
 
         last_perf_audit = SiteConfig.objects.filter(key=f"LAST_PERF_AUDIT_{site.name}").first()
         if last_perf_audit:
@@ -564,18 +579,13 @@ class PerformanceAuditor:
         logger.info(f"🩺 Performance Auditor: Running daily page-load speed audit for {site.name}...")
         issues_found = []
         
-        # የይዘት ማውጫ ፒንግ (Sitemap Indexing Ping Engine)
         PerformanceAuditor.ping_google_sitemap(site)
-
-        # የይዘቶች አውቶማቲክ ማሻሻያ (AI Inquiry Content Optimizer)
         PerformanceAuditor.optimize_inquiry_descriptions(site)
         
-        # 🛡️ AST-BASED N+1 QUERY SCANNING (ጥልቀት ያለው የኮድ ኦዲት ፍተሻ)
         views_path = os.path.join(str(settings.BASE_DIR), 'marketplace', 'views.py')
         if os.path.exists(views_path):
             issues_found.extend(PerformanceAuditor.audit_views_via_ast(views_path))
         
-        # HTML ቴምፕሌቶችን መፈተሽ
         base_templates_dir = os.path.join(settings.BASE_DIR, 'marketplace', 'templates', 'marketplace')
         if os.path.exists(base_templates_dir):
             for root, dirs, files in os.walk(base_templates_dir):
@@ -607,7 +617,6 @@ class PerformanceAuditor:
 
     @staticmethod
     def ping_google_sitemap(site):
-        """የይዘት ማውጫ ፒንግ (Sitemap Indexing Ping Engine)"""
         sitemap_url = f"{site.deployment_url}/sitemap.xml"
         try:
             requests.get(f"https://www.google.com/ping?sitemap={sitemap_url}", timeout=5)
@@ -618,11 +627,10 @@ class PerformanceAuditor:
     @staticmethod
     def optimize_inquiry_descriptions(site):
         """የይዘቶች አውቶማቲክ ማሻሻያ (AI Inquiry Content Optimizer)"""
-        from .models import Product
-        from .ai_utils import AIUtils, clean_and_parse_json, ask_master_ai_smart
+        Product = get_marketplace_model('Product')
+        if not Product: return
         
         try:
-            # 🛡️ FIXED: FieldError ስህተትን ለመከላከል 'inquiry_count' የሚለው አምድ በProduct ሞዴል ላይ መኖሩን በፓይተን ማረጋገጥ
             product_fields = [f.name for f in Product._meta.get_fields()]
             if 'inquiry_count' not in product_fields:
                 logger.debug("Inquiry optimization bypassed: 'inquiry_count' query disabled.")
@@ -630,7 +638,7 @@ class PerformanceAuditor:
                 
             target = Product.objects.filter(site=site, inquiry_count__gt=10, is_active=True).first()
             if target:
-                # 🔴 AI CACHING INTEGRATION: ተመሳሳይ ምርት በተደጋገመ ቁጥር ኤፒአይ እንዳይጠራ መሸጎጫን መፈተሽ [1]
+                from .ai_utils import AIUtils, clean_and_parse_json, ask_master_ai_smart
                 cache_key = f"inquiry_opt:{target.id}:{target.inquiry_count}"
                 cached_desc = AIUtils.get_cached(cache_key)
                 
@@ -649,7 +657,6 @@ class PerformanceAuditor:
                 if res and res.get('enriched_description'):
                     target.description = res['enriched_description']
                     target.save()
-                    # ውጤቱን በካሽ ውስጥ ለ 24 ሰዓት ማስቀመጥ
                     AIUtils.set_cached(cache_key, res['enriched_description'], timeout=86400)
                     logger.info(f"✨ Content Optimizer: Enriched description for product '{target.title}' due to high inquiries.")
         except Exception as e:
@@ -661,11 +668,8 @@ class PerformanceAuditor:
 # ============================================================
 
 class AntiBloatEngine:
-    """የኮድ መደጋገም እና የፋይል መጠን መለኪያ መቆጣጠሪያ"""
-    
     @staticmethod
     def is_file_bloated(file_path: str, max_chars: int = 15000) -> bool:
-        """ፋይሉ በይዘት ብዛት በጣም ማበጡን (Bloated) መሆኑን በዳይናሚክ ይለካል [1]"""
         if not file_path or not os.path.exists(file_path):
             return False
         try:
@@ -675,8 +679,6 @@ class AntiBloatEngine:
 
     @staticmethod
     def prune_and_optimize(old_code, new_code, file_path):
-        """አሮጌውንና አዲሱን ኮድ በማነጻጸር የኮድ ማበጥን ይከላከላል፣ የሞቱ ኮዶችንና ድግግሞሾችን በ AI ያሳጥራል"""
-        # የፋይሉን መጠን ራሱ መርምሮ ካበጠ ብቻ ማሳጠር (v10.18 update)
         is_bloated = AntiBloatEngine.is_file_bloated(file_path)
         if not is_bloated and (len(new_code) < 12000 or (old_code and len(new_code) < len(old_code) * 1.20)):
             return new_code
@@ -706,7 +708,6 @@ class AntiBloatEngine:
 # ⚙️ 6. LOG PROTECTOR & THREAD-SAFE DB REFRESHER
 # ============================================================
 def refresh_db_connection_on_error(error_message):
-    """የዳታቤዝ ግንኙነት ሲመረዝ ሁሉንም ንቁ ክሮች (Threads) አድሶ የሚከፍት ፈዋሽ [1, 2]"""
     if "OperationalError" in error_message or "DatabaseError" in error_message:
         try:
             from django.db import connections

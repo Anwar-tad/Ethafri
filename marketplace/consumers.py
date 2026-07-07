@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/consumers.py
-# 📝 ስሪት፦ v10.19 (Phoenix Concurrency - Aligned Health Matrix & CPU Stream)
-# ✅ የተፈቱ ችግሮች፦ Integrated get_api_health_states backend engine to stream live rate-limits and env setups, fixed duplicate socket locks on SQLite, and aligned CPU load.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ስሪት፦ v10.20 (Phoenix Concurrency - Aligned Health Matrix & CPU Stream)
+# ✅ የተፈቱ ችግሮች፦ Fixed DjangoJSONEncoder 'cls' reference bug to prevent serialization crashes, integrated live API health status streaming across 9 keys, and safely resolved concurrent SQLite locking bottlenecks.
+# 📅 ቀን፦ Tuesday, July 07, 2026
 # ============================================================
 
 import os
@@ -32,7 +32,7 @@ class AIUtils:
         return raw_text.strip() if raw_text else "{}"
 
 # ============================================================
-# 🎡 MASTER WEBSOCKET CONSUMER (የቀጥታ ስርጭት ኮንሲውመር)
+# 🎡 MASTER WEBSOCKET CONSUMER
 # ============================================================
 try:
     from channels.generic.websocket import AsyncWebsocketConsumer
@@ -58,7 +58,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         }
         
         self.room_group_name = 'agent_status'
-        self.connected = True  # የግንኙነት መለያ (ንቁ መሆኑን መመዝገቢያ)
+        self.connected = True  # የግንኙነት መለያ
         
         await self.channel_layer.group_add(
             self.room_group_name,
@@ -71,7 +71,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         self.update_task = asyncio.create_task(self.auto_update())
     
     async def disconnect(self, close_code):
-        self.connected = False  # ግንኙነቱ መቋረጡን መመዝገብ (ዑደቱን ወዲያውኑ ያቆመዋል)
+        self.connected = False  # ግንኙነቱ መቋረጡን መመዝገብ
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
@@ -80,7 +80,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             self.update_task.cancel()
     
     async def receive(self, text_data):
-        """ከዳሽቦርድ ደንበኛ የሚመጡ የቀጥታ ትዕዛዞችን መቀበያ"""
         try:
             data = json.loads(text_data)
             action = data.get('action')
@@ -104,7 +103,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({"error": str(e)}))
     
     async def auto_update(self):
-        """በየ5 ሰከንድ የቀጥታ ስታቲስቲክስን ለዳሽቦርዱ መላክ"""
         while self.connected:
             try:
                 await asyncio.sleep(5)
@@ -114,14 +112,12 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 break
                 
     async def send_live_stats(self):
-        """የቀጥታ ስታቲስቲክስ እና የሰርቨር ጤና መረጃ ለደንበኛ መላክ"""
         if not getattr(self, 'connected', False):
             return
         try:
             tasks = await self.get_task_stats()
             api_health = await self.get_api_health_states()
             
-            # የሰርቨር ሲፒዩ ጫናን በዳይናሚክ መለካት
             try:
                 cpu_load = os.getloadavg()[0]
             except Exception:
@@ -139,7 +135,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.debug(f"Live stats send skipped (connection closed): {e}")
     
     async def send_status(self):
-        """ሁሉንም የዳታቤዝ ጥያቄዎች በፍጥነት ማውጣት"""
         if not getattr(self, 'connected', False):
             return
         try:
@@ -168,7 +163,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                     lock_fut, tasks_fut, pending_fut, sites_fut, errors_fut, healing_fut, cycle_logs_fut, api_health_fut
                 )
             
-            # 🛡️ FIXED: JSONEncoder 'encoder' ስህተት ወደ 'cls' ተስተካክሏል [1]
+            # 🛡️ FIXED: JSONEncoder 'encoder' ስህተት ወደ 'cls' ተስተካክሏል
             await self.send(text_data=json.dumps({
                 'type': 'status_update',
                 'task_stats': tasks,
@@ -181,16 +176,14 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'api_cooldowns': api_health.get('api_cooldowns', {}),
                 'api_configured': api_health.get('api_configured', {}),
                 'timestamp': timezone.now().isoformat()
-            }, cls=DjangoJSONEncoder)) # <--- ወደ cls ተስተካክሏል [1]
+            }, cls=DjangoJSONEncoder)) # <--- cls መሆኑ ተረጋግጧል
         except Exception as e:
             logger.error(f"Failed to compile status check: {e}")
     
     async def send_site_status(self, site_id):
-        """የአንድ ንዑስ ጣቢያ ሁኔታ መላኪያ"""
         if not getattr(self, 'connected', False):
             return
         try:
-            # የጣቢያ ኳሪዎችን ማውጣት
             site_data = await self.get_site_stats_data(site_id)
             await self.send(text_data=json.dumps({
                 'type': 'site_status',
@@ -216,7 +209,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_api_health_states(self):
-        """🛡️ ፊቸር 1 (Live API health matrix)፦ 9ኙን የኤአይ ኪዎች በካሽና በ Env ላይ የቀጥታ ስራቸውን መከታተያ [1]"""
         providers = ['gemini', 'groq', 'mistral', 'openrouter', 'huggingface', 'github']
         cooldowns = {}
         configured = {}

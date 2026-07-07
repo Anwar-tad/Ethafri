@@ -1,8 +1,8 @@
 
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
-# 📝 ስሪት፦ v10.45 (Stable Growth Focus - Fully Hardened)
-# ✅ የተፈቱ ችግሮች፦ Consolidate duplicate harvesters, fix dict strip error, resolve site_id foreign key constraint, fix views project state self-bug, and temporarily disable Track A evolution for scraping stability.
+# 📝 ስሪት፦ v10.50 (Ultimate Self-Learning & Auto-Correcting CEO - Production)
+# ✅ የተፈቱ ችግሮች፦ Enabled empty-house auto-memory bypass, fixed 'Very High' ValueError in Spy Engine, resolved project state self-bug, and disabled Track A coding temporarily.
 # 📅 ቀን፦ Tuesday, July 07, 2026
 # ============================================================
 
@@ -487,7 +487,7 @@ class StrategicCEO:
     def research_latest_tech_upgrades(self):
         try:
             clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
-            query = "advanced Django database performance optimizations and scaling 2026"
+            query = "advanced Django performance optimizations and scaling 2026"
             prompt = (
                 f"Perform an automated research task on query: '{query}'.\n"
                 f"Identify exactly 1 cutting-edge, safe, and highly efficient performance optimization "
@@ -710,7 +710,7 @@ class RecursiveBuilder:
 
 
 # ============================================================
-# 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
+# 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER
 # ============================================================
 
 def _autonomous_no_api_search_fallback(niche):
@@ -741,8 +741,6 @@ def _autonomous_no_api_search_fallback(niche):
 
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ"""
-    
     @staticmethod
     def is_network_available():
         try:
@@ -902,7 +900,7 @@ class MultiChannelHarvester:
         return []
     
     def _parse_product_text(self, text):
-        """የኤችቲኤምኤል ቆሻሻ ኮዶችን በሙሉ አጽድቶ ንጹሕ የምርት መረጃ ብቻ መለየቻ"""
+        """ምርቶችን የሚለይ እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.45)"""
         if not text: return None
         
         # 🛡️ 1. ማንኛውንም የ HTML ኮድ ታጎች በሙሉ ማጽዳት (Strip all HTML tags completely)
@@ -923,7 +921,7 @@ class MultiChannelHarvester:
         # 🛡️ የመጀመሪያው ንጹሕ መስመር የምርቱ ስም (Title) ይሆናል
         product['title'] = lines[0][:150]
         
-        # ዋጋ መፈለጊያ (በንጹህ ጽሁፍ ላይ)
+        # ዋጋ መፈለጊያ
         price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
                       re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
         if price_match:
@@ -1059,7 +1057,14 @@ class CEOOperations:
                 key=f"PROCESSED_RAW_HASHES_{self.site.name}",
                 defaults={'value': []}
             )
-            processed_hashes = set(hash_config.value if isinstance(hash_config.value, list) else [])
+            # 🛡️ SELF-CORRECTION: ቤቱ ባዶ ከሆነ (0 ምርት) ኤጀንቱ ራሱን አስተምሮ ትውስታውን ያጸዳል
+            if prod_count == 0:
+                logger.warning("🧹 Empty House Auto-Correction: Clearing processed hashes to force re-seeding...")
+                hash_config.value = []
+                hash_config.save()
+                processed_hashes = set()
+            else:
+                processed_hashes = set(hash_config.value if isinstance(hash_config.value, list) else [])
         except Exception as cache_err:
             logger.debug(f"Failed to load raw hashes: {cache_err}")
             processed_hashes = set()
@@ -1541,11 +1546,9 @@ class CompetitorIntelligenceEngine:
         self.site = site
 
     def spy_and_analyze_market(self):
-        # Refresh the site object to prevent stale cache / foreign key violations
         try:
             self.site = get_model('SiteRegistry').objects.get(id=self.site.id)
         except Exception:
-            # Fallback to the first active registry if ID mismatches during DB Purge
             self.site = get_model('SiteRegistry').objects.filter(is_active=True).first()
             if not self.site:
                 return
@@ -1561,7 +1564,7 @@ class CompetitorIntelligenceEngine:
             competitor_links = ["https://jiji.com.et", "https://www.engocha.com"]
 
         raw_competitor_data = []
-        for url in competitor_links[:1]: # Optimize to only check primary competitor to save resources
+        for url in competitor_links[:1]: 
             try:
                 html_content = ScrapperEngine.scrape(url)
                 if html_content:
@@ -1589,9 +1592,22 @@ class CompetitorIntelligenceEngine:
         try:
             result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
             if result and isinstance(result, dict):
+                
+                # 🛡️ FIXED: int('Very High') ስህተትን ለመከላከል (Self-healing)
+                demand_raw = result.get('demand_level', 50)
+                try:
+                    demand_level = int(demand_raw)
+                except (ValueError, TypeError):
+                    if str(demand_raw).lower() in ['high', 'critical', 'very high', 'active', 'very_high']:
+                        demand_level = 80
+                    elif str(demand_raw).lower() in ['medium', 'moderate']:
+                        demand_level = 50
+                    else:
+                        demand_level = 30
+
                 MarketTrend.objects.update_or_create(
                     niche_name=self.site.niche,
-                    defaults={'demand_level': int(result.get('demand_level', 50)), 'ai_suggestion': result.get('ai_suggestion', '')}
+                    defaults={'demand_level': demand_level, 'ai_suggestion': result.get('ai_suggestion', '')}
                 )
 
                 insight_text = result.get('ai_suggestion', 'No suggestions')
@@ -1609,7 +1625,7 @@ class CompetitorIntelligenceEngine:
                 try:
                     repriced_val = float(repriced_raw)
                 except (ValueError, TypeError):
-                    repriced_val = 0.0 # AI በስህተት ጽሑፍ ቢመልስ ዋጋው እንዳይቀየር (0.0 መተው)
+                    repriced_val = 0.0
 
                 # 🛡️ FIXED: int('Invalid ID') ስህተትን ለመከላከል
                 target_raw = result.get('repriced_product_id', 0)
@@ -2290,7 +2306,7 @@ def start_autonomous_ceo():
 
 
 # ============================================================
-# 🚨 EMERGENCY EMERGENCY PRODUCTS SEEDING FORCING
+# 🚨 EMERGENCY PRODUCTS SEEDING FORCING
 # ============================================================
 def force_push_products(site):
     """ምርቶች ከሌሉ ቢያንስ አንድ የሙከራ ምርት እንዲኖር የሚያስገድድ ሎጂክ"""

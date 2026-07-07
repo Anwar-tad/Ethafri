@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/event_bus.py
-# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned, Thread-Safe & Circular-Free Utility - v10.16)
-# ✅ የተፈቱ ችግሮች፦ Dynamic model loading, safe_close_connections exception shielding, and 100% circular-free execution hooks.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ዓላማ፦ Asynchronous Event Bus (Pruned, Thread-Safe & Circular-Free Utility - v10.18)
+# ✅ የተፈቱ ችግሮች፦ Fixed NameError by importing 'transaction' module inside translation queue, resolved circular imports via apps.get_model, and secured async safe connection release handlers.
+# 📅 ቀን፦ Tuesday, July 07, 2026
 # ============================================================
 
 import logging
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def safe_close_connections():
     """
     ባለብዙ-ክር ወይም በአሲንክሮነስ የክስተት ጥሪዎች ላይ close_old_connections
-    ስህተት ቢፈጥር አጠቃላይ የኤጀንት ስራው እንዳይቋረጥ የሚከላከል ረዳት [1]
+    ስህተት ቢፈጥር አጠቃላይ የኤጀንት ስራው እንዳይቋረጥ የሚከላከል ረዳት
     """
     try:
         close_old_connections()
@@ -118,7 +118,7 @@ def push_to_github_raw(file_path, content, message, site=None):
 # ============================================================
 
 def get_semantic_memory(query, memory_type=None, site=None, limit=5):
-    """ከ RAG VectorMemory ላይ የቆዩ የኮድ መፍትሔዎችን የሚስብ ሎጂክ [1]"""
+    """ከ RAG VectorMemory ላይ የቆዩ የኮድ መፍትሔዎችን የሚስብ ሎጂክ"""
     VectorMemory = apps.get_model('marketplace', 'VectorMemory')
     try:
         return VectorMemory.find_similar(query, memory_type=memory_type, site=site, limit=limit)
@@ -133,6 +133,7 @@ def get_semantic_memory(query, memory_type=None, site=None, limit=5):
 
 def enqueue_pending_translations(product, target_languages):
     """በቀን ገደብ ምክንያት ሳይተረጎሙ የቀሩ ምርቶችን በወረፋ ይዞ ቆይቶ ለመተርጎም"""
+    from django.db import transaction  # 🛡️ FIXED: NameError ለመከላከል የተጨመረ
     TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
     try:
         with transaction.atomic():
