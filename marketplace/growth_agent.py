@@ -24,7 +24,7 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor
-
+from urllib.parse import urlparse  # 🛡️ FIXED: name 'urlparse' is not defined ስህተትን ለመፍታት
 from django.utils import timezone
 from django.conf import settings
 from django.db import transaction, connections
