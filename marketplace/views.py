@@ -900,7 +900,8 @@ def google_search_console_index_view(request):
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
         
 # ============================================================
-# 📡 8. HARVESTER ORCHESTRATOR CENTER (የይዘት አሰሳ እዝ ማዕከል)
+# ============================================================
+# 📡 8. HARVESTER ORCHESTRATOR CENTER (የይዘት አሰሳ እዝ ማዕከል - v10.40)
 # ============================================================
 
 @staff_member_required
@@ -908,7 +909,7 @@ def google_search_console_index_view(request):
 def harvester_orchestrator_view(request):
     """
     📡 የይዘት አሰሳ መቆጣጠሪያ፣ አዳዲስ ዌብሳይቶችን በእጅ መመዝገቢያ፣
-    የአክቲቭ/የታገዱ ምንጮች ዝርዝር እና በየቀኑ/በየወሩ የተሰበሰቡ ምርቶች ትንተና ሰሌዳ [1, 2]
+    የአክቲቭ/የታገዱ ምንጮች ዝርዝር እና በየቀኑ/በየወሩ የተሰበሰቡ ምርቶች ትንተና ሰሌዳ
     """
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
@@ -969,33 +970,26 @@ def harvester_orchestrator_view(request):
         if registry and isinstance(registry.value, list):
             active_sources = registry.value
 
-    # ❌ 4. የታገዱ/የተሰረዙ (Dropped) ዌብሳይቶችን ከ SelfHealingLog ላይ መፈለግ [1]
-    # 'dropping' የሚል ቃል ያላቸውን የጥገና ሎጎች በመቃኘት የማይሰሩ ምንጮችን ዝርዝር ማውጣት
+    # ❌ 4. የታገዱ/የተሰረዙ (Dropped) ዌብሳይቶችን ከ SelfHealingLog ላይ መፈለግ
     dropped_sources = SelfHealingLog.objects.filter(
         error_message__icontains="dropping"
     ).order_by('-created_at')[:15]
 
-    # 📊 5. የውሂብ ትንተናዎች (Dynamic Analytics) [1]
+    # 📊 5. የውሂብ ትንተናዎች (Dynamic Analytics)
     today = timezone.now().date()
     yesterday = today - timedelta(days=1)
     thirty_days_ago = timezone.now() - timedelta(days=30)
 
     stats = {
-        # ዛሬ የተሰበሰቡ ምርቶች
         'scraped_today': Product.objects.filter(created_at__date=today).count(),
-        # ትናንት የተሰበሰቡ ምርቶች
         'scraped_yesterday': Product.objects.filter(created_at__date=yesterday).count(),
-        # በዚህ ወር የተሰበሰቡ ምርቶች
         'scraped_this_month': Product.objects.filter(created_at__gte=thirty_days_ago).count(),
-        # በጠቅላላ የተሰበሰቡ ምርቶች
         'total_scraped': Product.objects.count(),
-        # ወረፋ ላይ ያሉ የ SMS/Email ማሳወቂያዎች
         'pending_outbox_sms': NotificationQueue.objects.filter(is_sent=False, notification_type='sms').count(),
         'sent_outbox_sms': NotificationQueue.objects.filter(is_sent=True, notification_type='sms').count()
     }
 
-    # 📈 6. የ 7-ቀን የምርት አሰሳ የዕድገት ሰንጠረዥ (7-Day Crawling Trend) [1, 2]
-    # የ Chart.js ግራፍ ለመሳል እንዲያመች የየቀኑን መረጃ ማደራጀት
+    # 📈 6. የ 7-ቀን የምርት አሰሳ የዕድገት ሰንጠረዥ (7-Day Crawling Trend)
     daily_trend = []
     for i in range(6, -1, -1):
         target_date = today - timedelta(days=i)
@@ -1005,13 +999,25 @@ def harvester_orchestrator_view(request):
             'count': count
         })
 
+    # 🕵️ 7. [የላቀ የመረጃ አሰሳ ስለላ፣ ጥናትና ራስ-ገዝ ፈውስ ማዕከል]
+    recon_reports = []
+    if current_site:
+        AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+        if AIProjectBacklog:
+            recon_reports = AIProjectBacklog.objects.filter(
+                site=current_site,
+                target_file="scrapper_engine",
+                status="Blocked"
+            ).order_by('-created_at')
+
     context = {
         'sites': sites,
         'current_site': current_site,
         'active_sources': active_sources,
         'dropped_sources': dropped_sources,
+        'recon_reports': recon_reports,  # 🕵️ ለአዲሱ የስለላ ሪፖርት ሰሌዳ የተጨመረ
         'stats': stats,
-        'daily_trend_json': json.dumps(daily_trend), # ለ Chart.js በ JSON ይተላለፋል
+        'daily_trend_json': json.dumps(daily_trend), 
         'live_time': timezone.now()
     }
     return render(request, 'marketplace/harvester_orchestrator.html', context)

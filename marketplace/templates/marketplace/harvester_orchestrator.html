@@ -216,6 +216,57 @@
         </div>
 
     </div>
+    <!-- ============================================================
+        🕵️ 5. SCRAPER INTELLIGENCE & TARGET RECONNAISSANCE REPORTS (አዲሱ የስለላ ሰሌዳ)
+        ============================================================ -->
+        <div class="card border-0 shadow-sm rounded-4 mt-4">
+            <div class="card-header bg-dark text-white py-3 border-0 d-flex justify-content-between align-items-center rounded-top-4">
+                <h5 class="mb-0 fw-bold">
+                    <i class="fa-solid fa-user-secret me-2 text-warning"></i> 
+                    {% trans "Scraper Intelligence & Target Reconnaissance Reports" %}
+                </h5>
+                <span class="badge bg-warning text-dark rounded-pill px-3">{{ recon_reports|length }} {% trans "Reports Available" %}</span>
+            </div>
+            <div class="card-body bg-light p-4 rounded-bottom-4">
+                <p class="text-muted small mb-3">
+                    <i class="fa-solid fa-info-circle me-1"></i>
+                    {% trans "The agent autonomously monitors blocks and site updates. If a crawler fails, it analyzes the target volume and writes a custom Python BeautifulSoup patch code below for developers to copy/paste." %}
+                </p>
+
+                <div class="accordion rounded-3 overflow-hidden border" id="reconAccordion">
+                    {% for report in recon_reports %}
+                    <div class="accordion-item border-0 border-bottom">
+                        <h2 class="accordion-header" id="heading{{ report.id }}">
+                            <button class="accordion-button collapsed fw-bold text-dark bg-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ report.id }}" aria-expanded="false" aria-controls="collapse{{ report.id }}">
+                                <span class="badge bg-danger me-2">Crawl Obstacle</span>
+                                <span class="text-primary">{{ report.task_name }}</span>
+                                <small class="text-muted ms-auto pe-3 d-none d-sm-inline">{{ report.created_at|date:"M d, Y H:i" }}</small>
+                            </button>
+                        </h2>
+                        <div id="collapse{{ report.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ report.id }}" data-bs-parent="#reconAccordion">
+                            <div class="accordion-body bg-white p-4">
+                                <!-- ሪፖርቱን እጅግ በሚያምር የኮድ ሰሌዳ አቀራረብ ማሳያ -->
+                                <pre style="white-space: pre-wrap; font-family: 'Courier New', Courier, monospace;" class="bg-light p-3 rounded border text-secondary small">{{ report.description }}</pre>
+                                
+                                <div class="alert alert-info d-flex align-items-center mt-3 small" role="alert">
+                                    <i class="fa-solid fa-circle-info me-2 text-primary"></i>
+                                    <div>
+                                        {% trans "Copy the generated Python code block from the report and paste it into scrapper_engine.py to dynamically bypass the block." %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-5 text-muted bg-white rounded-3">
+                        <i class="fa-solid fa-user-shield fa-3x mb-3 text-success opacity-25"></i>
+                        <p class="m-0 fw-bold">No scraper blocks detected.</p>
+                        <p class="m-0 text-secondary small">All targets are active or successfully bypass-scraped by Playwright Stealth Engine!</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
 </div>
 {% endblock %}
 
