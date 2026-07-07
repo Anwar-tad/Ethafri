@@ -698,7 +698,7 @@ def _autonomous_no_api_search_fallback(niche):
 
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ እና ክልከላዎችን የሚያጠና የስለላ ሞተር (v10.65)"""
+    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.80)"""
     
     @staticmethod
     def is_network_available():
@@ -933,59 +933,76 @@ class MultiChannelHarvester:
 
     def perform_source_reconnaissance(self, source, error_msg, html_content=None):
         """
-        🕵️ [የመረጃ አሰሳ ስለላ እና ጥናት ማዕከል]
-        ክልከላዎችን መርምሮ ለአድሚን በ Backlog ላይ ዝርዝር የስለላ ሪፖርት (Bypass strategy) የሚመዘግብ
+        🕵️ [የላቀ የመረጃ አሰሳ ስለላ፣ ጥናትና ራስ-ገዝ ፈውስ ማዕከል - v10.80]
+        ያጋጠመውን እገዳ በጥልቀት በመመርመር የገበያ ሁኔታን፣ የተጠቃሚ/ምርት መጠኖችን በመገመት
+        ለአድሚኑ ዝርዝር የስለላ ሪፖርትና የኮድ ማስተካከያ (Patch) በባክሎግ ይመዘግባል
         """
         url = source.get('url_or_channel', '')
         platform = source.get('platform_type', 'GenericWeb')
+        domain = urlparse(url).netloc.lower() or url.replace('@', '').lower()
         
-        block_reason = "Unknown Access Block"
+        # 1. የክልከላውን ዓይነት በራስ-ሰር መለየት
+        block_reason = "የማይታወቅ እገዳ (Access Blocked)"
         if "403" in error_msg or "Forbidden" in error_msg:
-            block_reason = "HTTP 403 Forbidden (Firewall/Cloudflare IP Ban detected)"
+            block_reason = "HTTP 403 Forbidden (Firewall/Cloudflare IP Ban ተገኝቷል)"
         elif "429" in error_msg or "Too Many Requests" in error_msg:
-            block_reason = "HTTP 429 Too Many Requests (Access Throttled)"
+            block_reason = "HTTP 429 Too Many Requests (የኤፒአይ ፍጥነት ገደብ/Throttled)"
         elif "Timeout" in error_msg or "timed out" in error_msg:
-            block_reason = "Connection Timeout (Server is protected, slow, or offline)"
+            block_reason = "የሰዓት ማለፍ ግንኙነት መቋረጥ (Timeout - ሰርቨሩ ጥበቃ አለው ወይም ጠፍቷል)"
         elif "0 products extracted" in error_msg:
-            block_reason = "DOM Structure Mismatch (HTML loaded successfully, but class selectors changed)"
+            block_reason = "የይዘት አወቃቀር መዛባት (DOM Structure Mismatch - የዌብሳይቱ ዲዛይን ተቀይሯል)"
 
-        density_estimation = "Cannot evaluate (Complete connection block)"
+        # 2. የይዘት መጠኖችን እና የገበያ እንቅስቃሴን በጥልቀት መገመት (Volumetric Recon)
+        html_len = len(html_content) if html_content else 0
+        detected_links = len(re.findall(r'href=["\'](.*?)["\']', html_content)) if html_content else 0
+        detected_images = len(re.findall(r'<img[^>]+src=', html_content, re.IGNORECASE)) if html_content else 0
+        
+        market_activity = "ዝቅተኛ እንቅስቃሴ (Low Activity)"
         if html_content:
-            text_len = len(html_content)
-            links_count = len(re.findall(r'href=', html_content))
-            images_count = len(re.findall(r'<img', html_content))
-            density_estimation = (
-                f"Raw HTML: {text_len} chars. "
-                f"Links found: {links_count}. Images: {images_count}. "
-                f"Estimated Active Listings: {min(links_count // 3, 50)} items on main page."
-            )
+            timestamps = re.findall(r'today|yesterday|ago|ሰዓት|ትላንት|ቀን', html_content, re.IGNORECASE)
+            if len(timestamps) > 15:
+                market_activity = "በጣም ከፍተኛ የዕለት ተዕለት ሽያጭ እንቅስቃሴ (Very High Daily Activity)"
+            elif len(timestamps) > 5:
+                market_activity = "መካከለኛ የሽያጭ እንቅስቃሴ (Moderate Activity)"
+                
+        density_estimation = (
+            f"የፋይሉ ርዝመት፦ {html_len} ፊደላት። "
+            f"የተገኙ ሊንኮች፦ {detected_links}። የተገኙ ፎቶዎች፦ {detected_images}።\n"
+            f"የተጠቃሚዎች መጠቅለያ (Estimated Active Users)፦ በግምት {max(detected_links // 5, 10)} ንቁ ሻጮች።\n"
+            f"የምርት መጠቅለያ (Estimated Products)፦ በግምት {max(detected_links // 2, 20)} ንቁ ምርቶች በዋናው ገጽ ላይ ተገኝተዋል።\n"
+            f"የገበያው የሽያጭ ሁኔታ፦ {market_activity}።"
+        )
 
+        # 3. የ AI ስልታዊ የስለላ ሪፖርትና የኮድ ማሻሻያ (Advisory & Patch Engine)
         _, ask_master_ai_smart, _, _ = _get_ai_utils()
         clean_and_parse_json, _, _, _ = _get_ai_utils()
         
         prompt = (
             f"We failed to scrape this Ethiopian marketplace: {url} ({platform}).\n"
-            f"Error/Block Reason: {block_reason} ({error_msg}).\n"
-            f"HTML Metadata: {density_estimation}.\n\n"
-            f"Write a brief, precise RECONNAISSANCE REPORT for developers. Include:\n"
-            f"1. Direct cause of failure (CF challenge, IP Block, or Class selector change)?\n"
-            f"2. Practical workaround (e.g. proxy rotation, specific custom class name or selector, etc.).\n"
-            f"Return JSON with key 'analysis' containing the guidelines (max 400 characters)."
+            f"Detected Obstacle: {block_reason} ({error_msg}).\n"
+            f"Target Web Statistics: {density_estimation}.\n\n"
+            f"Please write a strategic RECONNAISSANCE REPORT & DEVELOPMENT ADVISORY for the developer. You must return JSON with exactly two keys:\n"
+            f"1. 'analysis': Strategic analysis of why we got blocked, how to bypass it on the next crawl (max 300 characters).\n"
+            f"2. 'recommended_patch': A concise Python BeautifulSoup/Regex code patch (max 500 characters) that the human admin can copy and paste into scrapper_engine.py or growth_agent.py to extract products from this site structure. Write the code inside a clean string."
         )
         
         analysis_text = "AI analysis throttled due to active rate limits."
+        code_patch = "# No patch generated due to API limit. Check CSS selectors manually."
+        
         try:
             res = ask_master_ai_smart(prompt, task_type="market_research")
             data = clean_and_parse_json(res)
             if data and isinstance(data, dict):
                 analysis_text = data.get('analysis', analysis_text)
+                code_patch = data.get('recommended_patch', code_patch)
         except Exception as e:
             logger.debug(f"AI Reconnaissance Analysis skipped: {e}")
 
+        # 4. የስለላና ሪከርድ መመሪያውን በ AIProjectBacklog ላይ መመዝገብ
         try:
             AIProjectBacklog = get_model('AIProjectBacklog')
             # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል ስሙን በ 200 ፊደላት መገደብ (Truncate)
-            task_name = f"🕵️ RECON REPORT: {url}"[:200]
+            task_name = f"🕵️ RECON INTEL BRIEF: {domain}"[:200]
             
             if not AIProjectBacklog.objects.filter(task_name=task_name).exists():
                 AIProjectBacklog.objects.create(
@@ -993,28 +1010,40 @@ class MultiChannelHarvester:
                     task_name=task_name,
                     target_file="scrapper_engine",
                     priority="High",
-                    status="Blocked", # 'Blocked' ማለት የአድሚን/የሰው እገዛ ያስፈልገዋል ማለት ነው
+                    status="Blocked", # 'Blocked' ማለት የሰው (የአድሚን) እገዛ ይፈልጋል ማለት ነው
                     description=(
-                        f"🛡️ Autonomous Scraper Intelligence Report:\n"
-                        f"- Target Domain: {url}\n"
-                        f"- Block Classification: {block_reason}\n"
-                        f"- Estimated Product Density: {density_estimation}\n\n"
-                        f"💡 Strategist Bypass Guide:\n{analysis_text}"
+                        f"============================================================\n"
+                        f"🕵️ AUTONOMOUS SCRAPER RECONNAISSANCE INTELLIGENCE BRIEF\n"
+                        f"============================================================\n"
+                        f"🌐 TARGET WEBSITE: {url}\n"
+                        f"🛡️ OBSTACLE ENCOUNTERED: {block_reason}\n"
+                        f"📊 TARGET MARKET STATISTICS:\n{density_estimation}\n\n"
+                        f"------------------------------------------------------------\n"
+                        f"💡 AI STRATEGIST BYPASS GUIDE:\n"
+                        f"------------------------------------------------------------\n"
+                        f"{analysis_text}\n\n"
+                        f"------------------------------------------------------------\n"
+                        f"🛠️ RECOMMENDED CODE PATCH FOR ADMIN (COPY & PASTE TO FIX):\n"
+                        f"------------------------------------------------------------\n"
+                        f"```python\n{code_patch}\n```\n"
+                        f"============================================================\n"
                     ),
                     business_impact_score=8,
                     trigger_condition="Autonomous Scraper Reconnaissance Loop"
                 )
-                logger.warning(f"🕵️ Recon Engine: Registered strategic bypass guide for: {url}")
+                logger.warning(f"🕵️ Recon Engine: Registered deeply-analyzed strategic bypass brief for: {domain}")
         except Exception as db_err:
             logger.error(f"Failed to save Reconnaissance Task: {db_err}")
 
     def discover_and_harvest_niche_sources(self, site):
-        """🛡️ FIXED: ጤናማ ያልሆኑትን ቀድሞ ከመጣል ይልቅ ሁሉንም ለመሞከር እና ክልከላ ካለ ለአድሚን ለመዘገብ (Recon Engine v10.65)"""
+        """🛡️ FIXED: ጤናማ ያልሆኑትን ቀድሞ ከመጣል ይልቅ ሁሉንም ለመሞከር እና ክልከላ ካለ ለአድሚን ለመዘገብ (Recon Engine v10.80)"""
         if not self.is_network_available():
             logger.warning("🌐 No internet connection. Using cached sources.")
             return self._get_cached_sources(site)
         
-        if random.random() < 0.3 or not self._get_cached_sources(site):
+        SiteConfig = get_model('SiteConfig')
+        
+        if random.random() < 0.1 or not self._get_cached_sources(site):
             new_discovered = self.discover_active_market_sources(site)
             if new_discovered:
                 self._save_sources_to_cache(site, new_discovered)
@@ -1027,17 +1056,53 @@ class MultiChannelHarvester:
             self._save_sources_to_cache(site, sources)
         
         all_products = []
+        scraped_this_cycle = 0
+        
         # 🛡️ የ3 ወር እውነተኛ ምርቶችን በጥልቀት ለመሳብ በየዑደቱ እስከ 8 ሳይቶች ድረስ በጥልቀት መቃኘት
-        for source in sources[:8]: 
+        for source in sources:
             url = source.get('url_or_channel', '')
-            logger.info(f"📡 Scraping {url}...")
-            products = self.get_recent_products(source)
-            if products:
-                all_products.extend(products)
-                logger.info(f"✅ Found {len(products)} products from {url}")
-            else:
-                # 🛡️ FIXED: ምርት ካላገኘ ወይም ግንኙነት ከተቋረጠ ሪፖርቱን እዚህ በራስ-ሰር ማመንጨት (No Silent Bypass!)
-                self.perform_source_reconnaissance(source, "Website is either blocked, returned empty, or timed out during crawling.")
+            domain = urlparse(url).netloc.lower() or url.replace('@', '').lower()
+            
+            # የእያንዳንዱን ምንጭ የመጨረሻ ዳሰሳ ሰዓት ከ SiteConfig ማምጣት
+            last_scrape_key = f"LAST_SCRAPE_TIME_{domain}"
+            last_scrape_cfg = SiteConfig.objects.filter(key=last_scrape_key).first()
+            
+            # ፈጣን አሰሳ ለሚፈልጉት (እንደ ቴሌግራም/Jiji) የ 1 ቀን፣ ለሌሎቹ የ 15 ቀናት መቆያ መመደብ
+            cooldown_days = 1 if ('jiji' in domain or 't.me' in domain or '@' in domain) else 15
+            
+            should_scrape = True
+            if last_scrape_cfg and isinstance(last_scrape_cfg.value, dict):
+                try:
+                    last_time_str = last_scrape_cfg.value.get('time')
+                    if last_time_str:
+                        last_time = datetime.fromisoformat(last_time_str)
+                        if timezone.is_naive(last_time):
+                            last_time = timezone.make_aware(last_time)
+                        
+                        next_allowed_time = last_time + timedelta(days=cooldown_days)
+                        if timezone.now() < next_allowed_time:
+                            remaining_time = next_allowed_time - timezone.now()
+                            logger.info(f"⏭️ Crawl Pacing: Skipping '{domain}' — Cooldown active for next {remaining_time.days}d {remaining_time.seconds // 3600}h.")
+                            should_scrape = False
+                except Exception:
+                    pass
+            
+            if should_scrape and scraped_this_cycle < 3: # በአንድ ዑደት ቢበዛ 3 ሳይቶችን ብቻ በመቃኘት ሰርቨር እንዳይጨናነቅ
+                logger.info(f"📡 Scraping {url}...")
+                products = self.get_recent_products(source)
+                scraped_this_cycle += 1
+                
+                # የተሳካ የአሰሳ ጊዜን መመዝገብ
+                SiteConfig.objects.update_or_create(
+                    key=last_scrape_key,
+                    defaults={'value': {'time': timezone.now().isoformat(), 'status': 'success' if products else 'no_data'}}
+                )
+                
+                if products:
+                    all_products.extend(products)
+                    logger.info(f"✅ Found {len(products)} products from {url}")
+                else:
+                    self.perform_source_reconnaissance(source, "Website crawled successfully, but returned 0 products.")
         
         return all_products
 
