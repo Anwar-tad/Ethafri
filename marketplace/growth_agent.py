@@ -746,7 +746,7 @@ def _autonomous_no_api_search_fallback(niche):
 
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ - OPTIMIZED VERSION"""
+    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ እና ክልከላዎችን የሚያጠና የስለላ ሞተር (v10.60)"""
     
     @staticmethod
     def is_network_available():
@@ -773,14 +773,12 @@ class MultiChannelHarvester:
         dynamic_query = self._get_rotating_search_query(site)
         logger.info(f"🔍 Dynamic Discovery: Scanning using query: '{dynamic_query}'")
         
-        # ✅ OPTIMIZED: የተሻሻለ ፕሮምፕት - የተረጋገጡ ምንጮችን ብቻ
         prompt = (
             f"Search the live internet using this query: '{dynamic_query}'.\n"
-            f"Identify ACTIVE online buying and selling websites, classified directories, "
+            f"Identify active online buying and selling websites, classified directories, "
             f"or active Telegram channel usernames currently popular in Ethiopia in 2026.\n"
-            f"ONLY include sources that are currently working and have recent listings.\n"
-            f"Provide up to 5 verified active sources.\n"
-            f"Return JSON with key 'sources' containing list of objects with keys 'url_or_channel' and 'platform_type' (must be 'Jiji', 'Telegram', or 'GenericWeb')."
+            f"Provide up to 5 verified active web links or Telegram channel usernames.\n"
+            f"Return the results STRICTLY in a JSON format with key 'sources' containing a list of objects with keys 'url_or_channel' and 'platform_type' (must be 'Jiji', 'Telegram', or 'GenericWeb')."
         )
         
         sources = []
@@ -789,7 +787,7 @@ class MultiChannelHarvester:
             data = clean_and_parse_json(response)
             sources = data.get('sources', []) if data else []
         except Exception as e:
-            logger.warning(f"Grounded discovery failed ({e}). Attempting fallback...")
+            logger.warning(f"Grounded discovery failed ({e}). Attempting unauthenticated fallback...")
             
         if not sources:
             sources = _autonomous_no_api_search_fallback(site.niche)
@@ -835,46 +833,32 @@ class MultiChannelHarvester:
         return []
 
     def _get_fallback_sources(self):
-        """✅ OPTIMIZED: የተረጋገጡ እና ንቁ የሆኑ ምንጮች ብቻ"""
         return [
-            # ✅ የተረጋገጡ የቴሌግራም ቻናሎች
-            {"url_or_channel": "etmarketplace", "platform_type": "Telegram"},
-            {"url_or_channel": "jijiet", "platform_type": "Telegram"},
-            {"url_or_channel": "ethiopianclassifieds", "platform_type": "Telegram"},
-            {"url_or_channel": "ethiopianmarket", "platform_type": "Telegram"},
+            {"url_or_channel": "shegemarket", "platform_type": "Telegram"},
+            {"url_or_channel": "merkato_market", "platform_type": "Telegram"},
+            {"url_or_channel": "ethiomarketlink", "platform_type": "Telegram"},
+            {"url_or_channel": "habesha_market", "platform_type": "Telegram"},
             {"url_or_channel": "addismarket", "platform_type": "Telegram"},
-            {"url_or_channel": "shegermarket", "platform_type": "Telegram"},
-            
-            # ✅ የተረጋገጡ ድረ-ገጾች
-            {"url_or_channel": "https://www.jiji.com.et", "platform_type": "Jiji"},
-            {"url_or_channel": "https://www.ethiojobs.net", "platform_type": "GenericWeb"},
-            {"url_or_channel": "https://www.engocha.com", "platform_type": "GenericWeb"},
+            {"url_or_channel": "gebezamarket", "platform_type": "Telegram"},
+            {"url_or_channel": "addisababadelivery", "platform_type": "Telegram"},
+            {"url_or_channel": "ethio_brand_market", "platform_type": "Telegram"},
+            {"url_or_channel": "sheger_brand", "platform_type": "Telegram"},
+            {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji"},
         ]
 
     def check_source_health(self, source):
-        """✅ OPTIMIZED: ፈጣን የምንጭ ጤንነት ማረጋገጫ"""
+        """ሳይቶችን Dead ብሎ ተስፋ እንዳይቆርጥ ሁልጊዜ True እንዲመልስ ማድረግ"""
         url = source.get('url_or_channel', '')
         if not url: return False
         
-        # 🛡️ CRITICAL FIX: የቴሌግራም ቻናሎችን ሁልጊዜ እንደ ንቁ አድርጎ መቁጠር
-        if 't.me' in url.lower() or url.startswith('@') or 'telegram' in url.lower():
+        if 'jiji' in url.lower() or 't.me' in url.lower() or '@' in url:
             return True
-        
-        # 🛡️ CRITICAL FIX: Jiji ን ሁልጊዜ ንቁ አድርጎ መቁጠር
-        if 'jiji' in url.lower():
-            return True
-        
-        # ለሌሎች ድረ-ገጾች ፈጣን ጥያቄ
+            
         try:
-            # HEAD ጥያቄ ፈጣን ነው
-            res = requests.head(url, timeout=3, headers={'User-Agent': 'Mozilla/5.0'})
-            if res.status_code == 200:
-                return True
-            # GET ን እንደ ፎልባክ ይሞክሩ
             res = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
             return res.status_code == 200
         except:
-            return False  # ካልተገኘ እንደ ዴድ ይቆጠራል
+            return False
 
     def get_recent_products(self, source):
         url = source.get('url_or_channel', '')
@@ -887,6 +871,7 @@ class MultiChannelHarvester:
                 return self._scrape_website(url)
         except Exception as e:
             logger.error(f"Failed to scrape {url}: {e}")
+            self.perform_source_reconnaissance(source, f"Execution Crash: {str(e)}")
         return []
     
     def _scrape_telegram(self, channel):
@@ -906,32 +891,50 @@ class MultiChannelHarvester:
                         if product:
                             product['image_url'] = images[i] if i < len(images) else ''
                             products.append(product)
+                
+                if not products and len(messages) > 0:
+                    self.perform_source_reconnaissance(
+                        {"url_or_channel": channel, "platform_type": "Telegram"},
+                        "Scraped Telegram successfully, but 0 products parsed. Pattern mismatch.",
+                        html_content=res.text
+                    )
                 return products
+            else:
+                self.perform_source_reconnaissance(
+                    {"url_or_channel": channel, "platform_type": "Telegram"},
+                    f"Telegram Web Preview returned HTTP {res.status_code}. Possible rate limiting."
+                )
         except Exception as e:
             logger.error(f"Telegram scrape failed for {channel}: {e}")
+            self.perform_source_reconnaissance({"url_or_channel": channel, "platform_type": "Telegram"}, str(e))
         return []
     
     def _scrape_website(self, url):
-        """✅ OPTIMIZED: ፈጣን ዳሰሳ - HEAD request first"""
         try:
-            # ✅ HEAD ጥያቄ በመጠቀም ፍጥነት ማሳደግ
-            try:
-                res = requests.head(url, timeout=3, headers={'User-Agent': 'Mozilla/5.0'})
-                if res.status_code != 200:
-                    return []
-            except:
-                pass
-            
-            # ገጹን ያስሳል
-            res = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
-            if res.status_code == 200:
-                return self._extract_products_from_html(res.text)
+            ScrapperEngine = _get_scrapper_engine()
+            html = ScrapperEngine.scrape(url)
+            if html:
+                products = self._extract_products_from_html(html)
+                if not products:
+                    # 0 ምርት ከተገኘ የስኬማ ለውጥ መርማሪ ስለላ ማነቃቃት
+                    self.perform_source_reconnaissance(
+                        {"url_or_channel": url, "platform_type": "GenericWeb"},
+                        "HTML loaded successfully, but 0 products extracted. Selector mismatch.",
+                        html_content=html
+                    )
+                return products
+            else:
+                self.perform_source_reconnaissance(
+                    {"url_or_channel": url, "platform_type": "GenericWeb"},
+                    "Connection blocked or timed out (Empty response). Firewall/Cloudflare suspected."
+                )
         except Exception as e:
             logger.error(f"Website scrape failed for {url}: {e}")
+            self.perform_source_reconnaissance({"url_or_channel": url, "platform_type": "GenericWeb"}, str(e))
         return []
     
     def _parse_product_text(self, text):
-        """ምርቶችን የሚለይ እና የ3 ወር ጊዜ ገደብን የሚፈትሽ"""
+        """ምርቶችን የሚለይ እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.40)"""
         if not text: return None
         
         # 🛡️ የጊዜ ገደብ መፈተሻ (ከ 3 ወር በላይ የሆኑትን መተው)
@@ -967,59 +970,92 @@ class MultiChannelHarvester:
         return product
     
     def _extract_products_from_html(self, html):
-        """✅ OPTIMIZED: የተሻሻለ Jiji ምርት ማውጫ"""
+        """የ Jiji ምርቶች የሚገኙባቸውን እውነተኛ ካርዶች ብቻ ለይቶ መሳቢያ (Regex Hardened)"""
         products = []
-        
-        # የ Jiji ምርቶች የሚገኙባቸው የ CSS Class ስሞች
+        # የ Jiji ትክክለኛ ምርቶች የሚገኙባቸው የ CSS Class ስሞች ብቻ
         items = re.findall(r'<div[^>]*class="[^"]*(?:b-list-advert-single|b-trending-card|qa-advert-list-item)[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
-        
         for item in items:
             product = self._parse_product_text(item)
             if product and product['title']:
                 products.append(product)
-                
-        # ምንም ካልተገኘ ሌላ መንገድ ይሞክሩ
-        if not products:
-            items = re.findall(r'<a[^>]*href="[^"]*item[^"]*"[^>]*>(.*?)</a>', html, re.DOTALL)
-            for item in items[:20]:
-                clean_text = re.sub(r'<[^>]+>', ' ', item).strip()
-                if len(clean_text) > 20:
-                    product = self._parse_product_text(clean_text)
-                    if product and product['title']:
-                        products.append(product)
-        
         return products
-    
-    def discover_and_harvest_niche_sources(self, site):
-        """✅ OPTIMIZED: የተሻሻለ የምንጭ ግኝት እና ዳሰሳ"""
-        if not self.is_network_available():
-            logger.warning("🌐 No internet. Using cached sources.")
-            return self._get_cached_sources(site)
+
+    def perform_source_reconnaissance(self, source, error_msg, html_content=None):
+        """
+        🕵️ [የመረጃ አሰሳ ስለላ እና ጥናት ማዕከል]
+        ክልከላዎችን መርምሮ ለአድሚን በ Backlog ላይ ዝርዝር የስለላ ሪፖርት (Bypass strategy) የሚመዘግብ
+        """
+        url = source.get('url_or_channel', '')
+        platform = source.get('platform_type', 'GenericWeb')
         
-        # ✅ በየ 6 ሰዓቱ አዲስ ምንጮችን ፈልግ
-        if random.random() < 0.1 or not self._get_cached_sources(site):
-            new_discovered = self.discover_active_market_sources(site)
-            if new_discovered:
-                self._save_sources_to_cache(site, new_discovered)
+        block_reason = "Unknown Access Block"
+        if "403" in error_msg or "Forbidden" in error_msg:
+            block_reason = "HTTP 403 Forbidden (Firewall/Cloudflare IP Ban detected)"
+        elif "429" in error_msg or "Too Many Requests" in error_msg:
+            block_reason = "HTTP 429 Too Many Requests (Access Throttled)"
+        elif "Timeout" in error_msg or "timed out" in error_msg:
+            block_reason = "Connection Timeout (Server is protected, slow, or offline)"
+        elif "0 products extracted" in error_msg:
+            block_reason = "DOM Structure Mismatch (HTML loaded successfully, but class selectors changed)"
+
+        density_estimation = "Cannot evaluate (Complete connection block)"
+        if html_content:
+            text_len = len(html_content)
+            links_count = len(re.findall(r'href=', html_content))
+            images_count = len(re.findall(r'<img', html_content))
+            density_estimation = (
+                f"Raw HTML: {text_len} chars. "
+                f"Links found: {links_count}. Images: {images_count}. "
+                f"Estimated Active Listings: {min(links_count // 3, 50)} items on main page."
+            )
+
+        _, ask_master_ai_smart, _, _ = _get_ai_utils()
+        clean_and_parse_json, _, _, _ = _get_ai_utils()
         
-        sources = self._get_cached_sources(site)
+        prompt = (
+            f"We failed to scrape this Ethiopian marketplace: {url} ({platform}).\n"
+            f"Error/Block Reason: {block_reason} ({error_msg}).\n"
+            f"HTML Metadata: {density_estimation}.\n\n"
+            f"Write a brief, precise RECONNAISSANCE REPORT for developers. Include:\n"
+            f"1. Direct cause of failure (CF challenge, IP Block, or Class selector change)?\n"
+            f"2. Practical workaround (e.g. proxy rotation, specific custom class name or selector, etc.).\n"
+            f"Return JSON with key 'analysis' containing the guidelines (max 400 characters)."
+        )
         
-        if not sources:
-            sources = self._get_fallback_sources()
-            self._save_sources_to_cache(site, sources)
-        
-        # ✅ ሁሉንም ምንጮች እንደ ንቁ አድርጎ መቁጠር (ፈጣን ለማድረግ)
-        active_sources = sources[:10]  # ከ10 በላይ አያስስም
-        
-        all_products = []
-        for source in active_sources:
-            logger.info(f"📡 Scraping {source.get('url_or_channel')}...")
-            products = self.get_recent_products(source)
-            if products:
-                all_products.extend(products)
-                logger.info(f"✅ Found {len(products)} products from {source.get('url_or_channel')}")
-        
-        return all_products
+        analysis_text = "AI analysis throttled due to active rate limits."
+        try:
+            res = ask_master_ai_smart(prompt, task_type="market_research")
+            data = clean_and_parse_json(res)
+            if data and isinstance(data, dict):
+                analysis_text = data.get('analysis', analysis_text)
+        except Exception as e:
+            logger.debug(f"AI Reconnaissance Analysis skipped: {e}")
+
+        try:
+            AIProjectBacklog = get_model('AIProjectBacklog')
+            # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል ስሙን በ 200 ፊደላት መገደብ (Truncate)
+            task_name = f"🕵️ RECON REPORT: {url}"[:200]
+            
+            if not AIProjectBacklog.objects.filter(task_name=task_name).exists():
+                AIProjectBacklog.objects.create(
+                    site=get_model('SiteRegistry').objects.filter(is_active=True).first(),
+                    task_name=task_name,
+                    target_file="scrapper_engine",
+                    priority="High",
+                    status="Blocked", # 'Blocked' ማለት የአድሚን/የሰው እገዛ ያስፈልገዋል ማለት ነው
+                    description=(
+                        f"🛡️ Autonomous Scraper Intelligence Report:\n"
+                        f"- Target Domain: {url}\n"
+                        f"- Block Classification: {block_reason}\n"
+                        f"- Estimated Product Density: {density_estimation}\n\n"
+                        f"💡 Strategist Bypass Guide:\n{analysis_text}"
+                    ),
+                    business_impact_score=8,
+                    trigger_condition="Autonomous Scraper Reconnaissance Loop"
+                )
+                logger.warning(f"🕵️ Recon Engine: Registered strategic bypass guide for: {url}")
+        except Exception as db_err:
+            logger.error(f"Failed to save Reconnaissance Task: {db_err}")
 
 
 # ============================================================
