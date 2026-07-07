@@ -1854,11 +1854,12 @@ def get_site_project_state_dynamic(site):
 
     return state, file_paths
 
-
 def get_or_create_backlog_task_safe(site, task_name, defaults):
     AIProjectBacklog = get_model('AIProjectBacklog')
     # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል የ backlogs ስሞችን በ 200 ፊደላት መገደብ
     task_name = task_name[:200]
+    if 'description' in defaults and defaults['description']:
+        defaults['description'] = defaults['description'][:500]
     matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
     if matching.exists():
         task = matching.first()
