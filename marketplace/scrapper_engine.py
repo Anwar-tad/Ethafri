@@ -1,7 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/scrapper_engine.py
-# 📝 ስሪት፦ v10.65 (Ultimate Adaptive Scrapper - Rich Content Enhanced)
+# 📝 ስሪት፦ v10.65 (Ultimate Adaptive Scrapper - Restored scrape() method)
 # ✅ የተፈቱ ችግሮች፦ 
+#   - Added backwards-compatible 'scrape()' method to resolve AttributeError in growth_agent.py
 #   - Automated Block Reason Detection (Cloudflare, 403, 405)
 #   - Empty DOM/Regex failure alert to Admin
 #   - Activity tracking (Daily post volume estimation)
@@ -68,10 +69,9 @@ class SitePatternDetector:
         }
 
 # ============================================================
-# 🚨 SCRAPER DIAGNOSTIC RECORDER (አዲሱ የስለላና ሪፖርት ማድረጊያ ሞዱል)
+# 🚨 SCRAPER DIAGNOSTIC RECORDERS
 # ============================================================
 class ScraperDiagnosticRecorder:
-    """ኤጀንቱ ያጋጠመውን እገዳና የድረ-ገጽ ሁኔታ አጥንቶ ለአድሚን ሪፖርት የሚያደርግበት ክፍል"""
     
     @staticmethod
     def generate_report(url: str, status_code: int, html: str, total_products: int, error_msg: str = "") -> Dict:
@@ -115,22 +115,20 @@ class ScraperDiagnosticRecorder:
             report["is_blocked"] = False
             report["reason"] = "Connected successfully, but existing Regex patterns extracted 0 products."
             report["suggested_action"] = "The website layout has changed. Inspect the html_snapshot to update patterns."
-            report["html_snapshot"] = html[:2000] # አድሚኑ አወቃቀሩን አይቶ እንዲያስተካክለው
+            report["html_snapshot"] = html[:2000]
             return report
 
         # 3. በጣቢያው ላይ ያለውን እንቅስቃሴ ማጥናት (Activity & Volumetric Study)
         if html:
-            # በገጹ ውስጥ ያሉ ቀናትን፣ ሰዓቶችን ወይም የሳምንት ቀናትን መቁጠር
             timestamps = re.findall(r'\b\d{4}-\d{2}-\d{2}\b|\b\d{2}:\d{2}\b|today|yesterday|mins ago|hours ago|ሰዓት|ትላንት', html, re.IGNORECASE)
             if timestamps:
-                # በግምት በቀን የሚለጠፉ ምርቶች ብዛት
                 report["metrics"]["estimated_daily_posts"] = max(len(timestamps) // 2, total_products * 3)
 
         return report
 
     @staticmethod
     def save_and_alert_admin(report: Dict):
-        """ሪፖርቱን በሎግ ላይ ያትማል፤ ሪፖርቱን ወደ ጄሰን ፋይል ያስቀምጣል"""
+        """ሪፖርቱን በጄሰን ፎርማት ለአድሚን መዝግቦ ማስቀመጫ"""
         logger.warning(f"🚨 [SCRAPER REPORT FOR ADMIN] -> Site: {report['domain']} | Blocked: {report['is_blocked']} | Extracted: {report['metrics']['extracted_products_count']}")
         
         log_dir = "marketplace/scraper_diagnostics"
@@ -181,7 +179,7 @@ class SmartProductExtractor:
 
     @staticmethod
     def _extract_from_container(container: str, patterns: Dict, site_type: str) -> Dict:
-        """ምርቶችን ከሳጥኑ (Container) ውስጥ በከፍተኛ ጥራት ፈልቅቆ ማውጫ (v10.65)"""
+        """ምርቶችን ከሳጥኑ (Container) ውስጥ ፈልቅቆ ማውጫ"""
         product = {'title': '', 'price': 0, 'description': '', 'seller_contact': '', 'image_url': ''}
         
         # 1. Title Extraction
@@ -206,23 +204,20 @@ class SmartProductExtractor:
                     break
                 except: pass
                 
-        # 🛡️ 3. [አዲስ የተጨመረ] Seller Contact Extraction
-        # የኢትዮጵያን ስልኮች ከምርት ሳጥኑ (Container) ውስጥ ፈልቅቆ ማውጫ
+        # 3. Seller Contact Extraction
         phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', container)
         if phone_match:
             product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
         else:
-            # ቴሌግራም ዩዘርኔም መፈለጊያ
             tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', container)
             if tg_match:
                 product['seller_contact'] = tg_match.group(0)
 
-        # 🛡️ 4. [አዲስ የተጨመረ] Description Extraction
-        # የኤችቲኤምኤል ታጎችን በማጽዳት የምርት መግለጫውን መውሰድ
+        # 4. Description Extraction
         clean_desc = re.sub(r'<[^>]+>', ' ', container).strip()
         product['description'] = " ".join(clean_desc.split())[:500]
 
-        # 🛡️ 5. [አዲስ የተጨመረ] Image URL Extraction
+        # 5. Image URL Extraction
         image_pattern = patterns.get('image')
         if image_pattern:
             image_match = re.search(image_pattern, container, re.IGNORECASE)
@@ -242,7 +237,7 @@ class SmartProductExtractor:
         return products
 
 # ============================================================
-# 🚀 ULTIMATE SCRAPPER ENGINE WITH ADVANCED DIAGNOSTICS
+# 🚀 ULTIMATE SCRAPPER ENGINE WITH RESTORED scrape()
 # ============================================================
 class ScrapperEngine:
     
@@ -285,7 +280,39 @@ class ScrapperEngine:
                 return 0, str(e)
 
     @classmethod
+    def scrape(cls, url: str) -> Optional[str]:
+        """🛡️ [የተመለሰ ፋንክሽን] የድሮ ኮድ ተኳሃኝነትን ለመጠበቅ ጥሬ የኤችቲኤምኤል (HTML) ጽሑፍን ብቻ የሚጎትት"""
+        html = ""
+        status_code = 200
+        
+        if not url.startswith('http'): url = 'https://' + url
+
+        try:
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop:
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(lambda: asyncio.run(cls.fetch_dynamic_content(url)))
+                    status_code, html = future.result()
+            else:
+                status_code, html = asyncio.run(cls.fetch_dynamic_content(url))
+        except Exception as e:
+            status_code = 0
+
+        if not html or status_code in [0, 403, 405]:
+            fallback_status, fallback_html = cls._fetch_static_fallback(url)
+            if fallback_html:
+                html = fallback_html
+
+        return html
+
+    @classmethod
     def scrape_and_extract(cls, url: str) -> List[Dict]:
+        """ዋናው የኤጀንቱ መተግበሪያ - አሁን ሙሉ በሙሉ በስለላ ሪፖርት የተጠበቀ ነው"""
         html = ""
         status_code = 200
         error_msg = ""
@@ -317,7 +344,7 @@ class ScrapperEngine:
 
         products = SmartProductExtractor.extract_products(html, url) if html else []
 
-        # 🧠 AUTOMATED DIAGNOSTIC LOOP
+        # 🧠 AUTOMATED DIAGNOSTIC LOOP (የስለላ ሪፖርት ማመንጫ)
         if status_code != 200 or len(products) == 0:
             report = ScraperDiagnosticRecorder.generate_report(
                 url=url, 
