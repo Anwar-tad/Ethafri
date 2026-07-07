@@ -923,6 +923,16 @@ def harvester_orchestrator_view(request):
     current_site = None
     if selected_site_id and selected_site_id.isdigit():
         current_site = get_object_or_404(SiteRegistry, id=selected_site_id)
+    # 🕵️ [የእለት ማጠቃለያ በ AI ማመንጫ ሎጂክ]
+    daily_summary = "ስርዓቱ በአሁኑ ሰዓት ሙሉ በሙሉ ጤናማ በሆነ ሁኔታ ላይ ይገኛል። አዳዲስ የ Jiji ምንጮች በPlaywright Stealth መቃኘት ጀምረዋል።"
+    if recon_reports.exists():
+        try:
+            # የቅርብ ጊዜ ሪፖርቶችን ለ AI በመስጠት አጠቃላይ ማጠቃለያ እንዲያዘጋጅ መጠየቅ
+            report_briefs = [r.description[:100] for r in recon_reports[:3]]
+            prompt = f"Write a very brief, professional executive summary in Amharic (max 200 characters) about our scraping health and bypass success based on these issues: {json.dumps(report_briefs)}"
+            daily_summary = ask_master_ai_smart(prompt, task_type="analysis")
+        except Exception:
+            pass
 
     # 🔄 1. አድሚኑ አዲስ የዳሰሳ ምንጭ (Telegram/Jiji/Web) በእጅ ሲጨምር
     if request.method == "POST" and request.POST.get('action') == "add_source" and current_site:

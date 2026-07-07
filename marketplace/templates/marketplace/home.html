@@ -148,7 +148,8 @@
                         {% elif product.image_url %}
                             <img src="{{ product.image_url }}" alt="{{ product.get_translated_title }}">
                         {% else %}
-                            <img src="https://loremflickr.com/400/300/{{ product.category.name|slugify|default:'product' }}?lock={{ product.id }}" alt="{{ product.title }}">
+                            <!-- 🛡️ FIXED: የፎቶ መደባለቅን ለመከላከል የምርቱን ስም (Title) እንደ ኪወርድ መጠቀም -->
+                            <img src="https://loremflickr.com/400/300/{{ product.title|slugify|default:'product' }}?lock={{ product.id }}" alt="{{ product.title }}">
                         {% endif %}
                         <span class="price-badge">
                             {% if product.price > 0 %}{{ product.price|floatformat:0 }} ETB{% else %}{% trans "Negotiable" %}{% endif %}

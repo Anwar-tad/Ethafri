@@ -1504,12 +1504,13 @@ class CEOOperations:
                     f"EthAfri CEO"
                 )
 
-                notification_obj = NotificationQueue(
-                    site=self.site, recipient=contact, notification_type='sms',
-                    message=message
-                )
-                notifications_to_create.append(notification_obj)
-
+                # 🛡️ FIXED: ለዲፎልት ስልክ ቁጥር (0900000000) ማሳወቂያ/SMS እንዳይላክ መከላከል
+                if contact != "0900000000" and not contact.startswith("09000000"):
+                    notification_obj = NotificationQueue(
+                        site=self.site, recipient=contact, notification_type='sms',
+                        message=message
+                    )
+                    notifications_to_create.append(notification_obj)
             except Exception as seed_err:
                 logger.error(f"Failed to compile bulk listing: {seed_err}")
 
