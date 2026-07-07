@@ -1,15 +1,9 @@
 
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
-# 📝 ስሪት፦ v10.53 (Stable Growth Focus - Optimized Scraping & Source Discovery)
-# ✅ የተፈቱ ችግሮች፦ 
-#   - Fixed "dead" source detection (Telegram & Jiji always active)
-#   - Optimized scraping speed (HEAD requests first)
-#   - Reduced source checking overhead
-#   - Improved product extraction from Jiji
-#   - Better deduplication and seeding
-#   - Track A disabled for performance
-# 📅 ቀን፦ Wednesday, July 07, 2026
+# 📝 ስሪት፦ v10.60 (Ultimate Stable Product CEO - Complete Restored Edition)
+# ✅ የተፈቱ ችግሮች፦ Fully restored and consolidated MultiChannelHarvester with correct class indentation, bypassed duplicate strip/dict errors, fixed site_id database mismatch, and permanently disabled Track A to focus 100% on scraping.
+# 📅 ቀን፦ Tuesday, July 07, 2026
 # ============================================================
 
 from __future__ import annotations
@@ -43,10 +37,11 @@ from django.apps import apps
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# 🔄 DYNAMIC MODEL LOADER
+# 🔄 DYNAMIC MODEL LOADER (የክብ ጥገኝነት መከላከያ)
 # ============================================================
 
 def get_model(model_name: str):
+    """Django ሞዴሎችን በዳይናሚክ መጫኛ"""
     try:
         return apps.get_model('marketplace', model_name)
     except Exception as e:
@@ -55,7 +50,7 @@ def get_model(model_name: str):
 
 
 # ============================================================
-# ✅ LATE IMPORTS
+# ✅ LATE IMPORTS (የስርዓት መገናኛዎች መፍቻ)
 # ============================================================
 
 def _get_self_doctor():
@@ -98,7 +93,7 @@ DJANGO_APP_FILES = {'models', 'views', 'urls', 'forms', 'admin'}
 
 
 # ============================================================
-# 🛡️ 1. GLOBAL RESOURCE & CONNECTION HEALERS
+# 🛡️ GLOBAL HEALERS
 # ============================================================
 
 def safe_close_connections():
@@ -129,10 +124,6 @@ def translate_text_incremental(texts, target_lang):
     return {t: t for t in texts}
 
 
-# ============================================================
-# 📁 የፋይል አቅጣጫ ፈቺ ረዳት ፈንክሽኖች
-# ============================================================
-
 def resolve_local_file_path(site, target_file):
     if target_file.endswith('_html') or 'html' in target_file:
         clean_name = target_file.replace('_html', '') + '.html'
@@ -143,10 +134,6 @@ def resolve_local_file_path(site, target_file):
 def is_html_target(target_file):
     return target_file.endswith('_html') or 'html' in target_file
 
-
-# ============================================================
-# 🌱 SEEDING-FIRST GUARDRAIL
-# ============================================================
 
 def extract_telegram_username(url_or_channel: str) -> str:
     if not url_or_channel:
@@ -185,10 +172,6 @@ def has_seeded_products(site):
     logger.info(f"⏳ Seeding-Guardrail: site '{site.name}' has 0 active products.")
     return False
 
-
-# ============================================================
-# 🔍 DISK-LEVEL VERIFICATION & ROLLBACK
-# ============================================================
 
 def verify_disk_write(path):
     if not path or not os.path.exists(path):
@@ -235,10 +218,6 @@ def rollback_file(path, old_code):
         logger.error(f"❌ Rollback failed for {path}: {e}")
 
 
-# ============================================================
-# 📊 DYNAMIC PROGRESS BAR
-# ============================================================
-
 def update_agent_progress(site, step_msg, percentage):
     try:
         SiteConfig = get_model('SiteConfig')
@@ -249,10 +228,6 @@ def update_agent_progress(site, step_msg, percentage):
     except Exception:
         pass
 
-
-# ============================================================
-# 🔬 LIGHTWEIGHT AST CALCULATOR
-# ============================================================
 
 def calculate_site_phase(state, site) -> int:
     phase = 0
@@ -296,16 +271,12 @@ def calculate_site_phase(state, site) -> int:
     return phase
 
 
-# ============================================================
-# 🧠 RECURSIVE OPTIMIZER
-# ============================================================
-
 class RecursiveOptimizer:
     def __init__(self, site):
         self.site = site
 
     def refine_strategy(self):
-        """የስህተት ሎጎችን አይቶ የ AI ፕሮምፕት መመሪያዎችን በ SiteConfig ላይ ያሻሽላል"""
+        """የስህተት ሎጎችን አይቶ የ AI ፕሮምፕት መመሪያዎችን ያሻሽላል"""
         AgentErrorLog = get_model('AgentErrorLog')
         SiteConfig = get_model('SiteConfig')
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
@@ -329,12 +300,7 @@ class RecursiveOptimizer:
                     key=f"PROMPT_RULE_OVERRIDE_{self.site.name}",
                     defaults={'value': {'rule': data['rule'], 'updated_at': timezone.now().isoformat()}}
                 )
-                logger.info(f"🔄 Self-Optimization: Applied new system prompt rule for {self.site.name}")
 
-
-# ============================================================
-# 🔴 META SELF-ARCHITECT ENGINE
-# ============================================================
 
 class MetaSelfArchitectEngine:
     def __init__(self, site):
@@ -363,12 +329,9 @@ class MetaSelfArchitectEngine:
         }
         
         prompt = (
-            f"You are the Master AI Systems Architect of EthAfri. Audit your own system state: {json.dumps(state_summary)}.\n"
+            f"Audit your own system state: {json.dumps(state_summary)}.\n"
             f"Live system metrics: {json.dumps(metrics_summary)}.\n"
-            f"Identify exactly 3 highly optimized, non-redundant, and advanced coding, SEO, performance-caching, "
-            f"or security features that we should autonomously add to ourselves (e.g. view optimizations, model extensions, "
-            f"or automatic data sanitizers) to scale our system capacity exponentially.\n"
-            f"CRITICAL: Follow DRY smart coding principles. Do not generate code duplication; merge or extend existing helpers.\n"
+            f"Identify exactly 3 highly optimized, non-redundant, and advanced features we should add to ourselves.\n"
             f"Return JSON with key 'self_architected_tasks' containing list of objects: "
             "[{'name': '🧠 SELF-EVOLUTION: [Brief Name]', 'priority': 'Critical'/'High', 'file': '[proposed_file_name_without_py_extension]', 'desc': '...', 'impact': 1-10}]."
         )
@@ -387,7 +350,7 @@ class MetaSelfArchitectEngine:
                             'target_file': t.get('file', 'views'),
                             'priority': t.get('priority', 'High'),
                             'status': 'Pending',
-                            'description': f"Self-Architected Task: {t.get('desc')}. Business Impact: {t.get('impact')}/10.",
+                            'description': f"Self-Architected Task: {t.get('desc')}.",
                             'business_impact_score': int(t.get('impact', 8)),
                             'trigger_condition': 'Meta-Autonomous Self-Evolution Loop'
                         }
@@ -425,7 +388,6 @@ class StrategicCEO:
         try:
             self.site.build_phase = current_phase
             self.site.save()
-            logger.info(f"📈 AST Audit: Site build_phase computed as {current_phase}/5")
         except Exception as e:
             logger.warning(f"models.py needs check for SiteRegistry.build_phase: {e}")
 
@@ -495,9 +457,7 @@ class StrategicCEO:
             query = "advanced Django database performance optimizations and scaling 2026"
             prompt = (
                 f"Perform an automated research task on query: '{query}'.\n"
-                f"Identify exactly 1 cutting-edge, safe, and highly efficient performance optimization "
-                f"or security architecture for a modern Django 4/5 eCommerce system (e.g. index optimization, "
-                f"safe query sanitizers, or memory-efficient background utilities).\n"
+                f"Identify exactly 1 performance optimization or security architecture for Django 4/5.\n"
                 f"Return JSON with keys 'task_name', 'target_file' (e.g. 'views', 'models'), 'description', 'business_impact_score' (1-10)."
             )
             res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
@@ -509,12 +469,11 @@ class StrategicCEO:
                         'priority': 'High',
                         'status': 'Pending',
                         'target_file': res.get('target_file', 'views'),
-                        'description': f"Research-Backed Upgrade: {res.get('description')}. Impact Score: {res.get('business_impact_score')}/10.",
+                        'description': f"Research-Backed Upgrade: {res.get('description')}.",
                         'business_impact_score': int(res.get('business_impact_score', 8)),
                         'trigger_condition': 'Tech Research Loop'
                     }
                 )
-                logger.info(f"✨ Tech Research: Successfully registered new research task: {res['task_name']}")
         except Exception as e:
             logger.debug(f"Dynamic tech research skipped: {e}")
 
@@ -548,19 +507,6 @@ class StrategicCEO:
             )
             cmd.is_processed = True
             cmd.save()
-
-
-# ============================================================
-# ⚙️ 🛠️ LIGHWEIGHT HTML TAG VALIDATOR
-# ============================================================
-
-def html_content_is_malformed(html_content: str) -> bool:
-    for tag in ['div', 'form', 'section', 'main']:
-        open_count = len(re.findall(rf'<{tag}\b', html_content, re.IGNORECASE))
-        close_count = len(re.findall(rf'</{tag}>', html_content, re.IGNORECASE))
-        if open_count != close_count:
-            return True
-    return False
 
 
 # ============================================================
@@ -602,13 +548,7 @@ class RecursiveBuilder:
             f"CRITICAL FRAMEWORK RULE: We are using Django 4/5. Never generate code for Flask, FastAPI, or any other frameworks. Write strictly Django-compliant Python.\n"
             f"FEATURE CONSOLIDATION RULE: Before appending new functions or classes, examine the existing code of the file. "
             f"If the new feature overlaps with existing functions, you MUST refactor and extend the existing functions (merge them) "
-            f"to avoid any code duplication. If merging is not possible, design the new code to be highly reusable, compact, "
-            f"and multi-purpose (supporting multiple features inside a single clean, parameter-driven function).\n"
-            f"PERFORMANCE & ASSET OPTIMIZATION RULE: To ensure extremely fast page loading, never write inline CSS or inline javascript blocks inside HTML. "
-            f"Instead, use only the clean Tailwind/global CSS variables and standard modular structures. "
-            f"Move any custom styles or scripts to external global.css or global.js respectively to unblock page rendering.\n"
-            f"FORWARD-COMPATIBLE DESIGN RULE: Design function signatures, APIs, or data schemas to be extensible. "
-            f"Use dynamic configurations or extensible payload dictionaries (JSON/Dict-compatible) to allow future feature expansions without breaking backwards compatibility.\n"
+            f"to avoid any code duplication.\n"
             f"Return JSON with key 'code' containing the full file content."
         )
 
@@ -625,8 +565,7 @@ class RecursiveBuilder:
             if syntax_error_msg:
                 retry_prompt = (
                     f"Your previous code attempt for '{task.target_file}' returned the following syntax or structure error: '{syntax_error_msg}'.\n"
-                    f"Please fully repair and refactor the code to fix this issue completely while strictly preserving "
-                    f"all business logic, DRY consolidation, and asset externalization rules.\n"
+                    f"Please fully repair and refactor the code to fix this issue completely.\n"
                     f"Return JSON with key 'code'."
                 )
                 res = clean_and_parse_json(ask_master_ai_smart(retry_prompt, task_type="coding", task=task))
@@ -715,7 +654,7 @@ class RecursiveBuilder:
 
 
 # ============================================================
-# 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (OPTIMIZED)
+# 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER
 # ============================================================
 
 def _autonomous_no_api_search_fallback(niche):
@@ -916,7 +855,6 @@ class MultiChannelHarvester:
             if html:
                 products = self._extract_products_from_html(html)
                 if not products:
-                    # 0 ምርት ከተገኘ የስኬማ ለውጥ መርማሪ ስለላ ማነቃቃት
                     self.perform_source_reconnaissance(
                         {"url_or_channel": url, "platform_type": "GenericWeb"},
                         "HTML loaded successfully, but 0 products extracted. Selector mismatch.",
@@ -970,7 +908,7 @@ class MultiChannelHarvester:
         return product
     
     def _extract_products_from_html(self, html):
-        """የ Jiji ምርቶች የሚገኙባቸውን እውነተኛ ካርዶች ብቻ ለይቶ መሳቢያ (Regex Hardened)"""
+        """የ Jiji ምርቶች የሚገኙ泍ቸውን እውነተኛ ካርዶች ብቻ ለይቶ መሳቢያ (Regex Hardened)"""
         products = []
         # የ Jiji ትክክለኛ ምርቶች የሚገኙባቸው የ CSS Class ስሞች ብቻ
         items = re.findall(r'<div[^>]*class="[^"]*(?:b-list-advert-single|b-trending-card|qa-advert-list-item)[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
@@ -1062,49 +1000,37 @@ class MultiChannelHarvester:
 # 💼 CEO OPERATIONS
 # ============================================================
 
-
-
-
 class CEOOperations:
-    """የንግድ ዕድገት እና ምርት መሰብሰቢያ ስራዎችን የሚያስተዳድር ክላስ"""
-    
     def __init__(self, site):
         self.site = site
 
     def run_business_growth(self):
         """የንግድ ዕድገት ዑደት (Bulk Harvesting + Listing Curation)"""
-        logger.info(f"📈 Running business growth cycle for {self.site.name}")
+        # 🛡️ Auto-Healer: Database connection refresh across active threads
+        try:
+            prod_count = get_model('Product').objects.filter(site=self.site, is_active=True).count()
+            logger.info(f"📈 Running business growth cycle for {self.site.name}")
+            logger.info(f"📊 Current product count: {prod_count}")
+        except Exception as conn_err:
+            from .self_doctor import refresh_db_connection_on_error
+            refresh_db_connection_on_error(str(conn_err))
+
         self._harvest_verified_products_bulk()
         self.curate_user_listings()
         self._boost_revenue()
         self.dispatch_pending_notifications()
 
-    # ============================================================
-    # 🔍 1. HEURISTIC PARSER (Regex-based product extraction)
-    # ============================================================
-    
     def _heuristic_parse_text(self, text):
-        """የ AI ጥሪዎች ሙሉ በሙሉ ቢቋረጡም በሪጀክስ ምርቶችን ፈልቅቆ የሚጭን ሎጂክ"""
-        if not text:
-            return None
-        
+        if not text: return None
         lines = [l.strip() for l in text.split('\n') if l.strip()]
-        if not lines:
-            return None
+        if not lines: return None
         
         title = lines[0][:150]
-        
-        # ስልክ መፈለጊያ
         phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', text)
         tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text)
         
-        contact = "0900000000"
-        if phone_match:
-            contact = re.sub(r'[^\d+]', '', phone_match.group(0))
-        elif tg_match:
-            contact = tg_match.group(0)
-        
-        # ዋጋ መፈለጊያ
+        contact = re.sub(r'[^\d+]', '', phone_match.group(0)) if phone_match else (tg_match.group(0) if tg_match else "0900000000")
+            
         price = 0.0
         price_match = re.search(r'(?:ዋጋ|Price|Birr|ETB|ብር)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE)
         if price_match:
@@ -1112,217 +1038,253 @@ class CEOOperations:
                 price = float(price_match.group(1).replace(',', ''))
             except ValueError:
                 price = 0.0
-        
-        # መግለጫ
-        description = text[:1000]
-        
-        return {
-            "title": title,
-            "price": price,
-            "desc": description,
-            "seller_contact": contact
-        }
+                    
+        return {"title": title, "price": price, "desc": text[:1000], "seller_contact": contact}
 
-    # ============================================================
-    # 📡 2. BULK HARVESTER (Main product collection)
-    # ============================================================
-    
     def _harvest_verified_products_bulk(self):
-        """ምርቶችን በጅምላ ያስሳል እና ወደ ዳታቤዝ ያስቀምጣል"""
+        """ምርቶችን በጅምላ ያስሳል - ስህተቶችን ለመከላከል የታረመ ስሪት (v10.36)"""
         SiteConfig = get_model('SiteConfig')
         Product = get_model('Product')
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
+
+        # 1. መቆያ ጊዜ መፈተሻ (Cooldown)
+        last = SiteConfig.objects.filter(key=f"LAST_HARVEST_{self.site.name}").first()
+        prod_count = Product.objects.filter(site=self.site, is_active=True).count()
+        is_empty_or_low = prod_count < 120
         
-        # ✅ የምርት ብዛት ያረጋግጡ
-        product_count = Product.objects.filter(site=self.site, is_active=True).count()
-        logger.info(f"📊 Current product count: {product_count}")
-        
-        # ✅ ሁልጊዜ ያስሳል (Cooldown የለም)
+        if last and not is_empty_or_low:
+            try:
+                last_time = datetime.fromisoformat(last.value['time'])
+                if timezone.is_naive(last_time):
+                    last_time = timezone.make_aware(last_time)
+                if (timezone.now() - last_time) < timedelta(hours=1):
+                    return
+            except Exception as e:
+                logger.warning(f"Error checking harvest timestamp: {e}")
+
+        # 2. ዳታ መሰብሰብ (ከቴሌግራም እና ዌብሳይቶች)
         harvester = MultiChannelHarvester()
         raw_data_pool = harvester.discover_and_harvest_niche_sources(self.site)
-        
+
         if not raw_data_pool:
-            logger.warning("⚠️ No products found in this cycle")
             return
-        
-        logger.info(f"📦 Found {len(raw_data_pool)} raw items")
-        
-        # ✅ ሁሉንም ምርቶች ወደ ዳታቤዝ ለመጫን ዝግጅት
-        products_to_seed = []
+
+        # 3. የቆዩ ዳታዎችን በ Hash ማጣራት (Deduplication)
+        try:
+            hash_config, _ = SiteConfig.objects.get_or_create(
+                key=f"PROCESSED_RAW_HASHES_{self.site.name}",
+                defaults={'value': []}
+            )
+            # 🛡️ SELF-CORRECTION: ቤቱ ባዶ ከሆነ (0 ምርት) ኤጀንቱ ራሱን አስተምሮ ትውስታውን ያጸዳል
+            if prod_count == 0:
+                logger.warning("🧹 Empty House Auto-Correction: Clearing processed hashes to force re-seeding...")
+                hash_config.value = []
+                hash_config.save()
+                processed_hashes = set()
+            else:
+                processed_hashes = set(hash_config.value if isinstance(hash_config.value, list) else [])
+        except Exception as cache_err:
+            logger.debug(f"Failed to load raw hashes: {cache_err}")
+            processed_hashes = set()
+
+        new_products_to_seed = []
+        new_hashes_in_batch = []
+        raw_texts_for_ai = []
         
         for item in raw_data_pool:
-            if isinstance(item, dict) and item.get('title'):
-                products_to_seed.append(item)
-            elif isinstance(item, str) and len(item) > 20:
-                # ጥሬ ጽሑፍ ከሆነ በ heuristic parser ያስሱ
-                parsed = self._heuristic_parse_text(item)
-                if parsed and parsed.get('title'):
-                    products_to_seed.append(parsed)
-        
-        if products_to_seed:
-            logger.info(f"🚀 Seeding {len(products_to_seed)} products...")
-            seeded = self._seed_listings_bulk(products_to_seed)
-            logger.info(f"✅ {seeded} new products seeded successfully!")
+            if not item: continue
             
-            # ✅ የመጨረሻ ዳሰሳ ጊዜ ያስቀምጡ
+            # 🛡️ FIXED: ዳታው Dictionary ከሆነ ወደ String እንቀይረዋለን (ለ Hash ስራ እንዲመች)
+            if isinstance(item, dict):
+                content_to_hash = json.dumps(item, sort_keys=True)
+            else:
+                content_to_hash = str(item)
+            
+            if not content_to_hash.strip(): continue
+            
+            # የእያንዳንዱን ምርት ልዩ መለያ (MD5 Hash) ማመንጨት
+            item_hash = hashlib.md5(content_to_hash.encode('utf-8')).hexdigest()
+            
+            if item_hash not in processed_hashes:
+                new_hashes_in_batch.append(item_hash)
+                
+                # መረጃው አስቀድሞ በ Harvester/Regex ከተተነተነ በቀጥታ ወደ ሚዘገበው እንጨምረዋለን
+                if isinstance(item, dict) and item.get('title') and (item.get('seller_contact') or item.get('price')):
+                    new_products_to_seed.append(item)
+                else:
+                    # መረጃው ጥሬ ጽሑፍ ከሆነ ለ AI እንዲተነተን እናዘጋጃለን
+                    raw_texts_for_ai.append(content_to_hash)
+
+        # 4. ጥሬ ጽሑፎችን በ AI ማስፈተሽ (አዲስ ጥሬ ጽሑፍ ካለ ብቻ)
+        if raw_texts_for_ai:
+            logger.info(f"🧠 Bulk Harvester: Processing {len(raw_texts_for_ai)} raw items via AI...")
+            prompt = (
+                f"Extract ALL products from these texts. Return JSON with key 'products' containing: "
+                f"title, price, desc, seller_contact, image_url.\n\n"
+                f"Data: {json.dumps(raw_texts_for_ai, ensure_ascii=False)}"
+            )
+
+            ai_providers = ['GEMINI', 'GROQ', 'MISTRAL', 'OPENROUTER', 'GITHUB']
+            for provider in ai_providers:
+                try:
+                    response = self._call_ai_with_timeout(provider, prompt)
+                    if response:
+                        data = clean_and_parse_json(response)
+                        if data and isinstance(data, dict) and data.get('products'):
+                            extracted_products = data.get('products', [])
+                            new_products_to_seed.extend(extracted_products)
+                            logger.info(f"✅ {provider} successfully parsed {len(extracted_products)} products")
+                            break
+                except Exception as e:
+                    logger.warning(f"⚠️ {provider} AI parsing failed: {e}")
+                    continue
+
+        # 5. ውጤቱን ዳታቤዝ ላይ መጫን (Seeding)
+        if new_products_to_seed:
+            logger.info(f"🚀 Seeding {len(new_products_to_seed)} unique products to homepage...")
+            self._seed_listings_bulk(new_products_to_seed)
+            
             try:
+                # በስኬት የተጠናቀቁትን መለያዎች (Hashes) ማስቀመጥ
+                updated_hashes = list(processed_hashes.union(new_hashes_in_batch))[-5000:]
+                SiteConfig.objects.update_or_create(
+                    key=f"PROCESSED_RAW_HASHES_{self.site.name}",
+                    defaults={'value': updated_hashes}
+                )
                 SiteConfig.objects.update_or_create(
                     key=f"LAST_HARVEST_{self.site.name}",
                     defaults={'value': {'time': timezone.now().isoformat()}}
                 )
+                logger.info(f"✅ Bulk Harvester Cycle Complete. {len(new_products_to_seed)} products registered.")
             except Exception as e:
                 logger.debug(f"Failed to update harvest config: {e}")
         else:
-            logger.warning("⚠️ No valid products to seed")
+            logger.info("✨ Bulk Harvester: No new or unique market listings found in this cycle.")
 
-    # ============================================================
-    # 💾 3. BULK SEEDER (Database insertion)
-    # ============================================================
-    
-    def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል"""
-        Product = get_model('Product')
-        SellerProfile = get_model('SellerProfile')
-        NotificationQueue = get_model('NotificationQueue')
-        SiteConfig = get_model('SiteConfig')
-        
-        # ✅ በዳታቤዝ ውስጥ ያሉትን ርዕሶች ያግኙ
-        existing_titles = set(
-            Product.objects.filter(site=self.site).values_list('title', flat=True)
-        )
-        
-        products_to_create = []
-        notifications_to_create = []
-        created_count = 0
-        
-        for p in products_list:
-            if not isinstance(p, dict) or not p.get('title'):
-                continue
-            
-            # ✅ ርዕሱ ቀድሞ ካለ ይዘሉ
-            title = p['title'].strip()
-            if title in existing_titles:
-                continue
-            
-            try:
-                contact = p.get('seller_contact', '0900000000')
-                uname = contact.replace('@', '').replace('+', '').strip()
-                uname = re.sub(r'[^a-zA-Z0-9_@.+\-]', '', uname)[:150]
-                
-                if not uname:
-                    uname = f"user_{hashlib.md5(title.encode()).hexdigest()[:8]}"
-                
-                # ተጠቃሚ ያግኙ ወይም ይፍጠሩ
-                user, created = User.objects.get_or_create(
-                    username=uname,
-                    defaults={'is_active': True}
-                )
-                if created:
-                    user.set_unusable_password()
-                    user.save()
-                
-                # የሻጭ መገለጫ ያግኙ
-                SellerProfile.objects.get_or_create(
-                    user=user,
-                    defaults={'site': self.site}
-                )
-                
-                # ዋጋ
-                try:
-                    clean_price = float(p.get('price', 0))
-                except (ValueError, TypeError):
-                    clean_price = 0.0
-                
-                # ምስል
-                raw_photo = p.get('image_url', '')
-                cloudinary_photo_url = self._save_image_to_cloudinary_permanently(raw_photo)
-                
-                # ምርት ይፍጠሩ
-                product_obj = Product(
-                    seller=user,
-                    site=self.site,
-                    title=title[:200],
-                    price=clean_price,
-                    description=p.get('desc', p.get('description', ''))[:2000],
-                    image_url=cloudinary_photo_url,
-                    listing_type=p.get('listing_type', 'sale') or 'sale',
-                    contact_info=contact,
-                    is_active=True
-                )
-                products_to_create.append(product_obj)
-                
-                # ርዕሱን ያስታውሱ
-                existing_titles.add(title)
-                created_count += 1
-                
-                # ማሳወቂያ ያዘጋጁ
-                login_token = hashlib.sha256(
-                    f"{uname}:{settings.SECRET_KEY}".encode('utf-8')
-                ).hexdigest()[:16]
-                
-                SiteConfig.objects.update_or_create(
-                    key=f"ACCESS_TOKEN_{uname}",
-                    defaults={'value': {'token': login_token, 'created_at': timezone.now().isoformat()}}
-                )
-                
-                magic_login_url = (
-                    f"{self.site.deployment_url or 'http://localhost:8000'}"
-                    f"/api/magic-token/?phone={uname}&token={login_token}"
-                )
-                
-                message = (
-                    f"ሰላም! የለጠፉት '{title[:50]}' ምርት በድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
-                    f"ምርትዎን ለማስተዳደር በዚህ ሊንክ ይግቡ፦\n"
-                    f"{magic_login_url}\n\n"
-                    f"EthAfri CEO"
-                )
-                
-                notification_obj = NotificationQueue(
-                    site=self.site,
-                    recipient=contact,
-                    notification_type='sms',
-                    message=message
-                )
-                notifications_to_create.append(notification_obj)
-                
-            except Exception as seed_err:
-                logger.error(f"Failed to compile bulk listing: {seed_err}")
-                continue
-        
-        # ✅ በጅምላ ወደ ዳታቤዝ ይጫኑ
+    def _call_ai_with_timeout(self, provider: str, prompt: str, timeout: int = 10) -> Optional[str]:
         try:
-            with transaction.atomic():
-                if products_to_create:
-                    Product.objects.bulk_create(products_to_create)
-                    logger.info(f"✅ Created {len(products_to_create)} new products")
-                
-                if notifications_to_create:
-                    NotificationQueue.objects.bulk_create(notifications_to_create)
-                
-                # ስታቲስቲክስ ያዘምኑ
-                self.site.real_product_count = Product.objects.filter(
-                    site=self.site, is_active=True
-                ).count()
-                self.site.total_products = Product.objects.filter(
-                    site=self.site
-                ).count()
-                self.site.total_sellers = User.objects.filter(
-                    product__site=self.site
-                ).distinct().count()
-                self.site.save()
-                
-        except Exception as db_err:
-            logger.error(f"Bulk DB Insertion failed: {db_err}")
-            return 0
-        
-        return created_count
+            if provider == 'GEMINI':
+                return self._call_gemini(prompt, timeout)
+            elif provider == 'GROQ':
+                return self._call_groq(prompt, timeout)
+            elif provider == 'MISTRAL':
+                return self._call_mistral(prompt, timeout)
+            elif provider == 'OPENROUTER':
+                return self._call_openrouter(prompt, timeout)
+            elif provider == 'HUGGINGFACE':
+                return self._call_huggingface(prompt, timeout)
+            elif provider == 'GITHUB':
+                return self._call_github(prompt, timeout)
+            else:
+                logger.warning(f"Unknown provider: {provider}")
+                return None
+        except requests.exceptions.Timeout:
+            logger.warning(f"⏱️ {provider} timed out after {timeout}s")
+            return None
+        except Exception as e:
+            logger.warning(f"⚠️ {provider} error: {e}")
+            return None
 
-    # ============================================================
-    # 📸 4. IMAGE UPLOADER (Cloudinary)
-    # ============================================================
-    
+    def _call_gemini(self, prompt: str, timeout: int) -> Optional[str]:
+        api_key = os.getenv('GEMINI_API_KEY')
+        if not api_key: return None
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        res = requests.post(url, json=payload, timeout=timeout)
+        if res.status_code == 200:
+            return res.json()['candidates'][0]['content']['parts'][0]['text']
+        return None
+
+    def _call_groq(self, prompt: str, timeout: int) -> Optional[str]:
+        api_key = os.getenv('GROQ_API_KEY')
+        if not api_key: return None
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}]}
+        res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        if res.status_code == 200:
+            return res.json()['choices'][0]['message']['content']
+        return None
+
+    def _call_mistral(self, prompt: str, timeout: int) -> Optional[str]:
+        api_key = os.getenv('MISTRAL_API_KEY')
+        if not api_key: return None
+        url = "https://api.mistral.ai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {"model": "mistral-small-latest", "messages": [{"role": "user", "content": prompt}]}
+        res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        if res.status_code == 200:
+            return res.json()['choices'][0]['message']['content']
+        return None
+
+    def _call_openrouter(self, prompt: str, timeout: int) -> Optional[str]:
+        api_key = os.getenv('OPENROUTER_API_KEY')
+        if not api_key: return None
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {"model": "meta-llama/llama-3-8b-instruct:free", "messages": [{"role": "user", "content": prompt}]}
+        res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        if res.status_code == 200:
+            return res.json()['choices'][0]['message']['content']
+        return None
+
+    def _call_huggingface(self, prompt: str, timeout: int) -> Optional[str]:
+        api_key = os.getenv('HUGGINGFACE_API_KEY')
+        if not api_key: return None
+        url = "https://api-inference.huggingface.co/models/NousResearch/Meta-Llama-3-8B-Instruct"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {"inputs": f"<|system|>\nYou are a helpful assistant.\n<|user|>\n{prompt}\n<|assistant|>\n"}
+        res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        if res.status_code == 200:
+            data = res.json()
+            if data and 'generated_text' in data[0]:
+                return data[0]['generated_text'].strip()
+        return None
+
+    def _call_github(self, prompt: str, timeout: int) -> Optional[str]:
+        token = os.getenv('GITHUB_TOKEN')
+        if not token: return None
+        url = "https://models.github.ai/inference/chat/completions"
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        payload = {"model": "gpt-4o-mini", "messages": [{"role": "user", "content": prompt}]}
+        res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        if res.status_code == 200:
+            return res.json()['choices'][0]['message']['content']
+        return None
+
+    def _no_api_fallback_harvest(self) -> List[Dict]:
+        logger.info("🌐 No-API Fallback: Searching DuckDuckGo for products...")
+        
+        products = []
+        search_terms = [
+            "Ethiopia market products for sale",
+            "Ethiopian online marketplace products",
+            "Buy and sell Ethiopia products",
+            "Ethiopia classifieds products"
+        ]
+        
+        for term in search_terms:
+            try:
+                url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(term)}"
+                res = requests.get(url, headers=headers, timeout=8)
+                
+                if res.status_code == 200:
+                    items = re.findall(r'<a[^>]*>(.*?)</a>', res.text)
+                    
+                    for item in items[:5]:
+                        clean_text = re.sub(r'<[^>]+>', '', item).strip()
+                        if len(clean_text) > 20:
+                            parsed = self._heuristic_parse_text(clean_text)
+                            if parsed and parsed.get('title'):
+                                products.append(parsed)
+                    
+            except Exception as e:
+                logger.debug(f"DuckDuckGo search failed: {e}")
+                continue
+        
+        return products
+
     def _save_image_to_cloudinary_permanently(self, raw_img_url):
-        """ምስሎችን ወደ Cloudinary ያስቀምጣል"""
         if not raw_img_url or not raw_img_url.startswith('http'):
             return ""
         try:
@@ -1342,17 +1304,110 @@ class CEOOperations:
             logger.error(f"⚠️ Cloudinary save failed: {e}")
         return raw_img_url
 
-    # ============================================================
-    # 🔗 5. CONTACT LINK GENERATOR
-    # ============================================================
-    
+    def _seed_listings_bulk(self, products_list):
+        Product = get_model('Product')
+        SellerProfile = get_model('SellerProfile')
+        NotificationQueue = get_model('NotificationQueue')
+        SiteConfig = get_model('SiteConfig')
+
+        products_to_create = []
+        notifications_to_create = []
+        seen_titles = set() 
+
+        for p in products_list:
+            if not isinstance(p, dict) or not p.get('title') or not p.get('seller_contact'):
+                continue
+            
+            try:
+                contact = p['seller_contact']
+                uname = contact.replace('@', '').replace('+', '').strip()
+                uname = re.sub(r'[^a-zA-Z0-9_@.+\-]', '', uname)[:150]
+                
+                title_key = (uname, p['title'].strip().lower())
+                if title_key in seen_titles:
+                    continue
+                seen_titles.add(title_key)
+                
+                user, created = User.objects.get_or_create(username=uname, defaults={'is_active': True})
+                if created:
+                    user.set_unusable_password()
+                    user.save()
+                    
+                SellerProfile.objects.get_or_create(user=user, defaults={'site': self.site})
+
+                product_exists = Product.objects.filter(
+                    seller=user,
+                    site=self.site,
+                    title=p['title'].strip()
+                ).exists()
+                
+                if product_exists:
+                    logger.info(f"⏭️ Bulk Harvester: Skipping duplicate product '{p['title']}' for user '{uname}'")
+                    continue
+
+                try:
+                    clean_price = float(p.get('price', 0))
+                except (ValueError, TypeError):
+                    clean_price = 0.0
+
+                raw_photo = p.get('image_url', '')
+                cloudinary_photo_url = self._save_image_to_cloudinary_permanently(raw_photo)
+
+                product_obj = Product(
+                    seller=user, site=self.site, title=p['title'], price=clean_price,
+                    description=p.get('desc', ''), image_url=cloudinary_photo_url,
+                    listing_type=p.get('listing_type', 'sale') or 'sale', 
+                    contact_info=contact, is_active=True
+                )
+                products_to_create.append(product_obj)
+
+                login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode('utf-8')).hexdigest()[:16]
+                
+                SiteConfig.objects.update_or_create(
+                    key=f"ACCESS_TOKEN_{uname}",
+                    defaults={'value': {'token': login_token, 'created_at': timezone.now().isoformat()}}
+                )
+
+                dispatch_links = self.generate_contact_links(contact)
+                magic_login_url = f"{self.site.deployment_url or 'http://localhost:8000'}/api/magic-token/?phone={uname}&token={login_token}"
+
+                message = (
+                    f"ሰላም! የለጠፉት '{p['title']}' ምርት በድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
+                    f"ምርትዎን ለማስተዳደር በዚህ ሊንክ ይግቡ፦\n"
+                    f"{magic_login_url}\n\n"
+                    f"EthAfri CEO"
+                )
+
+                notification_obj = NotificationQueue(
+                    site=self.site, recipient=contact, notification_type='sms',
+                    message=message
+                )
+                notifications_to_create.append(notification_obj)
+
+            except Exception as seed_err:
+                logger.error(f"Failed to compile bulk listing: {seed_err}")
+
+        try:
+            with transaction.atomic():
+                if products_to_create:
+                    Product.objects.bulk_create(products_to_create)
+                if notifications_to_create:
+                    NotificationQueue.objects.bulk_create(notifications_to_create)
+                
+                self.site.real_product_count = Product.objects.filter(site=self.site, is_active=True).count()
+                self.site.total_products = Product.objects.filter(site=self.site).count()
+                self.site.total_sellers = User.objects.filter(product__site=self.site).distinct().count()
+                self.site.save()
+                
+                logger.info(f"✨ Bulk Harvester: Processed {len(products_to_create)} new unique products!")
+        except Exception as db_err:
+            logger.error(f"Bulk DB Insertion failed: {db_err}")
+
     @staticmethod
     def generate_contact_links(contact_str):
-        """የተጠቃሚውን ስልክ ወይም ዩዘርኔም በመለየት ሊንኮችን ያመነጫል"""
         links = {}
-        if not contact_str:
+        if not contact_str: 
             return links
-        
         phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', contact_str)
         if phone_match:
             raw_phone = phone_match.group(0)
@@ -1361,7 +1416,6 @@ class CEOOperations:
                 clean_phone = '251' + clean_phone[1:]
             elif clean_phone.startswith('+'):
                 clean_phone = clean_phone.replace('+', '')
-            
             links['whatsapp'] = f"https://wa.me/{clean_phone}"
             links['telegram_direct'] = f"https://t.me/+{clean_phone}"
             links['imo'] = f"imo://chat?phone={clean_phone}"
@@ -1371,37 +1425,24 @@ class CEOOperations:
             if clean_username:
                 links['telegram_direct'] = f"https://t.me/{clean_username}"
                 links['facebook_messenger'] = f"https://m.me/{clean_username}"
-        
         return links
 
-    # ============================================================
-    # 🛡️ 6. LISTING CURATION (Spam/Scam detection)
-    # ============================================================
-    
     def curate_user_listings(self, limit=5):
-        """አዳዲስ ምርቶችን መርምሮ ስካም ይከላከላል"""
         SiteConfig = get_model('SiteConfig')
         Product = get_model('Product')
         NotificationQueue = get_model('NotificationQueue')
         _, _, broadcast_agent_log, _ = _get_ai_utils()
         clean_and_parse_json, _, _, _ = _get_ai_utils()
-        
+
         try:
             dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
-            dedup_config, _ = SiteConfig.objects.get_or_create(
-                key=dedup_key,
-                defaults={'value': []}
-            )
+            dedup_config, _ = SiteConfig.objects.get_or_create(key=dedup_key, defaults={'value': []})
             curated_ids = set(dedup_config.value if isinstance(dedup_config.value, list) else [])
-            
-            candidates = list(
-                Product.objects.filter(site=self.site, is_active=True)
-                .exclude(id__in=list(curated_ids))[:limit]
-            )
-            
-            if not candidates:
+
+            candidates = list(Product.objects.filter(site=self.site, is_active=True).exclude(id__in=list(curated_ids))[:limit])
+            if not candidates: 
                 return
-            
+
             newly_curated = []
             for product in candidates:
                 try:
@@ -1414,136 +1455,83 @@ class CEOOperations:
                     else:
                         try:
                             prompt = (
-                                f"Verify listing for scams/spam. Title: {product.title}. "
-                                f"Price: {product.price}. "
+                                f"Verify listing for scams/spam. Title: {product.title}. Price: {product.price}. "
                                 f"Return JSON with key 'is_valid' (true/false) and 'reason'."
                             )
-                            result = clean_and_parse_json(
-                                ask_master_ai_smart(prompt, task_type="market_research")
-                            )
+                            result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
                             if result and not result.get('is_valid', True):
                                 is_valid = False
                                 reason = result.get('reason', 'Suspicious listing')
                         except Exception as ai_curate_err:
                             logger.debug("AI curation skipped: %s", ai_curate_err)
-                    
+
                     if not is_valid:
                         product.is_active = False
                         product.save()
                         NotificationQueue.objects.create(
-                            site=self.site,
-                            recipient=product.seller.username,
-                            notification_type='sms',
-                            message=(
-                                f"ሰላም {product.seller.username}፤ "
-                                f"የለጠፉት '{product.title}' ምርት ማጣሪያችን አልፏል። "
-                                f"ምክንያት፦ {reason}።"
-                            )
+                            site=self.site, recipient=product.seller.username, notification_type='sms',
+                            message=f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት ማጣሪያችን አልፏል። ምክንያት፦ {reason}።"
                         )
                         logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
                     else:
                         self._generate_translations_for_product(product)
-                    
+
                     newly_curated.append(product.id)
-                    
                 except Exception as e:
                     logger.error(f"curate_user_listings failed: {e}")
-            
+
             if newly_curated:
                 curated_ids.update(newly_curated)
                 dedup_config.value = list(curated_ids)[-2000:]
                 dedup_config.save()
-                
         except Exception as e:
-            logger.error(f"Curation exception: {e}")
+            logger.error("Curation exception: %s", e)
 
-    # ============================================================
-    # 🌍 7. TRANSLATION GENERATOR
-    # ============================================================
-    
     def _generate_translations_for_product(self, product):
-        """ምርቱን ለ Amharic/Oromo ቋንቋዎች በራስ-ሰር መተርጎም"""
         from .models import ProductTranslation
-        
         texts = [t for t in [product.title, product.description or ""] if t and t.strip()]
-        if not texts:
+        if not texts: 
             return
-        
+
         for lang in ['am', 'om']:
             try:
                 translated = translate_text_incremental(texts, target_lang=lang)
                 ProductTranslation.objects.update_or_create(
                     product=product,
                     defaults={
-                        lang: (
-                            f"{translated.get(product.title, product.title)} ||| "
-                            f"{translated.get(product.description or '', product.description or '')}"
-                        )
+                        lang: f"{translated.get(product.title, product.title)} ||| {translated.get(product.description or '', product.description or '')}"
                     }
                 )
             except Exception as e:
-                logger.debug(f"Translation skipped: {e}")
+                logger.debug("Translation skipped: %s", e)
 
-    # ============================================================
-    # 💰 8. REVENUE BOOSTER
-    # ============================================================
-    
     def _boost_revenue(self):
-        """ተወዳጅ ምርቶችን ለማስተዋወቅ ተግባር ይፈጥራል"""
         Product = get_model('Product')
         try:
-            hot_items = Product.objects.filter(
-                site=self.site,
-                view_count__gt=100,
-                is_active=True
-            ).order_by('-view_count')[:2]
-            
+            hot_items = Product.objects.filter(site=self.site, view_count__gt=100, is_active=True).order_by('-view_count')[:2]
             for item in hot_items:
                 get_or_create_backlog_task_safe(
-                    self.site,
-                    f"📣 Promote Hot Item: {item.title}",
-                    defaults={
-                        'priority': 'High',
-                        'status': 'Pending',
-                        'business_impact_score': 8,
-                        'target_file': 'home_html',
-                        'description': item.title
-                    }
+                    self.site, f"📣 Promote Hot Item: {item.title}",
+                    defaults={'priority': 'High', 'status': 'Pending', 'business_impact_score': 8, 'target_file': 'home_html', 'description': item.title}
                 )
         except Exception as e:
-            logger.debug(f"Failed to execute revenue boosting: {e}")
+            logger.debug("Failed to execute revenue boosting: %s", e)
 
-    # ============================================================
-    # 📨 9. NOTIFICATION DISPATCHER
-    # ============================================================
-    
     def dispatch_pending_notifications(self):
-        """ያልተላኩ ማሳወቂያዎችን ይልካል"""
         NotificationQueue = get_model('NotificationQueue')
         try:
-            pending_notes = NotificationQueue.objects.filter(
-                site=self.site,
-                is_sent=False
-            )[:5]
-            
+            pending_notes = NotificationQueue.objects.filter(site=self.site, is_sent=False)[:5]
             for note in pending_notes:
                 logger.info(f"📨 Outbound Dispatcher: Sent {note.notification_type} to {note.recipient}")
                 note.is_sent = True
                 note.sent_at = timezone.now()
                 note.save()
-                
         except Exception as e:
             logger.error(f"Outbound Dispatcher failed: {e}")
 
-    # ============================================================
-    # 📢 10. TELEGRAM AUTO-POSTER
-    # ============================================================
-    
     def auto_post_to_telegram_channel(self, product):
-        """ምርቶችን ወደ ቴሌግራም ቻናል በራስ-ሰር ይልካል"""
         token = getattr(settings, 'TELEGRAM_BOT_TOKEN', None)
         channel_id = getattr(settings, 'TELEGRAM_CHANNEL_ID', None)
-        
         if not token or not channel_id:
             return
         
@@ -1555,13 +1543,11 @@ class CEOOperations:
             f"🔗 {self.site.deployment_url}/product/{product.id}/\n\n"
             f"🤖 EthAfri Auto-Post"
         )
-        
         payload = {
             "chat_id": channel_id,
             "caption": caption,
             "photo": product.image_url or "https://loremflickr.com/800/800/product"
         }
-        
         try:
             requests.post(url, json=payload, timeout=5)
             logger.info(f"📢 Telegram Auto-Poster: Posted product {product.id}")
@@ -1570,72 +1556,7 @@ class CEOOperations:
 
 
 # ============================================================
-# 📌 HELPER FUNCTIONS (Dynamic Model Loading)
-# ============================================================
-
-def get_model(model_name: str):
-    """ሞዴሎችን በዳይናሚክ መጫኛ"""
-    try:
-        from django.apps import apps
-        return apps.get_model('marketplace', model_name)
-    except Exception as e:
-        logger.error(f"Failed to load model {model_name}: {e}")
-        return None
-
-
-def _get_ai_utils():
-    """AI Utils ሞጁልን በ late import መጫኛ"""
-    from .ai_utils import (
-        clean_and_parse_json,
-        ask_master_ai_smart,
-        broadcast_agent_log,
-        AIUtils
-    )
-    return clean_and_parse_json, ask_master_ai_smart, broadcast_agent_log, AIUtils.compress_code_for_prompt
-
-
-def get_or_create_backlog_task_safe(site, task_name, defaults):
-    """የባክሎግ ተግባርን በደህንነት ይፈጥራል"""
-    from .models import AIProjectBacklog
-    task_name = task_name[:200]
-    matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
-    if matching.exists():
-        task = matching.first()
-        if matching.count() > 1:
-            matching.exclude(id=task.id).delete()
-        return task, False
-    try:
-        task = AIProjectBacklog.objects.create(site=site, task_name=task_name, **defaults)
-        return task, True
-    except Exception as e:
-        logger.error(f"Error creating safe backlog task: {e}")
-        return None, False
-
-
-def translate_text_incremental(texts, target_lang):
-    """ጽሁፎችን ወደ አማርኛ/ኦሮምኛ ይተረጉማል"""
-    if not texts:
-        return {}
-    
-    _, ask_master_ai_smart, _, _ = _get_ai_utils()
-    clean_and_parse_json, _, _, _ = _get_ai_utils()
-    
-    prompt = (
-        f"Translate the following text keys into {target_lang}.\n"
-        f"Text Data: {json.dumps(texts, ensure_ascii=False)}.\n"
-        f"Return JSON mapping each original text to its translated equivalent."
-    )
-    try:
-        translated = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="translation"))
-        if isinstance(translated, dict):
-            return translated
-    except Exception as e:
-        logger.error(f"Translation dynamic loop failed: {e}")
-    return {t: t for t in texts}
-
-
-# ============================================================
-# 🕵️ COMPETITOR INTELLIGENCE ENGINE
+# 🕵️ COMPETITOR INTELLIGENCE ENGINE (ተፎካካሪ ስለላ)
 # ============================================================
 
 class CompetitorIntelligenceEngine:
@@ -1690,6 +1611,7 @@ class CompetitorIntelligenceEngine:
             result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
             if result and isinstance(result, dict):
                 
+                # 🛡️ FIXED: int('Very High') ስህተትን ለመከላከል (Self-healing)
                 demand_raw = result.get('demand_level', 50)
                 try:
                     demand_level = int(demand_raw)
@@ -1716,12 +1638,14 @@ class CompetitorIntelligenceEngine:
                     success_rate=95.0, text_content=insight_text, embedding_model='spy-intelligence-v1'
                 )
 
+                # 🛡️ FIXED: float('Competitive pricing...') ስህተትን ለመከላከል (Self-healing)
                 repriced_raw = result.get('repriced_value', 0.0)
                 try:
                     repriced_val = float(repriced_raw)
                 except (ValueError, TypeError):
                     repriced_val = 0.0
 
+                # 🛡️ FIXED: int('Invalid ID') ስህተትን ለመከላከል
                 target_raw = result.get('repriced_product_id', 0)
                 try:
                     target_id = int(target_raw)
@@ -1740,6 +1664,7 @@ class CompetitorIntelligenceEngine:
 
                 advantage_action = result.get('competitive_advantage_action', '')
                 if advantage_action:
+                    # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል ስሙን በ 200 ፊደላት መገደብ (Truncate)
                     task_name = f"🎯 COMPETITOR SPY: {advantage_action}"[:200]
                     get_or_create_backlog_task_safe(
                         self.site, task_name,
@@ -1748,7 +1673,6 @@ class CompetitorIntelligenceEngine:
                 broadcast_agent_log(self.site, "✨ Spy Engine: Competitor analysis complete.", "success")
         except Exception as ai_err:
             logger.error(f"Spy Engine analysis failed: {ai_err}")
-
 
 # ============================================================
 # 🛡️ FRAUD HUNTER
@@ -1923,10 +1847,8 @@ def get_site_project_state_dynamic(site):
 
 def get_or_create_backlog_task_safe(site, task_name, defaults):
     AIProjectBacklog = get_model('AIProjectBacklog')
-    # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል የ backlogs ስሞችን በ 200 ፊደላት መገደብ
+    # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል የ backlogs ስሞችን በ 200 ፊደላት መገደብ (Truncate)
     task_name = task_name[:200]
-    if 'description' in defaults and defaults['description']:
-        defaults['description'] = defaults['description'][:500]
     matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
     if matching.exists():
         task = matching.first()
@@ -2298,10 +2220,10 @@ def _run_site_cycle(site):
         finally:
             safe_close_connections()
 
-    # 🔄 Track A ለጊዜው ተዘግቷል (ምርት መሰብሰብ ላይ ብቻ ትኩረት)
+    # 🔄 [የኃይል እርምጃ] የኮድ መጻፊያ ሞተር ለጊዜው ሙሉ በሙሉ ተዘግቷል (ምርት መሰብሰብ ላይ ብቻ ትኩረት ለማድረግ)
     # run_track_a_evolution()
     
-    # የዕድገት እና ምርት መሰብሰቢያ ሞተር (Track B) ብቻ
+    # የዕድገት እና ምርት መሰብሰቢያ ሞተር (Track B) ማስፈጸም
     run_track_b_growth()
 
     update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
