@@ -1,8 +1,8 @@
 
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
-# 📝 ስሪት፦ v10.60 (Ultimate Stable Product CEO - Complete Restored Edition)
-# ✅ የተፈቱ ችግሮች፦ Fully restored and consolidated MultiChannelHarvester with correct class indentation, bypassed duplicate strip/dict errors, fixed site_id database mismatch, and permanently disabled Track A to focus 100% on scraping.
+# 📝 ስሪት፦ v10.50 (Ultimate Self-Learning & Auto-Correcting CEO - Production)
+# ✅ የተፈቱ ችግሮች፦ Fixed incorrect MultiChannelHarvester class indentation, enabled empty-house auto-memory bypass, fixed 'Very High' ValueError in Spy Engine, resolved project state self-bug, and disabled Track A coding temporarily.
 # 📅 ቀን፦ Tuesday, July 07, 2026
 # ============================================================
 
@@ -454,7 +454,7 @@ class StrategicCEO:
     def research_latest_tech_upgrades(self):
         try:
             clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
-            query = "advanced Django database performance optimizations and scaling 2026"
+            query = "advanced Django performance optimizations and scaling 2026"
             prompt = (
                 f"Perform an automated research task on query: '{query}'.\n"
                 f"Identify exactly 1 performance optimization or security architecture for Django 4/5.\n"
@@ -507,6 +507,19 @@ class StrategicCEO:
             )
             cmd.is_processed = True
             cmd.save()
+
+
+# ============================================================
+# ⚙️ 🛠️ LIGHWEIGHT HTML TAG VALIDATOR
+# ============================================================
+
+def html_content_is_malformed(html_content: str) -> bool:
+    for tag in ['div', 'form', 'section', 'main']:
+        open_count = len(re.findall(rf'<{tag}\b', html_content, re.IGNORECASE))
+        close_count = len(re.findall(rf'</{tag}>', html_content, re.IGNORECASE))
+        if open_count != close_count:
+            return True
+    return False
 
 
 # ============================================================
@@ -654,7 +667,7 @@ class RecursiveBuilder:
 
 
 # ============================================================
-# 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER
+# 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
 # ============================================================
 
 def _autonomous_no_api_search_fallback(niche):
@@ -908,7 +921,7 @@ class MultiChannelHarvester:
         return product
     
     def _extract_products_from_html(self, html):
-        """የ Jiji ምርቶች የሚገኙ泍ቸውን እውነተኛ ካርዶች ብቻ ለይቶ መሳቢያ (Regex Hardened)"""
+        """የ Jiji ምርቶች የሚገኙባቸውን እውነተኛ ካርዶች ብቻ ለይቶ መሳቢያ (Regex Hardened)"""
         products = []
         # የ Jiji ትክክለኛ ምርቶች የሚገኙባቸው የ CSS Class ስሞች ብቻ
         items = re.findall(r'<div[^>]*class="[^"]*(?:b-list-advert-single|b-trending-card|qa-advert-list-item)[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
