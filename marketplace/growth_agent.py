@@ -1353,6 +1353,7 @@ class CEOOperations:
         return raw_img_url
 
     def _seed_listings_bulk(self, products_list):
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የድሮ ቆሻሻዎችን በራስ-ሰር የማጽዳት ሎጂክ ተጨምሯል (v10.61)"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
@@ -1383,6 +1384,15 @@ class CEOOperations:
                     
                 SellerProfile.objects.get_or_create(user=user, defaults={'site': self.site})
 
+                # 🛡️ SELF-CORRECTION: በአሮጌው ስህተት ምክንያት የገቡ የኮድ ቆሻሻዎችን (Inactive የሆኑትን) በራስ-ሰር ማጽዳት
+                Product.objects.filter(
+                    seller=user,
+                    site=self.site,
+                    title=p['title'].strip(),
+                    is_active=False
+                ).delete()
+
+                # አዲስ ንጹሕ ምርት መኖሩን መፈተሽ
                 product_exists = Product.objects.filter(
                     seller=user,
                     site=self.site,
