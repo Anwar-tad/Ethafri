@@ -667,7 +667,7 @@ class RecursiveBuilder:
 
 
 # ============================================================
-# 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ)
+# 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ - v10.60)
 # ============================================================
 
 def _autonomous_no_api_search_fallback(niche):
@@ -1007,6 +1007,41 @@ class MultiChannelHarvester:
                 logger.warning(f"🕵️ Recon Engine: Registered strategic bypass guide for: {url}")
         except Exception as db_err:
             logger.error(f"Failed to save Reconnaissance Task: {db_err}")
+
+    def discover_and_harvest_niche_sources(self, site):
+        """🛡️ FIXED: ክላሱ ውስጥ በትክክል ገብቶ የተጻፈው ዋና ምርት መሰብሰቢያ ሎጂክ"""
+        if not self.is_network_available():
+            logger.warning("🌐 No internet connection. Using cached sources.")
+            return self._get_cached_sources(site)
+        
+        if random.random() < 0.3 or not self._get_cached_sources(site):
+            new_discovered = self.discover_active_market_sources(site)
+            if new_discovered:
+                self._save_sources_to_cache(site, new_discovered)
+        
+        sources = self._get_cached_sources(site)
+        
+        if not sources:
+            logger.warning("⚠️ No active sources found via AI or cache. Seeding default fallback sources...")
+            sources = self._get_fallback_sources()
+            self._save_sources_to_cache(site, sources)
+        
+        active_sources = []
+        for source in sources:
+            if self.check_source_health(source):
+                active_sources.append(source)
+            else:
+                logger.warning(f"❌ Source {source.get('url_or_channel')} is dead, skipping this cycle...")
+        
+        all_products = []
+        for source in active_sources[:6]: 
+            logger.info(f"📡 Scraping {source.get('url_or_channel')}...")
+            products = self.get_recent_products(source)
+            if products:
+                all_products.extend(products)
+                logger.info(f"✅ Found {len(products)} products from {source.get('url_or_channel')}")
+        
+        return all_products
 
 
 # ============================================================
