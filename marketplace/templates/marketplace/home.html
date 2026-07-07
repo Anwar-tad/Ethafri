@@ -149,10 +149,11 @@
                             <img src="{{ product.image_url }}" alt="{{ product.get_translated_title }}">
                         {% else %}
                             <img src="https://loremflickr.com/400/300/{{ product.category.name|slugify|default:'product' }}?lock={{ product.id }}" alt="{{ product.title }}">
-                        {% endif %}
-                        <span class="price-badge">
-                            {% if product.price > 0 %}{{ product.price|floatformat:0 }} ETB{% else %}{% trans "Negotiable" %}{% endif %}
-                        </span>
+{% if product.price == 0 %}
+    <span class="text-warning font-weight-bold">በድርድር</span>
+{% else %}
+    <span class="font-weight-bold">{{ product.price|floatformat:0 }} ETB</span>
+{% endif %}
                     </div>
                     <div class="card-body">
                         <div class="product-title">

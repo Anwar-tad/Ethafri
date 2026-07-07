@@ -1745,7 +1745,13 @@ class FraudHunter:
 
     def scan_for_scams(self):
         Product = get_model('Product')
-        suspicious = Product.objects.filter(site=self.site, price__lt=10, is_active=True)
+        # 🛡️ FIXED: 0.0 (በድርድር) የሆኑትን ሳያግድ፣ ከ 0.1 እስከ 10 ብር የሆኑትን ብቻ ማገድ
+        suspicious = Product.objects.filter(
+            site=self.site, 
+            price__gt=0.1,  # ከ 0.1 ብር በላይ
+            price__lt=10,   # ከ 10 ብር በታች
+            is_active=True
+        )
         for p in suspicious:
             p.is_active = False
             p.save()
