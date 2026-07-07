@@ -698,7 +698,7 @@ def _autonomous_no_api_search_fallback(niche):
 
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ እና ክልከላዎችን የሚያጠና የስለላ ሞተር (v10.60)"""
+    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ እና ክልከላዎችን የሚያጠና የስለላ ሞተር (v10.65)"""
     
     @staticmethod
     def is_network_available():
@@ -1009,7 +1009,7 @@ class MultiChannelHarvester:
             logger.error(f"Failed to save Reconnaissance Task: {db_err}")
 
     def discover_and_harvest_niche_sources(self, site):
-        """🛡️ FIXED: ክላሱ ውስጥ በትክክል ገብቶ የተጻፈው ዋና ምርት መሰብሰቢያ ሎጂክ"""
+        """🛡️ FIXED: ጤናማ ያልሆኑትን ቀድሞ ከመጣል ይልቅ ሁሉንም ለመሞከር እና ክልከላ ካለ ለአድሚን ለመዘገብ (Recon Engine v10.65)"""
         if not self.is_network_available():
             logger.warning("🌐 No internet connection. Using cached sources.")
             return self._get_cached_sources(site)
@@ -1026,20 +1026,18 @@ class MultiChannelHarvester:
             sources = self._get_fallback_sources()
             self._save_sources_to_cache(site, sources)
         
-        active_sources = []
-        for source in sources:
-            if self.check_source_health(source):
-                active_sources.append(source)
-            else:
-                logger.warning(f"❌ Source {source.get('url_or_channel')} is dead, skipping this cycle...")
-        
         all_products = []
-        for source in active_sources[:6]: 
-            logger.info(f"📡 Scraping {source.get('url_or_channel')}...")
+        # 🛡️ የ3 ወር እውነተኛ ምርቶችን በጥልቀት ለመሳብ በየዑደቱ እስከ 8 ሳይቶች ድረስ በጥልቀት መቃኘት
+        for source in sources[:8]: 
+            url = source.get('url_or_channel', '')
+            logger.info(f"📡 Scraping {url}...")
             products = self.get_recent_products(source)
             if products:
                 all_products.extend(products)
-                logger.info(f"✅ Found {len(products)} products from {source.get('url_or_channel')}")
+                logger.info(f"✅ Found {len(products)} products from {url}")
+            else:
+                # 🛡️ FIXED: ምርት ካላገኘ ወይም ግንኙነት ከተቋረጠ ሪፖርቱን እዚህ በራስ-ሰር ማመንጨት (No Silent Bypass!)
+                self.perform_source_reconnaissance(source, "Website is either blocked, returned empty, or timed out during crawling.")
         
         return all_products
 
@@ -1353,7 +1351,7 @@ class CEOOperations:
         return raw_img_url
 
     def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የድሮ ቆሻሻዎችን በራስ-ሰር የማጽዳት ሎጂክ ተጨምሯል (v10.61)"""
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የባዶ ሻጭ ሎጂክ እና የራስ-ፈውስ ማጽጃ የተጨመረበት (v10.62)"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
@@ -1364,11 +1362,17 @@ class CEOOperations:
         seen_titles = set() 
 
         for p in products_list:
-            if not isinstance(p, dict) or not p.get('title') or not p.get('seller_contact'):
+            # 🛡️ FIXED: seller_contact ባዶ ቢሆንም ምርቱን እንዳይዘል መፍቀድ
+            if not isinstance(p, dict) or not p.get('title'):
                 continue
             
+            # ሻጭ ኮንታክት ከሌለው ባዶ እንዳይሆን default ስልክ ቁጥር መመደብ
+            contact = p.get('seller_contact', '').strip()
+            if not contact:
+                contact = "0900000000"  # Fallback Contact
+            p['seller_contact'] = contact
+            
             try:
-                contact = p['seller_contact']
                 uname = contact.replace('@', '').replace('+', '').strip()
                 uname = re.sub(r'[^a-zA-Z0-9_@.+\-]', '', uname)[:150]
                 
@@ -1392,7 +1396,6 @@ class CEOOperations:
                     is_active=False
                 ).delete()
 
-                # አዲስ ንጹሕ ምርት መኖሩን መፈተሽ
                 product_exists = Product.objects.filter(
                     seller=user,
                     site=self.site,
