@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/self_doctor.py
-# 📝 ስሪት፦ v10.40 (Ultimate System Doctor - Symmetric Auditor Hardened)
-# ✅ የተፈቱ ችግሮች፦ Removed invalid 'text_content' argument from SecurityLog table creation (fixed TypeError), integrated safe dynamic model loader to prevent circular import dependency on startup, and reinforced transactional database refreshes.
+# 📝 ስሪት፦ v10.82 (Ultimate System Doctor - Safe Recon Synthesizer Enabled)
+# ✅ የተፈቱ ችግሮች፦ Adjusted Reconnaissance Reports Synthesizer to compress 10+ crawler errors into a single Daily Master Bulletin while strictly PRESERVING all individual detailed reports in the database for developer reverse-engineering.
 # 📅 ቀን፦ Tuesday, July 07, 2026
 # ============================================================
 
@@ -24,9 +24,6 @@ from typing import Dict, List, Optional, Union, Any
 
 logger = logging.getLogger(__name__)
 
-# ============================================================
-# 🔄 DYNAMIC MODEL LOADER (የክብ ጥገኝነት መከላከያ)
-# ============================================================
 def get_marketplace_model(model_name: str):
     """ሞዴሎችን በዳይናሚክ መንገድ በመጫን AppRegistryNotReady ስህተትን ይከላከላል"""
     try:
@@ -35,9 +32,6 @@ def get_marketplace_model(model_name: str):
         logger.error(f"Failed to load model {model_name} dynamically inside doctor: {e}")
         return None
 
-# ============================================================
-# ⚙️ DECIMAL JSON ENCODER
-# ============================================================
 class DecimalEncoder(json.JSONEncoder):
     """Decimal እሴቶች በዳታቤዝ ውስጥ ወደ JSON ሲለወጡ የሚከሰቱ ስህተቶችን መከላከያ"""
     def default(self, obj):
@@ -50,7 +44,6 @@ class DecimalEncoder(json.JSONEncoder):
 # 🛡️ 1. SECURITY & SYMMETRIC DESIGN AUDITOR
 # ============================================================
 class SecurityAuditor:
-    """ኮድ ከመጻፉ በፊት አደገኛ የሼል ጥሪዎችን፣ መደጋገሞችን እና የንብረት አቀማመጦችን በ AST የሚመረምር የደህንነት ጋሻ"""
 
     @staticmethod
     def scan_code_safety(code, file_path="", site=None):
@@ -185,6 +178,9 @@ class UniversalHealer:
                     stuck_tasks.update(status='Pending')
             except Exception as e:
                 logger.error(f"Failed to reset stuck tasks: {e}")
+
+        # 📊 የቆዩ የዳሳሽ ሪፖርቶችን በ AI የመጭመቅ ጥሪ (v10.82)
+        self.synthesize_daily_recon_reports()
 
         # የዳታቤዝ አውቶማቲክ መጠባበቂያ (SaaS Backup Archiver)
         AutonomousBackupManager.backup_database_to_cache(self.site)
@@ -337,7 +333,6 @@ class UniversalHealer:
                 except Exception as retry_err:
                     err_msg = str(retry_err)
             
-            # AI CACHING INTEGRATION: ተደጋጋሚ የ SQL ጥያቄዎች እንዳይላኩ መሸጎጫን መፈተሽ
             from .ai_utils import AIUtils, clean_and_parse_json, ask_master_ai_smart
             cache_key = f"db_schema_fix:{hashlib.md5(err_msg.encode('utf-8')).hexdigest()}"
             cached_sql = AIUtils.get_cached(cache_key)
@@ -477,7 +472,67 @@ class UniversalHealer:
                 vuln.save()
         except Exception as e:
             logger.error(f"Failed to run security healing check: {e}")
+
+    def synthesize_daily_recon_reports(self):
+        """
+        📊 [የአሰሳ ስለላ ሪፖርቶች ዕለታዊ አጠቃላይ ማጠቃለያ ሞተር - v10.82]
+        በባክሎግ ውስጥ የሚገኙትን 10+ የነጠላ ዌብሳይት ስህተቶች አውጥቶ በ AI በአንድ ላይ በመጭመቅ 
+        ባለ አንድ ማጠቃለያ መግለጫ ያዘጋጃል። (🛡️ FIXED: የነጠላ ሪፖርቶች በዳታቤዝ ውስጥ እንዲቀመጡ ተደርገዋል)
+        """
+        AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
+        SiteConfig = get_marketplace_model('SiteConfig')
+        if not AIProjectBacklog or not SiteConfig: return
+
+        # 1. ሁሉንም ንቁ የስለላ ሪፖርቶች መሰብሰብ (Blocked እና Scrapper_engine የሆኑትን)
+        raw_reports = AIProjectBacklog.objects.filter(
+            site=self.site,
+            target_file="scrapper_engine",
+            status="Blocked"
+        )
+        
+        # ሪፖርቶች ከ 10 በላይ ከሆኑ ብቻ ማጠቃለያውን ማዘጋጀት
+        if raw_reports.count() < 10:
+            return
+
+        logger.warning(f"📊 Recon Synthesizer: Compressing {raw_reports.count()} individual reports into a Master Bulletin...")
+        
+        # 2. የሳይቶቹን አድራሻ እና የስህተት አይነቶችን ለ AI ማዘጋጀት
+        failed_domains = []
+        for r in raw_reports:
+            match = re.search(r'🌐 TARGET WEBSITE:\s*(https?://[^\s\n]+)', r.description)
+            domain = match.group(1) if match else r.task_name
+            failed_domains.append(domain)
+
+        # የተደጋገሙትን ማስወገድ
+        unique_failed = list(set(failed_domains))[:15] # ቢበዛ 15 ዌብሳይቶች በቶከን መጠን ምክንያት
+        
+        prompt = (
+            f"We have {raw_reports.count()} individual scraping failures for these domains: {json.dumps(unique_failed)}.\n"
+            f"Please write a highly compressed, professional, master executive summary in Amharic (max 400 characters) "
+            f"detailing the overall health of our scraping system, why these sites are blocking us, and a unified strategy to unblock them.\n"
+            f"Return JSON with key 'master_summary'."
+        )
+
+        from .ai_utils import clean_and_parse_json, ask_master_ai_smart
+        try:
+            res = ask_master_ai_smart(prompt, task_type="analysis")
+            data = clean_and_parse_json(res)
             
+            if data and isinstance(data, dict) and data.get('master_summary'):
+                master_summary = data['master_summary']
+                
+                # 3. ማጠቃለያውን በ SiteConfig ውስጥ ማስቀመጥ (Dashboard ላይ በቀጥታ እንዲነበብ)
+                SiteConfig.objects.update_or_create(
+                    key=f"CRAWLER_DAILY_SUMMARY_{self.site.name}",
+                    defaults={'value': {'summary': master_summary, 'updated_at': timezone.now().isoformat()}}
+                )
+                
+                # 🛡️ FIXED: የነጠላ ሪፖርቶች ለአድሚን ጥናት እንዲመቹ በዳታቤዝ ውስጥ ሳይሰረዙ እንዲቆዩ ማድረግ
+                logger.info("🧹 Recon Synthesizer: Successfully compressed reports. Kept individual reports for developer reverse-engineering.")
+                
+        except Exception as e:
+            logger.error(f"Recon Synthesizer failed: {e}")
+
 
 # ============================================================
 # 💾 3. AUTONOMOUS DATABASE BACKUP & CLOUD ARCHIVER
