@@ -698,20 +698,17 @@ def purge_database_view(request):
                 model.objects.all().delete()
         except Exception as model_err:
             logger.warning(f"🧹 Purge DB Warning: Skipped {model.__name__} table deletion: {model_err}")
-    
     try:
         with transaction.atomic():
-            SiteRegistry.objects.all().delete()
-            SiteRegistry.objects.create(
-                name="primary",
-                display_name="EthAfri Primary",
-                niche="general",
-                target_market="Global",
-                is_active=True,
-                build_phase=0
-            )
-    except Exception as site_err:
-        logger.warning(f"🧹 Purge DB Warning: Skipped SiteRegistry reset: {site_err}")
+            # 🧹 [የኃይል እርምጃ] ሁሉንም የአሰሳ መኝታዎች (Cooldowns) እና የድሮ ትውስታዎችን ከዳታቤዝ ውስጥ ማጽዳት
+            SiteConfig.objects.filter(
+                Q(key__startswith="LAST_SCRAPE_TIME_") | 
+                Q(key__startswith="LAST_HARVEST_") | 
+                Q(key__startswith="PROCESSED_RAW_HASHES_")
+            ).delete()
+            logger.info("🧹 Purge DB: Successfully cleared all scraper cooldowns and memory hashes.")
+    except Exception as config_err:
+        logger.warning(f"🧹 Purge DB Warning: Skipped pacing config deletion: {config_err}")
         
     messages.success(request, "🧹 የመረጃ ቋቱ በንጽህና ጸድቷል! የ 'primary' ሳይት በድጋሚ ተመዝግቧል።")
     return JsonResponse({"status": "success", "message": "Database successfully purged!"})

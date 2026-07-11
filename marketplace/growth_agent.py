@@ -942,9 +942,9 @@ class MultiChannelHarvester:
 
     def perform_source_reconnaissance(self, source, error_msg, html_content=None):
         """
-        🕵️ [የላቀ የመረጃ አሰሳ ስለላ፣ ጥናትና ራስ-ገዝ ፈውስ ማዕከል - v10.80]
+        🕵️ [የላቀ የመረጃ አሰሳ ስለላ፣ ጥናትና ራስ-ገዝ ፈውስ ማዕከል - v10.82]
         ያጋጠመውን እገዳ በጥልቀት በመመርመር የገበያ ሁኔታን፣ የተጠቃሚ/ምርት መጠኖችን በመገመት
-        ለአድሚኑ ዝርዝር የስለላ ሪፖርትና የኮድ ማስተካከያ (Patch) በባክሎግ ይመዘግባል
+        እንዲሁም ወደ ዌብሳይቱ ጠልቆ መግቢያ መንገዶችን (Deep-Dive Targets) በመለየት ሪፖርት ያዘጋጃል
         """
         url = source.get('url_or_channel', '')
         platform = source.get('platform_type', 'GenericWeb')
@@ -982,7 +982,18 @@ class MultiChannelHarvester:
             f"የገበያው የሽያጭ ሁኔታ፦ {market_activity}።"
         )
 
-        # 3. የ AI ስልታዊ የስለላ ሪፖርትና የኮድ ማሻሻያ (Advisory & Patch Engine)
+        # 🛡️ 3. [አዲስ የተጨመረ] ወደ ዌብሳይቱ ጠልቆ መግቢያ ጥናት (Deep-Dive Target Hunting)
+        # በገጹ ውስጥ የሚገኙትን ዋና ዋና የምድብ ሊንኮች (Sitemaps, Cars, Electronics, Apartments) መቃኘት
+        deep_paths = []
+        if html_content:
+            found_paths = re.findall(r'href=["\'](/[^"\']*(?:cars?|vehicles?|apartments?|electronics?|computers?|phones?|mobiles?|classifieds?|sitemap)[^"\']*)["\']', html_content, re.IGNORECASE)
+            for path in found_paths[:5]:
+                full_path = (url + path) if path.startswith('/') else path
+                deep_paths.append(full_path)
+                
+        deep_path_brief = "\n".join([f"- {p}" for p in list(set(deep_paths))]) if deep_paths else "No deep subcategory URLs detected on home page."
+
+        # 4. የ AI ስልታዊ የስለላ ሪፖርትና የኮድ ማሻሻያ (Advisory & Patch Engine)
         _, ask_master_ai_smart, _, _ = _get_ai_utils()
         clean_and_parse_json, _, _, _ = _get_ai_utils()
         
@@ -1007,7 +1018,7 @@ class MultiChannelHarvester:
         except Exception as e:
             logger.debug(f"AI Reconnaissance Analysis skipped: {e}")
 
-        # 4. የስለላና ሪከርድ መመሪያውን በ AIProjectBacklog ላይ መመዝገብ
+        # 5. የስለላና ሪከርድ መመሪያውን በ AIProjectBacklog ላይ መመዝገብ
         try:
             AIProjectBacklog = get_model('AIProjectBacklog')
             # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል ስሙን በ 200 ፊደላት መገደብ (Truncate)
@@ -1027,6 +1038,7 @@ class MultiChannelHarvester:
                         f"🌐 TARGET WEBSITE: {url}\n"
                         f"🛡️ OBSTACLE ENCOUNTERED: {block_reason}\n"
                         f"📊 TARGET MARKET STATISTICS:\n{density_estimation}\n\n"
+                        f"🔍 DEEP-DIVE CRAWL TARGETS (ወደ ዌብሳይቱ ጠልቆ መግቢያ መንገዶች):\n{deep_path_brief}\n\n"
                         f"------------------------------------------------------------\n"
                         f"💡 AI STRATEGIST BYPASS GUIDE:\n"
                         f"------------------------------------------------------------\n"
