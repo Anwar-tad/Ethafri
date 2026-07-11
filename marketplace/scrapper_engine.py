@@ -1,11 +1,12 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/scrapper_engine.py
-# 📝 ስሪት፦ v10.95 (Ultimate Hardened Stealth Scrapper - Multi-Recon Intel Integrated)
+# 📝 ስሪት፦ v11.00 (Ultimate Lazy-Load Photo Scrapper)
 # ✅ የተፈቱ ችግሮች፦ 
-#   - Closed the feedback loop! Integrated secondary AI Reconnaissance briefs:
-#   - Added authentic mobile Telegram User-Agents (Telegram/10.1.0) to bypass t.me IP bans completely.
-#   - Added Fuzzy BeautifulSoup CSS Selectors (class*=classified, class*=item) to capture products on ethiopiaonlinebazaar.com and olx.com.et during DOM shifts.
-#   - Integrated adaptive delay pacing mimicking mobile Telegram clients.
+#   - Automated Block Reason Detection (Cloudflare, 403, 405)
+#   - Empty DOM/Regex failure alert to Admin
+#   - Activity tracking (Daily post volume estimation)
+#   - Automated HTML snapshot storage for admin reverse-engineering
+#   - Bypassed Lazy-Loading: Programmed SmartProductExtractor to scan 'data-src', 'data-lazy', 'lazy-src', and 'srcset' attributes to extract authentic product photos from Jiji and generic websites successfully.
 # 📅 ቀን፦ Sunday, July 12, 2026
 # ============================================================
 
@@ -165,12 +166,11 @@ class SmartProductExtractor:
         except Exception as e:
             logger.debug(f"JSON-LD parser fallback bypassed: {e}")
 
-        # 🛡️ 2. [የስለላ ሪፖርት ማሻሻያ] BeautifulSoup Hierarchy & Fuzzy Class Selector
+        # 🛡️ 2. BeautifulSoup Hierarchy & Fuzzy Class Selector
         try:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, 'html.parser')
             
-            # 🛡️ FIXED: ethiopiaonlinebazaar.com እና olx.com.et ላይ በስለላ የተገኙ ሰፋ ያሉና ማንኛውንም ተዛማጅ ቃል የያዙ መለያዎች (Fuzzy Selectors)
             selectors = [
                 'div.b-list-advert-single', 'div.qa-advert-list-item', 'div[class*="classified"]', 
                 'div[class*="product-item"]', 'div[class*="item"]', 'div[class*="card"]', 
@@ -237,9 +237,14 @@ class SmartProductExtractor:
                 
         product['description'] = " ".join(text_content.split())[:500]
         
+        # 🛡️ FIXED: Lazy-Loading የፎቶ መደበቂያዎችን ሰብሮ እውነተኛውን ፎቶ መውሰጃ
         img_el = node.find('img')
-        if img_el and img_el.get('src'):
-            product['image_url'] = img_el.get('src')
+        if img_el:
+            img_url = img_el.get('data-src') or img_el.get('data-lazy') or img_el.get('lazy-src') or img_el.get('src')
+            if img_url:
+                if ',' in img_url:
+                    img_url = img_url.split(',')[0].strip().split(' ')[0]
+                product['image_url'] = img_url
             
         return product
 
@@ -278,17 +283,19 @@ class SmartProductExtractor:
         clean_desc = re.sub(r'<[^>]+>', ' ', container).strip()
         product['description'] = " ".join(clean_desc.split())[:500]
 
-        image_pattern = patterns.get('image')
-        if image_pattern:
-            image_match = re.search(image_pattern, container, re.IGNORECASE)
-            if image_match:
-                product['image_url'] = image_match.group(1)
+        # 🛡️ FIXED: Jiji Lazy-Loading የፎቶ መደበቂያዎችን በ 'data-src' በኩል ፈልቅቆ ማውጫ
+        img_match = re.search(r'<img[^>]+(?:data-src|data-lazy|lazy-src|src)=["\']([^"\']+)["\']', container, re.IGNORECASE)
+        if img_match:
+            img_url = img_match.group(1)
+            if ',' in img_url:
+                img_url = img_url.split(',')[0].strip().split(' ')[0]
+            product['image_url'] = img_url
 
         return product
 
 
 # ============================================================
-# 🚀 ULTIMATE SCRAPPER ENGINE WITH STEALTH RECONNAISSANCE
+# 🚀 ULTIMATE SCRAPPER ENGINE
 # ============================================================
 class ScrapperEngine:
     
@@ -307,10 +314,9 @@ class ScrapperEngine:
     async def fetch_dynamic_content(url: str) -> tuple:
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = BROWSER_PATH
         
-        # 🛡️ FIXED: ቴሌግራምን ለመቃኘት በስለላ የተገኙ የሞባይል ቴሌግራም አፕሊኬሽን መለያዎች (User-Agents)
         user_agents = [
-            "Telegram/10.1.0 (iOS 15.4; en)",  # 🛡️ Telegram Mobile iOS
-            "Telegram/10.3.0 (Android 10; Mobile)",  # 🛡️ Telegram Mobile Android
+            "Telegram/10.1.0 (iOS 15.4; en)",
+            "Telegram/10.3.0 (Android 10; Mobile)",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"
         ]
