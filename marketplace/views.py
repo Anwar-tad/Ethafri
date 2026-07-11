@@ -666,11 +666,10 @@ def trigger_autonomous_evolution(request):
     
     return JsonResponse({"status": "flagged_for_execution", "message": "apps.py will pick this up"}, status=200)
 
-
 @staff_member_required
 @csrf_exempt
 def purge_database_view(request):
-    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን በ 1 ጠቅታ ከአድሚን ዳሽቦርድ ላይ የሚያጸዳ"""
+    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን በ 1 ጠቅታ ከአድሚን ዳሽቦርድ ላይ የሚያጸዳ (v10.48)"""
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=400)
     
@@ -685,6 +684,7 @@ def purge_database_view(request):
     SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
     TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+    SiteConfig = apps.get_model('marketplace', 'SiteConfig') # 🛡️ FIXED: name 'SiteConfig' is not defined ስህተትን ለመፍታት
 
     models_to_purge = [
         Product, SellerProfile, NotificationQueue, AIProjectBacklog,
@@ -698,19 +698,35 @@ def purge_database_view(request):
                 model.objects.all().delete()
         except Exception as model_err:
             logger.warning(f"🧹 Purge DB Warning: Skipped {model.__name__} table deletion: {model_err}")
+            
+    # 🧹 [የኃይል እርምጃ] ሁሉንም የአሰሳ መኝታዎች (Cooldowns) እና የድሮ ትውስታዎችን ከዳታቤዝ ውስጥ ማጽዳት
+    if SiteConfig:
+        try:
+            with transaction.atomic():
+                SiteConfig.objects.filter(
+                    Q(key__startswith="LAST_SCRAPE_TIME_") | 
+                    Q(key__startswith="LAST_HARVEST_") | 
+                    Q(key__startswith="PROCESSED_RAW_HASHES_")
+                ).delete()
+                logger.info("🧹 Purge DB: Successfully cleared all scraper cooldowns and memory hashes.")
+        except Exception as config_err:
+            logger.warning(f"🧹 Purge DB Warning: Skipped pacing config deletion: {config_err}")
+    
     try:
         with transaction.atomic():
-            # 🧹 [የኃይል እርምጃ] ሁሉንም የአሰሳ መኝታዎች (Cooldowns) እና የድሮ ትውስታዎችን ከዳታቤዝ ውስጥ ማጽዳት
-            SiteConfig.objects.filter(
-                Q(key__startswith="LAST_SCRAPE_TIME_") | 
-                Q(key__startswith="LAST_HARVEST_") | 
-                Q(key__startswith="PROCESSED_RAW_HASHES_")
-            ).delete()
-            logger.info("🧹 Purge DB: Successfully cleared all scraper cooldowns and memory hashes.")
-    except Exception as config_err:
-        logger.warning(f"🧹 Purge DB Warning: Skipped pacing config deletion: {config_err}")
+            SiteRegistry.objects.all().delete()
+            SiteRegistry.objects.create(
+                name="primary",
+                display_name="EthAfri Primary",
+                niche="general",
+                target_market="Global",
+                is_active=True,
+                build_phase=0
+            )
+    except Exception as site_err:
+        logger.warning(f"🧹 Purge DB Warning: Skipped SiteRegistry reset: {site_err}")
         
-    messages.success(request, "🧹 የመረጃ ቋቱ በንጽህና ጸድቷል! የ 'primary' ሳይት በድጋሚ ተመዝግቧል።")
+    messages.success(request, "🧹 የመረጃ ቋቱ በንጽህና ጸድቷል! የ 'primary' ሳይት እና የዳሳሽ መኝታዎች በድጋሚ ተሻሽለዋል።")
     return JsonResponse({"status": "success", "message": "Database successfully purged!"})
 
 
