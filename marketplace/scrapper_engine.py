@@ -338,7 +338,10 @@ class ScrapperEngine:
                 await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
                 
                 logger.info(f"📡 Deep Scanning: {url}...")
-                response = await page.goto(url, wait_until="networkidle", timeout=30000)
+                
+                # 🛡️ FIXED: Jiji ጀርባ ላይ የሚጭናቸውን ማስታወቂያዎች ሳይጠብቅ DOM እንደተጫነ (domcontentloaded) ወዲያውኑ ዳታውን እንዲጎትት ማድረግ
+                # የጊዜ ገደቡም ወደ 60000ms (60 ሰከንድ) ከፍ ብሏል
+                response = await page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 
                 status_code = response.status if response else 200
                 content = await page.content()
