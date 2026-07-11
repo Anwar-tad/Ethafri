@@ -885,39 +885,48 @@ class MultiChannelHarvester:
         return []
     
     def _parse_product_text(self, text):
-        """ምርቶችን የሚለይ እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.40)"""
+        """የምርት ስምን ወደ 4 ቃላት መገደብ፣ HTML Entity ማጽዳት እና ዲስክሪፕሽን መሙላት (v10.65)"""
         if not text: return None
         
-        # 🛡️ የጊዜ ገደብ መፈተሻ (ከ 3 ወር በላይ የሆኑትን መተው)
+        # የጊዜ ገደብ መፈተሻ
         old_patterns = [r'2023', r'2024', r'2025', r'[4-9]\s*months?\s*ago', r'year\s*ago']
         for pattern in old_patterns:
             if re.search(pattern, text, re.IGNORECASE):
                 return None
 
-        product = {'title': '', 'price': 0, 'description': '', 'seller_contact': ''}
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        # 🛡️ HTML Entity ማጽዳት (ለምሳሌ: &#33; ወደ ! ይቀየራል)
+        import html
+        clean_text = html.unescape(text)
+        clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
+        
+        product = {'title': '', 'price': 0, 'description': '', 'desc': '', 'seller_contact': ''}
+        lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
         if not lines: return None
         
-        product['title'] = lines[0][:150]
-        
+        # 🛡️ የምርት ስም ከ 4 ቃላት መብለጥ የለበትም (የ3 ወርድ ህግ)
+        words = lines[0].split()
+        if len(words) > 5 or len(lines[0]) > 50:
+            product['title'] = " ".join(words[:4]) # 4 ቃላት ብቻ
+        else:
+            product['title'] = lines[0][:150]
+            
         # ዋጋ መፈለጊያ
-        price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', text, re.IGNORECASE) or \
-                      re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', text, re.IGNORECASE)
+        price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
+                      re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
         if price_match:
             try:
                 product['price'] = float(price_match.group(1).replace(',', ''))
             except: pass
             
         # ስልክ መፈለጊያ
-        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', text)
+        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
         if phone_match:
             product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
-        else:
-            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text)
-            if tg_match:
-                product['seller_contact'] = tg_match.group(0)
         
-        product['description'] = text[:1000].replace('\n\n', '\n').strip()
+        # 🛡️ ዲስክሪፕሽኑ ባዶ እንዳይሆን ሙሉውን ጽሁፍ መሙላት
+        product['description'] = clean_text[:1000].replace('\n\n', '\n').strip()
+        product['desc'] = product['description'] # ተኳሃኝነት ጥበቃ
+        
         return product
     
     def _extract_products_from_html(self, html):
@@ -1111,13 +1120,15 @@ class MultiChannelHarvester:
 # 💼 CEO OPERATIONS
 # ============================================================
 
+# ============================================================
+# 💼 CEO OPERATIONS (ንግድ እና ምርት መለጠፊያ - v10.65)
+# ============================================================
 class CEOOperations:
     def __init__(self, site):
         self.site = site
 
     def run_business_growth(self):
         """የንግድ ዕድገት ዑደት (Bulk Harvesting + Listing Curation)"""
-        # 🛡️ Auto-Healer: Database connection refresh across active threads
         try:
             prod_count = get_model('Product').objects.filter(site=self.site, is_active=True).count()
             logger.info(f"📈 Running business growth cycle for {self.site.name}")
@@ -1415,6 +1426,33 @@ class CEOOperations:
             logger.error(f"⚠️ Cloudinary save failed: {e}")
         return raw_img_url
 
+    def _search_google_for_product_image(self, title) -> str:
+        """
+        🚀 [Google Image Fallback]
+        ምርቱ የራሱ ፎቶ ከሌለው በጉግል ኢሜጅስ ላይ በምርቱ ስም ፈልጎ 
+        ትክክለኛና ጥራት ያለው ምስል የሚያመጣ የኤጀንቱ የላቀ ባህሪ (v10.65)
+        """
+        clean_title = re.sub(r'[^a-zA-Z0-9\s\u01200-\u0137F]', '', title).strip()
+        if not clean_title or len(clean_title) < 3:
+            return ""
+        
+        query = f"{clean_title} product photo"
+        url = f"https://www.google.com/search?q={requests.utils.quote(query)}&tbm=isch"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        try:
+            res = requests.get(url, headers=headers, timeout=8)
+            if res.status_code == 200:
+                image_urls = re.findall(r'src="(https://encrypted-tbn0\.gstatic\.com/images\?q=tbn:[^"]+)"', res.text)
+                if image_urls:
+                    img_url = image_urls[0]
+                    logger.info(f"✨ Google Image Fallback: Found product image for '{title}' -> {img_url}")
+                    return img_url
+        except Exception as e:
+            logger.debug(f"Google Image Fallback Search failed: {e}")
+        return ""
+
     def _seed_listings_bulk(self, products_list):
         """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የባዶ ሻጭ ሎጂክ እና የራስ-ፈውስ ማጽጃ የተጨመረበት (v10.62)"""
         Product = get_model('Product')
@@ -1427,11 +1465,9 @@ class CEOOperations:
         seen_titles = set() 
 
         for p in products_list:
-            # 🛡️ FIXED: seller_contact ባዶ ቢሆንም ምርቱን እንዳይዘል መፍቀድ
             if not isinstance(p, dict) or not p.get('title'):
                 continue
             
-            # ሻጭ ኮንታክት ከሌለው ባዶ እንዳይሆን default ስልክ ቁጥር መመደብ
             contact = p.get('seller_contact', '').strip()
             if not contact:
                 contact = "0900000000"  # Fallback Contact
@@ -1477,6 +1513,11 @@ class CEOOperations:
                     clean_price = 0.0
 
                 raw_photo = p.get('image_url', '')
+                
+                # 🚀 ፎቶ ከሌለው ጉግል ላይ ፈልጎ እንዲያመጣ ማድረግ (v10.65)
+                if not raw_photo:
+                    raw_photo = self._search_google_for_product_image(p['title'])
+
                 cloudinary_photo_url = self._save_image_to_cloudinary_permanently(raw_photo)
 
                 product_obj = Product(
@@ -1487,30 +1528,31 @@ class CEOOperations:
                 )
                 products_to_create.append(product_obj)
 
-                login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode('utf-8')).hexdigest()[:16]
-                
-                SiteConfig.objects.update_or_create(
-                    key=f"ACCESS_TOKEN_{uname}",
-                    defaults={'value': {'token': login_token, 'created_at': timezone.now().isoformat()}}
-                )
-
-                dispatch_links = self.generate_contact_links(contact)
-                magic_login_url = f"{self.site.deployment_url or 'http://localhost:8000'}/api/magic-token/?phone={uname}&token={login_token}"
-
-                message = (
-                    f"ሰላም! የለጠፉት '{p['title']}' ምርት በድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
-                    f"ምርትዎን ለማስተዳደር በዚህ ሊንክ ይግቡ፦\n"
-                    f"{magic_login_url}\n\n"
-                    f"EthAfri CEO"
-                )
-
                 # 🛡️ FIXED: ለዲፎልት ስልክ ቁጥር (0900000000) ማሳወቂያ/SMS እንዳይላክ መከላከል
                 if contact != "0900000000" and not contact.startswith("09000000"):
+                    login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode('utf-8')).hexdigest()[:16]
+                    
+                    SiteConfig.objects.update_or_create(
+                        key=f"ACCESS_TOKEN_{uname}",
+                        defaults={'value': {'token': login_token, 'created_at': timezone.now().isoformat()}}
+                    )
+
+                    dispatch_links = self.generate_contact_links(contact)
+                    magic_login_url = f"{self.site.deployment_url or 'http://localhost:8000'}/api/magic-token/?phone={uname}&token={login_token}"
+
+                    message = (
+                        f"ሰላም! የለጠፉት '{p['title']}' ምርት በድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
+                        f"ምርትዎን ለማስተዳደር በዚህ ሊንክ ይግቡ፦\n"
+                        f"{magic_login_url}\n\n"
+                        f"EthAfri CEO"
+                    )
+
                     notification_obj = NotificationQueue(
                         site=self.site, recipient=contact, notification_type='sms',
                         message=message
                     )
                     notifications_to_create.append(notification_obj)
+
             except Exception as seed_err:
                 logger.error(f"Failed to compile bulk listing: {seed_err}")
 

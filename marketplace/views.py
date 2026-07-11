@@ -86,11 +86,17 @@ def theme_context(request):
 # ============================================================
 
 def home(request):
-    """ዋና ገጽ — ምርቶችን በብቃት ያሳያል"""
+    """ዋና ገጽ — ምርቶችን በብቃት ያሳያል (v10.45 - Auto-Activation Healer)"""
     Product = apps.get_model('marketplace', 'Product')
     Category = apps.get_model('marketplace', 'Category')
     UserSearch = apps.get_model('marketplace', 'UserSearch')
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+
+    # 🛡️ AUTO-HEALER: ቀደም ሲል በስህተት የታገዱትን የ 0.00 (በድርድር) ምርቶችን በራስ-ሰር ማግበር
+    try:
+        Product.objects.filter(price=0.0, is_active=False).update(is_active=True)
+    except Exception as e:
+        logger.debug(f"Auto-healer activation warning: {e}")
 
     query = request.GET.get('q', '').strip()  
     category_id = request.GET.get('category')
@@ -117,6 +123,11 @@ def home(request):
     if site_id and site_id.isdigit():
         current_site_obj = SiteRegistry.objects.filter(id=site_id, is_active=True).first()
 
+    # 🛡️ DYNAMIC FALLBACK: የጠቅላላ ንቁ ምርቶችን ብዛት በሳይቱ መሠረት በትክክል መቁጠሪያ
+    total_products_all = Product.objects.filter(is_active=True).count()
+    if site_id and site_id.isdigit():
+        total_products_all = Product.objects.filter(site_id=site_id, is_active=True).count()
+
     context = {
         'products': products.order_by('-created_at'),
         'categories': categories,
@@ -124,6 +135,7 @@ def home(request):
         'active_category': int(category_id) if category_id and category_id.isdigit() else None,
         'current_site': current_site_obj,
         'active_listing_type': listing_type,
+        'total_products_all': total_products_all, # 🛡️ ለሆም ፔጁ Aligned metrics የተጨመረ
     }
     return render(request, 'marketplace/home.html', context)
 
@@ -900,8 +912,7 @@ def google_search_console_index_view(request):
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
         
 # ============================================================
-# ============================================================
-# 📡 8. HARVESTER ORCHESTRATOR CENTER (የይዘት አሰሳ እዝ ማዕከል - v10.40)
+# 📡 8. HARVESTER ORCHESTRATOR CENTER (የይዘት አሰሳ እዝ ማዕከል - v10.46)
 # ============================================================
 
 @staff_member_required
@@ -916,25 +927,42 @@ def harvester_orchestrator_view(request):
     Product = apps.get_model('marketplace', 'Product')
     SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
     NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+
+    # 🛡️ 1. [በአናት ላይ ማስጀመር] UnboundLocalError ስህተትን ለመከላከል ሁሉንም ተለዋዋጮች እዚህ መግለጽ (v10.46)
+    recon_reports = []
+    daily_summary = "ስርዓቱ በአሁኑ ሰዓት ሙሉ በሙሉ ጤናማ በሆነ ሁኔታ ላይ ይገኛል። አዳዲስ የ Jiji ምንጮች በPlaywright Stealth መቃኘት ጀምረዋል።"
+    current_site = None
+    active_sources = []
+    dropped_sources = []
 
     sites = SiteRegistry.objects.filter(is_active=True)
     selected_site_id = request.GET.get('site_id') or (str(sites.first().id) if sites.exists() else None)
     
-    current_site = None
     if selected_site_id and selected_site_id.isdigit():
         current_site = get_object_or_404(SiteRegistry, id=selected_site_id)
-    # 🕵️ [የእለት ማጠቃለያ በ AI ማመንጫ ሎጂክ]
-    daily_summary = "ስርዓቱ በአሁኑ ሰዓት ሙሉ በሙሉ ጤናማ በሆነ ሁኔታ ላይ ይገኛል። አዳዲስ የ Jiji ምንጮች በPlaywright Stealth መቃኘት ጀምረዋል።"
-    if recon_reports.exists():
+
+    # 🛡️ 2. [የስለላ ሪፖርቶች ኳሪ]
+    if current_site and AIProjectBacklog:
+        recon_reports = AIProjectBacklog.objects.filter(
+            site=current_site,
+            target_file="scrapper_engine",
+            status="Blocked"
+        ).order_by('-created_at')
+
+    # 🛡️ 3. [የ AI እለት ማጠቃለያ ሰሌዳ]
+    # .exists() ከመጠቀም ይልቅ ማንኛውንም ሊስት በሰላም የሚያሳልፈውን 'if recon_reports' መጠቀም
+    if recon_reports:
         try:
-            # የቅርብ ጊዜ ሪፖርቶችን ለ AI በመስጠት አጠቃላይ ማጠቃለያ እንዲያዘጋጅ መጠየቅ
             report_briefs = [r.description[:100] for r in recon_reports[:3]]
-            prompt = f"Write a very brief, professional executive summary in Amharic (max 200 characters) about our scraping health and bypass success based on these issues: {json.dumps(report_briefs)}"
-            daily_summary = ask_master_ai_smart(prompt, task_type="analysis")
+            if report_briefs:
+                prompt = f"Write a very brief, professional executive summary in Amharic (max 200 characters) about our scraping health and bypass success based on these issues: {json.dumps(report_briefs, ensure_ascii=False)}"
+                from .ai_utils import ask_master_ai_smart  # Safe late import
+                daily_summary = ask_master_ai_smart(prompt, task_type="analysis")
         except Exception:
             pass
 
-    # 🔄 1. አድሚኑ አዲስ የዳሰሳ ምንጭ (Telegram/Jiji/Web) በእጅ ሲጨምር
+    # 🔄 4. አድሚኑ አዲስ የዳሰሳ ምንጭ (Telegram/Jiji/Web) በእጅ ሲጨምር
     if request.method == "POST" and request.POST.get('action') == "add_source" and current_site:
         url_or_channel = request.POST.get('url_or_channel', '').strip()
         platform_type = request.POST.get('platform_type', 'Telegram').strip()
@@ -959,7 +987,7 @@ def harvester_orchestrator_view(request):
                 messages.warning(request, "⚠️ This source is already in the active crawl queue.")
         return redirect(f"/admin/harvester/?site_id={selected_site_id}")
 
-    # 🔄 2. ምንጭን ከወረፋ ላይ በቋሚነት ለመሰረዝ
+    # 🔄 5. ምንጭን ከወረፋ ላይ በቋሚነት ለመሰረዝ
     if request.method == "POST" and request.POST.get('action') == "delete_source" and current_site:
         url_or_channel = request.POST.get('url_or_channel', '').strip()
         reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
@@ -972,20 +1000,20 @@ def harvester_orchestrator_view(request):
             messages.success(request, f"❌ Source '{url_or_channel}' successfully removed from the crawl queue.")
         return redirect(f"/admin/harvester/?site_id={selected_site_id}")
 
-    # 📋 3. ንቁ የሆኑ የዳሳሽ ምንጮችን ከካሽ ማምጣት (Active Queue)
-    active_sources = []
+    # 📋 6. ንቁ የሆኑ የዳሳሽ ምንጮችን ከካሽ ማምጣት (Active Queue)
     if current_site:
         reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
         registry = SiteConfig.objects.filter(key=reg_key).first()
         if registry and isinstance(registry.value, list):
             active_sources = registry.value
 
-    # ❌ 4. የታገዱ/የተሰረዙ (Dropped) ዌብሳይቶችን ከ SelfHealingLog ላይ መፈለግ
-    dropped_sources = SelfHealingLog.objects.filter(
-        error_message__icontains="dropping"
-    ).order_by('-created_at')[:15]
+    # ❌ 7. የታገዱ/የተሰረዙ (Dropped) ዌብሳይቶችን ከ SelfHealingLog ላይ መፈለግ
+    if SelfHealingLog:
+        dropped_sources = SelfHealingLog.objects.filter(
+            error_message__icontains="dropping"
+        ).order_by('-created_at')[:15]
 
-    # 📊 5. የውሂብ ትንተናዎች (Dynamic Analytics)
+    # 📊 8. የውሂብ ትንተናዎች (Dynamic Analytics)
     today = timezone.now().date()
     yesterday = today - timedelta(days=1)
     thirty_days_ago = timezone.now() - timedelta(days=30)
@@ -999,7 +1027,7 @@ def harvester_orchestrator_view(request):
         'sent_outbox_sms': NotificationQueue.objects.filter(is_sent=True, notification_type='sms').count()
     }
 
-    # 📈 6. የ 7-ቀን የምርት አሰሳ የዕድገት ሰንጠረዥ (7-Day Crawling Trend)
+    # 📈 9. የ 7-ቀን የምርት አሰሳ የዕድገት ሰንጠረዥ
     daily_trend = []
     for i in range(6, -1, -1):
         target_date = today - timedelta(days=i)
@@ -1009,23 +1037,15 @@ def harvester_orchestrator_view(request):
             'count': count
         })
 
-    # 🕵️ 7. [የላቀ የመረጃ አሰሳ ስለላ፣ ጥናትና ራስ-ገዝ ፈውስ ማዕከል]
-    recon_reports = []
-    if current_site:
-        AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
-        if AIProjectBacklog:
-            recon_reports = AIProjectBacklog.objects.filter(
-                site=current_site,
-                target_file="scrapper_engine",
-                status="Blocked"
-            ).order_by('-created_at')
+    # 🛡️ FIXED: የቆየው የሪፖርት ኳሪ ከታች ሙሉ በሙሉ ተወግዷል (Duplicate Error Solved)
 
     context = {
         'sites': sites,
         'current_site': current_site,
         'active_sources': active_sources,
         'dropped_sources': dropped_sources,
-        'recon_reports': recon_reports,  # 🕵️ ለአዲሱ የስለላ ሪፖርት ሰሌዳ የተጨመረ
+        'recon_reports': recon_reports,  
+        'daily_summary': daily_summary,  
         'stats': stats,
         'daily_trend_json': json.dumps(daily_trend), 
         'live_time': timezone.now()
