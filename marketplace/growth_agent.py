@@ -2311,7 +2311,7 @@ def execute_master_cycle():
 
 
 def _run_site_cycle(site):
-    """የአንድ ንዑስ ጣቢያን ሙሉ የዕድገት እና የዕድገት ማጠናከሪያ ዑደት ያስፈጽማል"""
+    """የአንድ ንዑስ ጣቢያን ሙሉ የዕድገት እና የዕድገት ማጠናከሪያ ዑደት ያስፈጽማል (v10.90 - Lightweight Paced Evolution)"""
     _, _, broadcast_agent_log, _ = _get_ai_utils()
     SecurityAuditor, UniversalHealer, AntiBloatEngine = _get_self_doctor()
     FeatureEvolutionEngine = _get_feature_evolution()
@@ -2320,6 +2320,40 @@ def _run_site_cycle(site):
 
     def run_track_a_evolution():
         try:
+            # 🛡️ 1. [ስማርት ማፈራረቂያ] የ 4 ሰዓታት የኮድ መቆያ ጊዜ መፈተሻ (Prevents coding congestion)
+            SiteConfig = get_model('SiteConfig')
+            last_evolution_key = f"LAST_EVOLUTION_TIME_{site.name}"
+            last_evo_cfg = SiteConfig.objects.filter(key=last_evolution_key).first()
+            
+            should_run_evo = False
+            if not last_evo_cfg:
+                should_run_evo = True
+            else:
+                try:
+                    last_time_str = last_evo_cfg.value.get('time')
+                    if last_time_str:
+                        last_time = datetime.fromisoformat(last_time_str)
+                        if timezone.is_naive(last_time):
+                            last_time = timezone.make_aware(last_time)
+                        # የ 4 ሰዓት መቆያ ሰዓት
+                        if (timezone.now() - last_time) >= timedelta(hours=4):
+                            should_run_evo = True
+                except Exception:
+                    should_run_evo = True
+                    
+            # 🛡️ 2. [ሲፒዩ ቼክ] የሰርቨር ሲፒዩ ጫና ከ 1.2 በላይ ከሆነ ኮድ መጻፉን ወዲያውኑ ማስተላለፍ (Postpone)
+            try:
+                load_avg = os.getloadavg()[0]
+            except Exception:
+                load_avg = 0.5
+                
+            if load_avg > 1.2:
+                logger.warning(f"⚠️ CPU Load is heavy ({load_avg:.2f}). Postponing Track A evolution to keep site responsive.")
+                should_run_evo = False
+
+            if not should_run_evo:
+                return
+
             update_agent_progress(site, "Track A: Running Self-Doctor Maintenance...", 15)
             broadcast_agent_log(site, "🛠️ Track A: Running Self-Doctor maintenance...", "info")
             UniversalHealer(site).perform_maintenance()
@@ -2341,6 +2375,12 @@ def _run_site_cycle(site):
                 update_agent_progress(site, "Track A: Self-Evolution...", 90)
                 evolution_engine = FeatureEvolutionEngine(site)
                 evolution_engine.evolve()
+                
+                # የተሳካ የዕድገት ጊዜን መመዝገብ
+                SiteConfig.objects.update_or_create(
+                    key=last_evolution_key,
+                    defaults={'value': {'time': timezone.now().isoformat(), 'status': 'success'}}
+                )
             else:
                 update_agent_progress(site, "Track A: Offline Caching and Recovery...", 60)
                 OfflineCacheManager = _get_offline_cache()
@@ -2373,15 +2413,14 @@ def _run_site_cycle(site):
         finally:
             safe_close_connections()
 
-    # 🔄 [የኃይል እርምጃ] የኮድ መጻፊያ ሞተር ለጊዜው ሙሉ በሙሉ ተዘግቷል (ምርት መሰብሰብ ላይ ብቻ ትኩረት ለማድረግ)
-    # run_track_a_evolution()
+    # 🟢 [የተሻሻለ ጅማሮ] Track A አሁን በየ 4 ሰዓቱ እና ሲፒዩ ሰላማዊ ሲሆን ብቻ በስውር ይሰራል!
+    run_track_a_evolution()
     
-    # የዕድገት እና ምርት መሰብሰቢያ ሞተር (Track B) ማስፈጸም
+    # Track B (ምርት መሰብሰቡ) ግን ሁልጊዜ በየደቂቃው ንቁ ሆኖ ይሠራል!
     run_track_b_growth()
 
     update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
     broadcast_agent_log(site, f"✨ Master Cycle executed successfully for {site.name}.", "success")
-
 
 def run_recursive_code_builder(site):
     AIProjectBacklog = get_model('AIProjectBacklog')
