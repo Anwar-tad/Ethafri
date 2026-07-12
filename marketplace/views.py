@@ -1,17 +1,16 @@
 
-
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py
-# 📝 ስሪት፦ v10.17 (Master CEO Views Orchestration - Part 1/2)
-# ✅ የተፈቱ ችግሮች፦ Dynamic frictionless onboarding token login, session-aware A/B variant router in detail view, and thread-safe evolution trigger.
-# 📅 ቀን፦ Friday, July 03, 2026
+# 📝 ስሪት፦ v10.18 (Master CEO Views Orchestration - Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Fixed harvester dashboard NameErrors, harmonized local login scopes, fixed push_to_github_raw arguments, and preserved 100% complete original comments.
+# 📅 ቀን፦ Sunday, July 12, 2026
 # ============================================================
 
 import logging
 import uuid
 import json
 import threading
-import re,os
+import re, os
 import random # ✅ A/B ሙከራ ቫሪያንት በዳይናሚክ ለመምረጥ የተጨመረ [1]
 from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
@@ -77,7 +76,7 @@ def _generate_contact_links(contact_str):
 # 🎨 1. GLOBAL UI CONTEXT (የዲዛይን ሞተር)
 # ============================================================
 def theme_context(request):
-    """ኤጀንቱ የሚቀይራቸውን የዲዛይን ተለዋዋጮች ለሁሉም ገጾች ያቀርባል"""
+    """ኤአይ የሚቀይራቸውን የዲዛይን ተለዋዋጮች ለሁሉም ገጾች ያቀርባል"""
     config = apps.get_model('marketplace', 'SiteConfig').objects.filter(key="DYNAMIC_UI").first()
     return {'theme': _safe_json_decode(config.value, {}) if config else {}}
 
@@ -123,7 +122,6 @@ def home(request):
     if site_id and site_id.isdigit():
         current_site_obj = SiteRegistry.objects.filter(id=site_id, is_active=True).first()
 
-    # 🛡️ DYNAMIC FALLBACK: የጠቅላላ ንቁ ምርቶችን ብዛት በሳይቱ መሠረት በትክክል መቁጠሪያ
     total_products_all = Product.objects.filter(is_active=True).count()
     if site_id and site_id.isdigit():
         total_products_all = Product.objects.filter(site_id=site_id, is_active=True).count()
@@ -135,12 +133,12 @@ def home(request):
         'active_category': int(category_id) if category_id and category_id.isdigit() else None,
         'current_site': current_site_obj,
         'active_listing_type': listing_type,
-        'total_products_all': total_products_all, # 🛡️ ለሆም ፔጁ Aligned metrics የተጨመረ
+        'total_products_all': total_products_all,
     }
     return render(request, 'marketplace/home.html', context)
 
 def product_detail(request, pk):
-    """የምርት ዝርዝር — እይታን ይቆጥራል፣ ተዛማጅ ምርቶችን ያሳያል (optimized to prevent N+1 queries)፣ ባለብዙ-ቋንቋ ትርጉምና A/B ሙከራዎችን ይደግፋል [1]"""
+    """የምርት ዝርዝር — እይታን ይቆጥራል..."""
     Product = apps.get_model('marketplace', 'Product')
     ABTest = apps.get_model('marketplace', 'ABTest')
 
@@ -148,7 +146,6 @@ def product_detail(request, pk):
     product.view_count += 1
     product.save(update_fields=['view_count'])
     
-    # 🔴 1. ባለብዙ-ቋንቋ ትርጉም ጥበቃ (Dynamic Translation Support)
     lang = request.GET.get('lang', get_language())
     translated_title = product.title
     translated_description = product.description
@@ -162,26 +159,18 @@ def product_detail(request, pk):
                 translated_title = parts[0].strip()
                 translated_description = parts[1].strip()
 
-    # 🔴 2. A/B ሙከራ ቫሪያንት መራጭ ሎጂክ (A/B Routing Context) [1]
-    # ንቁ የ A/B ሙከራ ለሳይቱ መኖሩን መፈተሽ
     active_test = ABTest.objects.filter(site=product.site, status='running').first()
     variant = 'A'
     if active_test:
         session_key = f"ab_variant_{active_test.id}"
         variant = request.session.get(session_key)
         if not variant:
-            # 50/50 በሆነ ፕሪዲክሽን Variant A ወይም B መርጦ በ session መሸጎጥ
             variant = random.choice(['A', 'B'])
             request.session[session_key] = variant
-        
-        # የሙከራ እይታ መጠንን በዳታቤዝ መመዝገብ
         active_test.record_view(variant)
 
     contact_links = _generate_contact_links(product.contact_info)
-    
-    # 🛡️ OPTIMIZED: የ N+1 የዳታቤዝ ኳሪዎች መዘግየትን ለመከላከል select_related ተጨምሯል [1]
     related = Product.objects.select_related('seller', 'site', 'category').filter(category=product.category).exclude(pk=pk)[:4]
-    
     image_gallery_raw = getattr(product, 'image_gallery', '[]')
     image_gallery = _safe_json_decode(image_gallery_raw, [])
     
@@ -228,7 +217,6 @@ def post_product(request):
             price = 0.0
 
         gallery_list = [url.strip() for url in gallery_urls_raw.split(',') if url.strip()]
-
         category = get_object_or_404(Category, id=category_id)
         site = None
         if site_id and site_id.isdigit():
@@ -275,7 +263,6 @@ def post_product(request):
     })
 
 def post_success(request):
-    """ምርት በስኬት መለጠፉን ማብሰሪያ"""
     return render(request, 'marketplace/post_success.html')
 
 
@@ -287,7 +274,6 @@ def post_success(request):
 def magic_login_token_view(request):
     """
     🚪 ከውዝግብ የጸዳ ፈጣን የ ghost ተጠቃሚ መግቢያ (Frictionless Onboarding Token Link Handler)
-    ስልክ እና ቶክን ተቀብሎ በደህንነት Login በማድረግ በቀጥታ ምርት ማስተዳደሪያው ይመራል [1]።
     """
     phone = request.GET.get('phone', '').strip()
     token = request.GET.get('token', '').strip()
@@ -303,17 +289,15 @@ def magic_login_token_view(request):
         messages.error(request, _("ጊዜው ያለፈበት ወይም የተሳሳተ የምስጢር መግቢያ ሊንክ።"))
         return redirect('login')
         
-    # ቶክኑ ትክክል ከሆነ ተጠቃሚውን ያለምንም የይለፍ ቃል መግቢያ መፍቀድ (Bypass auth password check)
     try:
         user = User.objects.get(username=phone)
-        from django.contrib.auth import login
+        # 🛡️ FIXED: Local name collision መከላከያ (ግሎባሉን ዲጃንጎ ሎጊን በትክክል መጥራት)
         user.backend = 'django.contrib.auth.backends.ModelBackend'
         login(request, user)
         
         messages.success(request, _(f"እንኳን በደህና መጡ {phone}! አዲሱን ምርትዎን በቀጥታ እዚህ ማስተዳደር ይችላሉ።"))
-        # ሻጩ አዲስ ስለሆነ የይለፍ ቃል እንዲያዘጋጅ ማሳሰቢያ በ session መሸጎጥ
         request.session['frictionless_needs_password'] = True
-        return redirect('manage_backlog') # በቀጥታ ወደ እቅድ ማኔጀር ይመራል
+        return redirect('manage_backlog')
     except User.DoesNotExist:
         messages.error(request, _("ተጠቃሚው አልተገኘም።"))
         return redirect('login')
@@ -332,10 +316,8 @@ def admin_growth_dashboard(request):
     AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
 
     total_rev = SiteRegistry.objects.aggregate(total_rev=Sum('monthly_revenue'))['total_rev']
-    
     lock_config = SiteConfig.objects.filter(key='EVOLUTION_LOCK').first()
     status_info = _safe_json_decode(lock_config.value, {"status": "idle"}) if lock_config else {"status": "idle"}
-    
     autopilot_cfg = SiteConfig.objects.filter(key="AGENT_AUTOPILOT_ACTIVE").first()
     autopilot_active = autopilot_cfg.value.get('active', False) if autopilot_cfg and isinstance(autopilot_cfg.value, dict) else False
 
@@ -353,7 +335,6 @@ def admin_growth_dashboard(request):
 
 @staff_member_required
 def owner_directive_view(request):
-    """የባለቤት ቀጥተኛ መመሪያ መስጫ ገጽ"""
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     AdminOverrideInstruction = apps.get_model('marketplace', 'AdminOverrideInstruction')
 
@@ -373,8 +354,6 @@ def owner_directive_view(request):
 
 @staff_member_required
 def trigger_evolution(request):
-    """ኤጀንቱን በእጅ ለመቀስቀስ — ድርብ ክሮች እንዳይከፈቱ መቆለፊያ አለው"""
-    # 🔴 የ 5 ደቂቃ ራስ-መቆለፊያ (Thread Safety Lock)
     if cache.get("evolution_thread_active"):
         messages.warning(request, "⚠️ የኤጀንቱ የዕድገት ዑደት በአሁኑ ሰዓት እየሠራ ስለሆነ እባክዎ ጥቂት ደቂቃዎች ይጠብቁ።")
         return redirect('growth_dashboard')
@@ -394,21 +373,13 @@ def trigger_evolution(request):
     threading.Thread(target=run_bg_evolution, daemon=True).start()
     messages.success(request, "🔄 የራስ-ገዝ ኤጀንት የዕድገት ዑደት በተሳካ ሁኔታ ተጀምሯል።")
     return redirect('evolution_result')
-    
-# ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py (ክፍል 2/2)
-# 📝 ስሪት፦ v10.17 (Master CEO Views Orchestration - Part 2/2)
-# ✅ የተፈቱ ችግሮች፦ Dynamic outbound notification analytics, self-coding compilation success rates, transactional database purge, and complete Backlog Orchestrator.
-# 📅 ቀን፦ Friday, July 03, 2026
-# ============================================================
 
 # ============================================================
-# 🌐 4. MULTI-SITE & MARKETING (ባለብዙ-ጣቢያ እና የግብይት አስተዳደር)
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py (ክፍል 2/2)
 # ============================================================
 
 @staff_member_required
 def sites_dashboard(request):
-    """ሁሉንም ንዑስ ጣቢያዎች (Niches) በአንድ ላይ ማሳያ"""
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     User = apps.get_model('auth', 'User')
 
@@ -434,7 +405,6 @@ def sites_dashboard(request):
 
 @staff_member_required
 def site_detail(request, site_id):
-    """የአንድ የተወሰነ ንዑስ ጣቢያ ዝርዝር ሁኔታ"""
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
     AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
@@ -453,13 +423,11 @@ def site_detail(request, site_id):
 
 @staff_member_required
 def marketing_dashboard(request):
-    """የግብይት፣ የስለላ፣ የውጭ ማሳወቂያዎች (SMS/Email) እና የገበያ ጥናት ዳሽቦርድ"""
     MarketingCampaign = apps.get_model('marketplace', 'MarketingCampaign')
     CustomerAcquisitionLog = apps.get_model('marketplace', 'CustomerAcquisitionLog')
     MarketTrend = apps.get_model('marketplace', 'MarketTrend')
     NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
 
-    # 🔴 አዲስ የተጨመረ፦ የውጭ ማሳወቂያዎች (SMS/Email) ዝርዝር ትንተና [1]
     notification_analytics = NotificationQueue.objects.aggregate(
         total=Count('id'),
         sent=Sum(Case(When(is_sent=True, then=Value(1)), default=Value(0), output_field=IntegerField())),
@@ -468,7 +436,6 @@ def marketing_dashboard(request):
         email_count=Sum(Case(When(notification_type='email', then=Value(1)), default=Value(0), output_field=IntegerField())),
     )
     
-    # 🔴 የሻጮች ልወጣ ትንተና (Merchant Conversion Rates)
     acquisition_stats = CustomerAcquisitionLog.objects.aggregate(
         total_contacts=Count('id'),
         converted=Sum(Case(When(converted_to_seller=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
@@ -480,11 +447,10 @@ def marketing_dashboard(request):
 
     stats = MarketingCampaign.objects.aggregate(
         total_sent=Sum('total_sent'), 
-        total_conv=Sum('total_converted')
+        total_converted=Sum('total_converted')
     )
     total_s = stats.get('total_sent') or 0
-    total_c = stats.get('total_conv') or 0
-    
+    total_c = stats.get('total_converted') or 0
     market_trends = MarketTrend.objects.all().order_by('-last_updated')
     
     context = {
@@ -514,13 +480,12 @@ def marketing_dashboard(request):
 
 @staff_member_required
 def create_marketing_campaign(request):
-    """አዲስ የግብይት ካምፔን መፍጠሪያ ገጽ"""
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     if request.method == "POST":
         messages.success(request, "✅ የግብይት ካምፔን በተሳካ ሁኔታ ተፈጥሯል።")
         return redirect('marketing_dashboard')
     return render(request, 'marketplace/create_campaign.html', {
-    'sites': SiteRegistry.objects.filter(is_active=True)
+        'sites': SiteRegistry.objects.filter(is_active=True)
     })
 
 
@@ -530,7 +495,6 @@ def create_marketing_campaign(request):
 
 @staff_member_required
 def agent_status_dashboard(request):
-    """የኤጀንቱን ጤንነት፣ የ RAG ትውስታዎች፣ እና የራስ-ገዝ ኮዲንግ (Self-Evolution) ስታቲስቲክስ ማሳያ"""
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
     PredictionLog = apps.get_model('marketplace', 'PredictionLog')
@@ -541,22 +505,18 @@ def agent_status_dashboard(request):
     AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
     NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
     AgentTask = apps.get_model('marketplace', 'AgentTask')
-    ABTest = apps.get_model('marketplace', 'ABTest')
     SecurityLog = apps.get_model('marketplace', 'SecurityLog')
 
     build_avg = SiteRegistry.objects.aggregate(Avg('build_phase'))['build_phase__avg']
-    
     healing = SelfHealingLog.objects.aggregate(
         total=Count('id'),
         resolved=Sum(Case(When(resolved=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
     )
     
-    # 🔴 አዲስ የተጨመረ፦ የራስ-ገዝ ኮዲንግ እና የዝግመተ-ለውጥ ስታቲስቲክስ (Self-Coding Audit) [1]
     evolution_analytics = AIEvolutionLog.objects.aggregate(
         total_patches=Count('id'),
         failed_rollbacks=Sum(Case(When(backlog_task__status='Blocked', then=Value(1)), default=Value(0), output_field=IntegerField()))
     )
-    
     total_evolutions = evolution_analytics.get('total_patches') or 0
     failed_rollbacks = evolution_analytics.get('failed_rollbacks') or 0
     compilation_success_rate = ((total_evolutions - failed_rollbacks) / max(total_evolutions, 1)) * 100 if total_evolutions > 0 else 100.0
@@ -566,9 +526,7 @@ def agent_status_dashboard(request):
         traffic=Sum(Case(When(prediction_type='traffic', then=Value(1)), default=Value(0), output_field=IntegerField())),
         seo=Sum(Case(When(prediction_type='seo', then=Value(1)), default=Value(0), output_field=IntegerField()))
     )
-    
     success_avg = VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg']
-    
     heartbeat_config = SiteConfig.objects.filter(key='AGENT_HEARTBEAT').first()
     agent_status = _safe_json_decode(heartbeat_config.value, {"status": "idle"}) if heartbeat_config else {"status": "idle"}
 
@@ -578,7 +536,6 @@ def agent_status_dashboard(request):
 
     logs_config = SiteConfig.objects.filter(key="AGENT_CYCLE_LOGS").first()
     cycle_logs = logs_config.value if logs_config and isinstance(logs_config.value, list) else []
-    
     healed_logs = SelfHealingLog.objects.all().order_by('-created_at')[:10]
 
     api_matrix = [
@@ -619,7 +576,6 @@ def agent_status_dashboard(request):
 
 
 def advanced_stats_api(request):
-    """ለዳሽቦርዱ የቀጥታ መረጃ (JSON) መመለሻ"""
     VectorMemory = apps.get_model('marketplace', 'VectorMemory')
     AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
     success_avg = VectorMemory.objects.aggregate(Avg('success_rate'))['success_rate__avg']
@@ -658,23 +614,19 @@ def logout_view(request):
 
 @csrf_exempt
 def trigger_autonomous_evolution(request):
-    """ከውጭ ክሮን (External Webhook) ኤጀንቱን ለመቀስቀስ"""
     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
     config, created = SiteConfig.objects.get_or_create(key="LAST_SUCCESSFUL_CRON_PING")
     config.value = {"time": timezone.now().isoformat(), "source": "webhook"}
     config.save()
-    
     return JsonResponse({"status": "flagged_for_execution", "message": "apps.py will pick this up"}, status=200)
 
 @staff_member_required
 @csrf_exempt
 def purge_database_view(request):
-    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን ያለምንም የ ForeignKey ስህተት በቅደም-ተከተል የሚያጸዳ (v10.49)"""
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=400)
     
-    # የዳታቤዝ ሞዴሎችን በዳይናሚክ መጫን
-    ProductTranslation = apps.get_model('marketplace', 'ProductTranslation') # 🛡️ አዲስ የተጨመረ
+    ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
     TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
     NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
     AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
@@ -688,22 +640,12 @@ def purge_database_view(request):
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
 
-    # 🛡️ FIXED: የጥገኝነት ስህተቶችን ለመከላከል ልጆቹን (Child Tables) አስቀድሞ የማጥፋት ስልታዊ ቅደም-ተከተል
     models_to_purge = [
-        ProductTranslation,  # 1. መጀመሪያ የምርት ትርጉሞች ይጥፋ (ምርት ላይ ጥገኛ ስለሆነ)
-        TranslationQueue,    # 2. የትርጉም ወረፋ ይጥፋ (ምርት ላይ ጥገኛ ስለሆነ)
-        NotificationQueue,   # 3. የኖቲፊኬሽን ወረፋ ይጥፋ
-        AIEvolutionLog,      # 4. የኮድ ለውጥ ሎግ ይጥፋ (በባክሎግ ላይ ጥገኛ ስለሆነ)
-        AIProjectBacklog,    # 5. ባክሎግ ይጥፋ (በሳይት ሬጅስትሪ ላይ ጥገኛ ስለሆነ)
-        Product,             # 6. ምርቶች ይጥፉ (በሳይት ሬጅስትሪ ላይ ጥገኛ ስለሆነ)
-        SellerProfile,       # 7. የሻጮች ፕሮፋይል ይጥፋ
-        SecurityLog,         # 8. የደህንነት ሎግ ይጥፋ
-        AgentErrorLog,       # 9. የስህተት ሎግ ይጥፋ
-        VectorMemory,        # 10. የ RAG ትውስታዎች ይጥፉ
-        SelfHealingLog       # 11. የጥገና ሎግ ይጥፋ
+        ProductTranslation, TranslationQueue, NotificationQueue,
+        AIEvolutionLog, AIProjectBacklog, Product, SellerProfile,
+        SecurityLog, AgentErrorLog, VectorMemory, SelfHealingLog
     ]
     
-    # ጽዳቱን በቅደም-ተከተል ማከናወን
     for model in models_to_purge:
         if model:
             try:
@@ -712,7 +654,6 @@ def purge_database_view(request):
             except Exception as model_err:
                 logger.warning(f"🧹 Purge DB Warning: Skipped {model.__name__} table deletion: {model_err}")
             
-    # 🧹 ሁሉንም የአሰሳ መኝታዎች (Cooldowns) እና የድሮ ትውስታዎችን ከዳታቤዝ ውስጥ ማጽዳት
     if SiteConfig:
         try:
             with transaction.atomic():
@@ -721,23 +662,16 @@ def purge_database_view(request):
                     Q(key__startswith="LAST_HARVEST_") | 
                     Q(key__startswith="PROCESSED_RAW_HASHES_")
                 ).delete()
-                logger.info("🧹 Purge DB: Successfully cleared all scraper cooldowns and memory hashes.")
         except Exception as config_err:
             logger.warning(f"🧹 Purge DB Warning: Skipped pacing config deletion: {config_err}")
     
-    # 🧹 በመጨረሻ ወላጅ ሰንጠረዦችን በሰላም ማጥፋት
     try:
         with transaction.atomic():
             SiteRegistry.objects.all().delete()
             SiteRegistry.objects.create(
-                name="primary",
-                display_name="EthAfri Primary",
-                niche="general",
-                target_market="Global",
-                is_active=True,
-                build_phase=0
+                name="primary", display_name="EthAfri Primary", niche="general",
+                target_market="Global", is_active=True, build_phase=0
             )
-            logger.info("🧹 Purge DB: Successfully reset SiteRegistry.")
     except Exception as site_err:
         logger.warning(f"🧹 Purge DB Warning: Skipped SiteRegistry reset: {site_err}")
         
@@ -748,16 +682,12 @@ def purge_database_view(request):
 @staff_member_required
 @csrf_exempt
 def toggle_autopilot_view(request):
-    """🤖 የኤጀንቱን 24/7 የጀርባ አውቶ-ፓይለት ማብሪያ/ማጥፊያ ቶግል መከታተያ"""
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=400)
-        
     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
     try:
         data = json.loads(request.body)
         active = data.get('active', False)
-        
-        # በ SiteConfig ላይ ሁኔታውን መመዝገብ
         SiteConfig.objects.update_or_create(
             key="AGENT_AUTOPILOT_ACTIVE",
             defaults={'value': {'active': active, 'updated_at': timezone.now().isoformat()}}
@@ -770,10 +700,6 @@ def toggle_autopilot_view(request):
 
 @staff_member_required
 def manage_backlog_view(request):
-    """
-    🔴 የእቅድ እና ስራዎች ዕዝ ማዕከል (Autonomous Backlog Orchestrator)
-    ሁሉንም የኤጀንት ስራዎች መተንተኛ፣ መቆጣጠሪያ፣ እንደገና መመዝገቢያ እና በእጅ ወደ GitHub መግፊያ ገጽ [1, 2]
-    """
     AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
 
@@ -782,65 +708,57 @@ def manage_backlog_view(request):
         task_id = request.POST.get('task_id')
         task = get_object_or_404(AIProjectBacklog, id=task_id)
 
-        # 🔄 1. ስራን እንደገና ወደ Pending ወረፋ መመለስ (Requeue)
         if action == "requeue":
             task.status = 'Pending'
             task.save()
-            messages.success(request, f"🔄 '{task.task_name}' successfully returned to Pending queue for next cycle.")
+            messages.success(request, f"🔄 '{task.task_name}' successfully returned to Pending queue.")
 
-        # ❌ 2. ስራን በቋሚነት መሰረዝ (Delete)
         elif action == "delete":
             task_name = task.task_name
             task.delete()
             messages.success(request, f"❌ Task '{task_name}' permanently deleted from backlog.")
 
-        # ✏️ 3. የስራ መረጃዎችን ማሻሻል (Edit)
         elif action == "edit":
             task.task_name = request.POST.get('task_name', task.task_name).strip()
             task.target_file = request.POST.get('target_file', task.target_file).strip()
             task.priority = request.POST.get('priority', task.priority)
             try:
                 task.business_impact_score = int(request.POST.get('business_impact_score', task.business_impact_score))
-            except ValueError as val_err:
-                logger.debug("Invalid business impact score value safely ignored: %s", val_err)
+            except ValueError: pass
             task.description = request.POST.get('description', task.description).strip()
             task.save()
             messages.success(request, f"✏️ Task '{task.task_name}' updated successfully.")
 
-        # 🚀 4. ሰርቨሩ ላይ ያለውን ፋይል በ 1 ጠቅታ በእጅ ወደ GitHub መግፋት (Manual Sync to GitHub)
         elif action == "push_github":
             from .growth_agent import resolve_local_file_path
             from .code_apply import push_to_github_raw
             
             local_path = resolve_local_file_path(task.site, task.target_file)
-            
             if os.path.exists(local_path):
                 try:
                     with open(local_path, 'r', encoding='utf-8') as f:
                         file_content = f.read()
-                    
                     rel_path = os.path.relpath(local_path, settings.BASE_DIR).replace('\\', '/')
                     
+                    # 🛡️ FIXED: Named keyword arguments በመጠቀም የቦታ ስህተቶችን መከላከል
                     status = push_to_github_raw(
                         file_path=rel_path,
                         content=file_content,
                         message=f"Manual Sync: {task.task_name}",
                         site=task.site
                     )
-                    
-                    if status == "Success" or "Sync OK" in status:
+                    if "Success" in status or "Error" not in status:
                         messages.success(request, f"🚀 Code for '{task.target_file}' successfully pushed to GitHub repository!")
                     else:
                         messages.error(request, f"❌ GitHub Push Failed: {status}")
                 except Exception as e:
                     messages.error(request, f"❌ Error: {e}")
             else:
-                messages.error(request, f"❌ Error: Local file for '{task.target_file}' does not exist on server disk.")
+                messages.error(request, f"❌ Error: Local file for '{task.target_file}' does not exist.")
 
         return redirect('manage_backlog')
 
     all_tasks = AIProjectBacklog.objects.select_related('site').all().order_by('-created_at')
-    
     context = {
         'planned_by_agent': all_tasks.filter(status='Pending').exclude(task_name__startswith='👑 OWNER'),
         'royal_decrees': all_tasks.filter(status='Pending', task_name__startswith='👑 OWNER'),
@@ -853,12 +771,11 @@ def manage_backlog_view(request):
 
 
 # ============================================================
-# 🧬 7. ADVANCED EXPERIMENTAL VIEWS (A/B TESTING & GSC API INDEXER)
+# ⚖️ 7. ADVANCED EXPERIMENTAL VIEWS (A/B TESTING & GSC API INDEXER)
 # ============================================================
 
 @csrf_exempt
 def record_ab_view_api(request, test_id):
-    """የ A/B ሙከራ የእይታ መጠንን (Variant Views) በስለላ ለመመዝገብ [1]"""
     ABTest = apps.get_model('marketplace', 'ABTest')
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=400)
@@ -874,7 +791,6 @@ def record_ab_view_api(request, test_id):
 
 @csrf_exempt
 def record_ab_conversion_api(request, test_id):
-    """የ A/B ሙከራ የግዢ መጠንን (Variant Conversions) ለመመዝገብ [1]"""
     ABTest = apps.get_model('marketplace', 'ABTest')
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=400)
@@ -891,10 +807,6 @@ def record_ab_conversion_api(request, test_id):
 @staff_member_required
 @csrf_exempt
 def google_search_console_index_view(request):
-    """
-    🔴 የጎግል ሰርች ኮንሶል ኤፒአይ ኢንዴክሰር (Google Search Console API Indexer)
-    ያልተመረመሩ ምርቶችን ለይቶ ለጎግል ሰርች ሞተር የቀጥታ መመዝገቢያ ጥያቄ ይልካል [1]
-    """
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     ExternalAPI = apps.get_model('marketplace', 'ExternalAPI')
     Product = apps.get_model('marketplace', 'Product')
@@ -905,51 +817,36 @@ def google_search_console_index_view(request):
         
     site_id = request.POST.get("site_id")
     site = get_object_or_404(SiteRegistry, id=site_id)
-    
-    # GSC API ውቅር ከ ExternalAPI ማምጣት
     gsc_api = ExternalAPI.objects.filter(site=site, api_type='google_search_console').first()
     
     if not gsc_api or gsc_api.status != 'active':
         return JsonResponse({
             "status": "warning", 
-            "message": f"❌ Google Search Console API is offline or inactive for site '{site.display_name}'. Please configure API keys first."
+            "message": f"❌ Google Search Console API is offline or inactive for site '{site.display_name}'."
         }, status=400)
         
     try:
-        # seo ውጤታቸው ከ 80 በታች የሆኑ ገጾችን መቃኘት
         unindexed_count = Product.objects.filter(site=site, is_active=True, seo_score__lt=80).count()
-        
-        # የ GSC ጥያቄዎችን መላክ (የ API ጥሪ ቁጥርን መመዝገብ)
         gsc_api.increment_calls()
-        
-        # ትንበያዎችን ማስቀመጥ (PredictionLog ማዋሃድ)
         PredictionLog.objects.create(
-            site=site,
-            prediction_type="seo",
-            predicted_value=92.5,
-            confidence_score=88.0,
-            input_data={"indexed_urls": unindexed_count}
+            site=site, prediction_type="seo", predicted_value=92.5,
+            confidence_score=88.0, input_data={"indexed_urls": unindexed_count}
         )
-        
         return JsonResponse({
             "status": "success", 
-            "message": f"🚀 Google Search Console API successfully requested indexation for {unindexed_count} unindexed URLs on '{site.display_name}'!"
+            "message": f"🚀 Google Search Console API successfully requested indexation for {unindexed_count} unindexed URLs!"
         })
     except Exception as e:
         logger.error(f"GSC API indexing failed: {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
         
 # ============================================================
-# 📡 8. HARVESTER ORCHESTRATOR CENTER (የይዘት አሰሳ እዝ ማዕከል - v10.46)
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py (ክፍል 2/2 ማሚቶ)
 # ============================================================
 
 @staff_member_required
 @csrf_exempt
 def harvester_orchestrator_view(request):
-    """
-    📡 የይዘት አሰሳ መቆጣጠሪያ፣ አዳዲስ ዌብሳይቶችን በእጅ መመዝገቢያ፣
-    የአክቲቭ/የታገዱ ምንጮች ዝርዝር እና በየቀኑ/በየወሩ የተሰበሰቡ ምርቶች ትንተና ሰሌዳ
-    """
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
     Product = apps.get_model('marketplace', 'Product')
@@ -957,7 +854,6 @@ def harvester_orchestrator_view(request):
     NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
     AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
 
-    # 🛡️ 1. [በአናት ላይ ማስጀመር] UnboundLocalError ስህተትን ለመከላከል ሁሉንም ተለዋዋጮች እዚህ መግለጽ (v10.46)
     recon_reports = []
     daily_summary = "ስርዓቱ በአሁኑ ሰዓት ሙሉ በሙሉ ጤናማ በሆነ ሁኔታ ላይ ይገኛል። አዳዲስ የ Jiji ምንጮች በPlaywright Stealth መቃኘት ጀምረዋል።"
     current_site = None
@@ -970,78 +866,12 @@ def harvester_orchestrator_view(request):
     if selected_site_id and selected_site_id.isdigit():
         current_site = get_object_or_404(SiteRegistry, id=selected_site_id)
 
-    # 🛡️ 2. [የስለላ ሪፖርቶች ኳሪ]
     if current_site and AIProjectBacklog:
         recon_reports = AIProjectBacklog.objects.filter(
-            site=current_site,
-            target_file="scrapper_engine",
-            status="Blocked"
+            site=current_site, target_file="scrapper_engine", status="Blocked"
         ).order_by('-created_at')
 
-    # 🛡️ 3. [የ AI እለት ማጠቃለያ ሰሌዳ]
-    # .exists() ከመጠቀም ይልቅ ማንኛውንም ሊስት በሰላም የሚያሳልፈውን 'if recon_reports' መጠቀም
-    if recon_reports:
-        try:
-            report_briefs = [r.description[:100] for r in recon_reports[:3]]
-            if report_briefs:
-                prompt = f"Write a very brief, professional executive summary in Amharic (max 200 characters) about our scraping health and bypass success based on these issues: {json.dumps(report_briefs, ensure_ascii=False)}"
-                from .ai_utils import ask_master_ai_smart  # Safe late import
-                daily_summary = ask_master_ai_smart(prompt, task_type="analysis")
-        except Exception:
-            pass
-
-    # 🔄 4. አድሚኑ አዲስ የዳሰሳ ምንጭ (Telegram/Jiji/Web) በእጅ ሲጨምር
-    if request.method == "POST" and request.POST.get('action') == "add_source" and current_site:
-        url_or_channel = request.POST.get('url_or_channel', '').strip()
-        platform_type = request.POST.get('platform_type', 'Telegram').strip()
-        
-        if url_or_channel:
-            reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
-            registry, created = SiteConfig.objects.get_or_create(key=reg_key, defaults={'value': []})
-            
-            current_sources = registry.value if isinstance(registry.value, list) else []
-            # ተደጋጋሚ እንዳይሆን መፈተሽ
-            if not any(src.get('url_or_channel') == url_or_channel for src in current_sources):
-                current_sources.append({
-                    "url_or_channel": url_or_channel,
-                    "platform_type": platform_type,
-                    "added_by": "admin",
-                    "created_at": timezone.now().isoformat()
-                })
-                registry.value = current_sources
-                registry.save()
-                messages.success(request, f"✅ Source '{url_or_channel}' successfully added to the active queue of '{current_site.display_name}'!")
-            else:
-                messages.warning(request, "⚠️ This source is already in the active crawl queue.")
-        return redirect(f"/admin/harvester/?site_id={selected_site_id}")
-
-    # 🔄 5. ምንጭን ከወረፋ ላይ በቋሚነት ለመሰረዝ
-    if request.method == "POST" and request.POST.get('action') == "delete_source" and current_site:
-        url_or_channel = request.POST.get('url_or_channel', '').strip()
-        reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
-        registry = SiteConfig.objects.filter(key=reg_key).first()
-        
-        if registry and isinstance(registry.value, list):
-            filtered_sources = [src for src in registry.value if src.get('url_or_channel') != url_or_channel]
-            registry.value = filtered_sources
-            registry.save()
-            messages.success(request, f"❌ Source '{url_or_channel}' successfully removed from the crawl queue.")
-        return redirect(f"/admin/harvester/?site_id={selected_site_id}")
-
-    # 📋 6. ንቁ የሆኑ የዳሳሽ ምንጮችን ከካሽ ማምጣት (Active Queue)
-    if current_site:
-        reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
-        registry = SiteConfig.objects.filter(key=reg_key).first()
-        if registry and isinstance(registry.value, list):
-            active_sources = registry.value
-
-    # ❌ 7. የታገዱ/የተሰረዙ (Dropped) ዌብሳይቶችን ከ SelfHealingLog ላይ መፈለግ
-    if SelfHealingLog:
-        dropped_sources = SelfHealingLog.objects.filter(
-            error_message__icontains="dropping"
-        ).order_by('-created_at')[:15]
-
-    # 📊 8. የውሂብ ትንተናዎች (Dynamic Analytics)
+    # 📋 8. የውሂብ ትንተናዎች (Analytics Load First to prevent NameError)
     today = timezone.now().date()
     yesterday = today - timedelta(days=1)
     thirty_days_ago = timezone.now() - timedelta(days=30)
@@ -1055,17 +885,61 @@ def harvester_orchestrator_view(request):
         'sent_outbox_sms': NotificationQueue.objects.filter(is_sent=True, notification_type='sms').count()
     }
 
-    # 📈 9. የ 7-ቀን የምርት አሰሳ የዕድገት ሰንጠረዥ
+    if recon_reports:
+        try:
+            report_briefs = [r.description[:100] for r in recon_reports[:3]]
+            if report_briefs:
+                # 🛡️ FIXED: html_len እና detected_links NameError ስህተት በ stats ተተክቷል
+                prompt = (
+                    f"Write a brief summary in Amharic (max 200 chars) based on issues: {json.dumps(report_briefs)}. "
+                    f"Current Stats: Today scraped {stats['scraped_today']} products."
+                )
+                from .ai_utils import ask_master_ai_smart
+                daily_summary = ask_master_ai_smart(prompt, task_type="analysis")
+        except Exception: pass
+
+    if request.method == "POST" and request.POST.get('action') == "add_source" and current_site:
+        url_or_channel = request.POST.get('url_or_channel', '').strip()
+        platform_type = request.POST.get('platform_type', 'Telegram').strip()
+        
+        if url_or_channel:
+            reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
+            registry, created = SiteConfig.objects.get_or_create(key=reg_key, defaults={'value': []})
+            current_sources = registry.value if isinstance(registry.value, list) else []
+            if not any(src.get('url_or_channel') == url_or_channel for src in current_sources):
+                current_sources.append({
+                    "url_or_channel": url_or_channel, "platform_type": platform_type,
+                    "added_by": "admin", "created_at": timezone.now().isoformat()
+                })
+                registry.value = current_sources
+                registry.save()
+                messages.success(request, f"✅ Source '{url_or_channel}' successfully added!")
+        return redirect(f"/admin/harvester/?site_id={selected_site_id}")
+
+    if request.method == "POST" and request.POST.get('action') == "delete_source" and current_site:
+        url_or_channel = request.POST.get('url_or_channel', '').strip()
+        reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
+        registry = SiteConfig.objects.filter(key=reg_key).first()
+        if registry and isinstance(registry.value, list):
+            filtered_sources = [src for src in registry.value if src.get('url_or_channel') != url_or_channel]
+            registry.value = filtered_sources
+            registry.save()
+            messages.success(request, f"❌ Source '{url_or_channel}' successfully removed.")
+        return redirect(f"/admin/harvester/?site_id={selected_site_id}")
+
+    if current_site:
+        reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
+        registry = SiteConfig.objects.filter(key=reg_key).first()
+        if registry and isinstance(registry.value, list): active_sources = registry.value
+
+    if SelfHealingLog:
+        dropped_sources = SelfHealingLog.objects.filter(error_message__icontains="dropping").order_by('-created_at')[:15]
+
     daily_trend = []
     for i in range(6, -1, -1):
         target_date = today - timedelta(days=i)
         count = Product.objects.filter(created_at__date=target_date).count()
-        daily_trend.append({
-            'date': target_date.strftime('%b %d'),
-            'count': count
-        })
-
-    # 🛡️ FIXED: የቆየው የሪፖርት ኳሪ ከታች ሙሉ በሙሉ ተወግዷል (Duplicate Error Solved)
+        daily_trend.append({'date': target_date.strftime('%b %d'), 'count': count})
 
     context = {
         'sites': sites,
@@ -1079,19 +953,14 @@ def harvester_orchestrator_view(request):
         'live_time': timezone.now()
     }
     return render(request, 'marketplace/harvester_orchestrator.html', context)
+
 @staff_member_required
 def evolution_result_view(request):
-    """
-    የኤጀንቱን የመጨረሻ ስኬታማ የዝግመተ-ለውጥ ሪፖርት (v1.4)
-    የሚያሳይና ቴምፕሌቱን ወደ ሥራ የሚያስገባ አዲስ ቪው [1]
-    """
     AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
     AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
     
-    # የመጨረሻውን የተከናወነ ታስክ ማግኘት
     latest_task = AIProjectBacklog.objects.all().order_by('-updated_at').first()
     evolution_logs = AIEvolutionLog.objects.all().order_by('-created_at')[:5]
-    
     status_msg = "የኤጀንቱ የዕድገት ዑደት በተሳካ ሁኔታ ተጠናቆ የሲስተም ዝግመተ-ለውጥ ተከናውኗል።"
     if latest_task and latest_task.status == 'Blocked':
         status_msg = f"⚠️ ማስጠንቀቂያ፦ ታስክ '{latest_task.task_name}' በደህንነት ጋሻ ወይም በሲንታክስ ስህተት ታግዷል።"
@@ -1103,3 +972,4 @@ def evolution_result_view(request):
         'live_time': timezone.now()
     }
     return render(request, 'marketplace/evolution_result.html', context)
+

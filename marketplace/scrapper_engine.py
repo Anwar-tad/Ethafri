@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/scrapper_engine.py
-# 📝 ስሪት፦ v12.10 (Enterprise Scrapper - Complete Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Fully restored and compiled ScrapperEngine class with zero missing helper classes, fully compatible with growth_agent.py, integrated Playwright Stealth and JSON-LD structured extraction.
+# 📝 ስሪት፦ v12.30 (Enterprise Multi-Platform Scrapper - Image Hardened)
+# ✅ የተፈቱ ችግሮች፦ Expanded targets beyond Jiji (Telegram/General E-Commerce), Fixed lazy-loaded image extraction, and implemented high-resolution image restoration.
 # 📅 ቀን፦ Sunday, July 12, 2026
 # ============================================================
 
@@ -37,7 +37,6 @@ class FingerprintEvasion:
 
     @classmethod
     def get_headers(cls, url: str) -> Dict[str, str]:
-        # 't.me'፣ 'telegram' ወይም '@' ካለ የሞባይል/ቴሌግራም User-Agent ይመርጣል
         ua = random.choice(cls.MOBILE_UA) if any(k in url.lower() for k in ['t.me', 'telegram', '@']) else random.choice(cls.DESKTOP_UA)
         return {
             'User-Agent': ua,
@@ -88,7 +87,6 @@ class IntelligentRateLimiter:
     def wait_if_needed(self):
         now = time.time()
         elapsed = now - self.last_request_time
-        # ማስተካከያ ካስፈለገ በተለዋዋጭ delay ልክ ይጠብቃል
         sleep_needed = self.current_delay + random.uniform(0.5, 2.0) - elapsed
         if sleep_needed > 0:
             time.sleep(sleep_needed)
@@ -97,19 +95,11 @@ class IntelligentRateLimiter:
     def record_success(self):
         self.success_streak += 1
         if self.success_streak > 5:
-            # በተከታታይ ከተሳካ የጥበቃ ጊዜውን ወደ መደበኛው ዝቅ ያደርጋል
             self.current_delay = max(self.base_delay, self.current_delay * 0.9)
 
     def record_failure(self):
         self.success_streak = 0
-        # እገዳ ሲያጋጥም የጥበቃ ጊዜውን በከፍተኛ ደረጃ ይጨምራል (Exponential Backoff)
         self.current_delay = min(30.0, self.current_delay * 2.0)
-
-    def get_stats(self) -> Dict[str, Any]:
-        return {
-            'current_delay': round(self.current_delay, 2),
-            'success_streak': self.success_streak
-        }
 
 
 # ============================================================
@@ -137,79 +127,112 @@ class SmartCache:
         expires = time.time() + self.ttl
         self.store[key] = (value, expires)
 
-    def get_stats(self) -> Dict[str, int]:
-        return {
-            'hits': self.hits,
-            'misses': self.misses,
-            'size': len(self.store)
-        }
-
 
 # ============================================================
-# 🔍 SMART PRODUCT EXTRACTOR (የላቀ የምርት መሰብሰቢያ)
+# 🔍 SMART PRODUCT EXTRACTOR (ባለብዙ መድረክ የምስልና መረጃ ማውጫ)
 # ============================================================
 class SmartProductExtractor:
     def __init__(self):
-        self.cache = SmartCache(ttl=600)  # የራሱ ውስጣዊ መሸጎጫ
+        self.cache = SmartCache(ttl=600)
+
+    @staticmethod
+    def _clean_image_url(img_url: str, base_url: str) -> str:
+        """የምስል ሊንኮችን ያጸዳል፣ ጥራታቸውን ከፍ ያደርጋል እንዲሁም ሙሉ አድራሻ ያደርጋል"""
+        if not img_url:
+            return ""
+        
+        # 1. በኮማ የተለዩ srcset ካጋጠሙ ትልቁን ምስል መምረጥ
+        if ',' in img_url:
+            # የመጨረሻውን ወይም ትልቁን የምስል ሊንክ ይወስዳል
+            parts = [p.strip().split(' ')[0] for p in img_url.split(',')]
+            img_url = parts[-1] if parts else img_url
+            
+        img_url = img_url.strip()
+        
+        # 2. አንጻራዊ አድራሻዎችን (Relative URLs) ወደ ሙሉ መቀየር
+        if img_url.startswith('//'):
+            img_url = 'https:' + img_url
+        elif img_url.startswith('/') or not img_url.startswith('http'):
+            img_url = urljoin(base_url, img_url)
+
+        # 3. የJiji/Avito ዓይነት ዝቅተኛ ጥራት ማሳያዎችን (Thumbnails) ወደ ዋናው ጥራት መቀየር
+        # e.g., '..._200x150.webp' ወይም '..._100x100.jpg' ወደ መደበኛው ይለውጣል
+        img_url = re.sub(r'_\d+x\d+\.(jpeg|jpg|png|webp)', r'.\1', img_url)
+        
+        return img_url
 
     @staticmethod
     def extract_products(html: str, url: str) -> List[Dict]:
         if not html: return []
         products = []
         
-        # 🛡️ 1. JSON-LD Extractor Fallback (Bypasses Obfuscated DOM completely)
+        # 🛡️ 1. JSON-LD Extractor Fallback (የተሸሸጉ መረጃዎችን እና ምስሎችን ይጎትታል)
         try:
-            json_ld_matches = re.findall(r'"name"\s*:\s*"([^"]+)"[\s\S]*?"price"\s*:\s*"([^"]+)"', html, re.DOTALL | re.IGNORECASE)
+            # ምስልን ያካተተ የተራቀቀ Schema Regex ፍለጋ
+            json_ld_matches = re.findall(r'"@type"\s*:\s*"Product"[\s\S]*?"name"\s*:\s*"([^"]+)"[\s\S]*?"image"\s*:\s*"([^"]+)"[\s\S]*?"price"\s*:\s*"([^"]+)"', html, re.DOTALL | re.IGNORECASE)
             if json_ld_matches:
-                for name, price in json_ld_matches[:15]:
+                for name, img, price in json_ld_matches[:15]:
                     import html as html_parser
                     clean_name = html_parser.unescape(name).strip()
                     try: clean_price = float(re.sub(r'[^\d.]', '', price))
                     except: clean_price = 0.0
+                    
                     products.append({
-                        'title': clean_name[:150], 'price': clean_price,
-                        'description': f"JSON-LD Structured Product: {clean_name}",
-                        'seller_contact': '0900000000', 'image_url': ''
+                        'title': clean_name[:150], 
+                        'price': clean_price,
+                        'description': f"Structured Product Product: {clean_name}",
+                        'seller_contact': '0900000000', 
+                        'image_url': SmartProductExtractor._clean_image_url(img, url)
                     })
                 return products
         except: pass
 
-        # 🛡️ 2. BeautifulSoup Fuzzy Selector Fallback (Jiji/Telegram selector bypass)
+        # 🛡️ 2. BeautifulSoup Fuzzy Selector Fallback (ለJiji, Telegram ቻናሎች እና አጠቃላይ ገበያዎች)
         try:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, 'html.parser')
+            
+            # የተመረጡ ማቀፊያዎች (Containers) - Jiji, Telegram, e-commerce cards
             selectors = [
-                'div.b-list-advert-single', 'div.qa-advert-list-item', 'div[class*="product"]', 
-                'div[class*="classified"]', 'div[class*="item"]', 'div[class*="card"]'
+                'div.b-list-advert-single', 'div.qa-advert-list-item', 
+                'div.tgme_widget_message_bubble', 'div.tgme_widget_message', # Telegram Web Support
+                'div[class*="product"]', 'div[class*="classified"]', 
+                'div[class*="item"]', 'div[class*="card"]'
             ]
+            
             for selector in selectors:
                 elements = soup.select(selector)
                 if elements:
-                    for elem in elements[:20]:
-                        product = SmartProductExtractor._extract_from_soup_node(elem)
+                    for elem in elements[:25]:
+                        product = SmartProductExtractor._extract_from_soup_node(elem, url)
                         if product and product.get('title'):
                             products.append(product)
-                    return products
+                    if products:
+                        return products
         except: pass
 
         return products
 
     @staticmethod
-    def _extract_from_soup_node(node) -> Dict:
+    def _extract_from_soup_node(node, base_url: str) -> Dict:
         product = {'title': '', 'price': 0, 'description': '', 'seller_contact': '', 'image_url': ''}
         
-        title_el = node.find(['h3', 'h4', 'h2', 'strong', 'span'], class_=re.compile(r'title|name|header', re.I)) or node.find(['h3', 'h4', 'strong'])
+        # የርዕስ ማውጫ
+        title_el = node.find(['h3', 'h4', 'h2', 'strong', 'span'], class_=re.compile(r'title|name|header|text', re.I)) or node.find(['h3', 'h4', 'strong'])
         if title_el:
             product['title'] = title_el.get_text(strip=True)[:150]
                 
-        price_el = node.find(class_=re.compile(r'price|amount|val', re.I)) or node.find(text=re.compile(r'(?:ETB|ብር|Birr|Br)', re.I))
+        # የዋጋ ማውጫ
+        price_el = node.find(class_=re.compile(r'price|amount|val', re.I)) or node.find(text=re.compile(r'(?:ETB|ብር|Birr|Br|[\d,]+\s*Br)', re.I))
         if price_el:
             try:
                 price_str = re.sub(r'[^\d]', '', price_el.get_text(strip=True))
-                product['price'] = float(price_str)
+                product['price'] = float(price_str) if price_str else 0.0
             except: pass
                 
         text_content = node.get_text(separator=' ')
+        
+        # የእውቂያ መረጃ (ስልክ እና ቴሌግራም ዩዘርኔም)
         phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', text_content)
         if phone_match:
             product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
@@ -219,21 +242,40 @@ class SmartProductExtractor:
                 
         product['description'] = " ".join(text_content.split())[:500]
         
+        # 📸 የላቀ የምስል ማውጫ አመክንዮ (Lazy Loading & Background Image Bypass)
+        img_url = ""
         img_el = node.find('img')
+        
         if img_el:
-            img_url = img_el.get('data-src') or img_el.get('data-lazy') or img_el.get('lazy-src') or img_el.get('src')
-            if img_url:
-                if ',' in img_url:
-                    img_url = img_url.split(',')[0].strip().split(' ')[0]
-                product['image_url'] = img_url
+            # ቅደም ተከተል በLazy Load ባህሪያት መሰረት (ከፍተኛ ጥራት ያላቸው ቀድመው ይፈተሻሉ)
+            img_url = (
+                img_el.get('data-src') or 
+                img_el.get('data-lazy') or 
+                img_el.get('lazy-src') or 
+                img_el.get('srcset') or 
+                img_el.get('src')
+            )
+            
+        # ምስሉ በ<img> ታግ ካልተገኘ በCSS Background Style ውስጥ ካለ መፈለግ (ለቴሌግራም ፖስቶች ጠቃሚ ነው)
+        if not img_url:
+            style_el = node.find(style=re.compile(r'background-image', re.I))
+            if style_el:
+                style_str = style_el.get('style', '')
+                bg_match = re.search(r'url\([\'"]?(.*?)[\'"]?\)', style_str)
+                if bg_match:
+                    img_url = bg_match.group(1)
+
+        # ምስሉን አጽድቶ ማስቀመጥ
+        if img_url and not img_url.startswith('data:image'):
+            product['image_url'] = SmartProductExtractor._clean_image_url(img_url, base_url)
             
         return product
 
 # ============================================================
-# 🚀 MAIN SCRAPPER ENGINE WITH LOCALIZED CONTEXTS (v12.25 - Static Robust Edition)
+# 🚀 MAIN SCRAPPER ENGINE WITH LOCALIZED CONTEXTS
 # ============================================================
 class ScrapperEngine:
-    """የላቀ የድረ-ገጽ ዳሰሳ ሞተር - በ @staticmethod ሙሉ በሙሉ ከስህተት የተጠበቀ"""
+    """የላቀ የድረ-ገጽ ዳሰሳ ሞተር - ባለብዙ መድረክ እና ምስልን ያካተተ ስሪት"""
     
     @staticmethod
     def _fetch_static_fallback(url: str) -> tuple:
@@ -241,7 +283,6 @@ class ScrapperEngine:
             import requests
             session = requests.Session()
             headers = FingerprintEvasion.get_headers(url)
-            
             res = session.get(url, headers=headers, timeout=15)
             return res.status_code, res.text
         except:
@@ -252,10 +293,8 @@ class ScrapperEngine:
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = BROWSER_PATH
         
         user_agents = [
-            "Telegram/10.1.0 (iOS 15.4; en)",
             "Telegram/10.3.5 (iPhone; iOS 17.2; en)",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
         ]
         
         try:
@@ -271,16 +310,20 @@ class ScrapperEngine:
                 browser = await p.chromium.launch(headless=True, proxy=proxy_config)
                 context = await browser.new_context(
                     user_agent=random.choice(user_agents),
-                    viewport={'width': 1280, 'height': 800},
+                    viewport={'width': 1280, 'height': 1000}, # ምስሎች በደንብ እንዲታዩ ቁመቱ ጨምሯል
                     locale='am-ET',
                     timezone_id='Africa/Addis_Ababa',
                 )
                 page = await context.new_page()
                 await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
                 
-                logger.info(f"📡 Deep Scanning: {url}...")
-                response = await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                logger.info(f"📡 Deep Scanning Multi-Platform: {url}...")
+                response = await page.goto(url, wait_until="networkidle", timeout=60000) # ምስሎች ሙሉ በሙሉ እስኪወርዱ ይጠብቃል
                 
+                # 📜 Lazy loaded ምስሎችን ለማስገደድ በትንሹ ወደታች ስክሮል ያደርጋል
+                await page.evaluate("window.scrollBy(0, window.innerHeight);")
+                await asyncio.sleep(1) 
+
                 status_code = response.status if response else 200
                 content = await page.content()
                 await browser.close()
@@ -289,10 +332,8 @@ class ScrapperEngine:
                 logger.warning(f"⚠️ Playwright error: {e}")
                 return 0, str(e)
 
-    # 🛡️ FIXED: @staticmethod በመጠቀም የፓይተን method-binding ስህተቶችን በዘላቂነት መፍታት
     @staticmethod
     def scrape(url: str) -> Optional[str]:
-        """ጥሬ የኤችቲኤምኤል ጽሑፍን ብቻ የሚጎትት ቋሚ ፋንክሽን"""
         html = ""
         status_code = 200
         if not url.startswith('http'): url = 'https://' + url
@@ -320,17 +361,15 @@ class ScrapperEngine:
 
         return html
 
-    # 🛡️ FIXED: @staticmethod በመጠቀም የፓይተን method-binding ስህተቶችን በዘላቂነት መፍታት
     @staticmethod
     def scrape_and_extract(url: str) -> List[Dict]:
-        """ያስሳል እና ምርቶችን ያወጣል"""
         html = ScrapperEngine.scrape(url)
         if not html:
             return []
         return SmartProductExtractor.extract_products(html, url)
 
 # ============================================================
-# 🔄 BACKWARD COMPATIBILITY LAYER (ለቀድሞ ኮድ ተኳሃኝነት)
+# 🔄 BACKWARD COMPATIBILITY LAYER
 # ============================================================
 _shared_engine = ScrapperEngine()
 

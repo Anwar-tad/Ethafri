@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.45)
-# ✅ የተፈቱ ችግሮች፦ Fixed local scope leakage in strip_base_indent function, enabled dynamic import injection, secured Path Traversal protections, and hardened AST surgical patching.
-# 📅 ቀን፦ Tuesday, July 07, 2026
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.46)
+# ✅ የተፈቱ ችግሮች፦ Hardened AST surgical patch with instant memory rollback on syntax failure, secured slice constraints in indent stripper, and synchronized github exceptions.
+# 📅 ቀን፦ Sunday, July 12, 2026
 # ============================================================
 
 import os
@@ -33,14 +33,12 @@ def inject_import_to_file(path: str, import_line: str) -> Tuple[bool, str]:
         with open(path, 'r', encoding='utf-8') as f:
             content = f.read()
             
-        # አስቀድሞ ኢምፖርቱ መኖሩን መፈተሽ
         if import_line.strip() in content:
             return True, "Import already exists in file"
             
         lines = content.splitlines()
         insert_idx = 0
         
-        # 'from __future__' ወይም የፋይል አቅጣጫ ኮሜንቶች ካሉ ከእነሱ በታች ለመትከል መፈተሽ
         for idx, line in enumerate(lines[:15]):
             if line.strip().startswith('from __future__') or line.strip().startswith('#'):
                 insert_idx = idx + 1
@@ -48,7 +46,7 @@ def inject_import_to_file(path: str, import_line: str) -> Tuple[bool, str]:
         lines.insert(insert_idx, import_line)
         updated_code = "\n".join(lines)
         
-        # sandbox syntax check
+        # Sandbox syntax check
         ast.parse(updated_code)
         
         with open(path, 'w', encoding='utf-8') as f:
@@ -68,17 +66,15 @@ def inject_import_to_file(path: str, import_line: str) -> Tuple[bool, str]:
 def strip_base_indent(text: str) -> str:
     """
     ኤአይ ያመነጨውን ኮድ የራሱን መነሻ ክፍተቶች (Base Indent) በመለየት
-    ድርብ ኢንዴንቴሽን እንዳይፈጠር የሚያጸዳ ረዳት ፈንክሽን (🛡️ FIXED: v10.45)
+    ድርብ ኢንዴንቴሽን እንዳይፈጠር የሚያጸዳ ረዳት ፈንክሽን
     """
     lines = text.splitlines()
     if not lines:
         return text
         
-    # ባዶ ያልሆነውን የመጀመሪያ መስመር መነሻ ሰፔስ መለየት
     base_indent = ""
     for line in lines:
         if line.strip():
-            # 🛡️ FIXED: የቆየው የ lines[start_line] ስጋት ተወግዶ በንጹሕ ሪጀክስ ተተክቷል
             match = re.match(r'^\s*', line)
             base_indent = match.group(0) if match else ""
             break
@@ -86,13 +82,13 @@ def strip_base_indent(text: str) -> str:
     if not base_indent:
         return text
 
-    # በእያንዳንዱ መስመር ላይ የድሮውን ኢንዴንት ብቻ ማስወገድ
     stripped_lines = []
     for line in lines:
-        if line.startswith(base_indent):
+        # 🛡️ FIXED: መስመሩ በቂ ርዝመት እንዳለው እና በ base_indent መጀመሩን ማረጋገጥ
+        if line.startswith(base_indent) and len(line) >= len(base_indent):
             stripped_lines.append(line[len(base_indent):])
         else:
-            stripped_lines.append(line)
+            stripped_lines.append(line.strip() if not line.strip() else line)
             
     return "\n".join(stripped_lines)
 
@@ -101,7 +97,7 @@ def strip_base_indent(text: str) -> str:
 # 🩺 3. AST SURGICAL PATCH ENGINE (የቀዶ-ጥገና ኮድ ማያያዣ)
 # ============================================================
 
-def apply_surgical_patch(path, target_name, new_code_segment):
+def apply_surgical_patch(path: str, target_name: str, new_code_segment: str) -> Tuple[bool, str]:
     """
     በ AST አማካኝነት በፓይተን ፋይል ውስጥ የሚገኝን አንድ የተወሰነ ፈንክሽን ወይም ክላስ
     ሳይትሳሳት ለይቶ በአዲሱ ኮድ ብቻ ቆርጦ የሚተካ የቀዶ-ጥገና ሎጂክ
@@ -115,6 +111,7 @@ def apply_surgical_patch(path, target_name, new_code_segment):
             
         tree = ast.parse(source_code)
         lines = source_code.splitlines()
+        orig_lines = list(lines) # 🛡️ CRITICAL MEMORY BACKUP FOR INSTANT ROLLBACK
         
         target_node = None
         for node in ast.walk(tree):
@@ -130,7 +127,7 @@ def apply_surgical_patch(path, target_name, new_code_segment):
         start_line = target_node.lineno - 1
         end_line = target_node.end_lineno
         
-        match_indent = re.match(r'^\s*', lines[start_line])
+        match_indent = re.match(r'^\s*', orig_lines[start_line])
         indent_prefix = match_indent.group(0) if match_indent else ""
         
         clean_segment = strip_base_indent(new_code_segment)
@@ -146,7 +143,13 @@ def apply_surgical_patch(path, target_name, new_code_segment):
         lines[start_line:end_line] = [patched_segment]
         
         updated_code = "\n".join(lines)
-        ast.parse(updated_code)
+        
+        # 🛡️ SAFETY GATE: አዲሱ የተሰፋው ኮድ ሲንታክስ ስህተት ካመጣ ወዲያውኑ ወደ ኋላ መመለስ (Rollback)
+        try:
+            ast.parse(updated_code)
+        except SyntaxError as syntax_err:
+            logger.error(f"❌ Surgical Patch blocked via Syntax Sandbox Guard: {syntax_err}")
+            return False, f"Surgical patch created an invalid Python compilation structure: {syntax_err}"
         
         with open(path, 'w', encoding='utf-8') as f:
             f.write(updated_code)
@@ -162,12 +165,11 @@ def apply_surgical_patch(path, target_name, new_code_segment):
 # 🛠️ 4. MAIN CODE APPLICATION (apply_code_change)
 # ============================================================
 
-def apply_code_change(site, file_key, new_content, reason="", path=None,  confidence_score=100, backlog_task=None, push_to_github=False, target_name=None, inject_import=None):
+def apply_code_change(site, file_key, new_content, reason="", path=None, confidence_score=100, backlog_task=None, push_to_github=False, target_name=None, inject_import=None):
     """
     ኮድን በደህንነት ይተገብራል፣ የፓይተን ሲንታክስ በ Sandbox ይፈትሻል፣ 
     እና በአስተዳዳሪው ትዕዛዝ መሠረት ብቻ ወደ GitHub ያመሳስላል (Sync)
     """
-    
     base_dir = str(settings.BASE_DIR)
     app_name = 'marketplace'
     
@@ -237,7 +239,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
         except Exception as e:
             logger.warning(f"⚠️ Could not read old file for backup: {e}")
 
-    # 6. ወደ ፋይል ጻፍ (Local File Write / Surgical Patch Fallback)
+    # 6. ወደ ፋይል ጻፍ (Local File Write / Surgical Patch Execution)
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if target_name:
@@ -297,9 +299,8 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
 # 🚀 ጊትሃብ መግፊያ ሎጂክ (Raw API)
 # ============================================================
 
-def push_to_github_raw(file_path, content, message, site=None):
+def push_to_github_raw(file_path: str, content: str, message: str, site=None) -> str:
     token = getattr(settings, 'GITHUB_TOKEN', None)
-    
     if not token:
         return "Local only (No Token)"
     
