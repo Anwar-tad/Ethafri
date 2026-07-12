@@ -865,26 +865,38 @@ class MultiChannelHarvester:
         return []
 
     def _parse_product_text(self, text):
-        """የምርት ስምን፣ የቴሌግራም ሲስተም መልዕክቶችን እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.85)"""
+        """የምርት ስምን፣ የቴሌግራም ሲስተም መልዕክቶችን፣ ተራ ወሬዎችን እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.95 - Ultimate Clean Parser)"""
         if not text: return None
         
-        # 🛡️ 1. የቴሌግራም ሲስተም መልዕክቶችን በከፍተኛ ጥንቃቄ ማጣራትና መዝለል
+        # 🛡️ 1. የቴሌግራም ሲስተም መልዕክቶችን እና የቆሸሹ ጽሑፎችን በከፍተኛ ጥንቃቄ ማጣራትና መዝለል
         system_keywords = [
             "channel name was changed", "channel photo updated", "channel created",
             "pinned", "joined", "group created", "photo updated", "name changed",
-            "አመልጣኝ እንዳይሉ", "ደውሉ", "አስቸኳይ", "አስቸኳይ ሽያጭ", "ቅናሽ"
+            "coming soon", "keep joining", "live stream", "telegram channel",
+            "ተለቀቀ", "ገብተናል", "ገባን", "ተከፈተ", "join", "subscribe", "👇", "👉", "⚠️"
         ]
         text_lower = text.lower()
-        if any(kw in text_lower for kw in system_keywords) and len(text) < 150:
+        if any(kw in text_lower for kw in system_keywords) and len(text) < 200:
             return None
 
-        # 🛡️ 2. HTML Entity ማጽዳት (&#33; ወደ ! ይቀየራል)
+        # 🛡️ 2. እውነተኛ ምርት መሆኑን ማረጋገጫ (Product Noun Filter)
+        # ጽሁፉ ምንም ዓይነት የምርት ስም ወይም የዋጋ ምልክት ከሌለው እንደ ተራ ወሬ ቆጥሮ መዝለል
+        product_nouns = [
+            'toyota', 'kia', 'hyundai', 'suzuki', 'iphone', 'samsung', 'laptop', 'lenovo', 
+            'hp', 'dell', 'apartment', 'condominium', 'house', 'vitz', 'yaris', 'corolla', 
+            'mercedes', 'byd', 'veloster', 'morning', '4-runner', 'model', 'car', 'phone', 
+            'notebook', 'tecno', 'zte', 'spark', 'ሸቀጥ', 'ሽያጭ', 'መኪና', 'ስልክ', 'ላፕቶፕ', 'ቤት', 'apartment'
+        ]
+        if not any(noun in text_lower for noun in product_nouns) and len(text) < 400:
+            return None
+
+        # 🛡️ 3. HTML Entity ማጽዳት (&#33; ወደ ! ይቀየራል)
         import html
         clean_text = html.unescape(text)
         clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
         clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text)
         
-        # 🛡️ 3. የጊዜ ገደብ መፈተሻ (ከ 3 ወር በላይ የሆኑትን መተው)
+        # 🛡️ 4. የጊዜ ገደብ መፈተሻ (ከ 3 ወር በላይ የሆኑትን መተው)
         old_patterns = [r'2023', r'2024', r'2025', r'[4-9]\s*months?\s*ago', r'year\s*ago']
         for pattern in old_patterns:
             if re.search(pattern, clean_text, re.IGNORECASE):
@@ -894,20 +906,19 @@ class MultiChannelHarvester:
         lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
         if not lines: return None
         
-        # 🛡️ 4. SMARTER TITLE EXTRACTION: እውነተኛ የምርት ስሞችን (Toyota, iPhone, etc.) መፈለግ
-        # የመጀመሪያው መስመር ፕሮሞሽን (Slogan) ከሆነ የምርት ስሙን ለማግኘት ቀጣይ መስመሮችን መቃኘት
+        # 🛡️ 5. SMARTER TITLE EXTRACTION: እውነተኛ የምርት ስሞችን መፈለግ
         raw_title = lines[0]
-        slogans = ["አመልጣኝ", "አዲስ", "ደውሉ", "አስቸኳይ", "ቅናሽ", "ለሽያጭ", "ሽያጭ", "አሪፍ", "የሚሸጥ", "የሚከራይ"]
+        slogans = ["አመልጣኝ", "አዲስ", "ደውሉ", "አስቸኳይ", "ቅናሽ", "ለሽያጭ", "ሽያጭ", "አሪፍ", "የሚሸጥ", "የሚከራይ", "ተለቀቀ"]
         if any(s in raw_title for s in slogans) or len(raw_title) < 10:
             # ቀጣይ መስመሮችን በመቃኘት የምርት ስሞችን (መኪና/ስልክ/ላፕቶፕ) መፈለግ
             found_title = False
             for line in lines[1:4]:
-                if any(brand in line.lower() for brand in ['toyota', 'kia', 'hyundai', 'suzuki', 'iphone', 'samsung', 'laptop', 'lenovo', 'hp', 'dell', 'apartment', 'condominium', 'house', 'vitz', 'yaris', 'corolla', 'mercedes', 'byd']):
+                if any(brand in line.lower() for brand in product_nouns):
                     product['title'] = line[:100]
                     found_title = True
                     break
             if not found_title:
-                product['title'] = lines[0][:150] # ካልተገኘ ብቻ ወደ መጀመሪያው መመለስ
+                product['title'] = lines[0][:150]
         else:
             product['title'] = lines[0][:150]
             
@@ -1441,9 +1452,9 @@ class CEOOperations:
 
     def _search_google_for_product_image(self, title) -> str:
         """
-        🚀 [Stealth Stable Image Finder - DDG Scraper + Locked Fallback v10.95]
+        🚀 [Stealth Stable Image Finder - DDG Scraper + Fuzzy Locked Fallback v10.98]
         ምርቱ የራሱ ፎቶ ከሌለው በከፍተኛ ጥራት በ DuckDuckGo ፈልጎ እውነተኛ ምስል ያመጣል፤
-        ካልተሳካም ሪፍሬሽ ሲደረግ የማይለዋወጥ ቋሚ ፎቶ በምርቱ ስም አዋቅሮ በዳታቤዝ ይቆልፋል [1]
+        ካልተሳካም ከምርቱ ጋር የሚገጥም (መኪና፣ ላፕቶፕ፣ ስልክ፣ ቤት) ቋሚ ፎቶ በምርቱ ስም አዋቅሮ በዳታቤዝ ይቆልፋል [1]
         """
         # የአማርኛና የእንግሊዝኛ ጽሑፎችን ብቻ ለይቶ ማጽዳት
         clean_title = re.sub(r'[^a-zA-Z0-9\s\u01200-\u0137F]', '', title).strip()
@@ -1468,16 +1479,23 @@ class CEOOperations:
         except Exception as e:
             logger.debug(f"DDG Image Finder failed: {e}")
 
-        # 🛡️ 2. [Mathematical Photo Lock] - ፎቶ ባይገኝ ሪፍሬሽ ሲደረግ የማይለዋወጥ ቋሚ ፎቶ በምርቱ ስም መመደቢያ
-        # በምርቱ ስም ልዩ የ MD5 Hash ቁጥር በማመንጨት ፎቶውን በዳታቤዝ ውስጥ መቆለፍ
+        # 🛡️ 2. [Fuzzy Locked Placeholder Fallback] - ከላይ ያሉት ካልሠሩ ከምርቱ ጋር የሚገጥም ቋሚ ፎቶ መመደቢያ
+        title_lower = title.lower()
+        fallback_keyword = "product"
+        
+        # የምርት ዓይነት መለያ (መኪና፣ ስልክ፣ ላፕቶፕ፣ ቤት)
+        if any(w in title_lower for w in ['car', 'toyota', 'kia', 'hyundai', 'suzuki', 'mercedes', 'benz', 'vitz', 'yaris', 'corolla', 'byd', 'veloster', 'morning', '4-runner', 'model', 'መኪና', 'ቪትዝ', 'ኮሮላ']):
+            fallback_keyword = "car"
+        elif any(w in title_lower for w in ['phone', 'iphone', 'samsung', 'galaxy', 'zte', 'tecno', 'spark', 'mobile', 'blade', 'ስልክ', 'አይፎን', 'ሳምሰንግ']):
+            fallback_keyword = "phone"
+        elif any(w in title_lower for w in ['laptop', 'lenovo', 'hp', 'dell', 'asus', 'notebook', 'thinkpad', 'latitude', 'precision', 'ላፕቶፕ', 'ኮምፒውተር']):
+            fallback_keyword = "laptop"
+        elif any(w in title_lower for w in ['apartment', 'house', 'condominium', 'villa', 'property', 'bed room', 'home', 'real estate', 'ቤት', 'ኮንዶሚኒየም', 'አፓርታማ']):
+            fallback_keyword = "house"
+
         lock_id = int(hashlib.md5(title.encode('utf-8')).hexdigest(), 16) % 1000
-        slug_title = clean_title.lower().replace(" ", "-")
-        # የምርቱ ስም በአማርኛ ብቻ ከሆነ እና ስሉጉ ባዶ ከሆነ ወደ 'product' መመለስ
-        if not slug_title.strip():
-            slug_title = "product"
-            
-        stable_fallback = f"https://loremflickr.com/800/600/{slug_title}?lock={lock_id}"
-        logger.info(f"✨ Locked Fallback: Assigned stable locked photo for '{title}' -> {stable_fallback}")
+        stable_fallback = f"https://loremflickr.com/800/600/{fallback_keyword}?lock={lock_id}"
+        logger.info(f"✨ Fuzzy Locked Fallback: Assigned stable locked '{fallback_keyword}' photo for '{title}' -> {stable_fallback}")
         return stable_fallback
 
     def _seed_listings_bulk(self, products_list):

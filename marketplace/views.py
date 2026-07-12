@@ -669,37 +669,50 @@ def trigger_autonomous_evolution(request):
 @staff_member_required
 @csrf_exempt
 def purge_database_view(request):
-    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን በ 1 ጠቅታ ከአድሚን ዳሽቦርድ ላይ የሚያጸዳ (v10.48)"""
+    """🧹 የውሸት ዳታዎችንና የድሮ መዝገቦችን ያለምንም የ ForeignKey ስህተት በቅደም-ተከተል የሚያጸዳ (v10.49)"""
     if request.method != "POST":
         return JsonResponse({"error": "POST method required"}, status=400)
     
+    # የዳታቤዝ ሞዴሎችን በዳይናሚክ መጫን
+    ProductTranslation = apps.get_model('marketplace', 'ProductTranslation') # 🛡️ አዲስ የተጨመረ
+    TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
+    NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+    AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
+    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
     Product = apps.get_model('marketplace', 'Product')
     SellerProfile = apps.get_model('marketplace', 'SellerProfile')
-    NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
-    AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
     SecurityLog = apps.get_model('marketplace', 'SecurityLog')
     AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
-    AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
     VectorMemory = apps.get_model('marketplace', 'VectorMemory')
     SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
-    TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
-    SiteConfig = apps.get_model('marketplace', 'SiteConfig') # 🛡️ FIXED: name 'SiteConfig' is not defined ስህተትን ለመፍታት
+    SiteConfig = apps.get_model('marketplace', 'SiteConfig')
 
+    # 🛡️ FIXED: የጥገኝነት ስህተቶችን ለመከላከል ልጆቹን (Child Tables) አስቀድሞ የማጥፋት ስልታዊ ቅደም-ተከተል
     models_to_purge = [
-        Product, SellerProfile, NotificationQueue, AIProjectBacklog,
-        SecurityLog, AgentErrorLog, AIEvolutionLog, VectorMemory,
-        SelfHealingLog, TranslationQueue
+        ProductTranslation,  # 1. መጀመሪያ የምርት ትርጉሞች ይጥፋ (ምርት ላይ ጥገኛ ስለሆነ)
+        TranslationQueue,    # 2. የትርጉም ወረፋ ይጥፋ (ምርት ላይ ጥገኛ ስለሆነ)
+        NotificationQueue,   # 3. የኖቲፊኬሽን ወረፋ ይጥፋ
+        AIEvolutionLog,      # 4. የኮድ ለውጥ ሎግ ይጥፋ (በባክሎግ ላይ ጥገኛ ስለሆነ)
+        AIProjectBacklog,    # 5. ባክሎግ ይጥፋ (በሳይት ሬጅስትሪ ላይ ጥገኛ ስለሆነ)
+        Product,             # 6. ምርቶች ይጥፉ (በሳይት ሬጅስትሪ ላይ ጥገኛ ስለሆነ)
+        SellerProfile,       # 7. የሻጮች ፕሮፋይል ይጥፋ
+        SecurityLog,         # 8. የደህንነት ሎግ ይጥፋ
+        AgentErrorLog,       # 9. የስህተት ሎግ ይጥፋ
+        VectorMemory,        # 10. የ RAG ትውስታዎች ይጥፉ
+        SelfHealingLog       # 11. የጥገና ሎግ ይጥፋ
     ]
     
+    # ጽዳቱን በቅደም-ተከተል ማከናወን
     for model in models_to_purge:
-        try:
-            with transaction.atomic():
-                model.objects.all().delete()
-        except Exception as model_err:
-            logger.warning(f"🧹 Purge DB Warning: Skipped {model.__name__} table deletion: {model_err}")
+        if model:
+            try:
+                with transaction.atomic():
+                    model.objects.all().delete()
+            except Exception as model_err:
+                logger.warning(f"🧹 Purge DB Warning: Skipped {model.__name__} table deletion: {model_err}")
             
-    # 🧹 [የኃይል እርምጃ] ሁሉንም የአሰሳ መኝታዎች (Cooldowns) እና የድሮ ትውስታዎችን ከዳታቤዝ ውስጥ ማጽዳት
+    # 🧹 ሁሉንም የአሰሳ መኝታዎች (Cooldowns) እና የድሮ ትውስታዎችን ከዳታቤዝ ውስጥ ማጽዳት
     if SiteConfig:
         try:
             with transaction.atomic():
@@ -712,6 +725,7 @@ def purge_database_view(request):
         except Exception as config_err:
             logger.warning(f"🧹 Purge DB Warning: Skipped pacing config deletion: {config_err}")
     
+    # 🧹 በመጨረሻ ወላጅ ሰንጠረዦችን በሰላም ማጥፋት
     try:
         with transaction.atomic():
             SiteRegistry.objects.all().delete()
@@ -723,10 +737,11 @@ def purge_database_view(request):
                 is_active=True,
                 build_phase=0
             )
+            logger.info("🧹 Purge DB: Successfully reset SiteRegistry.")
     except Exception as site_err:
         logger.warning(f"🧹 Purge DB Warning: Skipped SiteRegistry reset: {site_err}")
         
-    messages.success(request, "🧹 የመረጃ ቋቱ በንጽህና ጸድቷል! የ 'primary' ሳይት እና የዳሳሽ መኝታዎች በድጋሚ ተሻሽለዋል።")
+    messages.success(request, "🧹 የመረጃ ቋቱ እና የአሰሳ መኝታዎች በንጽህና ጸድተዋል!")
     return JsonResponse({"status": "success", "message": "Database successfully purged!"})
 
 
