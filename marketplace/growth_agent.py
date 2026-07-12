@@ -1,9 +1,9 @@
 
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
-# 📝 ስሪት፦ v10.50 (Ultimate Self-Learning & Auto-Correcting CEO - Production)
+# 📝 ስሪት፦ v10.51 (Ultimate Self-Learning & Auto-Correcting CEO - Production Ready)
 # ✅ የተፈቱ ችግሮች፦ Fixed incorrect MultiChannelHarvester class indentation, enabled empty-house auto-memory bypass, fixed 'Very High' ValueError in Spy Engine, resolved project state self-bug, and disabled Track A coding temporarily.
-# 📅 ቀን፦ Tuesday, July 07, 2026
+# 📅 ቀን፦ Sunday, July 12, 2026
 # ============================================================
 
 from __future__ import annotations
@@ -950,54 +950,6 @@ class MultiChannelHarvester:
             self.perform_source_reconnaissance({"url_or_channel": url, "platform_type": "GenericWeb"}, str(e))
         return []
     
-    def _parse_product_text(self, text):
-        """ምርቶችን የሚለይ እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.40)"""
-        if not text: return None
-        
-        # HTML Entity ማጽዳት (&#33; ወደ ! ይቀየራል)
-        import html
-        clean_text = html.unescape(text)
-        clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
-        clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text)
-        
-        # የጊዜ ገደብ መፈተሻ
-        old_patterns = [r'2023', r'2024', r'2025', r'[4-9]\s*months?\s*ago', r'year\s*ago']
-        for pattern in old_patterns:
-            if re.search(pattern, clean_text, re.IGNORECASE):
-                return None
-
-        product = {'title': '', 'price': 0, 'description': '', 'desc': '', 'seller_contact': ''}
-        lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
-        if not lines: return None
-        
-        # የምርት ስም ማሳጠሪያ (የ3 ወርድ ህግ)
-        words = lines[0].split()
-        if len(words) > 5 or len(lines[0]) > 50:
-            product['title'] = " ".join(words[:4])
-        else:
-            product['title'] = lines[0][:150]
-        
-        # ዋጋ መፈለጊያ
-        price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
-                      re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
-        if price_match:
-            try:
-                product['price'] = float(price_match.group(1).replace(',', ''))
-            except: pass
-            
-        # ስልክ መፈለጊያ
-        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
-        if phone_match:
-            product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
-        else:
-            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', clean_text)
-            if tg_match:
-                product['seller_contact'] = tg_match.group(0)
-        
-        product['description'] = clean_text[:1000].replace('\n\n', '\n').strip()
-        product['desc'] = product['description']
-        return product
-    
     def _extract_products_from_html(self, html):
         """(Deprecated - Bypassed for ScrapperEngine.scrape_and_extract)"""
         products = []
@@ -1025,9 +977,15 @@ class MultiChannelHarvester:
 
         density_estimation = "Cannot evaluate (Complete connection block)"
         if html_content:
-            text_len = len(html_content)
-            links_count = len(re.findall(r'href=', html_content))
-            images_count = len(re.findall(r'<img', html_content))
+            html_len = len(html_content)
+            detected_links = len(re.findall(r'href=', html_content))
+            detected_images = len(re.findall(r'<img', html_content))
+            market_activity = "መካከለኛ እንቅስቃሴ (Moderate Activity)"
+            if detected_links > 100:
+                market_activity = "ከፍተኛ እንቅስቃሴ (High Activity)"
+            elif detected_links < 20:
+                market_activity = "ዝቅተኛ እንቅስቃሴ (Low Activity)"
+                
             density_estimation = (
                 f"የፋይሉ ርዝመት፦ {html_len} ፊደላት። "
                 f"የተገኙ ሊንኮች፦ {detected_links}። የተገኙ ፎቶዎች፦ {detected_images}።\n"
@@ -1585,7 +1543,7 @@ class CEOOperations:
                 
                 # 🚀 ፎቶ ከሌለው ቋሚና ጥራት ያለው ምስል ፈልጎ ማምጣት
                 if not raw_photo:
-                    raw_photo = self._search_stable_product_image(p['title'])
+                    raw_photo = self._search_google_for_product_image(p['title'])
 
                 cloudinary_photo_url = self._save_image_to_cloudinary_permanently(raw_photo)
 
