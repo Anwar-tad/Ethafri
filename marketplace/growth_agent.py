@@ -835,7 +835,8 @@ class MultiChannelHarvester:
             if res.status_code == 200:
                 # 🛡️ FIXED: የነጠላ ጥቅስ ወይም የሌሎች አርጉመንቶችን መለዋወጥ የሚቋቋም ሁለንተናዊ ሬጀክስ [1]
                 messages = re.findall(r'<div[^>]*class=["\']tgme_widget_message_text[^"\']*["\'][^>]*>([\s\S]*?)</div>', res.text)
-                images = re.findall(r"background-image:\s*url\([\'"]?([^\'\)]+)[\'"]?\)", res.text)
+                # 🛡️ FIXED: የፓይተን ቶከናይዘር ስህተትን ለመከላከል አላስፈላጊ የኋላ ሰረዞች የተወገዱበት ስሪት
+                images = re.findall(r"background-image:\s*url\(['\"]?([^'\)]+)['\"]?\)", res.text)
                 
                 products = []
                 for i, msg in enumerate(messages[:15]): 
@@ -1482,39 +1483,12 @@ class CEOOperations:
 
     def _search_google_for_product_image(self, title) -> str:
         """
-        🚀 [Google Image Fallback]
-        ምርቱ የራሱ ፎቶ ከሌለው በጉግል ኢሜጅስ ላይ በምርቱ ስም ፈልጎ 
-        ትክክለኛና ጥራት ያለው ምስል የሚያመጣ የኤጀንቱ የላቀ ባህሪ (v10.65)
+        🚀 [Stealth Stable Image Finder - DDG Scraper + Locked Fallback v10.95]
+        ምርቱ የራሱ ፎቶ ከሌለው በከፍተኛ ጥራት በ DuckDuckGo ፈልጎ እውነተኛ ምስል ያመጣል፤
+        ካልተሳካም ሪፍሬሽ ሲደረግ የማይለዋወጥ ቋሚ ፎቶ በምርቱ ስም አዋቅሮ በዳታቤዝ ይቆልፋል [1]
         """
+        # የአማርኛና የእንግሊዝኛ ጽሑፎችን ብቻ ለይቶ ማጽዳት
         clean_title = re.sub(r'[^a-zA-Z0-9\s\u01200-\u0137F]', '', title).strip()
-        if not clean_title or len(clean_title) < 3:
-            return ""
-        
-        query = f"{clean_title} product photo"
-        url = f"https://www.google.com/search?q={requests.utils.quote(query)}&tbm=isch"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        try:
-            res = requests.get(url, headers=headers, timeout=8)
-            if res.status_code == 200:
-                image_urls = re.findall(r'src="(https://encrypted-tbn0\.gstatic\.com/images\?q=tbn:[^"]+)"', res.text)
-                if image_urls:
-                    img_url = image_urls[0]
-                    logger.info(f"✨ Google Image Fallback: Found product image for '{title}' -> {img_url}")
-                    return img_url
-        except Exception as e:
-            logger.debug(f"Google Image Fallback Search failed: {e}")
-        return ""
-    
-
-    def _search_stable_product_image(self, title) -> str:
-        """
-        🚀 [Stealth Stable Image Finder - DDG Scraper + Locked Fallback v10.92]
-        ምርቱ የራሱ ፎቶ ከሌለው በ DuckDuckGo ፈልጎ እውነተኛ ምስል ያመጣል፤
-        ካልተሳካም ሪፍሬሽ ሲደረግ የማይለዋወጥ ቋሚ ፎቶ በምርቱ ስም አዋቅሮ በዳታቤዝ ይቆልፋል
-        """
-        clean_title = re.sub(r'[^a-zA-Z0-9\s]', '', title).strip()
         if not clean_title or len(clean_title) < 3:
             clean_title = "product"
             
@@ -1522,11 +1496,12 @@ class CEOOperations:
         query = f"{clean_title} product photo"
         search_url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         try:
             res = requests.get(search_url, headers=headers, timeout=5)
             if res.status_code == 200:
+                # በ DDG ጽሑፍ ውስጥ የሚገኙትን ምስሎች መፈለግ
                 image_urls = re.findall(r'//(external-content\.duckduckgo\.com/iu/\?u=[^"\'&]+)', res.text)
                 if image_urls:
                     img_url = "https://" + image_urls[0]
@@ -1539,6 +1514,10 @@ class CEOOperations:
         # በምርቱ ስም ልዩ የ MD5 Hash ቁጥር በማመንጨት ፎቶውን በዳታቤዝ ውስጥ መቆለፍ
         lock_id = int(hashlib.md5(title.encode('utf-8')).hexdigest(), 16) % 1000
         slug_title = clean_title.lower().replace(" ", "-")
+        # የምርቱ ስም በአማርኛ ብቻ ከሆነ እና ስሉጉ ባዶ ከሆነ ወደ 'product' መመለስ
+        if not slug_title.strip():
+            slug_title = "product"
+            
         stable_fallback = f"https://loremflickr.com/800/600/{slug_title}?lock={lock_id}"
         logger.info(f"✨ Locked Fallback: Assigned stable locked photo for '{title}' -> {stable_fallback}")
         return stable_fallback
