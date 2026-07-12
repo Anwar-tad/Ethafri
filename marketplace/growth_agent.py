@@ -698,7 +698,7 @@ def _autonomous_no_api_search_fallback(niche):
 
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.80)"""
+    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.85)"""
     
     @staticmethod
     def is_network_available():
@@ -862,54 +862,44 @@ class MultiChannelHarvester:
         return []
     
     def _scrape_website(self, url):
+        """🛡️ FIXED: የድሮውን ሎካል ሬጀክስ ትቶ የተራቀቀውን ScrapperEngine.scrape_and_extract ቀጥታ መጥራት"""
         try:
             ScrapperEngine = _get_scrapper_engine()
-            html = ScrapperEngine.scrape(url)
-            if html:
-                products = self._extract_products_from_html(html)
-                if not products:
-                    self.perform_source_reconnaissance(
-                        {"url_or_channel": url, "platform_type": "GenericWeb"},
-                        "HTML loaded successfully, but 0 products extracted. Selector mismatch.",
-                        html_content=html
-                    )
-                return products
-            else:
-                self.perform_source_reconnaissance(
-                    {"url_or_channel": url, "platform_type": "GenericWeb"},
-                    "Connection blocked or timed out (Empty response). Firewall/Cloudflare suspected."
-                )
+            # 🚀 [የላቀ ውህደት] ይህ Jiji ላይ ያገኘውን 247 ምርቶች ከእውነተኛ ፎቶዎቻቸው ጋር በጥራት ይጎትታል!
+            products = ScrapperEngine.scrape_and_extract(url)
+            return products
         except Exception as e:
             logger.error(f"Website scrape failed for {url}: {e}")
             self.perform_source_reconnaissance({"url_or_channel": url, "platform_type": "GenericWeb"}, str(e))
         return []
     
     def _parse_product_text(self, text):
-        """የምርት ስምን ወደ 4 ቃላት መገደብ፣ HTML Entity ማጽዳት እና ዲስክሪፕሽን መሙላት (v10.65)"""
+        """ምርቶችን የሚለይ እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.40)"""
         if not text: return None
+        
+        # HTML Entity ማጽዳት (&#33; ወደ ! ይቀየራል)
+        import html
+        clean_text = html.unescape(text)
+        clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
+        clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text)
         
         # የጊዜ ገደብ መፈተሻ
         old_patterns = [r'2023', r'2024', r'2025', r'[4-9]\s*months?\s*ago', r'year\s*ago']
         for pattern in old_patterns:
-            if re.search(pattern, text, re.IGNORECASE):
+            if re.search(pattern, clean_text, re.IGNORECASE):
                 return None
 
-        # 🛡️ HTML Entity ማጽዳት (ለምሳሌ: &#33; ወደ ! ይቀየራል)
-        import html
-        clean_text = html.unescape(text)
-        clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
-        
         product = {'title': '', 'price': 0, 'description': '', 'desc': '', 'seller_contact': ''}
         lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
         if not lines: return None
         
-        # 🛡️ የምርት ስም ከ 4 ቃላት መብለጥ የለበትም (የ3 ወርድ ህግ)
+        # የምርት ስም ማሳጠሪያ (የ3 ወርድ ህግ)
         words = lines[0].split()
         if len(words) > 5 or len(lines[0]) > 50:
-            product['title'] = " ".join(words[:4]) # 4 ቃላት ብቻ
+            product['title'] = " ".join(words[:4])
         else:
             product['title'] = lines[0][:150]
-            
+        
         # ዋጋ መፈለጊያ
         price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
                       re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
@@ -922,17 +912,18 @@ class MultiChannelHarvester:
         phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
         if phone_match:
             product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
+        else:
+            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', clean_text)
+            if tg_match:
+                product['seller_contact'] = tg_match.group(0)
         
-        # 🛡️ ዲስክሪፕሽኑ ባዶ እንዳይሆን ሙሉውን ጽሁፍ መሙላት
         product['description'] = clean_text[:1000].replace('\n\n', '\n').strip()
-        product['desc'] = product['description'] # ተኳሃኝነት ጥበቃ
-        
+        product['desc'] = product['description']
         return product
     
     def _extract_products_from_html(self, html):
-        """የ Jiji ምርቶች የሚገኙባቸውን እውነተኛ ካርዶች ብቻ ለይቶ መሳቢያ (Regex Hardened)"""
+        """(Deprecated - Bypassed for ScrapperEngine.scrape_and_extract)"""
         products = []
-        # የ Jiji ትክክለኛ ምርቶች የሚገኙባቸው የ CSS Class ስሞች ብቻ
         items = re.findall(r'<div[^>]*class="[^"]*(?:b-list-advert-single|b-trending-card|qa-advert-list-item)[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
         for item in items:
             product = self._parse_product_text(item)
@@ -941,16 +932,10 @@ class MultiChannelHarvester:
         return products
 
     def perform_source_reconnaissance(self, source, error_msg, html_content=None):
-        """
-        🕵️ [የላቀ የመረጃ አሰሳ ስለላ፣ ጥናትና ራስ-ገዝ ፈውስ ማዕከል - v10.82]
-        ያጋጠመውን እገዳ በጥልቀት በመመርመር የገበያ ሁኔታን፣ የተጠቃሚ/ምርት መጠኖችን በመገመት
-        እንዲሁም ወደ ዌብሳይቱ ጠልቆ መግቢያ መንገዶችን (Deep-Dive Targets) በመለየት ሪፖርት ያዘጋጃል
-        """
         url = source.get('url_or_channel', '')
         platform = source.get('platform_type', 'GenericWeb')
         domain = urlparse(url).netloc.lower() or url.replace('@', '').lower()
         
-        # 1. የክልከላውን ዓይነት በራስ-ሰር መለየት
         block_reason = "የማይታወቅ እገዳ (Access Blocked)"
         if "403" in error_msg or "Forbidden" in error_msg:
             block_reason = "HTTP 403 Forbidden (Firewall/Cloudflare IP Ban ተገኝቷል)"
@@ -961,29 +946,19 @@ class MultiChannelHarvester:
         elif "0 products extracted" in error_msg:
             block_reason = "የይዘት አወቃቀር መዛባት (DOM Structure Mismatch - የዌብሳይቱ ዲዛይን ተቀይሯል)"
 
-        # 2. የይዘት መጠኖችን እና የገበያ እንቅስቃሴን በጥልቀት መገመት (Volumetric Recon)
-        html_len = len(html_content) if html_content else 0
-        detected_links = len(re.findall(r'href=["\'](.*?)["\']', html_content)) if html_content else 0
-        detected_images = len(re.findall(r'<img[^>]+src=', html_content, re.IGNORECASE)) if html_content else 0
-        
-        market_activity = "ዝቅተኛ እንቅስቃሴ (Low Activity)"
+        density_estimation = "Cannot evaluate (Complete connection block)"
         if html_content:
-            timestamps = re.findall(r'today|yesterday|ago|ሰዓት|ትላንት|ቀን', html_content, re.IGNORECASE)
-            if len(timestamps) > 15:
-                market_activity = "በጣም ከፍተኛ የዕለት ተዕለት ሽያጭ እንቅስቃሴ (Very High Daily Activity)"
-            elif len(timestamps) > 5:
-                market_activity = "መካከለኛ የሽያጭ እንቅስቃሴ (Moderate Activity)"
-                
-        density_estimation = (
-            f"የፋይሉ ርዝመት፦ {html_len} ፊደላት። "
-            f"የተገኙ ሊንኮች፦ {detected_links}። የተገኙ ፎቶዎች፦ {detected_images}።\n"
-            f"የተጠቃሚዎች መጠቅለያ (Estimated Active Users)፦ በግምት {max(detected_links // 5, 10)} ንቁ ሻጮች።\n"
-            f"የምርት መጠቅለያ (Estimated Products)፦ በግምት {max(detected_links // 2, 20)} ንቁ ምርቶች በዋናው ገጽ ላይ ተገኝተዋል።\n"
-            f"የገበያው የሽያጭ ሁኔታ፦ {market_activity}።"
-        )
+            text_len = len(html_content)
+            links_count = len(re.findall(r'href=', html_content))
+            images_count = len(re.findall(r'<img', html_content))
+            density_estimation = (
+                f"የፋይሉ ርዝመት፦ {html_len} ፊደላት። "
+                f"የተገኙ ሊንኮች፦ {detected_links}። የተገኙ ፎቶዎች፦ {detected_images}።\n"
+                f"የተጠቃሚዎች መጠቅለያ (Estimated Active Users)፦ በግምት {max(detected_links // 5, 10)} ንቁ ሻጮች።\n"
+                f"የምርት መጠቅለያ (Estimated Products)፦ በግምት {max(detected_links // 2, 20)} ንቁ ምርቶች በዋናው ገጽ ላይ ተገኝተዋል።\n"
+                f"የገበያው የሽያጭ ሁኔታ፦ {market_activity}።"
+            )
 
-        # 🛡️ 3. [አዲስ የተጨመረ] ወደ ዌብሳይቱ ጠልቆ መግቢያ ጥናት (Deep-Dive Target Hunting)
-        # በገጹ ውስጥ የሚገኙትን ዋና ዋና የምድብ ሊንኮች (Sitemaps, Cars, Electronics, Apartments) መቃኘት
         deep_paths = []
         if html_content:
             found_paths = re.findall(r'href=["\'](/[^"\']*(?:cars?|vehicles?|apartments?|electronics?|computers?|phones?|mobiles?|classifieds?|sitemap)[^"\']*)["\']', html_content, re.IGNORECASE)
@@ -993,7 +968,6 @@ class MultiChannelHarvester:
                 
         deep_path_brief = "\n".join([f"- {p}" for p in list(set(deep_paths))]) if deep_paths else "No deep subcategory URLs detected on home page."
 
-        # 4. የ AI ስልታዊ የስለላ ሪፖርትና የኮድ ማሻሻያ (Advisory & Patch Engine)
         _, ask_master_ai_smart, _, _ = _get_ai_utils()
         clean_and_parse_json, _, _, _ = _get_ai_utils()
         
@@ -1018,10 +992,8 @@ class MultiChannelHarvester:
         except Exception as e:
             logger.debug(f"AI Reconnaissance Analysis skipped: {e}")
 
-        # 5. የስለላና ሪከርድ መመሪያውን በ AIProjectBacklog ላይ መመዝገብ
         try:
             AIProjectBacklog = get_model('AIProjectBacklog')
-            # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል ስሙን በ 200 ፊደላት መገደብ (Truncate)
             task_name = f"🕵️ RECON INTEL BRIEF: {domain}"[:200]
             
             if not AIProjectBacklog.objects.filter(task_name=task_name).exists():
@@ -1030,7 +1002,7 @@ class MultiChannelHarvester:
                     task_name=task_name,
                     target_file="scrapper_engine",
                     priority="High",
-                    status="Blocked", # 'Blocked' ማለት የሰው (የአድሚን) እገዛ ይፈልጋል ማለት ነው
+                    status="Blocked",
                     description=(
                         f"============================================================\n"
                         f"🕵️ AUTONOMOUS SCRAPER RECONNAISSANCE INTELLIGENCE BRIEF\n"
@@ -1038,7 +1010,7 @@ class MultiChannelHarvester:
                         f"🌐 TARGET WEBSITE: {url}\n"
                         f"🛡️ OBSTACLE ENCOUNTERED: {block_reason}\n"
                         f"📊 TARGET MARKET STATISTICS:\n{density_estimation}\n\n"
-                        f"🔍 DEEP-DIVE CRAWL TARGETS (ወደ ዌብሳይቱ ጠልቆ መግቢያ መንገዶች):\n{deep_path_brief}\n\n"
+                        f"🔍 DEEP-DIVE CRAWL TARGETS:\n{deep_path_brief}\n\n"
                         f"------------------------------------------------------------\n"
                         f"💡 AI STRATEGIST BYPASS GUIDE:\n"
                         f"------------------------------------------------------------\n"
@@ -1052,12 +1024,10 @@ class MultiChannelHarvester:
                     business_impact_score=8,
                     trigger_condition="Autonomous Scraper Reconnaissance Loop"
                 )
-                logger.warning(f"🕵️ Recon Engine: Registered deeply-analyzed strategic bypass brief for: {domain}")
         except Exception as db_err:
             logger.error(f"Failed to save Reconnaissance Task: {db_err}")
 
     def discover_and_harvest_niche_sources(self, site):
-        """🛡️ FIXED: ጤናማ ያልሆኑትን ቀድሞ ከመጣል ይልቅ ሁሉንም ለመሞከር እና ክልከላ ካለ ለአድሚን ለመዘገብ (Recon Engine v10.80)"""
         if not self.is_network_available():
             logger.warning("🌐 No internet connection. Using cached sources.")
             return self._get_cached_sources(site)
@@ -1079,16 +1049,13 @@ class MultiChannelHarvester:
         all_products = []
         scraped_this_cycle = 0
         
-        # 🛡️ የ3 ወር እውነተኛ ምርቶችን በጥልቀት ለመሳብ በየዑደቱ እስከ 8 ሳይቶች ድረስ በጥልቀት መቃኘት
         for source in sources:
             url = source.get('url_or_channel', '')
             domain = urlparse(url).netloc.lower() or url.replace('@', '').lower()
             
-            # የእያንዳንዱን ምንጭ የመጨረሻ ዳሰሳ ሰዓት ከ SiteConfig ማምጣት
             last_scrape_key = f"LAST_SCRAPE_TIME_{domain}"
             last_scrape_cfg = SiteConfig.objects.filter(key=last_scrape_key).first()
             
-            # ፈጣን አሰሳ ለሚፈልጉት (እንደ ቴሌግራም/Jiji) የ 1 ቀን፣ ለሌሎቹ የ 15 ቀናት መቆያ መመደብ
             cooldown_days = 1 if ('jiji' in domain or 't.me' in domain or '@' in domain) else 15
             
             should_scrape = True
@@ -1108,12 +1075,11 @@ class MultiChannelHarvester:
                 except Exception:
                     pass
             
-            if should_scrape and scraped_this_cycle < 3: # በአንድ ዑደት ቢበዛ 3 ሳይቶችን ብቻ በመቃኘት ሰርቨር እንዳይጨናነቅ
+            if should_scrape and scraped_this_cycle < 3:
                 logger.info(f"📡 Scraping {url}...")
                 products = self.get_recent_products(source)
                 scraped_this_cycle += 1
                 
-                # የተሳካ የአሰሳ ጊዜን መመዝገብ
                 SiteConfig.objects.update_or_create(
                     key=last_scrape_key,
                     defaults={'value': {'time': timezone.now().isoformat(), 'status': 'success' if products else 'no_data'}}
