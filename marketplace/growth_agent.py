@@ -1,22 +1,4 @@
-ስሪት **v10.90** በተሳካ ሁኔታ ተሻሽሎ ወደ Phase 1 Optimized ደረጃ ተሸጋግሯል። ይህ ስክሪፕት በላቁ ማስተካከያዎች Render Cloud ላይ ያለውን የሲፒዩ ጫና sub-1.0 ወሰን ውስጥ እንዲቆይ ለማድረግ እና ተኳሃኝነትን ለማረጋገጥ በሚያስደንቅ ሁኔታ የተዋቀረ ነው።
-በዚህ ስሪት ላይ የተተገበሩት ቁልፍ ማሻሻያዎች፦
- 1. **የአሰሳ የጊዜ ገደብ መቆጣጠሪያ (Intelligent Crawl Intervals)**፦ በdiscover_and_harvest_niche_sources ውስጥ ለt.me እና Jiji የ1 ቀን፣ ለሌሎች ድረ-ገጾች ደግሞ የ15 ቀናት የመቆያ (Cooldown) ማፈራረቂያ መዋቀሩ የስርዓቱን የሀብት አጠቃቀም (Resource Usage) በእጅጉ ያቃልላል።
- 2. **የተኳሃኝነት እገዳ መፍቻ (Dynamic Module Integration)**፦ ለ v12.0 ዝግጁ እንዲሆን የግሎባል ምንጭ መለያዎችን በ_get_scrapper_engine ላይ በዳይናሚክ scrape_and_extract_products ላይ ማገናኘቱ እጅግ ብልህነት የተሞላበት ነው።
- 3. **የዳታ አወቃቀር ጥበቃ (List Slicing Guardrails)**፦ በቴሌግራም አሰሳ ላይ መልዕክቶች ባዶ ቢሆኑም crash እንዳይያደርግ messages[:8] እና images[i] በሚሉ የ slicing ጥበቃዎች የታረረ መሆኑ ጽናቱን (Robustness) ይጨምራል።
- 4. **Fuzzy Locked Images & Memory Clean**፦ ፎቶ ለሌላቸው ምርቶች በምድብ ለይቶ ቋሚና ጥራት ያለው ምስል መቆለፉ እና prod_count == 0 ሲሆን የታሪክ ትውስታን አጥቦ አዲስ ዳታ እንዲዘራ መደረጉ ድንቅ ነው።
-### ⚠️ አንገብጋቢ የሎጂክ እና የሲንታክስ ስህተቶች (Critical Code Patches)
-ይሁን እንጂ ኮዱ ሲተነተን ስርዓቱ በምርት ላይ (Production) ሲሰማራ **Fatal Crash** ሊያስከትሉ የሚችሉ ጥቂት የፓይተን ሲንታክስ እና የሎጂክ ስህተቶች ተገኝተዋል፦
-#### 1. በperform_source_reconnaissance ውስጥ ያልተገለጸው ተለዋዋጭ (html_len)
-በመስመር 564 አካባቢ text_len = len(html_content) ተብሎ ከተጻፈ በኋላ፣ በታችኛው መስመር ላይ html_len የሚል ያልተገለጸ ስም ተጠርቷል። ይህ NameError ያስከትላል።
- * **መፍትሄ፦** html_len የሚለውን ስም ወደ text_len መቀየር ወይም ተለዋዋጩን ማስተካከል።
-#### 2. በMultiChannelHarvester ውስጥ የ DuckDuckGo አሰሳ መቋረጥ (headers NameError)
-በመስመር 423 ላይ url = f"https://html.duckduckgo.com/html/?q=..." ተብሎ DuckDuckGo በfallback ሲጠራ headers=headers ተብሏል፤ ነገር ግን በዚህ ፈንክሽን (_no_api_fallback_harvest) ውስጥ headers አልተበየነም። ይህ ዳታ አሰሳውን ወዲያውኑ ያቋርጠዋል።
- * **መፍትሄ፦** በፈንክሽኑ መጀመሪያ ላይ የ User-Agent headers መበየን።
-#### 3. በgenerate_contact_links ፈንክሽን ውስጥ የ Indentation እና Return ስህተት
-ይህ ፈንክሽን staticmethod ሆኖ ሳለ፣ የ else ዘጋቢው ክፍል እና return links መዋቅር ወደ ውጪ ወጥተው (Misaligned Indentation) ስለተጻፉ የ contact_str ዳታ ስልክ ቁጥር ባልሆነ ጊዜ የፓይተን IndentationError ወይም UnboundLocalError ሊያስከትል ይችላል።
-### 🛠️ የተስተካከለና ሙሉ በሙሉ የተረጋገጠ የኮድ እትም (Clean Complete Code)
-እነዚህን ወሳኝ ክፍተቶች ሙሉ በሙሉ በመጠገን፣ በምርት ላይ ያለምንም እንከን መስራት እንዲችል ተደርጎ የተዘጋጀው ሙሉ የኮድ አካል ከዚህ በታች ቀርቧል፦
-```python
+
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
 # 📝 ስሪት፦ v10.91 (Ultimate Evolved CEO Agent - Production Ready Patch)
