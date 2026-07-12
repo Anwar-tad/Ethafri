@@ -37,7 +37,8 @@ class FingerprintEvasion:
 
     @classmethod
     def get_headers(cls, url: str) -> Dict[str, str]:
-        ua = random.choice(cls.MOBILE_UA) if 't.me' in url or 'telegram' in url or '@' in url else random.choice(cls.DESKTOP_UA)
+        # 't.me'፣ 'telegram' ወይም '@' ካለ የሞባይል/ቴሌግራም User-Agent ይመርጣል
+        ua = random.choice(cls.MOBILE_UA) if any(k in url.lower() for k in ['t.me', 'telegram', '@']) else random.choice(cls.DESKTOP_UA)
         return {
             'User-Agent': ua,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -49,9 +50,108 @@ class FingerprintEvasion:
 
 
 # ============================================================
+# 📊 SCRAPER METRICS TRACKER
+# ============================================================
+class ScraperMetrics:
+    def __init__(self):
+        self.total_attempts = 0
+        self.successful_scrapes = 0
+        self.failed_scrapes = 0
+        self.cache_hits = 0
+        self.cache_misses = 0
+        self.last_scrape_time = None
+        self.errors = []
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'total_attempts': self.total_attempts,
+            'successful_scrapes': self.successful_scrapes,
+            'failed_scrapes': self.failed_scrapes,
+            'cache_hits': self.cache_hits,
+            'cache_misses': self.cache_misses,
+            'last_scrape_time': self.last_scrape_time.isoformat() if self.last_scrape_time else None,
+            'errors_count': len(self.errors),
+            'latest_errors': self.errors[-5:]
+        }
+
+
+# ============================================================
+# ⏱️ INTELLIGENT RATE LIMITER & BACKOFF
+# ============================================================
+class IntelligentRateLimiter:
+    def __init__(self, base_delay: float = 2.0):
+        self.base_delay = base_delay
+        self.current_delay = base_delay
+        self.last_request_time = 0.0
+        self.success_streak = 0
+
+    def wait_if_needed(self):
+        now = time.time()
+        elapsed = now - self.last_request_time
+        # ማስተካከያ ካስፈለገ በተለዋዋጭ delay ልክ ይጠብቃል
+        sleep_needed = self.current_delay + random.uniform(0.5, 2.0) - elapsed
+        if sleep_needed > 0:
+            time.sleep(sleep_needed)
+        self.last_request_time = time.time()
+
+    def record_success(self):
+        self.success_streak += 1
+        if self.success_streak > 5:
+            # በተከታታይ ከተሳካ የጥበቃ ጊዜውን ወደ መደበኛው ዝቅ ያደርጋል
+            self.current_delay = max(self.base_delay, self.current_delay * 0.9)
+
+    def record_failure(self):
+        self.success_streak = 0
+        # እገዳ ሲያጋጥም የጥበቃ ጊዜውን በከፍተኛ ደረጃ ይጨምራል (Exponential Backoff)
+        self.current_delay = min(30.0, self.current_delay * 2.0)
+
+    def get_stats(self) -> Dict[str, Any]:
+        return {
+            'current_delay': round(self.current_delay, 2),
+            'success_streak': self.success_streak
+        }
+
+
+# ============================================================
+# 💾 SMART IN-MEMORY CACHE
+# ============================================================
+class SmartCache:
+    def __init__(self, ttl: int = 3600):
+        self.store = {}
+        self.ttl = ttl
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, key: str) -> Optional[str]:
+        if key in self.store:
+            data, expires = self.store[key]
+            if time.time() < expires:
+                self.hits += 1
+                return data
+            else:
+                del self.store[key]
+        self.misses += 1
+        return None
+
+    def set(self, key: str, value: str):
+        expires = time.time() + self.ttl
+        self.store[key] = (value, expires)
+
+    def get_stats(self) -> Dict[str, int]:
+        return {
+            'hits': self.hits,
+            'misses': self.misses,
+            'size': len(self.store)
+        }
+
+
+# ============================================================
 # 🔍 SMART PRODUCT EXTRACTOR (የላቀ የምርት መሰብሰቢያ)
 # ============================================================
 class SmartProductExtractor:
+    def __init__(self):
+        self.cache = SmartCache(ttl=600)  # የራሱ ውስጣዊ መሸጎጫ
+
     @staticmethod
     def extract_products(html: str, url: str) -> List[Dict]:
         if not html: return []
@@ -119,7 +219,6 @@ class SmartProductExtractor:
                 
         product['description'] = " ".join(text_content.split())[:500]
         
-        # Jiji Lazy-Loading የፎቶ መደበቂያዎችን ሰብሮ እውነተኛውን ፎቶ መውሰጃ
         img_el = node.find('img')
         if img_el:
             img_url = img_el.get('data-src') or img_el.get('data-lazy') or img_el.get('lazy-src') or img_el.get('src')
@@ -130,60 +229,16 @@ class SmartProductExtractor:
             
         return product
 
-    @staticmethod
-    def _extract_from_container(container: str, patterns: Dict, site_type: str) -> Dict:
-        product = {'title': '', 'price': 0, 'description': '', 'seller_contact': '', 'image_url': ''}
-        
-        title_patterns = [patterns.get('title'), r'<strong[^>]*>(.*?)</strong>', r'<b[^>]*>(.*?)</b>', r'<h[1-4][^>]*>(.*?)</h[1-4]>']
-        for pattern in filter(None, title_patterns):
-            match = re.search(pattern, container, re.DOTALL | re.IGNORECASE)
-            if match:
-                title = re.sub(r'<[^>]+>', ' ', match.group(1)).strip()
-                title = " ".join(title.split())
-                if len(title) > 3:
-                    product['title'] = title[:150]
-                    break
-        
-        price_patterns = [patterns.get('price'), r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)']
-        for pattern in filter(None, price_patterns):
-            match = re.search(pattern, container, re.DOTALL | re.IGNORECASE)
-            if match:
-                try:
-                    price_str = re.sub(r'[^\d,]', '', match.group(1))
-                    product['price'] = float(price_str.replace(',', ''))
-                    break
-                except: pass
-                
-        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', container)
-        if phone_match:
-            product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
-        else:
-            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', container)
-            if tg_match:
-                product['seller_contact'] = tg_match.group(0)
-
-        clean_desc = re.sub(r'<[^>]+>', ' ', container).strip()
-        product['description'] = " ".join(clean_desc.split())[:500]
-
-        img_match = re.search(r'<img[^>]+(?:data-src|data-lazy|lazy-src|src)=["\']([^"\']+)["\']', container, re.IGNORECASE)
-        if img_match:
-            img_url = img_match.group(1)
-            if ',' in img_url:
-                img_url = img_url.split(',')[0].strip().split(' ')[0]
-            product['image_url'] = img_url
-
-        return product
-
 
 # ============================================================
 # 🚀 MAIN SCRAPPER ENGINE
 # ============================================================
-
 class ScrapperEngine:
     """የላቀ የድረ-ገጽ ዳሰሳ ሞተር"""
     
     def __init__(self):
-        self.extractor = AdvancedProductExtractor()
+        # ከውጭ ጥሪዎች (growth_agent) ጋር ተኳሃኝ እንዲሆን SmartProductExtractor እዚህ ተመድቧል
+        self.extractor = SmartProductExtractor()
         self.rate_limiter = IntelligentRateLimiter()
         self.cache = SmartCache(ttl=3600)
         self.metrics = ScraperMetrics()
@@ -242,7 +297,7 @@ class ScrapperEngine:
             
             async def _fetch():
                 async with async_playwright() as p:
-                    headers = FingerprintEvasion.get_headers(url, 't.me' in url)
+                    headers = FingerprintEvasion.get_headers(url)
                     
                     # የፕሮክሲ ውቅር
                     proxy_url = os.getenv("SMART_PROXY_URL", "").strip()
@@ -264,7 +319,7 @@ class ScrapperEngine:
                     
                     page = await context.new_page()
                     
-                    # Anti-detection
+                    # Anti-detection JS Injection
                     await page.add_init_script("""
                         Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
                         Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
@@ -277,7 +332,7 @@ class ScrapperEngine:
                     # የዘፈቀደ መጠበቅ
                     await asyncio.sleep(random.uniform(2, 5))
                     
-                    # ወደ ታች መውረድ
+                    # ወደ ታች መውረድ (Lazy loaded items ለመቀስቀስ)
                     for i in range(random.randint(2, 4)):
                         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                         await asyncio.sleep(random.uniform(1, 2))
@@ -286,7 +341,7 @@ class ScrapperEngine:
                     await browser.close()
                     return content
             
-            # Async ን ማስኬድ
+            # Async ሉፕን ደህንነቱ በተጠበቀ ሁኔታ ማስኬጃ
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
@@ -309,9 +364,7 @@ class ScrapperEngine:
         try:
             import requests
             
-            headers = FingerprintEvasion.get_headers(url, 't.me' in url)
-            
-            # ጊዜያዊ መጠበቅ
+            headers = FingerprintEvasion.get_headers(url)
             time.sleep(random.uniform(1, 3))
             
             response = requests.get(url, headers=headers, timeout=30)
@@ -337,7 +390,7 @@ class ScrapperEngine:
         
         products = self.extractor.extract_products(html, url)
         
-        # ለምርመራ ሪፖርት
+        # ምንም ምርት ካልተገኘ የምርመራ ሪፖርት ያዘጋጃል
         if not products:
             report = self._generate_diagnostic_report(url, html)
             self._save_report(report)
@@ -346,7 +399,7 @@ class ScrapperEngine:
     
     def _generate_diagnostic_report(self, url: str, html: str) -> Dict:
         """የምርመራ ሪፖርት ያዘጋጃል"""
-        domain = urlparse(url).netloc.lower()
+        domain = urlparse(url).netloc.lower() or "telegram_channel"
         
         report = {
             'url': url,
@@ -362,13 +415,12 @@ class ScrapperEngine:
         }
         
         if html and len(html) > 1000:
-            # የገጹ አይነት ለመለየት ሞክር
             if 'cloudflare' in html.lower():
-                report['suggestions'].append('Cloudflare detected -可能需要代理')
+                report['suggestions'].append('Cloudflare WAF Detected. Consider proxy rotation.')
             if 'captcha' in html.lower():
-                report['suggestions'].append('CAPTCHA detected -可能需要手动解决')
-            if 'access denied' in html.lower():
-                report['suggestions'].append('Access denied -可能需要更换IP或User-Agent')
+                report['suggestions'].append('CAPTCHA trigger detected.')
+            if 'access denied' in html.lower() or 'forbidden' in html.lower():
+                report['suggestions'].append('IP Block or User-Agent blacklist encountered.')
         
         return report
     
@@ -376,7 +428,8 @@ class ScrapperEngine:
         """ሪፖርቱን ያስቀምጣል"""
         try:
             os.makedirs('data/diagnostics', exist_ok=True)
-            filename = f"data/diagnostics/{report['domain']}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            safe_domain = re.sub(r'[^\w\-]', '_', report['domain'])
+            filename = f"data/diagnostics/{safe_domain}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             with open(filename, 'w') as f:
                 json.dump(report, f, indent=2)
         except Exception as e:
@@ -394,9 +447,13 @@ class ScrapperEngine:
             }
         }
 
-# ለድሮ ኮድ ተኳሃኝነት
+# ============================================================
+# 🔄 BACKWARD COMPATIBILITY LAYER (ለቀድሞ ኮድ ተኳሃኝነት)
+# ============================================================
+_shared_engine = ScrapperEngine()
+
 def scrape_and_extract_products(url: str) -> List[Dict]:
-    return ScrapperEngine.scrape_and_extract(url)
+    return _shared_engine.scrape_and_extract(url)
 
 def scrape_url(url: str) -> Optional[str]:
-    return ScrapperEngine.scrape(url)
+    return _shared_engine.scrape(url)
