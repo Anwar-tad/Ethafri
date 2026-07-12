@@ -7,7 +7,10 @@
 # ============================================================
 
 from __future__ import annotations
-
+try:
+    from typing import Dict, List, Optional, Any, Tuple
+except ImportError:
+    from typing import *
 from django.contrib.auth.models import User
 import ast
 import json
