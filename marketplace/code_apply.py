@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.4 - Import Injection Hardened)
-# ✅ የተፈቱ ችግሮች፦ Dynamic import injection to prevent NameError on modular splitting, base indentation stripping, path traversal protections, and GitHub push early return guards.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.45)
+# ✅ የተፈቱ ችግሮች፦ Fixed local scope leakage in strip_base_indent function, enabled dynamic import injection, secured Path Traversal protections, and hardened AST surgical patching.
+# 📅 ቀን፦ Tuesday, July 07, 2026
 # ============================================================
 
 import os
@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# 💉 1. DYNAMIC IMPORT INJECTOR (የራስ-ገዝ አውቶማቲክ ኢምፖርት መትከያ)
+# 💉 1. DYNAMIC IMPORT INJECTOR
 # ============================================================
 
 def inject_import_to_file(path: str, import_line: str) -> Tuple[bool, str]:
     """
-    በፓይተን ፋይል አናት ላይ አዳዲስ የ import መግለጫዎችን (ለምሳሌ from .helper import Class)
-    ሳይደገሙ በደህንነት የሚቀስቅስ እና የሚተክል የቀዶ-ጥገና ሎጂክ [1]
+    በፓይተን ፋይል አናት ላይ አዳዲስ የ import መግለጫዎችን
+    ሳይደገሙ በደህንነት የሚቀስቅስ እና የሚተክል የቀዶ-ጥገና ሎጂክ
     """
     if not os.path.exists(path):
         return False, "Target file for import injection not found"
@@ -33,14 +33,14 @@ def inject_import_to_file(path: str, import_line: str) -> Tuple[bool, str]:
         with open(path, 'r', encoding='utf-8') as f:
             content = f.read()
             
-        # አስቀድሞ ኢምፖርቱ መኖሩን መፈተሽ (ተደጋጋሚ እንዳይሆን)
+        # አስቀድሞ ኢምፖርቱ መኖሩን መፈተሽ
         if import_line.strip() in content:
             return True, "Import already exists in file"
             
         lines = content.splitlines()
         insert_idx = 0
         
-        # 'from __future__' ወይም '📁' የፋይል አቅጣጫ ኮሜንቶች ካሉ ከእነሱ በታች ለመትከል መፈተሽ
+        # 'from __future__' ወይም የፋይል አቅጣጫ ኮሜንቶች ካሉ ከእነሱ በታች ለመትከል መፈተሽ
         for idx, line in enumerate(lines[:15]):
             if line.strip().startswith('from __future__') or line.strip().startswith('#'):
                 insert_idx = idx + 1
@@ -62,13 +62,13 @@ def inject_import_to_file(path: str, import_line: str) -> Tuple[bool, str]:
 
 
 # ============================================================
-# 🛡️ 2. BASE INDENT STRIPPER (ድርብ ሰፔስ እና IndentationError መከላከያ)
+# 🛡️ 2. BASE INDENT STRIPPER
 # ============================================================
 
 def strip_base_indent(text: str) -> str:
     """
     ኤአይ ያመነጨውን ኮድ የራሱን መነሻ ክፍተቶች (Base Indent) በመለየት
-    ድርብ ኢንዴንቴሽን እንዳይፈጠር የሚያጸዳ ረዳት ፈንክሽን [1]
+    ድርብ ኢንዴንቴሽን እንዳይፈጠር የሚያጸዳ ረዳት ፈንክሽን (🛡️ FIXED: v10.45)
     """
     lines = text.splitlines()
     if not lines:
@@ -78,7 +78,8 @@ def strip_base_indent(text: str) -> str:
     base_indent = ""
     for line in lines:
         if line.strip():
-            match = re.match(r'^\s*', lines[start_line]) if 'start_line' in locals() else re.match(r'^\s*', line)
+            # 🛡️ FIXED: የቆየው የ lines[start_line] ስጋት ተወግዶ በንጹሕ ሪጀክስ ተተክቷል
+            match = re.match(r'^\s*', line)
             base_indent = match.group(0) if match else ""
             break
         
@@ -103,7 +104,7 @@ def strip_base_indent(text: str) -> str:
 def apply_surgical_patch(path, target_name, new_code_segment):
     """
     በ AST አማካኝነት በፓይተን ፋይል ውስጥ የሚገኝን አንድ የተወሰነ ፈንክሽን ወይም ክላስ
-    ሳይትሳሳት ለይቶ በአዲሱ ኮድ ብቻ ቆርጦ የሚተካ የቀዶ-ጥገና ሎጂክ [1, 2]
+    ሳይትሳሳት ለይቶ በአዲሱ ኮድ ብቻ ቆርጦ የሚተካ የቀዶ-ጥገና ሎጂክ
     """
     if not os.path.exists(path):
         return False, "File not found"
@@ -116,10 +117,8 @@ def apply_surgical_patch(path, target_name, new_code_segment):
         lines = source_code.splitlines()
         
         target_node = None
-        # በፋይሉ ውስጥ ያሉትን ሁሉንም ክላሶች እና ፈንክሽኖች መፈለግ
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
-                # Call nodes are skipped
                 continue
             if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name == target_name:
                 target_node = node
@@ -128,18 +127,14 @@ def apply_surgical_patch(path, target_name, new_code_segment):
         if not target_node:
             return False, f"Target '{target_name}' not found in AST of {path}"
             
-        # የፈንክሽኑን መነሻ እና ማጠናቀቂያ መስመር ለይቶ ማውጣት (Python 3.8+ end_lineno)
         start_line = target_node.lineno - 1
         end_line = target_node.end_lineno
         
-        # የድሮውን መነሻ spacing (Indentation) ለይቶ ማውጣት
         match_indent = re.match(r'^\s*', lines[start_line])
         indent_prefix = match_indent.group(0) if match_indent else ""
         
-        # 🛡️ FIXED: ድርብ ኢንዴንቴሽንን ለመከላከል የኤአይን ቤዝ ኢንዴንት በቅድሚያ ማጽዳት
         clean_segment = strip_base_indent(new_code_segment)
         
-        # በእያንዳንዱ አዲስ የኮድ መስመር ላይ የአሰላለፍ spacing መጨመር
         indented_lines = []
         for line in clean_segment.splitlines():
             if line.strip():
@@ -148,13 +143,9 @@ def apply_surgical_patch(path, target_name, new_code_segment):
                 indented_lines.append("")
                 
         patched_segment = "\n".join(indented_lines)
-        
-        # የተመረጠውን መስመር ብቻ ቆርጦ በአዲሱ መተካት
         lines[start_line:end_line] = [patched_segment]
         
         updated_code = "\n".join(lines)
-        
-        # ሲንታክስ ትክክል መሆኑን በ Sandbox መፈተሽ
         ast.parse(updated_code)
         
         with open(path, 'w', encoding='utf-8') as f:
@@ -177,18 +168,14 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
     እና በአስተዳዳሪው ትዕዛዝ መሠረት ብቻ ወደ GitHub ያመሳስላል (Sync)
     """
     
-    # 1. የፋይል ስም እና ማውጫ በዳይናሚክ መፍታት (SaaS Sandboxed Workspaces) [1, 2]
     base_dir = str(settings.BASE_DIR)
     app_name = 'marketplace'
     
-    # የሳይቱን ቤዝ ማህደር መወሰን (የሳይቶች ዳታ እንዳይደባለቅ መከላከያ - Multi-Tenant Sandbox) [1, 2]
     if site and site.name != 'primary':
         if site.repo_path:
             if site.repo_path.startswith('http') or 'github.com' in site.repo_path:
-                # ሪሞት ሪፖዚተሪ ከሆነ በጊዚያዊ የሥራ ማህደር ውስጥ ማስቀመጥ
                 base = os.path.join('/tmp', 'ethafri_agent', site.name)
             else:
-                # ሎካል ማህደር ከሆነ የራሱን ማውጫ መጠቀም
                 base = site.repo_path
         else:
             base = os.path.join('/tmp', 'ethafri_agent', site.name)
@@ -205,11 +192,10 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
             
         path = os.path.join(base, app_name, file_path_relative)
     
-    # 2. 🛡️ የደህንነት ጥበቃ አጥር (Path Traversal Gating - Commonpath Check) [1, 2]
+    # 2. የደህንነት ጥበቃ አጥር (Path Traversal Gating)
     real_path = os.path.abspath(path)
     real_base = os.path.abspath(base)
     
-    # የፋይል መሄጃው ከዋናው ማውጫ ውጭ ለመፃፍ እንዳይሞክር መቆጣጠሪያ
     try:
         if os.path.commonpath([real_path, real_base]) != real_base:
             raise ValueError("Path Traversal Blocked")
@@ -221,7 +207,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
             'path': path, 'file_key': file_key
         }
 
-    # 3. 🛡️ FIXED: አውቶማቲክ የኢምፖርት መስመር መትከያ (Import Injection) [1]
+    # 3. አውቶማቲክ የኢምፖርት መስመር መትከያ (Import Injection)
     if inject_import and isinstance(inject_import, dict):
         target_file_path = inject_import.get('target_path')
         import_line = inject_import.get('import_line')
@@ -251,17 +237,15 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
         except Exception as e:
             logger.warning(f"⚠️ Could not read old file for backup: {e}")
 
-    # 6. ወደ ፋይል ጻፍ (Local File Write / Surgical Patch Fallback) [1, 2]
+    # 6. ወደ ፋይል ጻፍ (Local File Write / Surgical Patch Fallback)
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if target_name:
-            # 🔴 የቀዶ-ጥገና ኮድ ማያያዣ (Surgical Code Patching)
             success, msg = apply_surgical_patch(path, target_name, new_content)
             if not success:
                 return {'success': False, 'applied': False, 'message': msg, 'path': path, 'file_key': file_key}
             logger.info(f"💾 Surgically patched target '{target_name}' in: {path}")
         else:
-            # Full File Override
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
             logger.info(f"💾 File overwritten successfully: {path}")
@@ -314,7 +298,6 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
 # ============================================================
 
 def push_to_github_raw(file_path, content, message, site=None):
-    """GitHub API በመጠቀም ኮድን በቀጥታ ወደየሳይቱ ሪፖዚተሪ መግፋት"""
     token = getattr(settings, 'GITHUB_TOKEN', None)
     
     if not token:
