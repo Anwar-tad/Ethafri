@@ -846,6 +846,7 @@ def google_search_console_index_view(request):
 
 @staff_member_required
 @csrf_exempt
+
 def harvester_orchestrator_view(request):
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
@@ -860,18 +861,22 @@ def harvester_orchestrator_view(request):
     active_sources = []
     dropped_sources = []
 
+    # 🔄 ማሻሻያ፦ ሁሉንም ሳይቶች በአንድ ጊዜ መጫን
     sites = SiteRegistry.objects.filter(is_active=True)
-    selected_site_id = request.GET.get('site_id') or (str(sites.first().id) if sites.exists() else None)
-    
-    if selected_site_id and selected_site_id.isdigit():
+    selected_site_id = request.GET.get('site_id')
+
+    # 🛡️ FIXED: .isdigit() ለ UUID ስላልሚሰራ ተወግዶ በአስተማማኝ ቼክ ተተክቷል
+    if selected_site_id:
         current_site = get_object_or_404(SiteRegistry, id=selected_site_id)
+    elif sites.exists():
+        current_site = sites.first()
 
     if current_site and AIProjectBacklog:
         recon_reports = AIProjectBacklog.objects.filter(
             site=current_site, target_file="scrapper_engine", status="Blocked"
         ).order_by('-created_at')
 
-    # 📋 8. የውሂብ ትንተናዎች (Analytics Load First to prevent NameError)
+    # 📋 የውሂብ ትንተናዎች (Analytics Load First)
     today = timezone.now().date()
     yesterday = today - timedelta(days=1)
     thirty_days_ago = timezone.now() - timedelta(days=30)
@@ -889,15 +894,16 @@ def harvester_orchestrator_view(request):
         try:
             report_briefs = [r.description[:100] for r in recon_reports[:3]]
             if report_briefs:
-                # 🛡️ FIXED: html_len እና detected_links NameError ስህተት በ stats ተተክቷል
                 prompt = (
                     f"Write a brief summary in Amharic (max 200 chars) based on issues: {json.dumps(report_briefs)}. "
                     f"Current Stats: Today scraped {stats['scraped_today']} products."
                 )
                 from .ai_utils import ask_master_ai_smart
                 daily_summary = ask_master_ai_smart(prompt, task_type="analysis")
-        except Exception: pass
+        except Exception:
+            pass
 
+    # ➕ SOURCE መመዝገቢያ ሎጂክ
     if request.method == "POST" and request.POST.get('action') == "add_source" and current_site:
         url_or_channel = request.POST.get('url_or_channel', '').strip()
         platform_type = request.POST.get('platform_type', 'Telegram').strip()
@@ -914,8 +920,10 @@ def harvester_orchestrator_view(request):
                 registry.value = current_sources
                 registry.save()
                 messages.success(request, f"✅ Source '{url_or_channel}' successfully added!")
-        return redirect(f"/admin/harvester/?site_id={selected_site_id}")
+        # 🛡️ FIXED: ደህንነቱ የተጠበቀ ሪዲሬክት በ current_site.id
+        return redirect(f"/admin/harvester/?site_id={current_site.id}")
 
+    # ❌ SOURCE ማሰናከያ ሎጂክ
     if request.method == "POST" and request.POST.get('action') == "delete_source" and current_site:
         url_or_channel = request.POST.get('url_or_channel', '').strip()
         reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
@@ -925,16 +933,19 @@ def harvester_orchestrator_view(request):
             registry.value = filtered_sources
             registry.save()
             messages.success(request, f"❌ Source '{url_or_channel}' successfully removed.")
-        return redirect(f"/admin/harvester/?site_id={selected_site_id}")
+        # 🛡️ FIXED: ደህንነቱ የተጠበቀ ሪዲሬክት በ current_site.id
+        return redirect(f"/admin/harvester/?site_id={current_site.id}")
 
     if current_site:
         reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
         registry = SiteConfig.objects.filter(key=reg_key).first()
-        if registry and isinstance(registry.value, list): active_sources = registry.value
+        if registry and isinstance(registry.value, list): 
+            active_sources = registry.value
 
     if SelfHealingLog:
         dropped_sources = SelfHealingLog.objects.filter(error_message__icontains="dropping").order_by('-created_at')[:15]
 
+    # የ 7 ቀን የምርት ትንተና መስመር (Daily Trend Chart Data)
     daily_trend = []
     for i in range(6, -1, -1):
         target_date = today - timedelta(days=i)
