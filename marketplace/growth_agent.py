@@ -827,16 +827,18 @@ class MultiChannelHarvester:
         return []
     
     def _scrape_telegram(self, channel):
+        """የቴሌግራም ምርቶችን ያለምንም ስህተት በሁለንተናዊ ሬጀክስ መፈልቀቂያ (v10.85)"""
         username = extract_telegram_username(channel)
         url = f"https://t.me/s/{username}"
         try:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
-                messages = re.findall(r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', res.text, re.DOTALL)
-                images = re.findall(r"background-image:url\(\'([^\'\)]+)\'\)", res.text)
+                # 🛡️ FIXED: የነጠላ ጥቅስ ወይም የሌሎች አርጉመንቶችን መለዋወጥ የሚቋቋም ሁለንተናዊ ሬጀክስ [1]
+                messages = re.findall(r'<div[^>]*class=["\']tgme_widget_message_text[^"\']*["\'][^>]*>([\s\S]*?)</div>', res.text)
+                images = re.findall(r"background-image:\s*url\([\'"]?([^\'\)]+)[\'"]?\)", res.text)
                 
                 products = []
-                for i, msg in enumerate(messages[:8]): 
+                for i, msg in enumerate(messages[:15]): 
                     clean_text = re.sub(r'<[^>]+>', ' ', msg).strip()
                     if clean_text:
                         product = self._parse_product_text(clean_text)
@@ -854,12 +856,86 @@ class MultiChannelHarvester:
             else:
                 self.perform_source_reconnaissance(
                     {"url_or_channel": channel, "platform_type": "Telegram"},
-                    f"Telegram Web Preview returned HTTP {res.status_code}. Possible rate limiting."
+                    f"Telegram Web Preview returned HTTP {res.status_code}."
                 )
         except Exception as e:
             logger.error(f"Telegram scrape failed for {channel}: {e}")
             self.perform_source_reconnaissance({"url_or_channel": channel, "platform_type": "Telegram"}, str(e))
         return []
+
+    def _parse_product_text(self, text):
+        """የምርት ስምን፣ የቴሌግራም ሲስተም መልዕክቶችን እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.85)"""
+        if not text: return None
+        
+        # 🛡️ 1. የቴሌግራም ሲስተም መልዕክቶችን በከፍተኛ ጥንቃቄ ማጣራትና መዝለል
+        system_keywords = [
+            "channel name was changed", "channel photo updated", "channel created",
+            "pinned", "joined", "group created", "photo updated", "name changed",
+            "አመልጣኝ እንዳይሉ", "ደውሉ", "አስቸኳይ", "አስቸኳይ ሽያጭ", "ቅናሽ"
+        ]
+        text_lower = text.lower()
+        if any(kw in text_lower for kw in system_keywords) and len(text) < 150:
+            return None
+
+        # 🛡️ 2. HTML Entity ማጽዳት (&#33; ወደ ! ይቀየራል)
+        import html
+        clean_text = html.unescape(text)
+        clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
+        clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text)
+        
+        # 🛡️ 3. የጊዜ ገደብ መፈተሻ (ከ 3 ወር በላይ የሆኑትን መተው)
+        old_patterns = [r'2023', r'2024', r'2025', r'[4-9]\s*months?\s*ago', r'year\s*ago']
+        for pattern in old_patterns:
+            if re.search(pattern, clean_text, re.IGNORECASE):
+                return None
+
+        product = {'title': '', 'price': 0, 'description': '', 'desc': '', 'seller_contact': ''}
+        lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
+        if not lines: return None
+        
+        # 🛡️ 4. SMARTER TITLE EXTRACTION: እውነተኛ የምርት ስሞችን (Toyota, iPhone, etc.) መፈለግ
+        # የመጀመሪያው መስመር ፕሮሞሽን (Slogan) ከሆነ የምርት ስሙን ለማግኘት ቀጣይ መስመሮችን መቃኘት
+        raw_title = lines[0]
+        slogans = ["አመልጣኝ", "አዲስ", "ደውሉ", "አስቸኳይ", "ቅናሽ", "ለሽያጭ", "ሽያጭ", "አሪፍ", "የሚሸጥ", "የሚከራይ"]
+        if any(s in raw_title for s in slogans) or len(raw_title) < 10:
+            # ቀጣይ መስመሮችን በመቃኘት የምርት ስሞችን (መኪና/ስልክ/ላፕቶፕ) መፈለግ
+            found_title = False
+            for line in lines[1:4]:
+                if any(brand in line.lower() for brand in ['toyota', 'kia', 'hyundai', 'suzuki', 'iphone', 'samsung', 'laptop', 'lenovo', 'hp', 'dell', 'apartment', 'condominium', 'house', 'vitz', 'yaris', 'corolla', 'mercedes', 'byd']):
+                    product['title'] = line[:100]
+                    found_title = True
+                    break
+            if not found_title:
+                product['title'] = lines[0][:150] # ካልተገኘ ብቻ ወደ መጀመሪያው መመለስ
+        else:
+            product['title'] = lines[0][:150]
+            
+        # የምርት ስም ርዝማኔን ከ 4 ቃላት መገደብ (የ3 ወርድ ህግ)
+        words = product['title'].split()
+        if len(words) > 5:
+            product['title'] = " ".join(words[:4])
+            
+        # ዋጋ መፈለጊያ
+        price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
+                      re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
+        if price_match:
+            try:
+                product['price'] = float(price_match.group(1).replace(',', ''))
+            except: pass
+            
+        # ስልክ መፈለጊያ
+        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
+        if phone_match:
+            product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
+        else:
+            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', clean_text)
+            if tg_match:
+                product['seller_contact'] = tg_match.group(0)
+        
+        # ዲስክሪፕሽኑ ባዶ እንዳይሆን ሙሉውን ጽሁፍ መሙላት
+        product['description'] = clean_text[:1000].replace('\n\n', '\n').strip()
+        product['desc'] = product['description']
+        return product
     
     def _scrape_website(self, url):
         """🛡️ FIXED: የድሮውን ሎካል ሬጀክስ ትቶ የተራቀቀውን ScrapperEngine.scrape_and_extract ቀጥታ መጥራት"""
@@ -1430,9 +1506,45 @@ class CEOOperations:
         except Exception as e:
             logger.debug(f"Google Image Fallback Search failed: {e}")
         return ""
+    
+
+    def _search_stable_product_image(self, title) -> str:
+        """
+        🚀 [Stealth Stable Image Finder - DDG Scraper + Locked Fallback v10.92]
+        ምርቱ የራሱ ፎቶ ከሌለው በ DuckDuckGo ፈልጎ እውነተኛ ምስል ያመጣል፤
+        ካልተሳካም ሪፍሬሽ ሲደረግ የማይለዋወጥ ቋሚ ፎቶ በምርቱ ስም አዋቅሮ በዳታቤዝ ይቆልፋል
+        """
+        clean_title = re.sub(r'[^a-zA-Z0-9\s]', '', title).strip()
+        if not clean_title or len(clean_title) < 3:
+            clean_title = "product"
+            
+        # 🛡️ 1. [Stealth DDG Scraper] - ሬንደር ላይ በጉግል ኮንሰንት ገጽ እንዳይታገድ በ DuckDuckGo መፈለግ
+        query = f"{clean_title} product photo"
+        search_url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        try:
+            res = requests.get(search_url, headers=headers, timeout=5)
+            if res.status_code == 200:
+                image_urls = re.findall(r'//(external-content\.duckduckgo\.com/iu/\?u=[^"\'&]+)', res.text)
+                if image_urls:
+                    img_url = "https://" + image_urls[0]
+                    logger.info(f"✨ DDG Image Finder: Found stable image for '{title}' -> {img_url}")
+                    return img_url
+        except Exception as e:
+            logger.debug(f"DDG Image Finder failed: {e}")
+
+        # 🛡️ 2. [Mathematical Photo Lock] - ፎቶ ባይገኝ ሪፍሬሽ ሲደረግ የማይለዋወጥ ቋሚ ፎቶ በምርቱ ስም መመደቢያ
+        # በምርቱ ስም ልዩ የ MD5 Hash ቁጥር በማመንጨት ፎቶውን በዳታቤዝ ውስጥ መቆለፍ
+        lock_id = int(hashlib.md5(title.encode('utf-8')).hexdigest(), 16) % 1000
+        slug_title = clean_title.lower().replace(" ", "-")
+        stable_fallback = f"https://loremflickr.com/800/600/{slug_title}?lock={lock_id}"
+        logger.info(f"✨ Locked Fallback: Assigned stable locked photo for '{title}' -> {stable_fallback}")
+        return stable_fallback
 
     def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የባዶ ሻጭ ሎጂክ እና የራስ-ፈውስ ማጽጃ የተጨመረበት (v10.62)"""
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የባዶ ሻጭ ሎጂክ እና የራስ-ፈውስ ማጽጃ የተጨመረበት (v10.92)"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
@@ -1492,9 +1604,9 @@ class CEOOperations:
 
                 raw_photo = p.get('image_url', '')
                 
-                # 🚀 ፎቶ ከሌለው ጉግል ላይ ፈልጎ እንዲያመጣ ማድረግ (v10.65)
+                # 🚀 ፎቶ ከሌለው ቋሚና ጥራት ያለው ምስል ፈልጎ ማምጣት
                 if not raw_photo:
-                    raw_photo = self._search_google_for_product_image(p['title'])
+                    raw_photo = self._search_stable_product_image(p['title'])
 
                 cloudinary_photo_url = self._save_image_to_cloudinary_permanently(raw_photo)
 
