@@ -1124,24 +1124,30 @@ def execute_master_cycle():
         _run_site_cycle(site)
 
 def _run_site_cycle(site):
+    """
+    ተቀናጀው የ EthAfri ዑደት፦
+    1. ምርመራና ጥገና (Self-Doctor & Autonomous Healer)
+    2. ስትራቴጂክ ዕቅድ እና ንግድ እድገት (Strategic CEO & Operations)
+    3. ራስ-እድገት (Feature Evolution)
+    """
+    from marketplace.orchestrator import run_ethafri_autonomous_cycle
+    
+    # 1. የተቀናጀውን ኦርኬስትሬተር መጥራት (ይህ Doctor, Healer እና Evolutionን ይይዛል)
+    run_ethafri_autonomous_cycle(site)
+    
+    # 2. የንግድ ስራዎችን መፈጸም (Scraping, Revenue Boosting, Listings)
+    CEOOperations(site).run_business_growth()
+    
+    # 3. የደህንነት ቅኝት (Fraud Hunting)
+    FraudHunter(site).scan_for_scams()
+
+    # 4. የዕድገት ጊዜ ሪፖርት ማዘመን (ለወደፊት የኦርኬስትሬሽን ቁጥጥር)
     SiteConfig = get_model('SiteConfig')
     last_evolution_key = f"LAST_EVOLUTION_TIME_{site.name}"
-    last_evo_cfg = SiteConfig.objects.filter(key=last_evolution_key).first()
-    
-    should_run_evo = True
-    if last_evo_cfg and isinstance(last_evo_cfg.value, dict):
-        try:
-            last_time = datetime.fromisoformat(last_evo_cfg.value.get('time'))
-            if timezone.is_naive(last_time): last_time = timezone.make_aware(last_time)
-            if (timezone.now() - last_time) < timedelta(hours=4): should_run_evo = False
-        except Exception: pass
-
-    if should_run_evo:
-        StrategicCEO(site).execute_planning_cycle()
-        SiteConfig.objects.update_or_create(key=last_evolution_key, defaults={'value': {'time': timezone.now().isoformat()}})
-    
-    CEOOperations(site).run_business_growth()
-    FraudHunter(site).scan_for_scams()
+    SiteConfig.objects.update_or_create(
+        key=last_evolution_key, 
+        defaults={'value': {'time': timezone.now().isoformat()}}
+    )
 
 def start_autonomous_ceo():
     while True:
