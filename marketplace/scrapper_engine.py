@@ -229,223 +229,105 @@ class SmartProductExtractor:
             
         return product
 
-
 # ============================================================
-# 🚀 MAIN SCRAPPER ENGINE
+# 🚀 MAIN SCRAPPER ENGINE WITH LOCALIZED CONTEXTS (v12.25 - Static Robust Edition)
 # ============================================================
 class ScrapperEngine:
-    """የላቀ የድረ-ገጽ ዳሰሳ ሞተር"""
+    """የላቀ የድረ-ገጽ ዳሰሳ ሞተር - በ @staticmethod ሙሉ በሙሉ ከስህተት የተጠበቀ"""
     
-    def __init__(self):
-        # ከውጭ ጥሪዎች (growth_agent) ጋር ተኳሃኝ እንዲሆን SmartProductExtractor እዚህ ተመድቧል
-        self.extractor = SmartProductExtractor()
-        self.rate_limiter = IntelligentRateLimiter()
-        self.cache = SmartCache(ttl=3600)
-        self.metrics = ScraperMetrics()
-        self.session_counter = 0
-    
-    def scrape(self, url: str, use_playwright: bool = True) -> Optional[str]:
-        """አንድ ዩአርኤል ይስሳል"""
-        if not url:
-            return None
-        
-        self.metrics.total_attempts += 1
-        self.metrics.last_scrape_time = datetime.datetime.now()
-        
-        # ከካሽ ለማግኘት ሞክር
-        cache_key = hashlib.md5(f"{url}:{use_playwright}".encode()).hexdigest()
-        cached = self.cache.get(cache_key)
-        if cached:
-            self.metrics.cache_hits += 1
-            return cached
-        
-        self.metrics.cache_misses += 1
-        
-        # የጥያቄ ገደብ ያረጋግጣል
-        self.rate_limiter.wait_if_needed()
-        
-        # ትክክለኛ የ URL ቅርጸት
-        if not url.startswith('http'):
-            url = 'https://' + url
-        
-        html = None
-        
-        # Playwright ይሞክራል
-        if use_playwright:
-            html = self._scrape_with_playwright(url)
-        
-        # Playwright ካልሰራ Requests ይሞክራል
-        if not html:
-            html = self._scrape_with_requests(url)
-        
-        if html:
-            self.metrics.successful_scrapes += 1
-            self.rate_limiter.record_success()
-            self.cache.set(cache_key, html)
-        else:
-            self.metrics.failed_scrapes += 1
-            self.rate_limiter.record_failure()
-            self.metrics.errors.append(f"Failed to scrape {url}")
-        
-        return html
-    
-    def _scrape_with_playwright(self, url: str) -> Optional[str]:
-        """Playwright በመጠቀም ያስሳል"""
-        try:
-            import asyncio
-            from playwright.async_api import async_playwright
-            
-            async def _fetch():
-                async with async_playwright() as p:
-                    headers = FingerprintEvasion.get_headers(url)
-                    
-                    # የፕሮክሲ ውቅር
-                    proxy_url = os.getenv("SMART_PROXY_URL", "").strip()
-                    proxy_config = {"server": proxy_url} if proxy_url else None
-                    
-                    browser = await p.chromium.launch(
-                        headless=True,
-                        proxy=proxy_config,
-                        args=['--disable-blink-features=AutomationControlled']
-                    )
-                    
-                    context = await browser.new_context(
-                        user_agent=headers['User-Agent'],
-                        viewport={'width': random.randint(1280, 1920), 'height': random.randint(720, 1080)},
-                        extra_http_headers=headers,
-                        locale=random.choice(['en-US', 'en-GB']),
-                        timezone_id='Africa/Addis_Ababa',
-                    )
-                    
-                    page = await context.new_page()
-                    
-                    # Anti-detection JS Injection
-                    await page.add_init_script("""
-                        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                        Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-                        Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en', 'am']});
-                        window.chrome = {runtime: {}};
-                    """)
-                    
-                    await page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                    
-                    # የዘፈቀደ መጠበቅ
-                    await asyncio.sleep(random.uniform(2, 5))
-                    
-                    # ወደ ታች መውረድ (Lazy loaded items ለመቀስቀስ)
-                    for i in range(random.randint(2, 4)):
-                        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                        await asyncio.sleep(random.uniform(1, 2))
-                    
-                    content = await page.content()
-                    await browser.close()
-                    return content
-            
-            # Async ሉፕን ደህንነቱ በተጠበቀ ሁኔታ ማስኬጃ
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            
-            if loop:
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(lambda: asyncio.run(_fetch()))
-                    return future.result(timeout=90)
-            else:
-                return asyncio.run(_fetch())
-            
-        except Exception as e:
-            logger.warning(f"Playwright error for {url}: {e}")
-            return None
-    
-    def _scrape_with_requests(self, url: str) -> Optional[str]:
-        """Requests በመጠቀም ያስሳል"""
+    @staticmethod
+    def _fetch_static_fallback(url: str) -> tuple:
         try:
             import requests
-            
+            session = requests.Session()
             headers = FingerprintEvasion.get_headers(url)
-            time.sleep(random.uniform(1, 3))
             
-            response = requests.get(url, headers=headers, timeout=30)
+            res = session.get(url, headers=headers, timeout=15)
+            return res.status_code, res.text
+        except:
+            return 0, ""
             
-            if response.status_code == 200:
-                return response.text
-            elif response.status_code == 429:
-                logger.warning(f"Rate limited on {url}")
-                self.rate_limiter.record_failure()
-                time.sleep(10)
-                return None
-            
-        except Exception as e:
-            logger.warning(f"Requests error for {url}: {e}")
+    @staticmethod
+    async def fetch_dynamic_content(url: str) -> tuple:
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = BROWSER_PATH
         
-        return None
-    
-    def scrape_and_extract(self, url: str) -> List[Dict]:
+        user_agents = [
+            "Telegram/10.1.0 (iOS 15.4; en)",
+            "Telegram/10.3.5 (iPhone; iOS 17.2; en)",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"
+        ]
+        
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError:
+            return 0, ""
+        
+        async with async_playwright() as p:
+            try:
+                proxy_url = os.getenv("SMART_PROXY_URL", "").strip()
+                proxy_config = {"server": proxy_url} if proxy_url else None
+                
+                browser = await p.chromium.launch(headless=True, proxy=proxy_config)
+                context = await browser.new_context(
+                    user_agent=random.choice(user_agents),
+                    viewport={'width': 1280, 'height': 800},
+                    locale='am-ET',
+                    timezone_id='Africa/Addis_Ababa',
+                )
+                page = await context.new_page()
+                await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
+                
+                logger.info(f"📡 Deep Scanning: {url}...")
+                response = await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                
+                status_code = response.status if response else 200
+                content = await page.content()
+                await browser.close()
+                return status_code, content
+            except Exception as e:
+                logger.warning(f"⚠️ Playwright error: {e}")
+                return 0, str(e)
+
+    # 🛡️ FIXED: @staticmethod በመጠቀም የፓይተን method-binding ስህተቶችን በዘላቂነት መፍታት
+    @staticmethod
+    def scrape(url: str) -> Optional[str]:
+        """ጥሬ የኤችቲኤምኤል ጽሑፍን ብቻ የሚጎትት ቋሚ ፋንክሽን"""
+        html = ""
+        status_code = 200
+        if not url.startswith('http'): url = 'https://' + url
+
+        try:
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop:
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(lambda: asyncio.run(ScrapperEngine.fetch_dynamic_content(url)))
+                    status_code, html = future.result()
+            else:
+                status_code, html = asyncio.run(ScrapperEngine.fetch_dynamic_content(url))
+        except:
+            status_code = 0
+
+        if not html or status_code in [0, 403, 405]:
+            fallback_status, fallback_html = ScrapperEngine._fetch_static_fallback(url)
+            if fallback_html:
+                html = fallback_html
+
+        return html
+
+    # 🛡️ FIXED: @staticmethod በመጠቀም የፓይተን method-binding ስህተቶችን በዘላቂነት መፍታት
+    @staticmethod
+    def scrape_and_extract(url: str) -> List[Dict]:
         """ያስሳል እና ምርቶችን ያወጣል"""
-        html = self.scrape(url)
+        html = ScrapperEngine.scrape(url)
         if not html:
             return []
-        
-        products = self.extractor.extract_products(html, url)
-        
-        # ምንም ምርት ካልተገኘ የምርመራ ሪፖርት ያዘጋጃል
-        if not products:
-            report = self._generate_diagnostic_report(url, html)
-            self._save_report(report)
-        
-        return products
-    
-    def _generate_diagnostic_report(self, url: str, html: str) -> Dict:
-        """የምርመራ ሪፖርት ያዘጋጃል"""
-        domain = urlparse(url).netloc.lower() or "telegram_channel"
-        
-        report = {
-            'url': url,
-            'domain': domain,
-            'timestamp': datetime.datetime.now().isoformat(),
-            'html_length': len(html) if html else 0,
-            'products_found': 0,
-            'status': 'failed',
-            'suggestions': [],
-            'metrics': self.metrics.to_dict(),
-            'rate_limiter': self.rate_limiter.get_stats(),
-            'cache_stats': self.cache.get_stats(),
-        }
-        
-        if html and len(html) > 1000:
-            if 'cloudflare' in html.lower():
-                report['suggestions'].append('Cloudflare WAF Detected. Consider proxy rotation.')
-            if 'captcha' in html.lower():
-                report['suggestions'].append('CAPTCHA trigger detected.')
-            if 'access denied' in html.lower() or 'forbidden' in html.lower():
-                report['suggestions'].append('IP Block or User-Agent blacklist encountered.')
-        
-        return report
-    
-    def _save_report(self, report: Dict):
-        """ሪፖርቱን ያስቀምጣል"""
-        try:
-            os.makedirs('data/diagnostics', exist_ok=True)
-            safe_domain = re.sub(r'[^\w\-]', '_', report['domain'])
-            filename = f"data/diagnostics/{safe_domain}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            with open(filename, 'w') as f:
-                json.dump(report, f, indent=2)
-        except Exception as e:
-            logger.debug(f"Failed to save report: {e}")
-    
-    def get_metrics(self) -> Dict:
-        """የስክሬፐር አፈጻጸም መለኪያዎችን ያመጣል"""
-        return {
-            'scraper': self.metrics.to_dict(),
-            'rate_limiter': self.rate_limiter.get_stats(),
-            'cache': self.cache.get_stats(),
-            'extractor': {
-                'cache_hits': self.extractor.cache.hits,
-                'cache_misses': self.extractor.cache.misses,
-            }
-        }
+        return SmartProductExtractor.extract_products(html, url)
 
 # ============================================================
 # 🔄 BACKWARD COMPATIBILITY LAYER (ለቀድሞ ኮድ ተኳሃኝነት)
