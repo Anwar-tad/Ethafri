@@ -128,8 +128,19 @@ USE_I18N = True
 
 USE_TZ = True
 
-# 🛡️ FIXED: dynamic i18n LOCALE_PATHS configurations [1]
-# ይህ መዝገብ ከሌለ Django በ PO/MO ፋይሎች የተጠናቀሩትን ትርጉሞች (Amharic/Oromo) ማንበብ አይችልም
+# 🛡️ FIXED: (translation.E004) You have provided a value for the LANGUAGE_CODE setting that is not in the LANGUAGES setting.
+# የተፈቀዱትን ቋንቋዎች በግልጽ ማስቀመጥ የ Django i18n የደህንነት ፍተሻን ያሳልፋል [1]
+LANGUAGES = [
+    ('am', _('Amharic')),
+    ('en', _('English')),
+    ('om', _('Oromo')),
+    ('ar', _('Arabic')),
+    ('so', _('Somali')),
+    ('ti', _('Tigrinya')),
+    ('fr', _('French')),
+]
+
+# dynamic i18n LOCALE_PATHS configurations
 LOCALE_PATHS = [
     os.path.join(BASE_DIR, 'locale'),
 ]
