@@ -376,8 +376,6 @@ def fetch_remote_file_from_github(repo, file_path, token=None):
         logger.warning(f"GitHub API Fetch Error: {e}")
     return None
 
-
-
 def get_site_project_state_dynamic(site):
     """የጣቢያውን ሙሉ የኮድ እና የቴምፕሌት ይዘት በዳይናሚክ መንገድ የሚቃኝ ዋና ማዕከል"""
     AIProjectBacklog = get_model('AIProjectBacklog')
@@ -460,7 +458,6 @@ def get_site_project_state_dynamic(site):
                     if path_str.endswith('.html') and item.get('type') == 'blob':
                         file_name = path_str.split('/')[-1]
                         key = f"{file_name.replace('.html', '')}_html"
-
                         content = fetch_remote_file_from_github(repo_name, path_str, token=github_token)
                         if content is not None:
                             state[key] = content
@@ -468,9 +465,8 @@ def get_site_project_state_dynamic(site):
                         else:
                             state[key] = "❌ MISSING_FILE"
                         file_paths[key] = os.path.join(base, path_str)
-            # 🛡️ FIXED: Aligned properly with 12 spaces of indentation to resolve System Crashes
-            except Exception as e:
-                logger.error(f"Remote GitHub Git Tree Scan failed: {e}")
+        except Exception as e:
+            logger.error(f"Remote GitHub Git Tree Scan failed: {e}")
     else:
         base_templates_dir = os.path.join(settings.BASE_DIR, 'marketplace', 'templates')
         if os.path.exists(base_templates_dir):
@@ -482,7 +478,6 @@ def get_site_project_state_dynamic(site):
                         file_paths[key] = full_path
                         try:
                             with open(full_path, 'r', encoding='utf-8') as f:
-                                # 🛡️ FIXED: Aligned to standard 32/36 spaces indentation limit
                                 state[key] = f.read()
                         except Exception as e:
                             state[key] = f"ERROR: {e}"
@@ -497,13 +492,6 @@ def get_site_project_state_dynamic(site):
                 state[bk.target_file] = "❌ MISSING_FILE"
 
     return state, file_paths
-
-
-
-
-
-
-
 
 def get_or_create_backlog_task_safe(site, task_name, defaults):
     """በስህተት የተደጋገሙ ባክሎግ ታስኮች እንዳይፈጠሩ የሚከላከል የደህንነት ምዝገባ ሎጂክ"""
@@ -522,7 +510,6 @@ def get_or_create_backlog_task_safe(site, task_name, defaults):
         logger.error(f"Error creating safe backlog task: {e}")
         matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name)
         return (matching.first(), False) if matching.exists() else (None, False)
-
 
 # ============================================================
 # 🏛️ STRATEGIC CEO (የዕቅድ እና የስልት ማዕከል)
