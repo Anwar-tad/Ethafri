@@ -377,6 +377,8 @@ def fetch_remote_file_from_github(repo, file_path, token=None):
     return None
 
 
+
+
 def get_site_project_state_dynamic(site):
     """የጣቢያውን ሙሉ የኮድ እና የቴምፕሌት ይዘት በዳይናሚክ መንገድ የሚቃኝ ዋና ማዕከል"""
     AIProjectBacklog = get_model('AIProjectBacklog')
@@ -480,7 +482,8 @@ def get_site_project_state_dynamic(site):
                         file_paths[key] = full_path
                         try:
                             with open(full_path, 'r', encoding='utf-8') as f:
-                                    state[key] = f.read()
+                                # 🛡️ FIXED: Corrected indentation alignment to prevent TabError/IndentationError
+                                state[key] = f.read()
                         except Exception as e:
                             state[key] = f"ERROR: {e}"
             else:
@@ -494,7 +497,6 @@ def get_site_project_state_dynamic(site):
                 state[bk.target_file] = "❌ MISSING_FILE"
 
     return state, file_paths
-
 
 def get_or_create_backlog_task_safe(site, task_name, defaults):
     """በስህተት የተደጋገሙ ባክሎግ ታስኮች እንዳይፈጠሩ የሚከላከል የደህንነት ምዝገባ ሎጂክ"""
