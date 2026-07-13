@@ -378,7 +378,6 @@ def fetch_remote_file_from_github(repo, file_path, token=None):
 
 
 
-
 def get_site_project_state_dynamic(site):
     """የጣቢያውን ሙሉ የኮድ እና የቴምፕሌት ይዘት በዳይናሚክ መንገድ የሚቃኝ ዋና ማዕከል"""
     AIProjectBacklog = get_model('AIProjectBacklog')
@@ -497,6 +496,9 @@ def get_site_project_state_dynamic(site):
                 state[bk.target_file] = "❌ MISSING_FILE"
 
     return state, file_paths
+
+
+
 
 def get_or_create_backlog_task_safe(site, task_name, defaults):
     """በስህተት የተደጋገሙ ባክሎግ ታስኮች እንዳይፈጠሩ የሚከላከል የደህንነት ምዝገባ ሎጂክ"""
