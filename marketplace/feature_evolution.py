@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.conf import settings
 from django.db import connections
 from django.apps import apps
-
+from typing import Dict, List, Optional, Union, Any
 logger = logging.getLogger(__name__)
 
 # ============================================================
