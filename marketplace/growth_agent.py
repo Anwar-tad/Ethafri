@@ -847,9 +847,8 @@ def _autonomous_no_api_search_fallback(niche):
         
     return fallback_sources
 
-
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.86)"""
+    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.87)"""
     
     @staticmethod
     def is_network_available():
@@ -1014,84 +1013,84 @@ class MultiChannelHarvester:
         return []
 
     def _parse_product_text(self, text):
-    if not text: return None
-    
-    system_keywords = [
-        "channel name was changed", "channel photo updated", "channel created",
-        "pinned", "joined", "group created", "photo updated", "name changed",
-        "coming soon", "keep joining", "live stream", "telegram channel",
-        "ተለቀቀ", "ገብተናል", "ገባን", "ተከፈተ", "join", "subscribe", "👇", "👉", "⚠️"
-    ]
-    text_lower = text.lower()
-    if any(kw in text_lower for kw in system_keywords) and len(text) < 200:
-        return None
-
-    product_nouns = [
-        'toyota', 'kia', 'hyundai', 'suzuki', 'iphone', 'samsung', 'laptop', 'lenovo', 
-        'hp', 'dell', 'apartment', 'condominium', 'house', 'vitz', 'yaris', 'corolla', 
-        'mercedes', 'byd', 'veloster', 'morning', '4-runner', 'model', 'car', 'phone', 
-        'notebook', 'tecno', 'zte', 'spark', 'ሸቀጥ', 'ሽያጭ', 'መኪና', 'ስልክ', 'ላፕቶፕ', 'ቤት', 'apartment'
-    ]
-    if not any(noun in text_lower for noun in product_nouns) and len(text) < 400:
-        return None
-
-    import html
-    clean_text = html.unescape(text)
-    clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
-    clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text)
-    
-    # 🛡️ FIXED: የኢትዮጵያ ዘመን አቆጣጠርን (E.C.) ያካተተ የተራቀቀ የጊዜ ማጣሪያ ሎጂክ
-    # በ 2026 እ.ኤ.አ (G.C.) የኢትዮጵያ አቆጣጠር 2018 ዓ.ም. (አሁን ያለንበት ዓመት) ነው
-    # ስለዚህ 2015 ዓ.ም. እና ከዚያ በታች የሆኑትን እጅግ የቆዩ ምርቶችን በራስ-ሰር እንጥላለን [1]
-    old_patterns = [
-        r'2023', r'2024', r'2025', 
-        r'2015\s*(?:ዓ\.ም|ዓም)?', r'2014\s*(?:ዓ\.ም|ዓም)?', r'2013\s*(?:ዓ\.ም|ዓም)?', r'2012\s*(?:ዓ\.ም|ዓም)?',
-        r'[4-9]\s*months?\s*ago', r'year\s*ago'
-    ]
-    for pattern in old_patterns:
-        if re.search(pattern, clean_text, re.IGNORECASE):
+        """ምርቶችን ከተቀበለው ፅሁፍ ለይቶ የሚተነትን የደህንነት ጋሻ (🛡️ Aligned with 2018 E.C.)"""
+        if not text: return None
+        
+        system_keywords = [
+            "channel name was changed", "channel photo updated", "channel created",
+            "pinned", "joined", "group created", "photo updated", "name changed",
+            "coming soon", "keep joining", "live stream", "telegram channel",
+            "ተለቀቀ", "ገብተናል", "ገባን", "ተከፈተ", "join", "subscribe", "👇", "👉", "⚠️"
+        ]
+        text_lower = text.lower()
+        if any(kw in text_lower for kw in system_keywords) and len(text) < 200:
             return None
 
-    product = {'title': '', 'price': 0, 'description': '', 'desc': '', 'seller_contact': ''}
-    lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
-    if not lines: return None
-    
-    raw_title = lines[0]
-    slogans = ["አመልጣኝ", "አዲስ", "ደውሉ", "አስቸኳይ", "ቅናሽ", "ለሽያጭ", "ሽያጭ", "አሪፍ", "የሚሸጥ", "የሚከራይ", "ተለቀቀ"]
-    if any(s in raw_title for s in slogans) or len(raw_title) < 10:
-        found_title = False
-        for line in lines[1:4]:
-            if any(brand in line.lower() for brand in product_nouns):
-                product['title'] = line[:100]
-                found_title = True
-                break
-        if not found_title:
+        product_nouns = [
+            'toyota', 'kia', 'hyundai', 'suzuki', 'iphone', 'samsung', 'laptop', 'lenovo', 
+            'hp', 'dell', 'apartment', 'condominium', 'house', 'vitz', 'yaris', 'corolla', 
+            'mercedes', 'byd', 'veloster', 'morning', '4-runner', 'model', 'car', 'phone', 
+            'notebook', 'tecno', 'zte', 'spark', 'ሸቀጥ', 'ሽያጭ', 'መኪና', 'ስልክ', 'ላፕቶፕ', 'ቤት', 'apartment'
+        ]
+        if not any(noun in text_lower for noun in product_nouns) and len(text) < 400:
+            return None
+
+        import html
+        clean_text = html.unescape(text)
+        clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
+        clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text)
+        
+        # 🛡️ FIXED: የኢትዮጵያ ዘመን አቆጣጠርን (E.C.) ያካተተ የተራቀቀ የጊዜ ማጣሪያ ሎጂክ
+        # 2026 እ.ኤ.አ. ማለት 2018 ዓ.ም. (ዘንድሮ) ነው። 2015 ዓ.ም. እና ከዚያ በታች የሆኑትን እጅግ የቆዩ ምርቶች እንጥላለን
+        old_patterns = [
+            r'2023', r'2024', r'2025', 
+            r'2015\s*(?:ዓ\.ም|ዓም)?', r'2014\s*(?:ዓ\.ም|ዓም)?', r'2013\s*(?:ዓ\.ም|ዓም)?', r'2012\s*(?:ዓ\.ም|ዓም)?',
+            r'[4-9]\s*months?\s*ago', r'year\s*ago'
+        ]
+        for pattern in old_patterns:
+            if re.search(pattern, clean_text, re.IGNORECASE):
+                return None
+
+        product = {'title': '', 'price': 0, 'description': '', 'desc': '', 'seller_contact': ''}
+        lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
+        if not lines: return None
+        
+        raw_title = lines[0]
+        slogans = ["አመልጣኝ", "አዲስ", "ደውሉ", "አስቸኳይ", "ቅናሽ", "ለሽያጭ", "ሽያጭ", "አሪፍ", "የሚሸጥ", "የሚከራይ", "ተለቀቀ"]
+        if any(s in raw_title for s in slogans) or len(raw_title) < 10:
+            found_title = False
+            for line in lines[1:4]:
+                if any(brand in line.lower() for brand in product_nouns):
+                    product['title'] = line[:100]
+                    found_title = True
+                    break
+            if not found_title:
+                product['title'] = lines[0][:150]
+        else:
             product['title'] = lines[0][:150]
-    else:
-        product['title'] = lines[0][:150]
+            
+        words = product['title'].split()
+        if len(words) > 5:
+            product['title'] = " ".join(words[:4])
+            
+        price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
+                      re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
+        if price_match:
+            try:
+                product['price'] = float(price_match.group(1).replace(',', ''))
+            except: pass
+            
+        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
+        if phone_match:
+            product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
+        else:
+            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', clean_text)
+            if tg_match:
+                product['seller_contact'] = tg_match.group(0)
         
-    words = product['title'].split()
-    if len(words) > 5:
-        product['title'] = " ".join(words[:4])
-        
-    price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
-                  re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
-    if price_match:
-        try:
-            product['price'] = float(price_match.group(1).replace(',', ''))
-        except: pass
-        
-    phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
-    if phone_match:
-        product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
-    else:
-        tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', clean_text)
-        if tg_match:
-            product['seller_contact'] = tg_match.group(0)
-    
-    product['description'] = clean_text[:1000].replace('\n\n', '\n').strip()
-    product['desc'] = product['description']
-    return product
+        product['description'] = clean_text[:1000].replace('\n\n', '\n').strip()
+        product['desc'] = product['description']
+        return product
     
     def _scrape_website(self, url):
         try:
