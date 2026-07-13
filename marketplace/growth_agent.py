@@ -468,6 +468,7 @@ def get_site_project_state_dynamic(site):
                         else:
                             state[key] = "❌ MISSING_FILE"
                         file_paths[key] = os.path.join(base, path_str)
+            # 🛡️ FIXED: Aligned properly with 12 spaces of indentation to resolve System Crashes
             except Exception as e:
                 logger.error(f"Remote GitHub Git Tree Scan failed: {e}")
     else:
@@ -481,12 +482,12 @@ def get_site_project_state_dynamic(site):
                         file_paths[key] = full_path
                         try:
                             with open(full_path, 'r', encoding='utf-8') as f:
-                                # 🛡️ FIXED: Corrected indentation alignment to prevent TabError/IndentationError
+                                # 🛡️ FIXED: Aligned to standard 32/36 spaces indentation limit
                                 state[key] = f.read()
                         except Exception as e:
                             state[key] = f"ERROR: {e}"
-            else:
-                logger.warning("Templates directory not found locally.")
+        else:
+            logger.warning("Templates directory not found locally.")
 
     all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
     for bk in all_known_backlogs:
@@ -496,6 +497,10 @@ def get_site_project_state_dynamic(site):
                 state[bk.target_file] = "❌ MISSING_FILE"
 
     return state, file_paths
+
+
+
+
 
 
 
