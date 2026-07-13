@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/scrapper_engine.py
-# 📝 ስሪት፦ v12.12 (Enterprise Scrapper - Cloudflare-Bypass Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Integrated ScrapeOps Residential Proxy Bridge to bypass Cloudflare bot challenges (Access Blocked), optimized Playwright headless loops, and secured fallback metadata harvesters.
-# 📅 ቀን፦ Monday, July 13, 2026
+# 📝 ስሪት፦ v12.13 (Enterprise Scrapper - Complete Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Fixed category leaking bug by running BS4 list parser first, restricted SEO Meta-Tag Harvester to last-resort single product detail pages, added anti-category sidebar filters, and fully aligned with growth_agent.py.
+# 📅 ቀን፦ Tuesday, July 14, 2026
 # ============================================================
 
 import logging
@@ -140,14 +140,56 @@ class SmartProductExtractor:
     def extract_products(html: str, url: str) -> List[Dict]:
         if not html: return []
         products = []
+        soup = None
         
-        # 🛡️ 1. JSON-LD Extractor Fallback (Bypasses Obfuscated DOM completely)
+        # 🛡️ 1. [BS4 List Parser First] - የድረ-ገጹን የውስጥ ዝርዝር ሁልጊዜም አስቀድሞ መቃኘት
+        # ይህ አሰላለፍ የገጹን አጠቃላይ የካቴጎሪ ሜታ-ዳታ ምርት አድርጎ የመሳብ ስህተትን በዘላቂነት ይከላከላል
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Jiji የመጫኛ ሰሌዳ የካርድ መለያዎች
+            selectors = [
+                'div.b-list-advert-single', 'div.qa-advert-list-item', 'div.b-list-advert__item',
+                'div[class*="b-list-advert-single"]', 'div[class*="b-list-advert__item"]',
+                'div[class*="product"]', 'div[class*="classified"]', 'div[class*="item"]', 'div[class*="card"]'
+            ]
+            
+            for selector in selectors:
+                elements = soup.select(selector)
+                if elements:
+                    valid_elements = []
+                    for elem in elements:
+                        # 🛡️ የጎን ዝርዝር (Sidebar/Menu) እና የራስጌ/ግርጌ ካቴጎሪዎችን ማጣሪያ (Anti-Category Leak)
+                        parent_classes = "".join(str(p.get('class', '')) for p in elem.parents).lower()
+                        if any(x in parent_classes for x in ['header', 'footer', 'nav', 'menu', 'sidebar', 'aside', 'category']):
+                            continue
+                        valid_elements.append(elem)
+                    
+                    if valid_elements:
+                        for elem in valid_elements[:20]:
+                            product = SmartProductExtractor._extract_from_soup_node(elem)
+                            if product and product.get('title') and len(product['title']) > 3:
+                                title_lower = product['title'].lower()
+                                # የካቴጎሪ ስሞችን ማጣራት
+                                if any(title_lower == cat for cat in ['vehicles', 'fashion', 'electronics', 'property', 'phones & tablets', 'classifieds']):
+                                    continue
+                                products.append(product)
+                        
+                        if products:
+                            return products
+        except Exception as e:
+            logger.debug(f"BS4 List Parser failed to extract products: {e}")
+
+        # 🛡️ 2. JSON-LD Extractor (Second Fallback)
         try:
             json_ld_matches = re.findall(r'"name"\s*:\s*"([^"]+)"[\s\S]*?"price"\s*:\s*"([^"]+)"', html, re.DOTALL | re.IGNORECASE)
             if json_ld_matches:
                 for name, price in json_ld_matches[:15]:
                     import html as html_parser
                     clean_name = html_parser.unescape(name).strip()
+                    if clean_name.lower() in ['vehicles', 'fashion', 'electronics', 'property', 'phones & tablets']:
+                        continue
                     try: clean_price = float(re.sub(r'[^\d.]', '', price))
                     except: clean_price = 0.0
                     products.append({
@@ -155,65 +197,49 @@ class SmartProductExtractor:
                         'description': f"JSON-LD Structured Product: {clean_name}",
                         'seller_contact': '0900000000', 'image_url': ''
                     })
-                return products
+                if products:
+                    return products
         except: pass
 
-        # 🛡️ 2. BeautifulSoup Fuzzy Selector Scanner
-        soup = None
+        # 🛡️ 3. SEO Meta-Tag Structured Harvester (Last Fallback - Only for single product detail pages)
+        # ይህ አሰላለፍ ጥያቄው የማውጫ ገጽ (Category Index Page) ሲሆን እንዳይሠራ በደህንነት ተቆልፏል
         try:
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(html, 'html.parser')
+            is_index_page = any(x in url.lower() for x in ['/vehicles', '/fashion', '/electronics', '/property', '/phones', '/index', 'jiji.et/', 'jiji.com.et/']) or url.strip().endswith('jiji.et') or url.strip().endswith('jiji.com.et')
             
-            # 🛡️ 3. SEO Meta-Tag Structured Harvester (og:title, product:price:amount)
-            og_title = soup.find('meta', property=['og:title', 'twitter:title']) or soup.find('meta', name=['og:title', 'twitter:title'])
-            og_price = soup.find('meta', property=['product:price:amount', 'price']) or soup.find('meta', name=['product:price:amount', 'price'])
-            
-            if og_title and og_title.get('content'):
-                title = og_title.get('content').strip()
-                price = 0.0
-                if og_price and og_price.get('content'):
-                    try: price = float(re.sub(r'[^\d.]', '', og_price.get('content')))
-                    except: pass
+            if soup and not is_index_page:
+                og_title = soup.find('meta', property=['og:title', 'twitter:title']) or soup.find('meta', name=['og:title', 'twitter:title'])
+                og_price = soup.find('meta', property=['product:price:amount', 'price']) or soup.find('meta', name=['product:price:amount', 'price'])
                 
-                og_desc = soup.find('meta', property=['og:description', 'twitter:description']) or soup.find('meta', name=['og:description', 'twitter:description'])
-                og_img = soup.find('meta', property=['og:image', 'twitter:image']) or soup.find('meta', name=['og:image', 'twitter:image'])
-                
-                desc = og_desc.get('content', '')[:500] if og_desc else ""
-                img = og_img.get('content', '') if og_img else ""
-                
-                phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', desc)
-                contact = "0900000000"
-                if phone_match:
-                    contact = re.sub(r'[^\d+]', '', phone_match.group(0))
-                else:
-                    tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', desc)
-                    if tg_match: contact = tg_match.group(0)
+                if og_title and og_title.get('content'):
+                    title = og_title.get('content').strip()
+                    if not any(title.lower() == cat for cat in ['vehicles', 'fashion', 'electronics', 'property', 'phones & tablets', 'classifieds']):
+                        price = 0.0
+                        if og_price and og_price.get('content'):
+                            try: price = float(re.sub(r'[^\d.]', '', og_price.get('content')))
+                            except: pass
+                        
+                        og_desc = soup.find('meta', property=['og:description', 'twitter:description']) or soup.find('meta', name=['og:description', 'twitter:description'])
+                        og_img = soup.find('meta', property=['og:image', 'twitter:image']) or soup.find('meta', name=['og:image', 'twitter:image'])
+                        
+                        desc = og_desc.get('content', '')[:500] if og_desc else ""
+                        img = og_img.get('content', '') if og_img else ""
+                        
+                        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', desc)
+                        contact = "0900000000"
+                        if phone_match:
+                            contact = re.sub(r'[^\d+]', '', phone_match.group(0))
+                        else:
+                            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', desc)
+                            if tg_match: contact = tg_match.group(0)
 
-                products.append({
-                    'title': title[:150], 'price': price,
-                    'description': desc or f"Meta Structured Product: {title}",
-                    'seller_contact': contact, 'image_url': img
-                })
-                return products
+                        products.append({
+                            'title': title[:150], 'price': price,
+                            'description': desc or f"Meta Structured Product: {title}",
+                            'seller_contact': contact, 'image_url': img
+                        })
+                        return products
         except Exception as e:
             logger.debug(f"Meta SEO structured harvester fallback skipped: {e}")
-
-        # 🛡️ 4. BeautifulSoup Fuzzy Selector Fallback (Jiji/Telegram selector bypass)
-        try:
-            if soup:
-                selectors = [
-                    'div.b-list-advert-single', 'div.qa-advert-list-item', 'div[class*="product"]', 
-                    'div[class*="classified"]', 'div[class*="item"]', 'div[class*="card"]'
-                ]
-                for selector in selectors:
-                    elements = soup.select(selector)
-                    if elements:
-                        for elem in elements[:20]:
-                            product = SmartProductExtractor._extract_from_soup_node(elem)
-                            if product and product.get('title'):
-                                products.append(product)
-                        return products
-        except: pass
 
         return products
 
@@ -221,11 +247,11 @@ class SmartProductExtractor:
     def _extract_from_soup_node(node) -> Dict:
         product = {'title': '', 'price': 0, 'description': '', 'seller_contact': '', 'image_url': ''}
         
-        title_el = node.find(['h3', 'h4', 'h2', 'strong', 'span'], class_=re.compile(r'title|name|header', re.I)) or node.find(['h3', 'h4', 'strong'])
+        title_el = node.find(['h3', 'h4', 'h2', 'strong', 'span'], class_=re.compile(r'title|name|header|advert__item-title', re.I)) or node.find(['h3', 'h4', 'strong'])
         if title_el:
             product['title'] = title_el.get_text(strip=True)[:150]
                 
-        price_el = node.find(class_=re.compile(r'price|amount|val', re.I)) or node.find(string=re.compile(r'(?:ETB|ብር|Birr|Br)', re.I))
+        price_el = node.find(class_=re.compile(r'price|amount|val|advert__item-price', re.I)) or node.find(string=re.compile(r'(?:ETB|ብር|Birr|Br)', re.I))
         if price_el:
             try:
                 price_str = re.sub(r'[^\d]', '', price_el.get_text(strip=True))
@@ -316,8 +342,6 @@ class ScrapperEngine:
         
         html = None
         
-        # 🛡️ 1. [አዲስ ፊቸር] የ ScrapeOps መኖሪያ አይፒ (Residential Proxy) መሸጋገሪያ ፍተሻ
-        # ይህ Render.com በ Cloudflare የታገዱባቸውን ዌብሳይቶች 100% ሰብሮ እንዲያነብ ያደርገዋል
         try:
             scrapeops_key = os.getenv('SCRAPEOPS_API_KEY', '').strip()
             if scrapeops_key and not ('t.me' in url or 'telegram' in url):
@@ -335,11 +359,9 @@ class ScrapperEngine:
         except Exception as e:
             logger.warning(f"🛡️ ScrapeOps Cloudflare Bypass Cog failed: {e}")
 
-        # 2. Scrapeops ከሌለ ወይም ካልሰራ ወደ Playwright መመለስ (Fallback)
         if not html and use_playwright:
             html = inst._scrape_with_playwright(url)
         
-        # 3. Requests መሞከር (Last Fallback)
         if not html:
             html = inst._scrape_with_requests(url)
         
