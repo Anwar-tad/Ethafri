@@ -853,7 +853,7 @@ def _autonomous_no_api_search_fallback(niche):
 
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.85)"""
+    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.86)"""
     
     @staticmethod
     def is_network_available():
@@ -981,13 +981,15 @@ class MultiChannelHarvester:
         return []
     
     def _scrape_telegram(self, channel):
+        """የቴሌግራም ምርቶችን ያለምንም ስህተት በሁለንተናዊ ሬጀክስ መፈልቀቂያ (v10.85)"""
         username = extract_telegram_username(channel)
         url = f"https://t.me/s/{username}"
         try:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
-                messages = re.findall(r'<div[^>]*class=["\']tgme_widget_message_text[^"\']*["\'][^>]*>([\s\S]*?)</div>', res.text)
-                images = re.findall(r"background-image:\s*url\(['\"]?([^'\)]+)['\"]?\)", res.text)
+                # 🛡️ FIXED: Python syntax error ለመከላከል በሶስትዮሽ ጥቅስ (r"""...""") የተተካ ሬጀክስ
+                messages = re.findall(r"""<div[^>]*class=["']tgme_widget_message_text[^"']*["'][^>]*>([\s\S]*?)</div>""", res.text)
+                images = re.findall(r"""background-image:\s*url\(['"]?([^'\)]+)['"]?\)""", res.text)
                 
                 products = []
                 for i, msg in enumerate(messages[:15]): 
@@ -1134,7 +1136,8 @@ class MultiChannelHarvester:
 
         deep_paths = []
         if html_content:
-            found_paths = re.findall(r'href=["\'](/[^"\']*(?:cars?|vehicles?|apartments?|electronics?|computers?|phones?|mobiles?|classifieds?|sitemap)[^"\']*)["\']', html_content, re.IGNORECASE)
+            # 🛡️ FIXED: Python syntax error ለመከላከል በሶስትዮሽ ጥቅስ (r"""...""") የተተካ ሬጀክስ
+            found_paths = re.findall(r"""href=["'](/[^"']*(?:cars?|vehicles?|apartments?|electronics?|computers?|phones?|mobiles?|classifieds?|sitemap)[^"']*)["']""", html_content, re.IGNORECASE)
             for path in found_paths[:5]:
                 full_path = (url + path) if path.startswith('/') else path
                 deep_paths.append(full_path)
@@ -1266,7 +1269,6 @@ class MultiChannelHarvester:
         
         return all_products
         
-
 # ============================================================
 # 💼 CEO OPERATIONS (ንግድ እና ምርት መለጠፊያ)
 # ============================================================
