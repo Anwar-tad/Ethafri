@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/core/settings.py
-# 📝 ስሪት፦ v10.18 (Production Grade - Central System Settings - Hardened)
-# ✅ የተፈቱ ችግሮች፦ Added Gemini Key 4 config, central emergency schema reset switch, secure lazy-load logging warning, and Django 4.2+ STORAGES.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ስሪት፦ v10.19 (Production Grade - Central System Settings - Hardened)
+# ✅ የተፈቱ ችግሮች፦ Added dynamic i18n LOCALE_PATHS settings to enable Compiled PO/MO translations at runtime, and fully aligned with v10.41 AI providers rotation matrix.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 import os
@@ -128,6 +128,12 @@ USE_I18N = True
 
 USE_TZ = True
 
+# 🛡️ FIXED: dynamic i18n LOCALE_PATHS configurations [1]
+# ይህ መዝገብ ከሌለ Django በ PO/MO ፋይሎች የተጠናቀሩትን ትርጉሞች (Amharic/Oromo) ማንበብ አይችልም
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, 'locale'),
+]
+
 # =====================================================================
 # 6. Cloudinary & Static Files Settings
 # =====================================================================
@@ -135,7 +141,7 @@ CLOUDINARY_CLOUD_NAME = env('CLOUDINARY_CLOUD_NAME', default='')
 CLOUDINARY_API_KEY = env('CLOUDINARY_API_KEY', default='')
 CLOUDINARY_API_SECRET = env('CLOUDINARY_API_SECRET', default='')
 
-# Django 4.2/5.0 Storages መዝገብ [1]
+# Django 4.2/5.0 Storages መዝገብ
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage" if CLOUDINARY_CLOUD_NAME else "django.core.files.storage.FileSystemStorage",
@@ -177,13 +183,12 @@ GROQ_API_KEY = env('GROQ_API_KEY', default='')
 MISTRAL_API_KEY = env('MISTRAL_API_KEY', default='')
 OPENROUTER_API_KEY = env('OPENROUTER_API_KEY', default='')
 
-# 🛡️ 3 አዳዲስ እጅግ ከፍተኛ አቅም ያላቸው ነፃ የኤአይ ቁልፎች
+# 3 አዳዲስ እጅግ ከፍተኛ አቅም ያላቸው ነፃ የኤአይ ቁልፎች
 SAMBANOVA_API_KEY = env('SAMBANOVA_API_KEY', default='')
 CEREBRAS_API_KEY = env('CEREBRAS_API_KEY', default='')
 NVIDIA_API_KEY = env('NVIDIA_API_KEY', default='')
 
-# 🔴 AI KEY ROTATION: ኤጀንቱ አንዱ ኤፒአይ ሲያልቅበት ወደ ሌላው እንዲያልፍ ዝርዝር ማደራጀት [1]
-# 🛡️ FIXED: ሎጉ እንዳይጨናነቅ የማይሰራው የ HuggingFace ቁልፍ ከዚህ ዝርዝር ውስጥ ሙሉ በሙሉ ተወግዷል [1]
+# AI KEY ROTATION: ኤጀንቱ አንዱ ኤፒአይ ሲያልቅበት ወደ ሌላው እንዲያልፍ ዝርዝር ማደራጀት
 AI_FALLBACK_API_KEYS = [
     SAMBANOVA_API_KEY,      
     CEREBRAS_API_KEY,        
@@ -202,7 +207,7 @@ RENDER_SERVICE_ID = env('RENDER_SERVICE_ID', default='')
 RENDER_API_KEY = env('RENDER_API_KEY', default='')
 GITHUB_TOKEN = env('GITHUB_TOKEN', default='')
 
-# 🛡️ FIXED: ድንገተኛ የዳታቤዝ መደመሰስን ለመከላከል የደህንነት ስዊች መቆጣጠሪያ እዚህ ተጭኗል
+# ድንገተኛ የዳታቤዝ መደመሰስን ለመከላከል የደህንነት ስዊች መቆጣጠሪያ እዚህ ተጭኗል
 ALLOW_EMERGENCY_SCHEMA_RESET = env.bool('ALLOW_EMERGENCY_SCHEMA_RESET', default=False)
 
 # Twilio for SMS Marketing
@@ -253,7 +258,7 @@ AI_MODEL_VERSION = '2026.07.04'
 # 🛡️ 11. SAFE SELF-HEALING DATABASE LOGGER INTEGRATION
 # ============================================================
 # ⚠️ ማሳሰቢያ፦ 'SelfHealingDBHandler' ሰርቨሩ በሚነሳበት ጊዜ 'AppRegistryNotReady' ስህተት
-# እንዳይፈጥር፣ በውስጡ የሚገኙት ሞዴሎችና የዳታቤዝ ጥሪዎች በሙሉ Dynamically (lazy loaded) መሆን አለባቸው [1]።
+# እንዳይፈጥር፣ በውስጡ የሚገኙት ሞዴሎችና የዳታቤዝ ጥሪዎች በሙሉ Dynamically (lazy loaded) መሆን አለባቸው።
 
 LOGGING = {
     'version': 1,
@@ -262,7 +267,7 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
         },
-        # 🔴 የዳታቤዝ ግንኙነት ሲበላሽ ራሱን በራሱ የሚጠግነው የደህንነት ጋሻ [1]
+        # የዳታቤዝ ግንኙነት ሲበላሽ ራሱን በራሱ የሚጠግነው የደህንነት ጋሻ
         'self_healing_db': {
             'class': 'marketplace.log_handlers.SelfHealingDBHandler',
         },

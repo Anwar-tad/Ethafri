@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ስሪት፦ v10.30 Phoenix Auto-Installer — Lightning Boot Edition (Zero-Crash & Instant Startup)
-# ✅ የተፈቱ ችግሮች፦ Removed redundant boot migrations and message compilation to prevent Uvicorn port binding timeouts (instant 1-second startup), integrated dynamic SQLite WAL, and persistent RAM recovery via gc.collect().
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ስሪት፦ v10.31 Phoenix Auto-Installer — Lightning Boot Edition (Zero-Crash & Instant Startup)
+# ✅ የተፈቱ ችግሮች፦ Dynamic pre-flight scaffolding signatures upgraded with *args, **kwargs to prevent TypeError crashes, preserved instant 1-second startup, SQLite WAL mode activation, and GC memory clearing.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 import os
@@ -12,7 +12,7 @@ import json
 import threading
 import logging
 import re
-import gc # ✅ በ Render ሰርቨር ላይ የ RAM ማህደረ ትውስታ እንዳይሞላ የቆሻሻ ማጽጃ መጨመር
+import gc # በ Render ሰርቨር ላይ የ RAM ማህደረ ትውስታ እንዳይሞላ የቆሻሻ ማጽጃ
 from datetime import datetime, timedelta
 from django.apps import AppConfig
 from django.utils import timezone
@@ -28,13 +28,13 @@ logger = logging.getLogger(__name__)
 def startup_self_heal_migration(err_msg):
     """
     ሰርቨሩ በሚነሳበት ጊዜ የሚከሰቱ የማይግሬሽን መቆለፊያዎችንና የጠፉ ሰንጠረዦችን
-    በተለዋዋጭ Regex ፈልጎ በራሱ የሚፈታ የቅድመ-ጅማሮ ጠጋኝ [1, 2]
+    በተለዋዋጭ Regex ፈልጎ በራሱ የሚፈታ የቅድመ-ጅማሮ ጠጋኝ
     """
     logger.warning(f"🚑 Startup Healer: Attempting to resolve migration error: {err_msg}")
     try:
         from django.db import connection
         
-        # 1. የጠፋ ሰንጠረዥ/ሪሌዥን በስም ለይቶ ፈልቅቆ ማውጣትና ዱሚ መገንባት [1]
+        # 1. የጠፋ ሰንጠረዥ/ሪሌዥን በስም ለይቶ ፈልቅቆ ማውጣትና ዱሚ መገንባት
         match_missing = re.search(r'relation "([^"]+)" does not exist', err_msg, re.IGNORECASE) or \
                         re.search(r'table "([^"]+)" does not exist', err_msg, re.IGNORECASE)
         if match_missing:
@@ -45,7 +45,7 @@ def startup_self_heal_migration(err_msg):
                 cursor.execute(f'CREATE TABLE IF NOT EXISTS "{table_name}" ("id" {id_type});')
             return True
 
-        # 2. ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን/ሰንጠረዦችን ማጥፋት [1]
+        # 2. ቀድሞ የተፈጠሩ ተደጋጋሚ ኢንዴክሶችን/ሰንጠረዦችን ማጥፋት
         match_exists = re.search(r'relation "([^"]+)" already exists', err_msg, re.IGNORECASE) or \
                        re.search(r'table "([^"]+)" already exists', err_msg, re.IGNORECASE) or \
                        re.search(r'index "([^"]+)" already exists', err_msg, re.IGNORECASE)
@@ -73,7 +73,7 @@ def startup_self_heal_migration(err_msg):
 # ============================================================
 def ensure_healthy_db_connections():
     """
-    የዳታቤዝ ግንኙነት መመረዝን በመፈተሽ ግንኙነቱን አድሶ ለመክፈት የሚረዳ ሎጂክ [1]
+    የዳታቤዝ ግንኙነት መመረዝን በመፈተሽ ግንኙነቱን አድሶ ለመክፈት የሚረዳ ሎጂክ
     """
     try:
         from django.db import connections, connection
@@ -99,6 +99,7 @@ def verify_and_bootstrap_agent_files():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     marketplace_dir = os.path.join(base_dir, 'marketplace')
     
+    # 🛡️ FIXED: All dynamic scaffolding skeletons upgraded with *args, **kwargs to prevent call signature crashes in production
     skeletons = {
         'ai_utils.py': """# Generated dynamically by apps.py (Phoenix Scaffolding)
 import os, json, requests, logging
@@ -108,30 +109,29 @@ def clean_json_response(raw_text):
 def clean_and_parse_json(raw_text):
     try: return json.loads(clean_json_response(raw_text))
     except: return {}
-def ask_master_ai_smart(prompt, task_type="analysis", system_instruction="", task=None):
+def ask_master_ai_smart(prompt, *args, **kwargs):
     api_key = os.getenv('GEMINI_API_KEY', '')
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     try:
-        res = requests.post(url, json={"contents": [{"parts": [{"text": f"{system_instruction}\\n\\n{prompt}"}]}]}, timeout=25)
+        res = requests.post(url, json={"contents": [{"parts": [{"text": f"{prompt}"}]}]}, timeout=25)
         return res.json()['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
         logger.error(f"Scaffold AI call error: {e}")
         return "{}"
-def broadcast_agent_log(site, message, status_type="info"):
+def broadcast_agent_log(site, message, *args, **kwargs):
     pass
 """,
         'code_apply.py': """# Generated dynamically by apps.py (Phoenix Scaffolding)
 import os, re, logging
 logger = logging.getLogger(__name__)
 
-def apply_surgical_patch(file_path, target_pattern, replacement_content):
+def apply_surgical_patch(file_path, target_pattern, replacement_content, *args, **kwargs):
     if not os.path.exists(file_path):
         return False, "File does not exist"
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Regex በመጠቀም የተወሰነውን የኮድ ክፍል ብቻ የቀዶ-ጥገና ማያያዝ
         if re.search(target_pattern, content, re.DOTALL):
             new_content = re.sub(target_pattern, replacement_content, content, flags=re.DOTALL)
             with open(file_path, 'w', encoding='utf-8') as f:
@@ -147,11 +147,14 @@ def apply_surgical_patch(file_path, target_pattern, replacement_content):
         logger.error(f"Surgical patch error: {e}")
         return False, str(e)
 
-def apply_code_change(site, file_key, new_content, reason="", path=None, backlog_task=None, surgical_target=None):
+def apply_code_change(site, file_key, new_content, *args, **kwargs):
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     file_name = file_key.replace('_html', '.html') if file_key.endswith('_html') else f"{file_key}.py"
     full_path = os.path.join(base_dir, 'marketplace', 'templates', 'marketplace', file_name) if 'html' in file_key else os.path.join(base_dir, 'marketplace', file_name)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    
+    surgical_target = kwargs.get('surgical_target') or kwargs.get('target_name')
+    backlog_task = kwargs.get('backlog_task')
     
     if surgical_target and os.path.exists(full_path):
         success, msg = apply_surgical_patch(full_path, surgical_target, new_content)
@@ -171,17 +174,17 @@ def apply_code_change(site, file_key, new_content, reason="", path=None, backlog
         'self_doctor.py': """# Generated dynamically by apps.py (Phoenix Scaffolding)
 class SecurityAuditor:
     @staticmethod
-    def scan_code_safety(code, file_path="", site=None):
+    def scan_code_safety(code, file_path="", site=None, *args, **kwargs):
         return True, []
 class UniversalHealer:
-    def __init__(self, site): self.site = site
-    def perform_maintenance(self): pass
+    def __init__(self, site, *args, **kwargs): self.site = site
+    def perform_maintenance(self, *args, **kwargs): pass
 """,
         'event_bus.py': """# Generated dynamically by apps.py (Phoenix Scaffolding)
 class EventTypes:
     PRODUCT_CREATED = 'product.created'
     TASK_COMPLETED = 'task.completed'
-def publish_event(event_type, data, source="system"):
+def publish_event(event_type, data, source="system", *args, **kwargs):
     pass
 """
     }
@@ -222,9 +225,7 @@ class MarketplaceConfig(AppConfig):
         except Exception as e:
             logger.error(f"Pre-flight bootstrapping failed: {e}")
 
-        # ============================================================
-        # 🛡️ [የቅድመ-በረራ ስህተት መከላከያ]፦ SQLite WAL Mode ማነቃቂያ (ሰርቨሩን አይጎዳም)
-        # ============================================================
+        # SQLite WAL Mode ማነቃቂያ
         try:
             from django.db import connection
             with connection.cursor() as cursor:
@@ -234,11 +235,6 @@ class MarketplaceConfig(AppConfig):
                     logger.info("⚡ Auto-Healer: Activated WAL Mode on SQLite.")
         except Exception as e:
             logger.debug(f"SQLite WAL activation safely bypassed: {e}")
-
-        # =====================================================================
-        # ⚠️ ማሳሰቢያ፦ የሰርቨር መጣበቅን ለመከላከል makemigrations እና migrate ከዚህ ተወግደዋል!
-        # እነዚህ ስራዎች በሙሉ በ build.sh ላይ ብቻ በስኬት እንዲከናወኑ ተደርገዋል [1]።
-        # =====================================================================
 
         logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")
 
@@ -270,7 +266,7 @@ class MarketplaceConfig(AppConfig):
                     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
                     from .growth_agent import execute_master_cycle
                     
-                    # 🟢 1. ፈጣን የቀጥታ ታስክ ዑደት (Instant Trigger Polling - 5 ሰከንድ ምላሽ) [1]
+                    # 🟢 1. ፈጣን የቀጥታ ታስክ ዑደት (Instant Trigger Polling - 5 ሰከንድ ምላሽ)
                     trigger = SiteConfig.objects.filter(key="EVOLVE_TRIGGER_PENDING").first()
                     if trigger and trigger.value and isinstance(trigger.value, dict) and trigger.value.get('status') == 'pending':
                         logger.info("⚡ SafetyNet Trigger: Instant manual/webhook trigger detected! Starting Master Cycle...")
@@ -281,7 +277,7 @@ class MarketplaceConfig(AppConfig):
                         time.sleep(5)
                         continue
 
-                    # 🟢 2. የድሮው 10-ደቂቃ የውጭ ፒንግ መከላከያ (Cron safety fallback) [1]
+                    # 🟢 2. የድሮው 10-ደቂቃ የውጭ ፒንግ መከላከያ (Cron safety fallback)
                     now = timezone.now()
                     if not last_cron_fallback_run or (now - last_cron_fallback_run) >= timedelta(minutes=10):
                         cron_ping = SiteConfig.objects.filter(key="LAST_SUCCESSFUL_CRON_PING").first()

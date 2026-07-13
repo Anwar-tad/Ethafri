@@ -1,21 +1,24 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/forms.py
-# 📝 ስሪት፦ v10.18 (Unified ModelForm Integration — Safe & Aligned)
-# ✅ የተፈቱ ችግሮች፦ Resolved module-level NameError inside Meta, deferred dynamic querysets in __init__, HTML XSS tag stripping, and secure seller contact sanitization.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ስሪት፦ v10.19 (Unified ModelForm Integration — Safe & Aligned)
+# ✅ የተፈቱ ችግሮች፦ Dynamic model registration in forms to completely eliminate circular imports and AppRegistryNotReady blockages, deferred querysets in __init__, HTML XSS tag stripping, and secure seller contact sanitization.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from django import forms
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
-from django.utils.html import strip_tags  # 🛡️ XSS ጥቃትን መከላከያ ማጽጃ
+from django.utils.html import strip_tags  # XSS ጥቃትን መከላከያ ማጽጃ
 from django.apps import apps
 import json
 import re
 from typing import Dict, List, Optional, Union, Any
 
-# 🛡️ FIXED: የ AppRegistryNotReady እና የ NameError ክላሽን ለመከላከል ቀጥተኛ ሞዴል ማስገቢያ
-from .models import Product, Category, SiteRegistry
+# 🛡️ REGISTRY SAFETY: የ 'AppRegistryNotReady' ስህተትን ለመከላከል ሞዴሎችን በዳይናሚክ መጫን
+# ይህ አሰራር የክብ ጥገኝነት (Circular Import) ስህተቶችን 100% ያስቀራል
+Product = apps.get_model('marketplace', 'Product')
+Category = apps.get_model('marketplace', 'Category')
+SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
 
 
 class ProductForm(forms.ModelForm):
@@ -120,7 +123,7 @@ class ProductForm(forms.ModelForm):
         return price
     
     def clean_title(self):
-        """የርዕስ ማረጋገጫ እና የ XSS ጠለፋ መከላከያ [1]"""
+        """የርዕስ ማረጋገጫ እና የ XSS ጠለፋ መከላከያ"""
         title = self.cleaned_data.get('title')
         if title:
             # HTML ታጎችን በሙሉ ማጽዳት (XSS Script Sanitization)
@@ -131,7 +134,7 @@ class ProductForm(forms.ModelForm):
         return title
 
     def clean_description(self):
-        """የመግለጫ ማረጋገጫ እና የ XSS ጠለፋ መከላከያ [1]"""
+        """የመግለጫ ማረጋገጫ እና የ XSS ጠለፋ መከላከያ"""
         description = self.cleaned_data.get('description')
         if description:
             # HTML ታጎችን በሙሉ ማጽዳት (XSS Script Sanitization)
@@ -139,7 +142,7 @@ class ProductForm(forms.ModelForm):
         return description
 
     def clean_contact_info(self):
-        """🛡️ FIXED: ሻጮች ስልካቸውን ወይም @username በትክክል ማስገባታቸውን ማረጋገጫ"""
+        """🛡️ ሻጮች ስልካቸውን ወይም @username በትክክል ማስገባታቸውን ማረጋገጫ"""
         contact = self.cleaned_data.get('contact_info', '').strip()
         if contact:
             # የጃንጎን ዩዘር ስም ጋሻ እንዳያጋጭ አላስፈላጊ ልዩ ምልክቶችን ማጽዳት
@@ -153,7 +156,7 @@ class ProductForm(forms.ModelForm):
         """ፎርሙን በማስቀመጥ ላይ — Multi-Site ድጋፍ"""
         product = super().save(commit=False)
         
-        # የ JSONField እሴቶችን በቀጥታ እንደ ፓይተን ሊስት (List) ማስቀመጥ [1]
+        # የ JSONField እሴቶችን በቀጥታ እንደ ፓይተን ሊስት (List) ማስቀመጥ
         gallery_raw = self.cleaned_data.get('image_gallery', '').strip()
         if gallery_raw:
             gallery_list = [url.strip() for url in gallery_raw.split(',') if url.strip()]

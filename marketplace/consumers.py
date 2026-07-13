@@ -1,8 +1,8 @@
 # ============================================================
-# 📁 ፋይል፦ EthAfri/marketplace/consumers.py
-# 📝 ስሪት፦ v10.20 (Phoenix Concurrency - Aligned Health Matrix & CPU Stream)
-# ✅ የተፈቱ ችግሮች፦ Fixed DjangoJSONEncoder 'cls' reference bug to prevent serialization crashes, integrated live API health status streaming across 9 keys, and safely resolved concurrent SQLite locking bottlenecks.
-# 📅 ቀን፦ Tuesday, July 07, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/consumers.py
+# 📝 ስሪት፦ v10.21 (Phoenix Concurrency - Aligned Health Matrix & CPU Stream)
+# ✅ የተፈቱ ችግሮች፦ Aligned API health streaming with all 2026 high-performance providers (SambaNova, Cerebras, Nvidia), fully transitioned to connections.close_all() for async DB safety, optimized ORM lookups with select_related, and pruned redundant stub classes.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 import os
@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 from django.utils import timezone
 from channels.db import database_sync_to_async
-from django.db import connection, connections, close_old_connections
+from django.db import connection, connections
 from django.core.cache import cache
 from typing import Dict, List, Optional, Union, Any
 from django.db.models import Count, Sum, Case, When, IntegerField, Value
@@ -26,10 +26,6 @@ from django.core.serializers.json import DjangoJSONEncoder
 
 logger = logging.getLogger(__name__)
 
-class AIUtils:
-    @staticmethod
-    def clean_json_response(raw_text):
-        return raw_text.strip() if raw_text else "{}"
 
 # ============================================================
 # 🎡 MASTER WEBSOCKET CONSUMER
@@ -39,6 +35,7 @@ try:
 except ImportError:
     class AsyncWebsocketConsumer:
         pass
+
 
 class AgentStatusConsumer(AsyncWebsocketConsumer):
     """
@@ -163,7 +160,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                     lock_fut, tasks_fut, pending_fut, sites_fut, errors_fut, healing_fut, cycle_logs_fut, api_health_fut
                 )
             
-            # 🛡️ FIXED: JSONEncoder 'encoder' ስህተት ወደ 'cls' ተስተካክሏል
             await self.send(text_data=json.dumps({
                 'type': 'status_update',
                 'task_stats': tasks,
@@ -176,7 +172,7 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
                 'api_cooldowns': api_health.get('api_cooldowns', {}),
                 'api_configured': api_health.get('api_configured', {}),
                 'timestamp': timezone.now().isoformat()
-            }, cls=DjangoJSONEncoder)) # <--- cls መሆኑ ተረጋግጧል
+            }, cls=DjangoJSONEncoder))
         except Exception as e:
             logger.error(f"Failed to compile status check: {e}")
     
@@ -209,7 +205,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_api_health_states(self):
-        providers = ['gemini', 'groq', 'mistral', 'openrouter', 'huggingface', 'github']
+        # 🛡️ FIXED: Aligned providers list with modern 2026 specs (added sambanova, cerebras, nvidia)
+        providers = ['gemini', 'groq', 'mistral', 'openrouter', 'huggingface', 'github', 'sambanova', 'cerebras', 'nvidia']
         cooldowns = {}
         configured = {}
         
@@ -443,7 +440,8 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading site tasks: {e}")
             return []
         finally:
-            close_old_connections()
+            # 🛡️ FIXED: Transitioned to connections.close_all() for async DB safety
+            connections.close_all()
     
     @database_sync_to_async
     def get_site_errors(self, site_id):
@@ -464,15 +462,17 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading site errors: {e}")
             return []
         finally:
-            close_old_connections()
+            # 🛡️ FIXED: Transitioned to connections.close_all() for async DB safety
+            connections.close_all()
     
     @database_sync_to_async
     def get_recent_activity(self):
         AIProjectBacklog = self.models_ref['AIProjectBacklog']
         AIEvolutionLog = self.models_ref['AIEvolutionLog']
         try:
-            recent_tasks = AIProjectBacklog.objects.order_by('-updated_at')[:5]
-            recent_evolutions = AIEvolutionLog.objects.order_by('-created_at')[:5]
+            # 🛡️ Micro-Optimization: added select_related('site') to prevent N+1 ORM queries inside background thread context
+            recent_tasks = AIProjectBacklog.objects.select_related('site').order_by('-updated_at')[:5]
+            recent_evolutions = AIEvolutionLog.objects.select_related('site').order_by('-created_at')[:5]
             
             activity = []
             

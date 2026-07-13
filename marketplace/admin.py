@@ -1,25 +1,42 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/admin.py
-# 📝 ስሪት፦ v10.18 (Production Grade - Hardened & Beautiful Admin)
-# ✅ የተፈቱ ችግሮች፦ Dynamic crash-safe local imports, product translation stacked inline, and secure code-escaped comparisons inside AIEvolutionLog.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ስሪት፦ v10.19 (Production Grade - Hardened & Beautiful Admin)
+# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading to completely eliminate top-level local import circular dependencies, product translation stacked inline, and secure code-escaped comparisons inside AIEvolutionLog.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from django.contrib import admin
-from django.utils.html import escape, format_html # ✅ የደህንነት እና የንድፍ መተግበሪያ 'escape' እዚህ ተጨምሯል
+from django.utils.html import escape, format_html # የደህንነት እና የንድፍ መተግበሪያ 'escape' እዚህ ተጨምሯል
 from django.apps import apps
 
-# 🛡️ REGISTRY SAFETY: የ 'AppRegistryNotReady' ስህተትን ለመከላከል ሞዴሎችን ከአካባቢያዊ ፋይል መጫን
-from .models import (
-    Product, Category, UserSearch, ProductTranslation, TranslationQueue,
-    SiteRegistry, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction,
-    AgentErrorLog, SelfHealingLog, SiteConfig, MarketTrend,
-    SellerProfile, CustomerAcquisitionLog, MarketingCampaign, NotificationQueue,
-    VectorMemory, AgentTask, ABTest, SecurityLog, PredictionLog, ExternalAPI
-)
+# 🛡️ REGISTRY SAFETY: Django App Registry በመጠቀም ሁሉንም ሞዴሎች በዳይናሚክ መንገድ መጫን
+# ይህ አሰራር የ 'AppRegistryNotReady' እና የክብ ጥገኝነት (Circular Import) ስህተቶችን 100% ያስቀራል
+Product = apps.get_model('marketplace', 'Product')
+Category = apps.get_model('marketplace', 'Category')
+UserSearch = apps.get_model('marketplace', 'UserSearch')
+ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
+TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
+SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
+AdminOverrideInstruction = apps.get_model('marketplace', 'AdminOverrideInstruction')
+AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
+SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
+SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+MarketTrend = apps.get_model('marketplace', 'MarketTrend')
+SellerProfile = apps.get_model('marketplace', 'SellerProfile')
+CustomerAcquisitionLog = apps.get_model('marketplace', 'CustomerAcquisitionLog')
+MarketingCampaign = apps.get_model('marketplace', 'MarketingCampaign')
+NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
+VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+AgentTask = apps.get_model('marketplace', 'AgentTask')
+ABTest = apps.get_model('marketplace', 'ABTest')
+ExternalAPI = apps.get_model('marketplace', 'ExternalAPI')
+SecurityLog = apps.get_model('marketplace', 'SecurityLog')
+PredictionLog = apps.get_model('marketplace', 'PredictionLog')
 
 
-# 🛡️ REGISTRY COLLISION GUARD: ሰርቨሩ በ AlreadyRegistered ስህተት እንዳይከሰከስ የደህንነት ምዝገባ ረዳት [1]
+# 🛡️ REGISTRY COLLISION GUARD: ሰርቨሩ በ AlreadyRegistered ስህተት እንዳይከሰከስ የደህንነት ምዝገባ ረዳት
 def safe_register(model_class, admin_class=None):
     try:
         if not admin.site.is_registered(model_class):
@@ -36,7 +53,7 @@ def safe_register(model_class, admin_class=None):
 # ============================================================
 
 class ProductTranslationInline(admin.StackedInline):
-    """🔴 የምርት ትርጉሞችን በአንድ ገጽ ላይ በአድሚን ሰሌዳ ለመተርጎም (UX Booster) [1]"""
+    """🔴 የምርት ትርጉሞችን በአንድ ገጽ ላይ በአድሚን ሰሌዳ ለመተርጎም (UX Booster)"""
     model = ProductTranslation
     extra = 1
     max_num = 1
@@ -99,7 +116,7 @@ class AIProjectBacklogAdmin(admin.ModelAdmin):
 
 
 class AIEvolutionLogAdmin(admin.ModelAdmin):
-    """🔴 ኤጀንቱ የቀየራቸውን ኮዶች በጥቁር ዳራ (HTML pre/code style) አሳምሮ የሚያሳይ ሰሌዳ [1]"""
+    """🔴 ኤጀንቱ የቀየራቸውን ኮዶች በጥቁር ዳራ (HTML pre/code style) аሳምሮ የሚያሳይ ሰሌዳ"""
     list_display = ('target_file', 'site', 'reason_preview', 'created_at')
     list_filter = ('site', 'target_file')
     readonly_fields = ('created_at', 'code_preview')
@@ -115,7 +132,7 @@ class AIEvolutionLogAdmin(admin.ModelAdmin):
         old_code = obj.old_code_backup or "No previous content (New File)"
         new_code = obj.new_code_patch or "No patch content"
         
-        # 🛡️ FIXED: HTML እና JavaScript ኮዶችን በአድሚን ገጽ ላይ ደህንነታቸውን ጠብቆ ለማሳየት 'escape' ጥሪ
+        # HTML እና JavaScript ኮዶችን በአድሚን ገጽ ላይ ደህንነታቸውን ጠብቆ ለማሳየት 'escape' ጥሪ (XSS Shield)
         safe_old_code = escape(old_code)
         safe_new_code = escape(new_code)
         

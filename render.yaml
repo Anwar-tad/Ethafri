@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/render.yaml
-# 📝 ለውጥ፦ v10.16 Master Secure Infrastructure — Python 3.11.8 & Supabase DB Synced
-# ✅ የተፈቱ ችግሮች፦ Dynamic proxy headers allowed in uvicorn start command, Python version mapped, and env key protection.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ለውጥ፦ v10.17 Master Secure Infrastructure — Python 3.11.8 & Supabase DB Synced
+# ✅ የተፈቱ ችግሮች፦ Aligned environment key protections with v10.41 rotating providers (added SambaNova, Cerebras, Nvidia, secondary Geminis, and Cloudinary keys), removed deprecated HuggingFace config, and secured the emergency database reset switch.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 services:
@@ -15,7 +15,7 @@ services:
     plan: free
     buildCommand: ./build.sh
     # ኡቪኮርን (Uvicorn ASGI) ዌብሶኬቱ በጥራት እንዲሰራ ያስችለዋል
-    # --forwarded-allow-ips='*' ሬንደር በሚጠቀምበት የሪቨርስ ፕሮክሲ (Reverse Proxy) መረብ ላይ ግንኙነቶች እንዳይቋረጡ ያረጋግጣል [1]
+    # --forwarded-allow-ips='*' ሬንደር በሚጠቀምበት የሪቨርስ ፕሮክሲ (Reverse Proxy) መረብ ላይ ግንኙነቶች እንዳይቋረጡ ያረጋግጣል
     startCommand: uvicorn core.asgi:application --host 0.0.0.0 --port $PORT --workers 1 --forwarded-allow-ips='*'
     envVars:
       # የሬንደር ዳታቤዝ ሙሉ በሙሉ ጠፍቶ ከውጪው ሱፓቤዝ (Supabase) ጋር በጥራት ተገናኝቷል
@@ -35,12 +35,23 @@ services:
         value: "600"
       - key: SKIP_SHELL
         value: "true"
-      # ሬንደር በአውቶ-ዲፕሎይ ጊዜ የ AI ቁልፎችን እንዳያጠፋ በ sync: false በጥራት ተጠብቀዋል
+      
+      # 🛡️ FIXED: Emergency Schema reset safety switch added (default is false)
+      - key: ALLOW_EMERGENCY_SCHEMA_RESET
+        value: "false"
+
+      # ሬንደር በአውቶ-ዲፕሎይ ጊዜ የነቁ ጥቅሎችንና የ AI ቁልፎችን እንዳያጠፋ በ sync: false በጥራት ተጠብቀዋል
       - key: GITHUB_TOKEN
         sync: false
+      
+      # 🛡️ 12ቱ የኤአይ ቁልፎች አሰላለፍ ጥበቃ (Aligned rotating keys)
       - key: GEMINI_API_KEY
         sync: false
-      - key: HUGGINGFACE_API_KEY
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
+      - key: GEMINI_API_KEY_4
         sync: false
       - key: GROQ_API_KEY
         sync: false
@@ -48,5 +59,20 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
+      - key: SAMBANOVA_API_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+
+      # 🛡️ Cloudinary ቋሚ የሚዲያ ማከማቻ ቁልፎች ጥበቃ
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+        
     autoDeploy: true
     healthCheckPath: /

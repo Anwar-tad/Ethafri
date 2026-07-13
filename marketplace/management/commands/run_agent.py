@@ -1,12 +1,12 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/run_agent.py
-# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with CPU-Load Adaptive Pacing (v10.18 - Hardened Healing Edition)
-# ✅ የተፈቱ ችግሮች፦ Integrated Self-Doctor DB connection refresher on OperationalError, dynamic app model registry loading, CPU-Load adaptive pacing, and memory leak protection.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with CPU-Load Adaptive Pacing (v10.19 - Hardened Healing Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic lazy-loading of system modules inside handle() to prevent early boot-time AppRegistryNotReady crashes, decoupled network connectivity checker from growth_agent.py, and fully transitioned to connections.close_all() for thread-safe DB releases.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
-from django.db import close_old_connections, connection, reset_queries
+from django.db import connections, connection, reset_queries # 🛡️ connections እዚህ ተጨምሯል
 from django.utils import timezone
 from django.apps import apps
 import logging
@@ -15,12 +15,25 @@ import sys
 import time
 import os
 
-from marketplace.growth_agent import execute_master_cycle
-from marketplace.ai_utils import broadcast_agent_log
-from marketplace.self_doctor import refresh_db_connection_on_error # ✅ የዳታቤዝ ግንኙነት ራስ-ጥገና እዚህ መጥቷል
-
 # 🛡️ Logger setup
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# 🌐 DECOUPLED NETWORK CONNECTIVITY CHECKER
+# ============================================================
+def _is_network_available() -> bool:
+    """
+    ከ growth_agent.py እና ከ MultiChannelHarvester መደብ ነጻ በሆነ መንገድ 
+    የበይነመረብ ግንኙነት መኖሩን በደህንነት የሚፈትሽ ረዳት
+    """
+    import requests
+    try:
+        # በኢትዮጵያ ውስጥ ፈጣንና አስተማማኝ ለሆኑ የፍተሻ ጣቢያዎች ጥሪ ማድረግ
+        return requests.get("https://google.com", timeout=3).status_code == 200
+    except requests.RequestException:
+        return False
+
 
 class Command(BaseCommand):
     help = 'Run the autonomous 24/7 growth agent loop with CPU-Load Adaptive Pacing'
@@ -39,7 +52,13 @@ class Command(BaseCommand):
         )
     
     def handle(self, *args, **kwargs):
-        # 🛡️ የሞዴል ተለዋዋጭ ጭነት (Registry Safety) [1]
+        # 🛡️ FIXED: settings.py ወይም uvicorn በሚነሳበት ወቅት ቀድመው የሚጫኑትን የአናት-ደረጃ የኤጀንት ሞጁሎች ኢምፖርት 
+        # ወደ handle() ውስጥ በማዘዋወር የ AppRegistryNotReady ስህተትን ሙሉ በሙሉ መከላከል (Lazy Loading) [1]
+        from marketplace.growth_agent import execute_master_cycle
+        from marketplace.ai_utils import broadcast_agent_log
+        from marketplace.self_doctor import refresh_db_connection_on_error
+
+        # የሞዴል ተለዋዋጭ ጭነት (Registry Safety)
         AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
 
         interval = kwargs.get('interval', 600)
@@ -55,18 +74,18 @@ class Command(BaseCommand):
         while True:
             try:
                 # 1. Database Connection Management (Memory Leak ለመከላከል)
-                close_old_connections()
+                connections.close_all()
                 
                 # 2. Execute Business Logic (የሥራ ዑደቱን መጥራት)
                 self.stdout.write("⚙️ Running Master Cycle...")
                 broadcast_agent_log(None, "Command: Master Pacing cycle triggered manually or dynamically.", "info")
                 execute_master_cycle()
                 
-                # 3. Memory Cleanup (ራም ለመቆጠብ) [1]
+                # 3. Memory Cleanup (ራም ለመቆጠብ)
                 reset_queries()  # DEBUG=True በሚሆንበት ወቅት የሚከሰተውን የሜሞሪ መፍሰስ መከላከያ
                 gc.collect()
                 
-                # 4. Adaptive Pacing logic (የጊዜ ማስተካከያ ሎጂክ) [1, 2]
+                # 4. Adaptive Pacing logic (የጊዜ ማስተካከያ ሎጂክ)
                 if force_static:
                     sleep_duration = interval
                 else:
@@ -83,10 +102,8 @@ class Command(BaseCommand):
                             self.stdout.write(self.style.WARNING(f"⚠️ Server CPU Load is heavy ({load_avg:.2f}). Pacing slowed to 45 minutes to protect host."))
                             broadcast_agent_log(None, f"Pacing Alert: Server CPU load is heavy ({load_avg:.2f}). Pacing slowed to 45 minutes.", "warning")
                         else:
-                            from marketplace.growth_agent import MultiChannelHarvester
-                            
-                            # 🌐 ኔትወርክ ከሌለ ቶከን ለመቆጠብ Pacing ን በከፍተኛ ሁኔታ ማቀዝቀዝ
-                            if not MultiChannelHarvester.is_network_available():
+                            # 🛡️ FIXED: Decoupled network connectivity checker from MultiChannelHarvester to prevent boot-time import loops
+                            if not _is_network_available():
                                 sleep_duration = 1800  # 30 ደቂቃ
                                 self.stdout.write(self.style.WARNING("🌐 Network is offline. Slow-pacing active (1800s sleep to save tokens)..."))
                                 broadcast_agent_log(None, "Pacing Alert: Server is offline. Sleeping for 30 minutes.", "warning")
@@ -121,16 +138,16 @@ class Command(BaseCommand):
                 time.sleep(30)  # ከስህተት በኋላ ዳግም ከመነሳቱ በፊት እረፍት መስጠት
             
             finally:
-                # 🧹 የዳታቤዝ ግንኙነቶችን መልቀቅ
+                # 🧹 የዳታቤዝ ግንኙነቶችን መልቀቅ (Multi-Thread Safe release)
                 try:
-                    connection.close()
+                    connections.close_all()
                 except Exception as close_err:
-                    logger.debug("Database connection close safely ignored: %s", close_err)
+                    logger.debug("Database connections close safely ignored: %s", close_err)
 
     def cleanup(self):
         """Clean resource release method."""
         try:
-            connection.close()
+            connections.close_all()
             gc.collect()
             logger.info("🧹 Cleaned up DB connections and garbage collector successfully.")
         except Exception as cleanup_err:

@@ -1,18 +1,16 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ዓላማ፦ Robust Growth Engine + Safe Connection Healing (v10.18 - Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Integrated Self-Doctor DB connection refresher on OperationalError, dynamic app model registry loading, and cron statistics logging.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ዓላማ፦ Robust Growth Engine + Safe Connection Healing (v10.19 - Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic lazy-loading of self-doctor inside handle() to prevent early boot-time AppRegistryNotReady crashes, upgraded connection release to connections.close_all() for multi-threaded safety, and handled cron statistics logging.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
-from django.db import close_old_connections, connection
+from django.db import connections, connection # 🛡️ connections እዚህ ተጨምሯል
 from django.utils import timezone
 from django.apps import apps
 import logging
 import gc
-
-from marketplace.self_doctor import refresh_db_connection_on_error # ✅ የዳታቤዝ ግንኙነት ራስ-ጥገና እዚህ መጥቷል
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +53,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **kwargs):
-        # 🛡️ የሞዴል ተለዋዋጭ ጭነት (Registry Safety) [1]
+        # 🛡️ FIXED: settings.py ወይም uvicorn በሚነሳበት ወቅት ቀድሞ የሚጫነውን የ self_doctor ኢምፖርት 
+        # ወደ handle() ውስጥ በማዘዋወር የ AppRegistryNotReady ስህተትን ሙሉ በሙሉ መከላከል (Lazy Loading) [1]
+        from marketplace.self_doctor import refresh_db_connection_on_error
+
+        # የሞዴል ተለዋዋጭ ጭነት (Registry Safety)
         SiteConfig = apps.get_model('marketplace', 'SiteConfig')
         SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
 
@@ -64,7 +66,8 @@ class Command(BaseCommand):
         discover = kwargs.get('discover')
         
         try:
-            close_old_connections()
+            # 🛡️ FIXED: Multi-Thread safe connection cleanup via connections.close_all()
+            connections.close_all()
         except Exception as conn_err:
             logger.debug("Failed to close old connections on startup: %s", conn_err)
             
@@ -73,7 +76,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"🚀 [{timezone.now()}] EthAfri Autonomous Growth Engine Triggered."))
         
         try:
-            # ላለፈው የ "Growth Agent module missing" ስህተት መከላከያ [1]
             try:
                 from marketplace.growth_agent import execute_master_cycle
             except ImportError as ie:
@@ -81,7 +83,6 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(error_msg))
                 logger.critical(error_msg)
                 
-                # json.dumps ሳይጠቀሙ ቀጥተኛ የፓይተን ዲክሽነሪ መመገብ
                 SiteConfig.objects.update_or_create(
                     key="LAST_CRON_ERROR",
                     defaults={'value': {'time': timezone.now().isoformat(), 'error': error_msg}}
@@ -123,7 +124,7 @@ class Command(BaseCommand):
             if sites_to_process:
                 for site in sites_to_process:
                     try:
-                        close_old_connections()
+                        connections.close_all()
                     except Exception as conn_err:
                         logger.debug("Failed to clear connection before site process: %s", conn_err)
                         
@@ -166,7 +167,7 @@ class Command(BaseCommand):
             logger.error(f"❌ Critical Error in Growth Engine: {e}")
             self.stdout.write(self.style.ERROR(f"Error: {e}"))
             
-            # 🛡️ FIXED: OperationalError ከተከሰተ በራስ-ሰር ሪፍሬሽ በማድረግ ግንኙነቱን መጠገን
+            # OperationalError ከተከሰተ ግንኙነቱን በራስ-ሰር መጠገን
             db_refreshed = refresh_db_connection_on_error(str(e))
             if db_refreshed:
                 self.stdout.write(self.style.WARNING("🚑 Database connection refreshed safely across all active threads."))
@@ -182,9 +183,8 @@ class Command(BaseCommand):
             except Exception as config_err:
                 logger.debug("Failed to record LAST_CRON_ERROR: %s", config_err)
         finally:
-            # 🧹 ጀርባውን በደህንነት ማጽዳት (Daphne / Render Optimized) [1]
             try:
-                close_old_connections()
+                connections.close_all()
             except Exception as conn_err:
                 logger.debug("Failed to close old connections safely during command shutdown: %s", conn_err)
             gc.collect()

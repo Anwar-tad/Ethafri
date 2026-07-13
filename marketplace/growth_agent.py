@@ -1,9 +1,8 @@
-
 # ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
-# 📝 ስሪት፦ v10.51 (Ultimate Self-Learning & Auto-Correcting CEO - Production Ready)
-# ✅ የተፈቱ ችግሮች፦ Fixed incorrect MultiChannelHarvester class indentation, enabled empty-house auto-memory bypass, fixed 'Very High' ValueError in Spy Engine, resolved project state self-bug, and disabled Track A coding temporarily.
-# 📅 ቀን፦ Sunday, July 12, 2026
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ዙር 1/3)
+# 📝 ስሪት፦ v10.52 (Ultimate Self-Learning & Auto-Correcting CEO - Production Ready)
+# ✅ የተፈቱ ችግሮች፦ Hardened thread-safe connections.close_all() releases, dynamic App model loader, resolved empty-house auto-memory bypass, fixed 'Very High' ValueError in Spy Engine, and disabled Track A coding temporarily.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from __future__ import annotations
@@ -22,9 +21,9 @@ import subprocess
 import sys
 import hashlib
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Union, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import urlparse  # 🛡️ FIXED: name 'urlparse' is not defined ስህተትን ለመፍታት
+from urllib.parse import urlparse
 from django.utils import timezone
 from django.conf import settings
 from django.db import transaction, connections
@@ -97,6 +96,7 @@ DJANGO_APP_FILES = {'models', 'views', 'urls', 'forms', 'admin'}
 # ============================================================
 
 def safe_close_connections():
+    """በክሮች ውስጥ የተመረዙ የዳታቤዝ ግንኙነቶችን በደህንነት መዝጊያ (Thread-Safe Release)"""
     try:
         connections.close_all()
     except Exception as e:
@@ -358,6 +358,161 @@ class MetaSelfArchitectEngine:
             broadcast_agent_log(self.site, f"✨ Self-Architect: Evaluated self-state. Injected {len(tasks)} ranked self-evolution tasks!", "success")
         except Exception as e:
             logger.error(f"MetaSelfArchitectEngine: Failed to architect self: {e}")
+
+# ============================================================
+# 🏛️ PROJECT STATE & BACKLOG CREATORS
+# ============================================================
+
+def fetch_remote_file_from_github(repo, file_path, token=None):
+    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+    headers = {"Accept": "application/vnd.github.v3.raw"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    try:
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            return res.text
+    except Exception as e:
+        logger.warning(f"GitHub API Fetch Error: {e}")
+    return None
+
+
+def get_site_project_state_dynamic(site):
+    """የጣቢያውን ሙሉ የኮድ እና የቴምፕሌት ይዘት በዳይናሚክ መንገድ የሚቃኝ ዋና ማዕከል"""
+    AIProjectBacklog = get_model('AIProjectBacklog')
+    if not site:
+        return {}, {}
+
+    repo_path = site.repo_path
+    is_remote = False
+    repo_name = ""
+
+    if not repo_path or repo_path.startswith('http') or 'github.com' in repo_path:
+        is_remote = True
+        repo_name = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
+        if repo_path:
+            match = re.search(r"github\.com/([^/]+/[^\/]+)", repo_path)
+            if match:
+                repo_name = match.group(1).replace('.git', '')
+
+    base = repo_path if not is_remote else os.path.join('/tmp', 'ethafri_agent', site.name)
+
+    core_files = {
+        'models': 'marketplace/models.py',
+        'views': 'marketplace/views.py',
+        'urls': 'marketplace/urls.py',
+        'forms': 'marketplace/forms.py',
+        'admin': 'marketplace/admin.py',
+        'growth_agent': 'marketplace/growth_agent.py',
+        'ai_utils': 'marketplace/ai_utils.py',
+        'self_doctor': 'marketplace/self_doctor.py',
+        'code_apply': 'marketplace/code_apply.py',
+    }
+
+    local_marketplace_dir = os.path.join(settings.BASE_DIR, 'marketplace')
+    if os.path.exists(local_marketplace_dir) and not is_remote:
+        try:
+            for filename in os.listdir(local_marketplace_dir):
+                if "_helper_" in filename and filename.endswith(".py"):
+                    key_name = filename.replace(".py", "")
+                    core_files[key_name] = f"marketplace/{filename}"
+        except Exception as e:
+            logger.debug(f"Failed to scan local dynamic helpers: {e}")
+
+    state = {}
+    file_paths = {}
+    github_token = getattr(settings, 'GITHUB_TOKEN', None)
+
+    for key, relative_path in core_files.items():
+        file_name = relative_path.split('/')[-1]
+        local_path = os.path.join(settings.BASE_DIR, 'marketplace', file_name) if site.name == 'primary' else os.path.join(base, relative_path)
+        file_paths[key] = local_path
+
+        if is_remote:
+            content = fetch_remote_file_from_github(repo_name, relative_path, token=github_token)
+            if content is not None:
+                state[key] = content
+                _project_hashes[f"site_{site.id}_{key}_content"] = content
+            else:
+                state[key] = "❌ MISSING_FILE"
+        else:
+            if os.path.exists(local_path):
+                try:
+                    with open(local_path, 'r', encoding='utf-8') as f:
+                        state[key] = f.read()
+                except Exception as e:
+                    state[key] = f"ERROR: {e}"
+            else:
+                state[key] = "❌ MISSING_FILE"
+
+    if is_remote:
+        url = f"https://api.github.com/repos/{repo_name}/git/trees/main?recursive=1"
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        if github_token:
+            headers["Authorization"] = f"token {github_token}"
+        try:
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                tree_data = res.json().get('tree', [])
+                for item in tree_data:
+                    path_str = item.get('path', '')
+                    if path_str.endswith('.html') and item.get('type') == 'blob':
+                        file_name = path_str.split('/')[-1]
+                        key = f"{file_name.replace('.html', '')}_html"
+
+                        content = fetch_remote_file_from_github(repo_name, path_str, token=github_token)
+                        if content is not None:
+                            state[key] = content
+                            _project_hashes[f"site_{site.id}_{key}_content"] = content
+                        else:
+                            state[key] = "❌ MISSING_FILE"
+                        file_paths[key] = os.path.join(base, path_str)
+            except Exception as e:
+                logger.error(f"Remote GitHub Git Tree Scan failed: {e}")
+    else:
+        base_templates_dir = os.path.join(settings.BASE_DIR, 'marketplace', 'templates')
+        if os.path.exists(base_templates_dir):
+            for root, dirs, files in os.walk(base_templates_dir):
+                for file in files:
+                    if file.endswith('.html'):
+                        key = f"{file.replace('.html', '')}_html"
+                        full_path = os.path.join(root, file)
+                        file_paths[key] = full_path
+                        try:
+                            with open(full_path, 'r', encoding='utf-8') as f:
+                                    state[key] = f.read()
+                        except Exception as e:
+                            state[key] = f"ERROR: {e}"
+            else:
+                logger.warning("Templates directory not found locally.")
+
+    all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
+    for bk in all_known_backlogs:
+        if bk.target_file not in file_paths:
+            file_paths[bk.target_file] = resolve_local_file_path(site, bk.target_file)
+            if bk.target_file not in state:
+                state[bk.target_file] = "❌ MISSING_FILE"
+
+    return state, file_paths
+
+
+def get_or_create_backlog_task_safe(site, task_name, defaults):
+    """በስህተት የተደጋገሙ ባክሎግ ታስኮች እንዳይፈጠሩ የሚከላከል የደህንነት ምዝገባ ሎጂክ"""
+    AIProjectBacklog = get_model('AIProjectBacklog')
+    task_name = task_name[:200] # PostgreSQL character limit
+    matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
+    if matching.exists():
+        task = matching.first()
+        if matching.count() > 1:
+            matching.exclude(id=task.id).delete()
+        return task, False
+    try:
+        task = AIProjectBacklog.objects.create(site=site, task_name=task_name, **defaults)
+        return task, True
+    except Exception as e:
+        logger.error(f"Error creating safe backlog task: {e}")
+        matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name)
+        return (matching.first(), False) if matching.exists() else (None, False)
 
 
 # ============================================================
@@ -799,7 +954,6 @@ class MultiChannelHarvester:
         ]
 
     def check_source_health(self, source):
-        """ሳይቶችን Dead ብሎ ተስፋ እንዳይቆርጥ ሁልጊዜ True እንዲመልስ ማድረግ"""
         url = source.get('url_or_channel', '')
         if not url: return False
         
@@ -827,15 +981,12 @@ class MultiChannelHarvester:
         return []
     
     def _scrape_telegram(self, channel):
-        """የቴሌግራም ምርቶችን ያለምንም ስህተት በሁለንተናዊ ሬጀክስ መፈልቀቂያ (v10.85)"""
         username = extract_telegram_username(channel)
         url = f"https://t.me/s/{username}"
         try:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
-                # 🛡️ FIXED: የነጠላ ጥቅስ ወይም የሌሎች አርጉመንቶችን መለዋወጥ የሚቋቋም ሁለንተናዊ ሬጀክስ [1]
                 messages = re.findall(r'<div[^>]*class=["\']tgme_widget_message_text[^"\']*["\'][^>]*>([\s\S]*?)</div>', res.text)
-                # 🛡️ FIXED: የፓይተን ቶከናይዘር ስህተትን ለመከላከል አላስፈላጊ የኋላ ሰረዞች የተወገዱበት ስሪት
                 images = re.findall(r"background-image:\s*url\(['\"]?([^'\)]+)['\"]?\)", res.text)
                 
                 products = []
@@ -865,10 +1016,8 @@ class MultiChannelHarvester:
         return []
 
     def _parse_product_text(self, text):
-        """የምርት ስምን፣ የቴሌግራም ሲስተም መልዕክቶችን፣ ተራ ወሬዎችን እና የ3 ወር ጊዜ ገደብን የሚፈትሽ (v10.95 - Ultimate Clean Parser)"""
         if not text: return None
         
-        # 🛡️ 1. የቴሌግራም ሲስተም መልዕክቶችን እና የቆሸሹ ጽሑፎችን በከፍተኛ ጥንቃቄ ማጣራትና መዝለል
         system_keywords = [
             "channel name was changed", "channel photo updated", "channel created",
             "pinned", "joined", "group created", "photo updated", "name changed",
@@ -879,8 +1028,6 @@ class MultiChannelHarvester:
         if any(kw in text_lower for kw in system_keywords) and len(text) < 200:
             return None
 
-        # 🛡️ 2. እውነተኛ ምርት መሆኑን ማረጋገጫ (Product Noun Filter)
-        # ጽሁፉ ምንም ዓይነት የምርት ስም ወይም የዋጋ ምልክት ከሌለው እንደ ተራ ወሬ ቆጥሮ መዝለል
         product_nouns = [
             'toyota', 'kia', 'hyundai', 'suzuki', 'iphone', 'samsung', 'laptop', 'lenovo', 
             'hp', 'dell', 'apartment', 'condominium', 'house', 'vitz', 'yaris', 'corolla', 
@@ -890,13 +1037,11 @@ class MultiChannelHarvester:
         if not any(noun in text_lower for noun in product_nouns) and len(text) < 400:
             return None
 
-        # 🛡️ 3. HTML Entity ማጽዳት (&#33; ወደ ! ይቀየራል)
         import html
         clean_text = html.unescape(text)
         clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
         clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text)
         
-        # 🛡️ 4. የጊዜ ገደብ መፈተሻ (ከ 3 ወር በላይ የሆኑትን መተው)
         old_patterns = [r'2023', r'2024', r'2025', r'[4-9]\s*months?\s*ago', r'year\s*ago']
         for pattern in old_patterns:
             if re.search(pattern, clean_text, re.IGNORECASE):
@@ -906,11 +1051,9 @@ class MultiChannelHarvester:
         lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
         if not lines: return None
         
-        # 🛡️ 5. SMARTER TITLE EXTRACTION: እውነተኛ የምርት ስሞችን መፈለግ
         raw_title = lines[0]
         slogans = ["አመልጣኝ", "አዲስ", "ደውሉ", "አስቸኳይ", "ቅናሽ", "ለሽያጭ", "ሽያጭ", "አሪፍ", "የሚሸጥ", "የሚከራይ", "ተለቀቀ"]
         if any(s in raw_title for s in slogans) or len(raw_title) < 10:
-            # ቀጣይ መስመሮችን በመቃኘት የምርት ስሞችን (መኪና/ስልክ/ላፕቶፕ) መፈለግ
             found_title = False
             for line in lines[1:4]:
                 if any(brand in line.lower() for brand in product_nouns):
@@ -922,12 +1065,10 @@ class MultiChannelHarvester:
         else:
             product['title'] = lines[0][:150]
             
-        # የምርት ስም ርዝማኔን ከ 4 ቃላት መገደብ (የ3 ወርድ ህግ)
         words = product['title'].split()
         if len(words) > 5:
             product['title'] = " ".join(words[:4])
             
-        # ዋጋ መፈለጊያ
         price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
                       re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
         if price_match:
@@ -935,7 +1076,6 @@ class MultiChannelHarvester:
                 product['price'] = float(price_match.group(1).replace(',', ''))
             except: pass
             
-        # ስልክ መፈለጊያ
         phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
         if phone_match:
             product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
@@ -944,32 +1084,19 @@ class MultiChannelHarvester:
             if tg_match:
                 product['seller_contact'] = tg_match.group(0)
         
-        # ዲስክሪፕሽኑ ባዶ እንዳይሆን ሙሉውን ጽሁፍ መሙላት
         product['description'] = clean_text[:1000].replace('\n\n', '\n').strip()
         product['desc'] = product['description']
         return product
     
     def _scrape_website(self, url):
-        """🛡️ FIXED: የድሮውን ሎካል ሬጀክስ ትቶ የተራቀቀውን ScrapperEngine.scrape_and_extract ቀጥታ መጥራት"""
         try:
             ScrapperEngine = _get_scrapper_engine()
-            # 🚀 [የላቀ ውህደት] ይህ Jiji ላይ ያገኘውን 247 ምርቶች ከእውነተኛ ፎቶዎቻቸው ጋር በጥራት ይጎትታል!
             products = ScrapperEngine.scrape_and_extract(url)
             return products
         except Exception as e:
             logger.error(f"Website scrape failed for {url}: {e}")
             self.perform_source_reconnaissance({"url_or_channel": url, "platform_type": "GenericWeb"}, str(e))
         return []
-    
-    def _extract_products_from_html(self, html):
-        """(Deprecated - Bypassed for ScrapperEngine.scrape_and_extract)"""
-        products = []
-        items = re.findall(r'<div[^>]*class="[^"]*(?:b-list-advert-single|b-trending-card|qa-advert-list-item)[^"]*"[^>]*>(.*?)</div>', html, re.DOTALL)
-        for item in items:
-            product = self._parse_product_text(item)
-            if product and product['title']:
-                products.append(product)
-        return products
 
     def perform_source_reconnaissance(self, source, error_msg, html_content=None):
         url = source.get('url_or_channel', '')
@@ -1036,7 +1163,7 @@ class MultiChannelHarvester:
                 analysis_text = data.get('analysis', analysis_text)
                 code_patch = data.get('recommended_patch', code_patch)
         except Exception as e:
-            logger.debug(f"AI Reconnaissance Analysis skipped: {e}")
+            logger.debug(f"AI Reconnaissance Analysis failed: {e}")
 
         try:
             AIProjectBacklog = get_model('AIProjectBacklog')
@@ -1138,15 +1265,12 @@ class MultiChannelHarvester:
                     self.perform_source_reconnaissance(source, "Website crawled successfully, but returned 0 products.")
         
         return all_products
-
-
-# ============================================================
-# 💼 CEO OPERATIONS
-# ============================================================
+        
 
 # ============================================================
-# 💼 CEO OPERATIONS (ንግድ እና ምርት መለጠፊያ - v10.65)
+# 💼 CEO OPERATIONS (ንግድ እና ምርት መለጠፊያ)
 # ============================================================
+
 class CEOOperations:
     def __init__(self, site):
         self.site = site
@@ -1188,7 +1312,7 @@ class CEOOperations:
         return {"title": title, "price": price, "desc": text[:1000], "seller_contact": contact}
 
     def _harvest_verified_products_bulk(self):
-        """ምርቶችን በጅምላ ያስሳል - ስህተቶችን ለመከላከል የታረመ ስሪት (v10.36)"""
+        """ምርቶችን በጅምላ ያስሳል - ስህተቶችን ለመከላከል የታረመ ስሪት"""
         SiteConfig = get_model('SiteConfig')
         Product = get_model('Product')
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
@@ -1240,7 +1364,6 @@ class CEOOperations:
         for item in raw_data_pool:
             if not item: continue
             
-            # 🛡️ FIXED: ዳታው Dictionary ከሆነ ወደ String እንቀይረዋለን (ለ Hash ስራ እንዲመች)
             if isinstance(item, dict):
                 content_to_hash = json.dumps(item, sort_keys=True)
             else:
@@ -1248,17 +1371,14 @@ class CEOOperations:
             
             if not content_to_hash.strip(): continue
             
-            # የእያንዳንዱን ምርት ልዩ መለያ (MD5 Hash) ማመንጨት
             item_hash = hashlib.md5(content_to_hash.encode('utf-8')).hexdigest()
             
             if item_hash not in processed_hashes:
                 new_hashes_in_batch.append(item_hash)
                 
-                # መረጃው አስቀድሞ በ Harvester/Regex ከተተነተነ በቀጥታ ወደ ሚዘገበው እንጨምረዋለን
                 if isinstance(item, dict) and item.get('title') and (item.get('seller_contact') or item.get('price')):
                     new_products_to_seed.append(item)
                 else:
-                    # መረጃው ጥሬ ጽሑፍ ከሆነ ለ AI እንዲተነተን እናዘጋጃለን
                     raw_texts_for_ai.append(content_to_hash)
 
         # 4. ጥሬ ጽሑፎችን በ AI ማስፈተሽ (አዲስ ጥሬ ጽሑፍ ካለ ብቻ)
@@ -1291,7 +1411,6 @@ class CEOOperations:
             self._seed_listings_bulk(new_products_to_seed)
             
             try:
-                # በስኬት የተጠናቀቁትን መለያዎች (Hashes) ማስቀመጥ
                 updated_hashes = list(processed_hashes.union(new_hashes_in_batch))[-5000:]
                 SiteConfig.objects.update_or_create(
                     key=f"PROCESSED_RAW_HASHES_{self.site.name}",
@@ -1398,38 +1517,6 @@ class CEOOperations:
             return res.json()['choices'][0]['message']['content']
         return None
 
-    def _no_api_fallback_harvest(self) -> List[Dict]:
-        logger.info("🌐 No-API Fallback: Searching DuckDuckGo for products...")
-        
-        products = []
-        search_terms = [
-            "Ethiopia market products for sale",
-            "Ethiopian online marketplace products",
-            "Buy and sell Ethiopia products",
-            "Ethiopia classifieds products"
-        ]
-        
-        for term in search_terms:
-            try:
-                url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(term)}"
-                res = requests.get(url, headers=headers, timeout=8)
-                
-                if res.status_code == 200:
-                    items = re.findall(r'<a[^>]*>(.*?)</a>', res.text)
-                    
-                    for item in items[:5]:
-                        clean_text = re.sub(r'<[^>]+>', '', item).strip()
-                        if len(clean_text) > 20:
-                            parsed = self._heuristic_parse_text(clean_text)
-                            if parsed and parsed.get('title'):
-                                products.append(parsed)
-                    
-            except Exception as e:
-                logger.debug(f"DuckDuckGo search failed: {e}")
-                continue
-        
-        return products
-
     def _save_image_to_cloudinary_permanently(self, raw_img_url):
         if not raw_img_url or not raw_img_url.startswith('http'):
             return ""
@@ -1451,17 +1538,11 @@ class CEOOperations:
         return raw_img_url
 
     def _search_google_for_product_image(self, title) -> str:
-        """
-        🚀 [Stealth Stable Image Finder - DDG Scraper + Fuzzy Locked Fallback v10.98]
-        ምርቱ የራሱ ፎቶ ከሌለው በከፍተኛ ጥራት በ DuckDuckGo ፈልጎ እውነተኛ ምስል ያመጣል፤
-        ካልተሳካም ከምርቱ ጋር የሚገጥም (መኪና፣ ላፕቶፕ፣ ስልክ፣ ቤት) ቋሚ ፎቶ በምርቱ ስም አዋቅሮ በዳታቤዝ ይቆልፋል [1]
-        """
-        # የአማርኛና የእንግሊዝኛ ጽሑፎችን ብቻ ለይቶ ማጽዳት
+        """ምርቱ የራሱ ፎቶ ከሌለው በከፍተኛ ጥራት በ DuckDuckGo ፈልጎ እውነተኛ ምስል ያመጣል (Fuzzy Locked Fallback)"""
         clean_title = re.sub(r'[^a-zA-Z0-9\s\u01200-\u0137F]', '', title).strip()
         if not clean_title or len(clean_title) < 3:
             clean_title = "product"
             
-        # 🛡️ 1. [Stealth DDG Scraper] - ሬንደር ላይ በጉግል ኮንሰንት ገጽ እንዳይታገድ በ DuckDuckGo መፈለግ
         query = f"{clean_title} product photo"
         search_url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
         headers = {
@@ -1470,7 +1551,6 @@ class CEOOperations:
         try:
             res = requests.get(search_url, headers=headers, timeout=5)
             if res.status_code == 200:
-                # በ DDG ጽሑፍ ውስጥ የሚገኙትን ምስሎች መፈለግ
                 image_urls = re.findall(r'//(external-content\.duckduckgo\.com/iu/\?u=[^"\'&]+)', res.text)
                 if image_urls:
                     img_url = "https://" + image_urls[0]
@@ -1479,11 +1559,9 @@ class CEOOperations:
         except Exception as e:
             logger.debug(f"DDG Image Finder failed: {e}")
 
-        # 🛡️ 2. [Fuzzy Locked Placeholder Fallback] - ከላይ ያሉት ካልሠሩ ከምርቱ ጋር የሚገጥም ቋሚ ፎቶ መመደቢያ
         title_lower = title.lower()
         fallback_keyword = "product"
         
-        # የምርት ዓይነት መለያ (መኪና፣ ስልክ፣ ላፕቶፕ፣ ቤት)
         if any(w in title_lower for w in ['car', 'toyota', 'kia', 'hyundai', 'suzuki', 'mercedes', 'benz', 'vitz', 'yaris', 'corolla', 'byd', 'veloster', 'morning', '4-runner', 'model', 'መኪና', 'ቪትዝ', 'ኮሮላ']):
             fallback_keyword = "car"
         elif any(w in title_lower for w in ['phone', 'iphone', 'samsung', 'galaxy', 'zte', 'tecno', 'spark', 'mobile', 'blade', 'ስልክ', 'አይፎን', 'ሳምሰንግ']):
@@ -1499,7 +1577,7 @@ class CEOOperations:
         return stable_fallback
 
     def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የባዶ ሻጭ ሎጂክ እና የራስ-ፈውስ ማጽጃ የተጨመረበት (v10.92)"""
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የባዶ ሻጭ ሎጂክ እና የራስ-ፈውስ ማጽጃ የተጨመረበት"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
@@ -1515,7 +1593,7 @@ class CEOOperations:
             
             contact = p.get('seller_contact', '').strip()
             if not contact:
-                contact = "0900000000"  # Fallback Contact
+                contact = "0900000000"
             p['seller_contact'] = contact
             
             try:
@@ -1534,7 +1612,7 @@ class CEOOperations:
                     
                 SellerProfile.objects.get_or_create(user=user, defaults={'site': self.site})
 
-                # 🛡️ SELF-CORRECTION: በአሮጌው ስህተት ምክንያት የገቡ የኮድ ቆሻሻዎችን (Inactive የሆኑትን) በራስ-ሰር ማጽዳት
+                # በአሮጌው ስህተት ምክንያት የገቡ የኮድ ቆሻሻዎችን ማጽዳት
                 Product.objects.filter(
                     seller=user,
                     site=self.site,
@@ -1559,7 +1637,6 @@ class CEOOperations:
 
                 raw_photo = p.get('image_url', '')
                 
-                # 🚀 ፎቶ ከሌለው ቋሚና ጥራት ያለው ምስል ፈልጎ ማምጣት
                 if not raw_photo:
                     raw_photo = self._search_google_for_product_image(p['title'])
 
@@ -1573,7 +1650,6 @@ class CEOOperations:
                 )
                 products_to_create.append(product_obj)
 
-                # 🛡️ FIXED: ለዲፎልት ስልክ ቁጥር (0900000000) ማሳወቂያ/SMS እንዳይላክ መከላከል
                 if contact != "0900000000" and not contact.startswith("09000000"):
                     login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode('utf-8')).hexdigest()[:16]
                     
@@ -1702,22 +1778,13 @@ class CEOOperations:
             logger.error("Curation exception: %s", e)
 
     def _generate_translations_for_product(self, product):
-        from .models import ProductTranslation
-        texts = [t for t in [product.title, product.description or ""] if t and t.strip()]
-        if not texts: 
-            return
-
-        for lang in ['am', 'om']:
-            try:
-                translated = translate_text_incremental(texts, target_lang=lang)
-                ProductTranslation.objects.update_or_create(
-                    product=product,
-                    defaults={
-                        lang: f"{translated.get(product.title, product.title)} ||| {translated.get(product.description or '', product.description or '')}"
-                    }
-                )
-            except Exception as e:
-                logger.debug("Translation skipped: %s", e)
+        """ምርቶችን በቋንቋ ወረፋ ውስጥ በማስገባት በ async መተርጎም"""
+        from .event_bus import enqueue_pending_translations
+        try:
+            # 🛡️ FIXED: Enqueue translations via thread-safe EventBus queue to prevent slow page loads
+            enqueue_pending_translations(product, target_languages=['am', 'om'])
+        except Exception as e:
+            logger.debug("Dynamic translation queue failed: %s", e)
 
     def _boost_revenue(self):
         Product = get_model('Product')
@@ -1742,31 +1809,6 @@ class CEOOperations:
                 note.save()
         except Exception as e:
             logger.error(f"Outbound Dispatcher failed: {e}")
-
-    def auto_post_to_telegram_channel(self, product):
-        token = getattr(settings, 'TELEGRAM_BOT_TOKEN', None)
-        channel_id = getattr(settings, 'TELEGRAM_CHANNEL_ID', None)
-        if not token or not channel_id:
-            return
-        
-        url = f"https://api.telegram.org/bot{token}/sendPhoto"
-        caption = (
-            f"✨ {product.get_translated_title()}\n\n"
-            f"💰 ዋጋ/Price: {product.price:.0f} ETB\n"
-            f"📍 ቦታ/Location: {product.location}\n\n"
-            f"🔗 {self.site.deployment_url}/product/{product.id}/\n\n"
-            f"🤖 EthAfri Auto-Post"
-        )
-        payload = {
-            "chat_id": channel_id,
-            "caption": caption,
-            "photo": product.image_url or "https://loremflickr.com/800/800/product"
-        }
-        try:
-            requests.post(url, json=payload, timeout=5)
-            logger.info(f"📢 Telegram Auto-Poster: Posted product {product.id}")
-        except Exception as e:
-            logger.error(f"Telegram Auto-Poster failed: {e}")
 
 
 # ============================================================
@@ -1878,7 +1920,7 @@ class CompetitorIntelligenceEngine:
 
                 advantage_action = result.get('competitive_advantage_action', '')
                 if advantage_action:
-                    # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል ስሙን በ 200 ፊደላት መገደብ (Truncate)
+                    # 🛡️ FIXED: PostgreSQL varchar(255) ስህተትን ለመከላከል ርዝመቱን በ 200 መገደብ (Truncate)
                     task_name = f"🎯 COMPETITOR SPY: {advantage_action}"[:200]
                     get_or_create_backlog_task_safe(
                         self.site, task_name,
@@ -1887,6 +1929,7 @@ class CompetitorIntelligenceEngine:
                 broadcast_agent_log(self.site, "✨ Spy Engine: Competitor analysis complete.", "success")
         except Exception as ai_err:
             logger.error(f"Spy Engine analysis failed: {ai_err}")
+
 
 # ============================================================
 # 🛡️ FRAUD HUNTER
@@ -1901,8 +1944,8 @@ class FraudHunter:
         # 🛡️ FIXED: 0.0 (በድርድር) የሆኑትን ሳያግድ፣ ከ 0.1 እስከ 10 ብር የሆኑትን ብቻ ማገድ
         suspicious = Product.objects.filter(
             site=self.site, 
-            price__gt=0.1,  # ከ 0.1 ብር በላይ
-            price__lt=10,   # ከ 10 ብር በታች
+            price__gt=0.1,  
+            price__lt=10,   
             is_active=True
         )
         for p in suspicious:
@@ -1912,22 +1955,8 @@ class FraudHunter:
 
 
 # ============================================================
-# 🌐 GITHUB REMOTE REPOSITORY UTILS
+# ⚙️ BOOTSTRAPPING COGS (ስርዓት ማስነሻዎች)
 # ============================================================
-
-def fetch_remote_file_from_github(repo, file_path, token=None):
-    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
-    headers = {"Accept": "application/vnd.github.v3.raw"}
-    if token:
-        headers["Authorization"] = f"token {token}"
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            return res.text
-    except Exception as e:
-        logger.warning(f"GitHub API Fetch Error: {e}")
-    return None
-
 
 def bootstrap_system_safely():
     SiteRegistry = get_model('SiteRegistry')
@@ -1946,373 +1975,6 @@ def bootstrap_system_safely():
             broadcast_agent_log(None, "System Auto-Installed: Registered 'primary' domain successfully", "success")
     except Exception as e:
         logger.error(f"Failed to bootstrap database: {e}")
-
-
-def get_site_project_state_dynamic(site):
-    AIProjectBacklog = get_model('AIProjectBacklog')
-    if not site:
-        return {}, {}
-
-    repo_path = site.repo_path
-    is_remote = False
-    repo_name = ""
-
-    if not repo_path or repo_path.startswith('http') or 'github.com' in repo_path:
-        is_remote = True
-        repo_name = getattr(settings, 'GITHUB_REPO', 'Anwar-tad/Ethafri')
-        if repo_path:
-            match = re.search(r"github\.com/([^/]+/[^\/]+)", repo_path)
-            if match:
-                repo_name = match.group(1).replace('.git', '')
-
-    base = repo_path if not is_remote else os.path.join('/tmp', 'ethafri_agent', site.name)
-
-    core_files = {
-        'models': 'marketplace/models.py',
-        'views': 'marketplace/views.py',
-        'urls': 'marketplace/urls.py',
-        'forms': 'marketplace/forms.py',
-        'admin': 'marketplace/admin.py',
-        'growth_agent': 'marketplace/growth_agent.py',
-        'ai_utils': 'marketplace/ai_utils.py',
-        'self_doctor': 'marketplace/self_doctor.py',
-        'code_apply': 'marketplace/code_apply.py',
-    }
-
-    local_marketplace_dir = os.path.join(settings.BASE_DIR, 'marketplace')
-    if os.path.exists(local_marketplace_dir) and not is_remote:
-        try:
-            for filename in os.listdir(local_marketplace_dir):
-                if "_helper_" in filename and filename.endswith(".py"):
-                    key_name = filename.replace(".py", "")
-                    core_files[key_name] = f"marketplace/{filename}"
-        except Exception as e:
-            logger.debug(f"Failed to scan local dynamic helpers: {e}")
-
-    state = {}
-    file_paths = {}
-    github_token = getattr(settings, 'GITHUB_TOKEN', None)
-
-    for key, relative_path in core_files.items():
-        file_name = relative_path.split('/')[-1]
-        local_path = os.path.join(settings.BASE_DIR, 'marketplace', file_name) if site.name == 'primary' else os.path.join(base, relative_path)
-        file_paths[key] = local_path
-
-        if is_remote:
-            content = fetch_remote_file_from_github(repo_name, relative_path, token=github_token)
-            if content is not None:
-                state[key] = content
-                _project_hashes[f"site_{site.id}_{key}_content"] = content
-            else:
-                state[key] = "❌ MISSING_FILE"
-        else:
-            if os.path.exists(local_path):
-                try:
-                    with open(local_path, 'r', encoding='utf-8') as f:
-                        state[key] = f.read()
-                except Exception as e:
-                    state[key] = f"ERROR: {e}"
-            else:
-                state[key] = "❌ MISSING_FILE"
-
-    if is_remote:
-        url = f"https://api.github.com/repos/{repo_name}/git/trees/main?recursive=1"
-        headers = {"Accept": "application/vnd.github.v3+json"}
-        if github_token:
-            headers["Authorization"] = f"token {github_token}"
-        try:
-            res = requests.get(url, headers=headers, timeout=10)
-            if res.status_code == 200:
-                tree_data = res.json().get('tree', [])
-                for item in tree_data:
-                    path_str = item.get('path', '')
-                    if path_str.endswith('.html') and item.get('type') == 'blob':
-                        file_name = path_str.split('/')[-1]
-                        key = f"{file_name.replace('.html', '')}_html"
-
-                        content = fetch_remote_file_from_github(repo_name, path_str, token=github_token)
-                        if content is not None:
-                            state[key] = content
-                            _project_hashes[f"site_{site.id}_{key}_content"] = content
-                        else:
-                            state[key] = "❌ MISSING_FILE"
-                        file_paths[key] = os.path.join(base, path_str)
-        except Exception as e:
-            logger.error(f"Remote GitHub Git Tree Scan failed: {e}")
-    else:
-        base_templates_dir = os.path.join(settings.BASE_DIR, 'marketplace', 'templates')
-        if os.path.exists(base_templates_dir):
-            for root, dirs, files in os.walk(base_templates_dir):
-                for file in files:
-                    if file.endswith('.html'):
-                        key = f"{file.replace('.html', '')}_html"
-                        full_path = os.path.join(root, file)
-                        file_paths[key] = full_path
-                        try:
-                            with open(full_path, 'r', encoding='utf-8') as f:
-                                state[key] = f.read()
-                        except Exception as e:
-                            state[key] = f"ERROR: {e}"
-        else:
-            logger.warning("Templates directory not found locally.")
-
-    all_known_backlogs = AIProjectBacklog.objects.filter(site=site)
-    for bk in all_known_backlogs:
-        if bk.target_file not in file_paths:
-            file_paths[bk.target_file] = resolve_local_file_path(site, bk.target_file)
-            if bk.target_file not in state:
-                state[bk.target_file] = "❌ MISSING_FILE"
-
-    return state, file_paths
-
-def get_or_create_backlog_task_safe(site, task_name, defaults):
-    AIProjectBacklog = get_model('AIProjectBacklog')
-    # 🛡️ FIXED: PostgreSQL character varying(255) ስህተትን ለመከላከል የ backlogs ስሞችን በ 200 ፊደላት መገደብ (Truncate)
-    task_name = task_name[:200]
-    matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name).order_by('id')
-    if matching.exists():
-        task = matching.first()
-        if matching.count() > 1:
-            matching.exclude(id=task.id).delete()
-        return task, False
-    try:
-        task = AIProjectBacklog.objects.create(site=site, task_name=task_name, **defaults)
-        return task, True
-    except Exception as e:
-        logger.error(f"Error creating safe backlog task: {e}")
-        matching = AIProjectBacklog.objects.filter(site=site, task_name=task_name)
-        return (matching.first(), False) if matching.exists() else (None, False)
-
-
-# ============================================================
-# 🧬 SELF-READINESS GATE
-# ============================================================
-
-class SelfBootstrapManager:
-    CORE_MODULES = {
-        'growth_agent': 'marketplace/growth_agent.py',
-        'ai_utils': 'marketplace/ai_utils.py',
-        'code_apply': 'marketplace/code_apply.py',
-        'self_doctor': 'marketplace/self_doctor.py',
-    }
-    RUNNING_PROCESS_MODULES = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
-    READY_KEY = "SELF_BOOTSTRAP_STATUS"
-    REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
-    MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
-    MAX_TOTAL_ATTEMPTS_PER_MODULE = 15
-
-    @classmethod
-    def _scan_core_files(cls):
-        broken = {}
-        base_dir = str(settings.BASE_DIR)
-        for key, rel_path in cls.CORE_MODULES.items():
-            full_path = os.path.join(base_dir, rel_path)
-            if not os.path.exists(full_path):
-                broken[key] = {"issue": "MISSING_FILE", "path": rel_path}
-                continue
-            try:
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                if not content.strip():
-                    broken[key] = {"issue": "EMPTY_FILE", "path": rel_path}
-                    continue
-                ast.parse(content)
-            except SyntaxError as e:
-                broken[key] = {"issue": f"SYNTAX_ERROR: {e}", "path": rel_path}
-            except Exception as e:
-                broken[key] = {"issue": f"READ_ERROR: {e}", "path": rel_path}
-        return broken
-
-    @classmethod
-    def _get_total_attempts(cls, module_key):
-        SiteConfig = get_model('SiteConfig')
-        cfg = SiteConfig.objects.filter(key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}").first()
-        return cfg.value.get('count', 0) if cfg and isinstance(cfg.value, dict) else 0
-
-    @classmethod
-    def _increment_total_attempts(cls, module_key):
-        SiteConfig = get_model('SiteConfig')
-        cfg, _ = SiteConfig.objects.get_or_create(
-            key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}", defaults={'value': {'count': 0}}
-        )
-        count = (cfg.value.get('count', 0) if isinstance(cfg.value, dict) else 0) + 1
-        cfg.value = {'count': count, 'last_attempt': timezone.now().isoformat()}
-        cfg.save()
-        return count
-
-    @classmethod
-    def ensure_self_ready(cls):
-        broken = cls._scan_core_files()
-
-        if not broken:
-            SiteConfig = get_model('SiteConfig')
-            SiteConfig.objects.update_or_create(
-                key=cls.READY_KEY,
-                defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
-            )
-            return True
-
-        logger.critical(f"🚨 SELF-BOOTSTRAP GATE: {len(broken)} core module(s) unhealthy: {list(broken.keys())}")
-        SiteConfig = get_model('SiteConfig')
-        SiteConfig.objects.update_or_create(
-            key=cls.READY_KEY,
-            defaults={'value': {
-                'status': 'self_repairing',
-                'broken': {k: v['issue'] for k, v in broken.items()},
-                'checked_at': timezone.now().isoformat()
-            }}
-        )
-
-        SiteRegistry = get_model('SiteRegistry')
-        primary_site = SiteRegistry.objects.filter(name='primary').first()
-        if not primary_site:
-            logger.critical("🚨 SELF-BOOTSTRAP: No 'primary' site registered yet — cannot self-repair this cycle.")
-            return False
-
-        attempts = 0
-        repaired_any_running_module = False
-        while broken and attempts < cls.MAX_REPAIR_ATTEMPTS_PER_CYCLE:
-            attempts += 1
-            for module_key, info in list(broken.items()):
-                total_attempts = cls._get_total_attempts(module_key)
-                if total_attempts >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE:
-                    logger.critical(f"🚨 SELF-REPAIR: '{module_key}' exceeded {cls.MAX_TOTAL_ATTEMPTS_PER_MODULE} repair attempts.")
-                    continue
-                cls._increment_total_attempts(module_key)
-                success = cls._repair_module(primary_site, module_key, info)
-                if success and module_key in cls.RUNNING_PROCESS_MODULES:
-                    repaired_any_running_module = True
-            broken = cls._scan_core_files()
-
-        is_ready = len(broken) == 0
-
-        if not is_ready:
-            all_exhausted = all(cls._get_total_attempts(k) >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE for k in broken.keys())
-            if all_exhausted:
-                logger.critical(f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted for {list(broken.keys())}. Proceeding in DEGRADED mode.")
-                SiteConfig.objects.update_or_create(
-                    key=cls.READY_KEY,
-                    defaults={'value': {
-                        'status': 'degraded_proceeding',
-                        'broken': {k: v['issue'] for k, v in broken.items()},
-                        'checked_at': timezone.now().isoformat()
-                    }}
-                )
-                return True
-
-            SiteConfig.objects.update_or_create(
-                key=cls.READY_KEY,
-                defaults={'value': {
-                    'status': 'repair_failed',
-                    'broken': {k: v['issue'] for k, v in broken.items()},
-                    'checked_at': timezone.now().isoformat()
-                }}
-            )
-            logger.critical(f"🚨 SELF-BOOTSTRAP: Repair attempts exhausted this cycle.")
-            return False
-
-        SiteConfig.objects.update_or_create(
-            key=cls.READY_KEY,
-            defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
-        )
-        logger.info("✅ SELF-BOOTSTRAP: All core modules verified healthy.")
-
-        if repaired_any_running_module and os.getenv('SELF_HEAL_AUTO_RESTART', 'false').lower() == 'true':
-            logger.critical("🧬 SELF-REPAIR: Core agent files were rewritten. Forcing controlled restart...")
-            try:
-                _, _, broadcast_agent_log, _ = _get_ai_utils()
-                broadcast_agent_log(primary_site, "Self-repair complete — restarting process to load fixes.", "success")
-            except Exception:
-                pass
-            os._exit(1)
-
-        return True
-
-    @classmethod
-    def _repair_module(cls, site, module_key, info):
-        logger.warning(f"🧬 SELF-REPAIR: Attempting to fix '{module_key}' ({info['issue']})")
-        VectorMemory = get_model('VectorMemory')
-        _, _, _, compress_code_for_prompt = _get_ai_utils()
-        clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
-        SecurityAuditor, _, AntiBloatEngine = _get_self_doctor()
-        apply_code_change = _get_code_apply()
-
-        try:
-            past_memories = VectorMemory.objects.filter(site=site).order_by('-id')[:3]
-            memory_context = [compress_code_for_prompt(m.content) for m in past_memories]
-        except Exception:
-            memory_context = []
-
-        prompt = (
-            f"CRITICAL SELF-REPAIR TASK: The core autonomous-agent module '{module_key}' "
-            f"(file: {info['path']}) is currently broken — Issue: {info['issue']}. "
-            f"Write a COMPLETE, clean, syntactically valid replacement for this entire file "
-            f"using 2026 Django/Python standards, preserving all functionality implied by its "
-            f"role inside an autonomous e-commerce CEO agent system (EthAfri). "
-            f"FEATURE CONSOLIDATION RULE: Consolidate helper logics, remove duplicate utility imports, "
-            f"and write highly compact, parameter-driven functions that handle multiple agent operations at once.\n"
-            f"Avoid repeating these past failures: {json.dumps(memory_context, ensure_ascii=False)}. "
-            f"Return JSON with key 'code' containing the full file content."
-        )
-        try:
-            res = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="coding"))
-        except Exception as e:
-            logger.error(f"🧬 SELF-REPAIR: AI call failed for '{module_key}': {e}")
-            return False
-
-        if not (res and isinstance(res, dict) and 'code' in res):
-            logger.error(f"🧬 SELF-REPAIR: No valid code returned for '{module_key}'")
-            return False
-
-        new_code = res['code']
-        try:
-            ast.parse(new_code)
-        except SyntaxError as e:
-            logger.error(f"🧬 SELF-REPAIR: AI-generated fix for '{module_key}' still has a syntax error: {e}")
-            return False
-
-        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=info['path'], site=site)
-        if not is_safe:
-            logger.error(f"🛡️ SELF-REPAIR: Security gate blocked fix for '{module_key}': {msg}")
-            return False
-
-        new_code = AntiBloatEngine.prune_and_optimize("", new_code, module_key)
-
-        base_dir = str(settings.BASE_DIR)
-        full_path = os.path.join(base_dir, info['path'])
-        old_code = ""
-        if os.path.exists(full_path):
-            try:
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    old_code = f.read()
-            except Exception:
-                pass
-
-        result = apply_code_change(site, module_key, new_code, reason=f"🧬 Self-Bootstrap Repair: {info['issue']}")
-        if not result.get('success'):
-            logger.error(f"❌ SELF-REPAIR: Failed to apply fix for '{module_key}': {result.get('message')}")
-            return False
-
-        applied_path = result.get('path', full_path)
-        verified, vmsg = verify_disk_write(applied_path)
-        if not verified:
-            logger.error(f"❌ SELF-REPAIR: Disk verification failed for '{module_key}': {vmsg}. Rolling back...")
-            rollback_file(applied_path, old_code)
-            return False
-
-        if module_key in DJANGO_APP_FILES:
-            deep_ok, dmsg = deep_verify_django_app()
-            if not deep_ok:
-                logger.error(f"❌ SELF-REPAIR: Deep Django check failed for '{module_key}': {dmsg}. Rolling back...")
-                rollback_file(applied_path, old_code)
-                return False
-
-        logger.info(f"✅ SELF-REPAIR: '{module_key}' rewritten and verified successfully.")
-        try:
-            VectorMemory.objects.create(site=site, memory_type='solution', content=f"Self-repaired core module: {module_key}")
-        except Exception:
-            pass
-        return True
 
 
 # ============================================================
@@ -2341,6 +2003,7 @@ def execute_master_cycle():
     except Exception as e:
         logger.debug("Failed to record self-checking evolution lock: %s", e)
 
+    from .growth_agent import SelfBootstrapManager
     is_self_ready = SelfBootstrapManager.ensure_self_ready()
 
     if not is_self_ready:
@@ -2380,7 +2043,6 @@ def execute_master_cycle():
 def _run_site_cycle(site):
     """የአንድ ንዑስ ጣቢያን ሙሉ የዕድገት እና የዕድገት ማጠናከሪያ ዑደት ያስፈጽማል (v10.90 - Lightweight Paced Evolution)"""
     _, _, broadcast_agent_log, _ = _get_ai_utils()
-    SecurityAuditor, UniversalHealer, AntiBloatEngine = _get_self_doctor()
     FeatureEvolutionEngine = _get_feature_evolution()
     
     network_active = MultiChannelHarvester.is_network_available()
@@ -2402,7 +2064,6 @@ def _run_site_cycle(site):
                         last_time = datetime.fromisoformat(last_time_str)
                         if timezone.is_naive(last_time):
                             last_time = timezone.make_aware(last_time)
-                        # የ 4 ሰዓት መቆያ ሰዓት
                         if (timezone.now() - last_time) >= timedelta(hours=4):
                             should_run_evo = True
                 except Exception:
@@ -2421,9 +2082,14 @@ def _run_site_cycle(site):
             if not should_run_evo:
                 return
 
+            # 🛡️ [የተሻሻለ ጥምረት] የ Doctor ጥገና ስራዎችን በ Orchestrator በኩል በደህንነት በቅደም ተከተል ማስኬድ
+            from .orchestrator import run_thread_safe_task
+            from .self_doctor import UniversalHealer
+            
             update_agent_progress(site, "Track A: Running Self-Doctor Maintenance...", 15)
             broadcast_agent_log(site, "🛠️ Track A: Running Self-Doctor maintenance...", "info")
-            UniversalHealer(site).perform_maintenance()
+            doctor = UniversalHealer(site)
+            run_thread_safe_task(doctor.perform_maintenance)
             
             if network_active:
                 update_agent_progress(site, "Track A: Planning Codebase Backlog...", 40)
@@ -2441,7 +2107,7 @@ def _run_site_cycle(site):
                 
                 update_agent_progress(site, "Track A: Self-Evolution...", 90)
                 evolution_engine = FeatureEvolutionEngine(site)
-                evolution_engine.evolve()
+                run_thread_safe_task(evolution_engine.evolve)
                 
                 # የተሳካ የዕድገት ጊዜን መመዝገብ
                 SiteConfig.objects.update_or_create(
@@ -2488,6 +2154,7 @@ def _run_site_cycle(site):
 
     update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
     broadcast_agent_log(site, f"✨ Master Cycle executed successfully for {site.name}.", "success")
+
 
 def run_recursive_code_builder(site):
     AIProjectBacklog = get_model('AIProjectBacklog')

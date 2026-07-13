@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/sync_translations.py
-# 📝 ዓላማ፦ Safe & Intelligent Translation Sync Command (v10.18 - Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Integrated Self-Doctor DB connection refresher on OperationalError, dynamic API pacing to prevent 429 lockouts, polib safe import shielding, and dynamic model registry loading.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ዓላማ፦ Safe & Intelligent Translation Sync Command (v10.19 - Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Lazy-loading of marketplace modules to eliminate early boot-time AppRegistryNotReady crashes, upgraded connection cleanup with connections.close_all() to prevent DB leaks, and polib safe import shielding.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 import os
@@ -10,21 +10,18 @@ import json
 import shutil
 import logging
 import re
-import time  # 🔴 429 Rate Limit ለመከላከል መኝታ (Pacing) የተጨመረበት
+import time  # 429 Rate Limit ለመከላከል መኝታ (Pacing) የተጨመረበት
 
 from django.core.management.base import BaseCommand, CommandError
 from django.core.management import call_command
 from django.conf import settings
 from django.apps import apps
+from django.db import connections # 🛡️ connections እዚህ ተጨምሯል
 from typing import Dict, List, Optional, Union, Any
-
-# የዲፔንደንሲ ክራሽን ለመከላከል ወደ smart_ai_router መፍቻ አቅጣጫ ተቀይሯል
-from marketplace.ai_utils import ask_master_ai_smart, clean_and_parse_json
-from marketplace.self_doctor import refresh_db_connection_on_error # ✅ የዳታቤዝ ግንኙነት ራስ-ጥገና እዚህ መጥቷል
 
 logger = logging.getLogger(__name__)
 
-# 🛡️ SAFE IMPORT SHIELD: polib ጥቅል በሰርቨሩ ላይ ካልተጫነ ኮማንዱ እንዳይከሰከስ መከላከያ [1]
+# 🛡️ SAFE IMPORT SHIELD: polib ጥቅል በሰርቨሩ ላይ ካልተጫነ ኮማንዱ እንዳይከሰከስ መከላከያ
 try:
     import polib
     POLIB_AVAILABLE = True
@@ -34,8 +31,10 @@ except ImportError:
 
 def ask_ai_with_failover(prompt, pool_type="translation", expected_keys=None):
     """
-    [Dependency Resolver] በልዩ ሁኔታ የተዘጋጀውን የትርጉም ሥራ ወደ ai_utils.ask_master_ai_smart ያዞራል
+    [Dependency Resolver] በልዩ ሁኔታ የተዘጋጀውን የትርጉም ሥራ ወደ ai_utils.ask_master_ai_smart ያዞራል (Lazy Loaded)
     """
+    # 🛡️ FIXED: settings.py ወይም uvicorn በሚነሳበት ወቅት የሚፈጠረውን የ AppRegistryNotReady ስህተትን ለመከላከል Lazy-loading [1]
+    from marketplace.ai_utils import ask_master_ai_smart
     return ask_master_ai_smart(prompt, task_type="translation")
 
 
@@ -55,6 +54,9 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **kwargs):
+        # 🛡️ FIXED: Lazy-loading of local helper modules inside execution blocks to avoid boot loops
+        from marketplace.self_doctor import refresh_db_connection_on_error
+
         # 1. polib ጥቅል መኖሩን ማረጋገጥ
         if not POLIB_AVAILABLE:
             raise CommandError(
@@ -62,7 +64,7 @@ class Command(BaseCommand):
                 "እባክዎ መጀመሪያ 'pip install polib' ያካሂዱ።"
             )
 
-        # 2. የሞዴል ተለዋዋጭ ጭነት (Registry Safety) [1]
+        # 2. የሞዴል ተለዋዋጭ ጭነት (Registry Safety)
         SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
 
         site_name = kwargs.get('site')
@@ -73,6 +75,9 @@ class Command(BaseCommand):
         sites_to_process = []
         
         try:
+            # 🛡️ FIXED: Thread-safe DB connection release
+            connections.close_all()
+            
             if site_name:
                 try:
                     site = SiteRegistry.objects.get(name=site_name, is_active=True)
@@ -101,19 +106,25 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("🎉 የትርጉም ስራው እና ማጠናቀሪያው ሙሉ በሙሉ ተጠናቋል!"))
             
         except Exception as e:
-            # 🛡️ FIXED: OperationalError ከተከሰተ በራስ-ሰር ሪፍሬሽ በማድረግ ግንኙነቱን መጠገን
+            # OperationalError ከተከሰተ በራስ-ሰር ሪፍሬሽ በማድረግ ግንኙነቱን መጠገን
             db_refreshed = refresh_db_connection_on_error(str(e))
             if db_refreshed:
                 self.stdout.write(self.style.WARNING("🚑 Database connection refreshed safely across all active threads."))
-                # ድጋሚ ለማስኬድ መሞከር
                 self.stdout.write("🔄 Retrying translations after successful recovery...")
                 call_command('sync_translations', **kwargs)
             else:
                 logger.error(f"❌ Critical error in Translation Sync: {e}")
                 self.stdout.write(self.style.ERROR(f"Error: {e}"))
+        finally:
+            # 🧹 የዳታቤዝ ግንኙነቶችን መልቀቅ (Multi-Thread Safe release)
+            try:
+                connections.close_all()
+            except Exception:
+                pass
 
     def _clean_and_parse_json(self, raw_data):
         """AI የሚመልሰውን ጥሬ ምላሽ አጽድቶ ወደ ዲክሽነሪ ይቀይራል"""
+        from marketplace.ai_utils import clean_and_parse_json
         return clean_and_parse_json(raw_data)
 
     def _process_system_translations(self):
@@ -195,7 +206,7 @@ class Command(BaseCommand):
                 else:
                     self.stdout.write(self.style.ERROR(f"❌ Batch request failed or returned invalid schema."))
 
-                # 🔴 DYNAMIC API PACING: የ 24-ሰዓት የ AI ኮታ መቆለፊያን ለመከላከል በእያንዳንዱ ጥሪ መካከል መኝታ [1]
+                # DYNAMIC API PACING: የ 24-ሰዓት የ AI ኮታ መቆለፊያን ለመከላከል በእያንዳንዱ ጥሪ መካከል መኝታ
                 time.sleep(1.5)
 
             po.save()
@@ -265,7 +276,7 @@ class Command(BaseCommand):
                                 entry.msgstr = str(translated_text).strip()
                                 count += 1
                 
-                # 🔴 DYNAMIC API PACING: የ 24-ሰዓት የ AI ኮታ መቆለፊያን ለመከላከል በእያንዳንዱ ጥሪ መካከል መኝታ [1]
+                # DYNAMIC API PACING: የ 24-ሰዓት የ AI ኮታ መቆለፊያን ለመከላከል በእያንዳንዱ ጥሪ መካከል መኝታ
                 time.sleep(1.5)
             
             po.save()

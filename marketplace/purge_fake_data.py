@@ -1,29 +1,29 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/purge_fake_data.py
-# 📝 ዓላማ፦ Safe Database Tables Drop — CASCADE Reset for Fresh Start (v10.16)
-# ✅ የተፈቱ ችግሮች፦ Dynamic model schema discovery, automatic settings detection, fresh migrations, and primary site auto-registration.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ዓላማ፦ Safe Database Tables Drop — CASCADE Reset for Fresh Start (v10.17)
+# ✅ የተፈቱ ችግሮች፦ Dynamic model schema discovery, automatic settings detection, fresh migrations, dynamic DB table scan, and primary site auto-registration.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 import os
 import sys
 import django
 
-# 1. የ Settings አቅጣጫን በራስ-ሰር መለየት (Cross-Deployment Safety) [1]
+# 1. የ Settings አቅጣጫን በራስ-ሰር መለየት (Cross-Deployment Safety)
 if not os.environ.get('DJANGO_SETTINGS_MODULE'):
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 
 # Django መጫኛን በደህንነት ማስጀመር
 django.setup()
 
-from django.db import connection, transaction
+from django.db import connection, connections, transaction # 🛡️ connections እዚህ ተጨምሯል
 from django.core.management import call_command
 from django.apps import apps
 
 def get_marketplace_tables():
     """
     የእቅድ ማሳደጊያ (Self-Evolution) አዳዲስ ሞዴሎችን ቢጨምር እንኳ ስህተት እንዳይፈጠር
-    ሰንጠረዦቹን በሙሉ ከጃንጎ ሬጅስትሪ በዳይናሚክ መንገድ ፈልጎ ያወጣል [1]
+    ሰንጠረዦቹን በሙሉ ከጃንጎ ሬጅስትሪ በዳይናሚክ መንገድ ፈልጎ ያወጣል
     """
     try:
         app_config = apps.get_app_config('marketplace')
@@ -49,14 +49,14 @@ def purge_database_tables():
     
     try:
         with connection.cursor() as cursor:
-            # 1. ሁሉንም የገበያ ሰንጠረዦች በ CASCADE ማጥፋት (sqlite እና postgresql ለይቶ) [1, 2]
+            # 1. ሁሉንም የገበያ ሰንጠረዦች በ CASCADE ማጥፋት (sqlite እና postgresql ለይቶ)
             for table in marketplace_tables:
                 if connection.vendor == 'sqlite':
                     cursor.execute(f'DROP TABLE IF EXISTS "{table}";')
                 else:
                     cursor.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE;')
             
-            # 2. django_migrations መዝገብን ከ app 'marketplace' ማጽዳት [1, 2]
+            # 2. django_migrations መዝገብን ከ app 'marketplace' ማጽዳት
             try:
                 cursor.execute("DELETE FROM django_migrations WHERE app='marketplace';")
             except Exception as mig_err:
@@ -67,7 +67,7 @@ def purge_database_tables():
         call_command('migrate', interactive=False)
         print("🎉 Fresh migrations applied successfully!")
         
-        # 3. የ "primary" ሳይት ምዝገባን በራስ-ሰር መፍጠር (Auto-Registration Boost) [1]
+        # 3. የ "primary" ሳይት ምዝገባን በራስ-ሰር መፍጠር (Auto-Registration Boost)
         print("🌱 Seeding: Auto-registering fresh 'primary' site to unblock agent loop...")
         SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
         
@@ -86,6 +86,12 @@ def purge_database_tables():
         
     except Exception as e:
         print(f"❌ Failed to purge database and bootstrap system: {e}")
+    finally:
+        # 🧹 connections ን በደህንነት መዝጋት
+        try:
+            connections.close_all()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     purge_database_tables()

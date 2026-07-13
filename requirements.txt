@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/requirements.txt
-# 📝 ለውጥ፦ የተስተካከሉ የፓይተን ጥገኝነቶች — Optimized & Lightning-Fast Render Free Tier
-# ✅ የተፈቱ ችግሮች፦ Removed 7 redundant bloated libraries (gunicorn, google-genai, groq, bs4, python-dotenv, channels-redis, playwright), added required 'websockets' to prevent Uvicorn handshake crashes.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ለውጥ፦ የተስተካከሉ የፓይተን ጥገኝነቶች — Optimized & Lightning-Fast Render Free Tier (v10.19)
+# ✅ የተፈቱ ችግሮች፦ Restored critical 'beautifulsoup4' to support HTML parsing inside scrapper_engine.py, added required 'websockets' to prevent Uvicorn handshake crashes, and aligned production packages.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 # 1. Django Core & Static Files
@@ -17,19 +17,22 @@ psycopg2-binary>=2.9.0
 # 3. Network Requests (AI APIs & Scraping Fallback)
 requests>=2.31.0
 
-# 4. Cloud Storage & Image Support
+# 🛡️ 4. HTML Parser (🛡️ FIXED: Restored beautifulsoup4 to support scrapper_engine.py HTML selector pulling)
+beautifulsoup4>=4.12.0
+
+# 5. Cloud Storage & Image Support
 django-cloudinary-storage>=0.3.0
 cloudinary>=1.36.0
 Pillow>=10.0.0
 
-# 5. Translation Management
+# 6. Translation Management
 polib>=1.2.0
 
-# 6. WebSocket, Daphne & Uvicorn ASGI Server
+# 7. WebSocket, Daphne & Uvicorn ASGI Server
 channels>=4.0.0
 daphne>=4.0.0
 uvicorn>=0.22.0
-websockets>=12.0  # ✅ FIXED: የ Uvicorn ዌብሶኬት ግንኙነት ጥሪ እንዳይከሰከስ የተጨመረ [1]
-# በ build.sh ፋይልዎ ውስጥ መጨመር ያለበት፦
-playwright
+websockets>=12.0  # ✅ FIXED: የ Uvicorn ዌብሶኬት ግንኙነት ጥሪ እንዳይከሰከስ የተጨመረ
 
+# 8. Web Crawler Automation
+playwright>=1.40.0

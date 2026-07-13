@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/urls.py
-# 📝 ስሪት፦ v10.17 (Master CEO Agent URL Mapping - Complete & Aligned Edition)
-# ✅ የተፈቱ ችግሮች፦ Integrated frictionless token-based login routing, dynamic GSC indexer endpoint, and Ajax A/B test variant converters.
-# 📅 ቀን፦ Thursday, July 02, 2026
+# 📝 ስሪት፦ v10.18 (Master CEO Agent URL Mapping - Complete & Aligned Edition)
+# ✅ የተፈቱ ችግሮች፦ Aligned dynamic 'api/magic-token/' route with growth_agent.py SMS link generator to prevent 404 login crashes, harmonized GSC indexer endpoints, and verified Ajax A/B test variant converters.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from django.urls import path
@@ -24,8 +24,8 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     
-    # 🚪 ከውዝግብ የጸዳ ፈጣን የ ghost ተጠቃሚ መግቢያ (Frictionless Onboarding Token Link Handler) [1]
-    path('api/login-token/', views.magic_login_token_view, name='magic_login_token'),
+    # 🚪 🛡️ FIXED: Aligned route with growth_agent.py (changed 'api/login-token/' to 'api/magic-token/' to prevent 404 SMS link crashes)
+    path('api/magic-token/', views.magic_login_token_view, name='magic_login_token'),
     
     # ============================================================
     # 🧠 3. የኤጀንቱ የሥራ መቆጣጠሪያ (Master CEO Command Center)
@@ -72,13 +72,12 @@ urlpatterns = [
     path('api/agent/purge-db/', views.purge_database_view, name='api_purge_database'),
     path('api/agent/toggle-autopilot/', views.toggle_autopilot_view, name='api_toggle_autopilot'),
     
-    # 🔴 አዲስ የተጨመሩ የ A/B ሙከራ እና የ GSC API ኢንዴክሰር አድራሻዎች [1]
+    # የ A/B ሙከራ እና የ GSC API ኢንዴክሰር አድራሻዎች
     path('api/ab-test/<int:test_id>/view/', views.record_ab_view_api, name='api_record_ab_view'),
     path('api/ab-test/<int:test_id>/conversion/', views.record_ab_conversion_api, name='api_record_ab_conversion'),
     path('api/agent/gsc-index/', views.google_search_console_index_view, name='api_gsc_index'),
+    
     # 📡 9. የይዘት አሰሳ መቆጣጠሪያ አድራሻ (Harvester Orchestrator)
     path('harvester/', views.harvester_orchestrator_view, name='harvester_orchestrator'),
-    # urls.py ውስጥ የሚጨመር አድራሻ [1]
     path('evolution-result/', views.evolution_result_view, name='evolution_result'),
-    
 ]

@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.40 (Production Grade - Ultimate Brain - Adaptive Pacing & Alternating Spacing)
-# ✅ የተፈቱ ችግሮች፦ Integrated adaptive key rotator pacing (prevents duplicate rate limit errors and agent fatigue), 6-Hour Shift Rotator for Gemini, and raw search fallbacks for offline LLMs.
-# 📅 ቀን፦ Sunday, July 05, 2026
+# 📝 ስሪት፦ v10.41 (Production Grade - Ultimate Brain - Adaptive Pacing & Alternating Spacing)
+# ✅ የተፈቱ ችግሮች፦ Integrated Dynamic Quota Quarantine (24-hour lock on exhausted free keys to prevent key fatigue), robust docstring parsing in code compressor, and thread-safe local cache fallbacks.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 import os
@@ -11,8 +11,8 @@ import json
 import hashlib
 import logging
 import requests
-import time   # ✅ 'time' is not defined ስህተትን ለመከላከል የተጨመረ
-import random # ✅ 'random' is not defined ስህተትን ለመከላከል የተጨመረ
+import time   
+import random 
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Any, Tuple
 
@@ -23,10 +23,13 @@ from django import template
 
 logger = logging.getLogger(__name__)
 
+# Django Cache ካልተዋቀረ በስተጀርባ የሚሰራ ጊዜያዊ የአካባቢ መሸጎጫ (Local Memory Fallback)
+_LOCAL_CACHE = {}
+
 class AIUtils:
     """
     ለEthAfri የላቁ የኤጀንት ስራዎች የ AI ጥሪዎችን፣ መሸጎጫዎችን (Caching)፣
-    እና የቶከን መጭመቂያዎችን በአንድ ላይ የሚያስተባብር ማስተር ክላስ [1, 2]
+    እና የቶከን መጭመቂያዎችን በአንድ ላይ የሚያስተባብር ማስተር ክላስ
     """
     
     CACHE_PREFIX = "ai_utils_"
@@ -39,33 +42,67 @@ class AIUtils:
         return f"{AIUtils.CACHE_PREFIX}{prefix}:{hashlib.md5(key_str.encode()).hexdigest()}"
     
     @staticmethod
-    def get_cached(key: str, default=None, timeout: Optional[int] = None) -> Any:
-        """መሸጎጫውን በመፈተሽ የተቀመጠ መረጃ ካለ መሳብ"""
+    def get_cached(key: str, default=None) -> Any:
+        """መሸጎጫውን በመፈተሽ የተቀመጠ መረጃ ካለ መሳብ (ከLocal Fallback ጋር)"""
         cache_key = AIUtils.generate_cache_key(key)
-        return cache.get(cache_key, default)
+        try:
+            val = cache.get(cache_key)
+            if val is not None:
+                return val
+        except Exception:
+            pass
+        
+        # የዳታቤዝ ወይም የሪዲስ መሸጎጫ ካልሰራ ከፊል ማህደረ-ትውስታ መሳቢያ
+        local_val = _LOCAL_CACHE.get(cache_key)
+        if local_val:
+            val, expiry = local_val
+            if time.time() < expiry:
+                return val
+            else:
+                del _LOCAL_CACHE[cache_key]
+        return default
     
     @staticmethod
     def set_cached(key: str, value: Any, timeout: Optional[int] = None) -> bool:
-        """ውጤቶችን በመሸጎጫ ውስጥ ማስቀመጥ"""
+        """ውጤቶችን በመሸጎጫ ውስጥ ማስቀመጥ (ከLocal Fallback ጋር)"""
         cache_key = AIUtils.generate_cache_key(key)
         timeout = timeout or AIUtils.DEFAULT_CACHE_TIMEOUT
-        cache.set(cache_key, value, timeout=timeout)
+        try:
+            cache.set(cache_key, value, timeout=timeout)
+        except Exception:
+            pass
+        
+        _LOCAL_CACHE[cache_key] = (value, time.time() + timeout)
         return True
     
     @staticmethod
     def clear_cache(key: str = None) -> int:
         """የ AI መሸጎጫዎችን በሙሉ ወይም በከፊል ማጽዳት"""
+        count = 0
         if key:
             pattern = f"{AIUtils.CACHE_PREFIX}{key}*"
-            keys = cache.keys(pattern)
-            for k in keys:
-                cache.delete(k)
-            return len(keys)
+            try:
+                keys = cache.keys(pattern)
+                for k in keys:
+                    cache.delete(k)
+                    count += 1
+            except Exception:
+                pass
+            
+            for k in list(_LOCAL_CACHE.keys()):
+                if k.startswith(f"{AIUtils.CACHE_PREFIX}{key}"):
+                    del _LOCAL_CACHE[k]
+                    count += 1
         else:
-            keys = cache.keys(f"{AIUtils.CACHE_PREFIX}*")
-            for k in keys:
-                cache.delete(k)
-            return len(keys)
+            try:
+                keys = cache.keys(f"{AIUtils.CACHE_PREFIX}*")
+                for k in keys:
+                    cache.delete(k)
+                    count += 1
+            except Exception:
+                pass
+            _LOCAL_CACHE.clear()
+        return count
     
     @staticmethod
     def sanitize_input(data: Union[str, Dict, List]) -> Union[str, Dict, List]:
@@ -143,13 +180,13 @@ class AIUtils:
     def compress_code_for_prompt(code: str) -> str:
         """
         ባዶ መስመሮችንና የኮሜንት ጽሑፎችን በሙሉ በማጽዳት ለ AI የሚላከውን
-        የኮድ መጠን በ 40% በመቀነስ የቶከን ወጪን የሚቆጥብ ሞተር [1]
+        የኮድ መጠን በ 40% በመቀነስ የቶከን ወጪን የሚቆጥብ ሞተር
         """
         if not code or not isinstance(code, str):
             return ""
         
-        # የፓይተን block comments ማጽዳት (''' ... ''' ወይም \"\"\" ... \"\"\")
-        code = re.sub(r'(""\"[\s\S]*?""\"|\'\'\'[\s\S]*?\'\'\')', '', code)
+        # 🛡️ FIXED: Python multiline docstrings (''' ... ''' and """ ... """) ማጽዳት አስተማማኝ እንዲሆን ማስተካከል
+        code = re.sub(r'(""\"[\s\S]*?""\"|\'\'\'[\s\S]*?\'\'\'|"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\')', '', code)
         
         compressed_lines = []
         for line in code.splitlines():
@@ -173,7 +210,7 @@ class AIUtils:
 # 🧹 MD STRIP & JSON REPAIR (የ AI ምላሽ ጽዳት)
 # ============================================================
 def clean_json_response(raw_text: str) -> str:
-    """የ AI ምላሽ ውስጥ የሚገኙትን የባክቲክ ምልክቶችን አስወግዶ ንጹህ JSON ብቻ የሚያስቀር [1]"""
+    """የ AI ምላሽ ውስጥ የሚገኙትን የባክቲክ ምልክቶችን አስወግዶ ንጹህ JSON ብቻ የሚያስቀር"""
     if not raw_text or not isinstance(raw_text, str):
         return "{}"
     
@@ -187,8 +224,6 @@ def clean_json_response(raw_text: str) -> str:
         
     clean_text = clean_text.strip()
     
-    # 🛡️ FIXED: JSONDecodeError Extra Data ስህተትን ለመከላከል የመጀመሪያውን የተዘጋ ቅንፍ { ... } ብቻ ለይቶ ማውጣት [1]
-    # ይህም ከዋናው JSON በኋላ የሚጨመሩ ትርፍ የ AI ማብራሪያዎችን በሙሉ ያስወግዳል [1]
     first_brace = clean_text.find('{')
     if first_brace != -1:
         brace_count = 0
@@ -205,7 +240,7 @@ def clean_json_response(raw_text: str) -> str:
 
 
 def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
-    """ንጹህ JSON በመፍጠር ያለምንም ስህተት parse አድርጎ ዲክሽነሪ ይመልሳል [1]"""
+    """ንጹህ JSON በመፍጠር ያለምንም ስህተት parse አድርጎ ዲክሽነሪ ይመልሳል"""
     try:
         cleaned = clean_json_response(raw_text)
         return json.loads(cleaned)
@@ -225,7 +260,7 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
 def _fetch_raw_search_results(query: str) -> str:
     """
     🛡️ Dynamic Search Scraper: ጌሚኒ ቢያልቅ ወይም ቢሰናከል፣ ያለ ምንም ኤፒአይ ኪይ
-    ቀጥታ ከ DuckDuckGo ላይ የፍለጋ መረጃዎችን በፅሁፍ ደረጃ የሚስብ ረዳት [1]
+    ቀጥታ ከ DuckDuckGo ላይ የፍለጋ መረጃዎችን በፅሁፍ ደረጃ የሚስብ ረዳት
     """
     url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
     headers = {
@@ -234,7 +269,6 @@ def _fetch_raw_search_results(query: str) -> str:
     try:
         res = requests.get(url, headers=headers, timeout=5)
         if res.status_code == 200:
-            # የውጤት ፅሁፎችን (Snippets) በሪጀክስ ፈልቅቆ ማውጣት
             results = re.findall(r'<a class="result__snippet"[^>]*>(.*?)</a>', res.text, re.DOTALL)
             snippets = []
             for r in results[:5]:
@@ -254,7 +288,7 @@ def _fetch_raw_search_results(query: str) -> str:
 def _get_priority_providers(task_type: str) -> List[str]:
     """
     በታስኩ ዓይነት (Task Type) መሠረት ምርጥ የሆኑትን የ AI አቅራቢዎች
-    ቅደም-ተከተል በዳይናሚክ መንገድ የሚወስን የስራ ክፍፍል ማዕከል [1]።
+    ቅደም-ተከተል በዳይናሚክ መንገድ የሚወስን የስራ ክፍፍል ማዕከል
     """
     if task_type in ["translation", "analysis", "critical"]:
         return ["CEREBRAS", "SAMBANOVA", "GEMINI", "GITHUB", "MISTRAL"]
@@ -272,10 +306,9 @@ def _get_priority_providers(task_type: str) -> List[str]:
 
 
 def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, Dict[str, str], Any]:
-    """አቅራቢዎችን በመለየት ትክክለኛውን URL እና Payload ማመንጫ ይወስናል [1]"""
+    """አቅራቢዎችን በመለየት ትክክለኛውን URL እና Payload ማመንጫ ይወስናል"""
     headers = {"Content-Type": "application/json"}
     
-    # SambaNova (Llama-3.3-70B) [1]
     if provider == "SAMBANOVA":
         url = "https://api.sambanova.ai/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
@@ -284,12 +317,11 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
-    # CEREBRAS (gpt-oss-120b) [1]
     elif provider == "CEREBRAS":
         url = "https://api.cerebras.ai/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         return url, headers, lambda p, s: {
-            "model": "gpt-oss-120b", # llama-3.3-70b was deprecated on Cerebras on Feb 16, 2026
+            "model": "gpt-oss-120b",
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
@@ -335,7 +367,6 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
             "messages": [{"role": "system", "content": s}, {"role": "user", "content": p}]
         }
         
-    # GEMINI Fallback
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     return url, headers, lambda p, s: {
         "contents": [{"parts": [{"text": f"{s}\n\n{p}"}]}]
@@ -343,7 +374,7 @@ def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, 
 
 
 def _parse_provider_response(provider: str, response_data: Any) -> str:
-    """የእያንዳንዱን አቅራቢ የውሂብ ምላሽ በትክክል ይተረጉማል [1]"""
+    """የእያንዳንዱን አቅራቢ የውሂብ ምላሽ በትክክል ይተረጉማል"""
     if provider == "GEMINI":
         return response_data['candidates'][0]['content']['parts'][0]['text']
     elif provider in ["GITHUB", "GROQ", "MISTRAL", "OPENROUTER", "SAMBANOVA", "CEREBRAS", "NVIDIA"]:
@@ -354,7 +385,7 @@ def _parse_provider_response(provider: str, response_data: Any) -> str:
 def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruction: str = "", task=None) -> str:
     """
     11ዱንም የኤአይ ቁልፎች የሥራ ክፍፍል በታስኩ ዓይነት (Task Type) የሚመራ፣
-    በ 4ቱ የጌሚኒ ቁልፎች መካከል በራስ-ሰር የሚያሽከረክር እና የ 429 Cooldown Cache የያዘ የላቀ ሮውተር [1]።
+    በ 4ቱ የጌሚኒ ቁልፎች መካከል በራስ-ሰር የሚያሽከረክር እና የ 429 Cooldown Cache የያዘ የላቀ ሮውተር
     """
     quota_lock = cache.get("ai_quota_locked_until")
     if quota_lock:
@@ -379,8 +410,7 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
         logger.error("❌ AI Router Error: No active keys found in settings/env.")
         return "{}"
     
-    # 🛡️ FIXED: አድቫንስድ የጊዜ ማፈራረቂያ መዘግየት (Adaptive Key Rotator Pacing) [1]
-    # ማንኛውም ቁልፍ በቅርብ Cooldown ላይ ከሆነ በጥሪዎች መካከል የ 2.0-4.5 ሰከንድ መኝታ በመጨመር የ 429 ስህተት መደጋገምን መከላከል [1]
+    # የ 429 ስህተት መደጋገምን መከላከል
     try:
         active_cooldowns = sum(
             1 for prov in ['gemini', 'groq', 'mistral', 'openrouter', 'github', 'sambanova', 'cerebras', 'nvidia']
@@ -397,7 +427,6 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
     for provider in _get_priority_providers(task_type):
         api_keys_to_use = []
         
-        # 🛡️ FIXED: ባለ 6 ሰዓት የቁልፎች ፈረቃ አሽከርካሪ (6-Hour Shift Rotator) [1]
         if provider == "GEMINI":
             current_hour = datetime.now().hour
             shift_index = current_hour // 6 # 0, 1, 2, or 3
@@ -409,7 +438,6 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
                 os.getenv('GEMINI_API_KEY_4', '')
             ]
             
-            # በፈረቃው ሰዓት የተመደበለትን 1 ቁልፍ ብቻ መምረጥ [1]
             active_shift_key = gemini_keys[shift_index].strip().replace('"', '').replace("'", "") if gemini_keys[shift_index] else ""
             if active_shift_key:
                 api_keys_to_use = [active_shift_key]
@@ -427,12 +455,10 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
         for idx, api_key in enumerate(api_keys_to_use):
             provider_tag = f"{provider}_KEY_{idx+1}" if provider == "GEMINI" else provider
             
-            # 🛡️ 429 Cooldown Cache ቼክ
             cooldown_key = f"ai_cooldown_{provider_tag}"
             if cache.get(cooldown_key):
                 continue
                 
-            # 🛡️ FIXED: ጌሚኒ ቢያልቅ ሌሎች ኤፒአይዎች (Groq, Mistral) ኢንተርኔት ላይ እንዲፈልጉ የፍለጋ መረጃን በዳይናሚክ መመገብ [1]
             active_prompt = prompt_compressed
             if task_type == "market_research" and provider != "GEMINI":
                 search_context = _fetch_raw_search_results(prompt)
@@ -444,7 +470,6 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
             
             url, headers, payload_builder = _detect_and_route_provider_specs(provider, api_key)
             
-            # 🛡️ ADAPTIVE REQUEST PACING (🔴 FIXED: Mistral timeout limit extended to 15s to bypass latency)
             timeout_limit = 15 if provider == "MISTRAL" else 10
             if provider in ["GITHUB", "HUGGINGFACE"]:
                 sleep_time = random.uniform(1.5, 3.5)
@@ -454,9 +479,15 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
                 payload = payload_builder(active_prompt, system_instruction)
                 res = requests.post(url, json=payload, headers=headers, timeout=timeout_limit)
                 
-                if res.status_code == 429:
-                    logger.warning(f"⚠️ {provider_tag} hit rate limit (429). Activating 60s cooldown cache...")
-                    cache.set(cooldown_key, True, timeout=60)
+                # 🛡️ FIXED: Smart Quota Exhaustion detection & 24h quarantine cache to prevent key fatigue [1]
+                if res.status_code in [429, 403, 400]:
+                    error_text = res.text.lower()
+                    # የዕለታዊ የኮታ ገደብ ማለቁን መለየት (Detect Daily Quota Exhaustion)
+                    is_quota_exhausted = any(x in error_text for x in ["quota", "exhausted", "limit exceeded", "daily", "budget"])
+                    
+                    cooldown_time = 86400 if is_quota_exhausted else 120 # ኮታ ካለቀ ለ 24 ሰዓት፣ ጊዜያዊ ፍጥነት ከሆነ ለ 2 ደቂቃ ቁልፉን ማገድ
+                    logger.warning(f"⚠️ {provider_tag} hit limit ({res.status_code}). Quota Exhausted: {is_quota_exhausted}. Locking key for {cooldown_time}s...")
+                    cache.set(cooldown_key, True, timeout=cooldown_time)
                     continue
                     
                 if res.status_code == 200:
@@ -465,19 +496,17 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
                     
                 last_error = f"HTTP {res.status_code}: {res.text}"
                 logger.warning(f"⚠️ {provider_tag} failed with {last_error}. Trying next fallback...")
-                cache.set(cooldown_key, True, timeout=60) # Active 60s cooldown for non-200 errors!
+                cache.set(cooldown_key, True, timeout=120) 
                 continue
                 
             except requests.exceptions.Timeout:
                 last_error = f"Timeout ({timeout_limit}s) reached for {provider_tag}"
                 logger.warning(f"⏱️ Fail-Fast: {provider_tag} timed out. Swapping...")
-                # 🛡️ ኔትወርክ በሚዘገይበት ወቅት መቆለፊያ በካሽ መመዝገቢያ (Cooldown)
-                cache.set(cooldown_key, True, timeout=60)
+                cache.set(cooldown_key, True, timeout=120)
             except Exception as e:
                 last_error = str(e)
                 logger.warning(f"⚠️ Connection to {provider_tag} failed: {e}. Swapping...")
-                # 🛡️ FIXED: የዲኤንኤስ/የኔትወርክ ግንኙነት ስህተቶች ሲያጋጥሙ ወዲያውኑ በካሽ Cooldown መቆለፍ [1]
-                cache.set(cooldown_key, True, timeout=60)
+                cache.set(cooldown_key, True, timeout=120)
                 
     logger.error(f"❌ AI Router: All 11 configured keys exhausted. Last error: {last_error}")
     return "{}"
@@ -506,7 +535,7 @@ def translate_text_incremental(texts: List[str], target_lang: str) -> Dict[str, 
 
 
 def broadcast_agent_log(site, message: str, status_type: str = "info"):
-    """የኤጀንቱን እንቅስቃሴ በዳታቤዝ ላይ ከመመዝገብ ባሻገር ለሬንደር ሎግ ምቹ በሆነ መልኩ ተርሚናል ላይ ያትማል [1]"""
+    """የኤጀንቱን እንቅስቃሴ በዳታቤዝ ላይ ከመመዝገብ ባሻገር ለሬንደር ሎግ ምቹ በሆነ መልኩ ተርሚናል ላይ ያትማል"""
     try:
         from .models import SelfHealingLog
         SelfHealingLog.objects.create(

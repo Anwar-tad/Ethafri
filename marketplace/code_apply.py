@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/code_apply.py
-# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.45)
-# ✅ የተፈቱ ችግሮች፦ Fixed local scope leakage in strip_base_indent function, enabled dynamic import injection, secured Path Traversal protections, and hardened AST surgical patching.
-# 📅 ቀን፦ Tuesday, July 07, 2026
+# 📝 ዓላማ፦ Safe & Precise Code Application — Guardian Standard (v10.46)
+# ✅ የተፈቱ ችግሮች፦ Fixed local scope leakage, secured Path Traversal, disabled backup truncation to preserve rollback integrity, handled nested decorators in AST patches, and prevented redundant GitHub commits to save API bandwidth.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 import os
@@ -68,7 +68,7 @@ def inject_import_to_file(path: str, import_line: str) -> Tuple[bool, str]:
 def strip_base_indent(text: str) -> str:
     """
     ኤአይ ያመነጨውን ኮድ የራሱን መነሻ ክፍተቶች (Base Indent) በመለየት
-    ድርብ ኢንዴንቴሽን እንዳይፈጠር የሚያጸዳ ረዳት ፈንክሽን (🛡️ FIXED: v10.45)
+    ድርብ ኢንዴንቴሽን እንዳይፈጠር የሚያጸዳ ረዳት ፈንክሽን
     """
     lines = text.splitlines()
     if not lines:
@@ -78,7 +78,6 @@ def strip_base_indent(text: str) -> str:
     base_indent = ""
     for line in lines:
         if line.strip():
-            # 🛡️ FIXED: የቆየው የ lines[start_line] ስጋት ተወግዶ በንጹሕ ሪጀክስ ተተክቷል
             match = re.match(r'^\s*', line)
             base_indent = match.group(0) if match else ""
             break
@@ -104,7 +103,7 @@ def strip_base_indent(text: str) -> str:
 def apply_surgical_patch(path, target_name, new_code_segment):
     """
     በ AST አማካኝነት በፓይተን ፋይል ውስጥ የሚገኝን አንድ የተወሰነ ፈንክሽን ወይም ክላስ
-    ሳይትሳሳት ለይቶ በአዲሱ ኮድ ብቻ ቆርጦ የሚተካ የቀዶ-ጥገና ሎጂክ
+    ሳይትሳሳት ለይቶ በአዲሱ ኮድ ብቻ ቆርጦ የሚተካ የቀዶ-ጥገና ሎጂክ (🛡️ Decorator Aware)
     """
     if not os.path.exists(path):
         return False, "File not found"
@@ -127,7 +126,11 @@ def apply_surgical_patch(path, target_name, new_code_segment):
         if not target_node:
             return False, f"Target '{target_name}' not found in AST of {path}"
             
+        # 🛡️ FIXED: ጌጣጌጦች (Decorators) ካሉ የመተኪያ መነሻ መስመሩን ከእነሱ በላይ ማድረግ
         start_line = target_node.lineno - 1
+        if hasattr(target_node, 'decorator_list') and target_node.decorator_list:
+            start_line = min(decorator.lineno for decorator in target_node.decorator_list) - 1
+
         end_line = target_node.end_lineno
         
         match_indent = re.match(r'^\s*', lines[start_line])
@@ -237,7 +240,16 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
         except Exception as e:
             logger.warning(f"⚠️ Could not read old file for backup: {e}")
 
-    # 6. ወደ ፋይል ጻፍ (Local File Write / Surgical Patch Fallback)
+    # 🛡️ 6. [ስማርት ማጣሪያ] ለውጥ ከሌለ ሂደቱን ማጠናቀቅ (Git Commit Reduction)
+    if old_code.strip() == new_content.strip() and not target_name:
+        logger.info(f"⏭️ Code Apply: No changes detected for {file_key}. Skipping write and commit.")
+        return {
+            'success': True, 'applied': False, 
+            'message': "Skipped: Code is identical to the current file.",
+            'path': path, 'file_key': file_key
+        }
+
+    # 7. ወደ ፋይል ጻፍ (Local File Write / Surgical Patch Fallback)
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if target_name:
@@ -253,7 +265,7 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
         logger.error(f"❌ Failed to write file: {e}")
         return {'success': False, 'applied': False, 'message': str(e), 'path': path, 'file_key': file_key}
 
-    # 7. ወደ ጊትሃብ ማመሳሰል (GitHub Push)
+    # 8. ወደ ጊትሃብ ማመሳሰል (GitHub Push)
     push_status = "Skipped (Local Only)"
     if push_to_github:
         try:
@@ -263,20 +275,21 @@ def apply_code_change(site, file_key, new_content, reason="", path=None,  confid
             push_status = f"GitHub Error: {e}"
             logger.error(push_status)
 
-    # 8. ለውጥ መዝግብ (Evolution Log)
+    # 🛡️ 9. ለውጥ መዝግብ (Evolution Log - NO TRUNCATION)
+    # 🛡️ FIXED: Removed the [:10000] slice to avoid truncated backups that destroy rollback integrity [1]
     try:
         AIEvolutionLog.objects.create(
             site=site,
             target_file=file_key,
             reason_for_change=reason,
-            old_code_backup=old_code[:10000],
-            new_code_patch=new_content[:10000],
+            old_code_backup=old_code,
+            new_code_patch=new_content,
             backlog_task=backlog_task
         )
     except Exception as e:
         logger.warning(f"⚠️ Could not log evolution entry: {e}")
 
-    # 9. ተዛማጅ ስራ ሁኔታ አዘምን
+    # 10. ተዛማጅ ስራ ሁኔታ አዘምን
     if backlog_task:
         try:
             backlog_task.status = 'Completed'

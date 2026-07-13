@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/models.py
-# 📝 ስሪት፦ v10.18 (Production Grade - Upgraded & Hardened)
-# ✅ የተፈቱ ችግሮች፦ Full schema validation, optimized semantic search matching with keyword weight ranking, and database-safe structural fields.
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ስሪት፦ v10.19 (Production Grade - Upgraded & Hardened)
+# ✅ የተፈቱ ችግሮች፦ Fully compatible with updated views.py & growth_agent.py, integrated strategic database indexes for AIProjectBacklog and AgentErrorLog to prevent query latency, and maintained 100% complete original comments.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from django.db import models
@@ -246,6 +246,15 @@ class AIProjectBacklog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['-created_at']
+        # 🛡️ OPTIMIZATION: added strategic indexes for background thread queries & dashboard listings
+        indexes = [
+            models.Index(fields=['status', 'site']),
+            models.Index(fields=['task_type']),
+            models.Index(fields=['priority']),
+        ]
+
     def save(self, *args, **kwargs):
         if not self.task_hash:
             import time
@@ -353,6 +362,14 @@ class AgentErrorLog(models.Model):
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        # 🛡️ OPTIMIZATION: added strategic indexes for rapid error summary resolution
+        indexes = [
+            models.Index(fields=['site', 'resolved']),
+            models.Index(fields=['error_type']),
+        ]
 
     def __str__(self):
         return f"Error in {self.task_name} - Resolved: {self.resolved}"

@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/self_doctor.py
-# 📝 ስሪት፦ v10.82 (Ultimate System Doctor - Safe Recon Synthesizer Enabled)
-# ✅ የተፈቱ ችግሮች፦ Adjusted Reconnaissance Reports Synthesizer to compress 10+ crawler errors into a single Daily Master Bulletin while strictly PRESERVING all individual detailed reports in the database for developer reverse-engineering.
-# 📅 ቀን፦ Tuesday, July 07, 2026
+# 📝 ስሪት፦ v10.83 (Ultimate System Doctor - Safe Recon Synthesizer Enabled)
+# ✅ የተፈቱ ችግሮች፦ Dynamic schema dropping, increased Anti-Bloat threshold to 35,000 chars, and bypass safe scalar ORM queries (count, exists, get, create, etc.) from AST N+1 warnings to reduce false positives.
+# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 import os
@@ -59,7 +59,7 @@ class SecurityAuditor:
             if "<style>" in code or "<style " in code:
                 issues.append("Performance Warning: Inline CSS blocks <style> found. Move these to global.css to unblock page rendering.")
             if "<script>" in code or "<script " in code:
-                issues.append("Performance Warning: Inline JavaScript blocks <script> found. Move these to global.js to enable site-wide caching.")
+                issues.append("Performance Warning: Inline JavaScript blocks <script> found. Move these to global.js to unblock page rendering.")
             
             self_log_issues(issues, file_path, site)
             return len(issues) == 0, issues
@@ -127,7 +127,7 @@ class SecurityAuditor:
 
 
 def self_log_issues(issues, file_path, site):
-    """የተገኙ የደህንነት እና የንድፍ ስጋቶችን በዳታቤዝ ውስጥ መዝግቦ ማስቀመጫ ረዳት (v10.40)"""
+    """የተገኙ የደህንነት እና የንድፍ ስጋቶችን በዳታቤዝ ውስጥ መዝግቦ ማስቀመጫ ረዳት"""
     if issues:
         SecurityLog = get_marketplace_model('SecurityLog')
         if not SecurityLog: return
@@ -136,7 +136,6 @@ def self_log_issues(issues, file_path, site):
             try:
                 log_exists = SecurityLog.objects.filter(site=site, description=issue, file_path=file_path).exists()
                 if not log_exists:
-                    # 🛡️ FIXED: text_content የሚለው የተሳሳተ አርጉመንት ሙሉ በሙሉ ተወግዷል
                     SecurityLog.objects.create(
                         site=site,
                         category='code_injection' if any(x in issue for x in ['Dangerous', 'Error', 'Syntax']) else 'config',
@@ -179,13 +178,8 @@ class UniversalHealer:
             except Exception as e:
                 logger.error(f"Failed to reset stuck tasks: {e}")
 
-        # 📊 የቆዩ የዳሳሽ ሪፖርቶችን በ AI የመጭመቅ ጥሪ (v10.82)
         self.synthesize_daily_recon_reports()
-
-        # የዳታቤዝ አውቶማቲክ መጠባበቂያ (SaaS Backup Archiver)
         AutonomousBackupManager.backup_database_to_cache(self.site)
-
-        # የደህንነት ሎግ ፓትሮል ጥሪ
         SecurityAuditor.patrol_server_logs(self.site)
 
         self._heal_production_errors()
@@ -193,10 +187,9 @@ class UniversalHealer:
         PerformanceAuditor.run_daily_performance_audit(self.site)
 
     def hard_reset_database_schema(self):
-        """🚨 [Autonomous Schema Rebuilder] የዳታቤዝ ሰንጠረዦችን ማጥፋት"""
+        """🚨 [Autonomous Schema Rebuilder] የዳታቤዝ ሰንጠረዦችን ማጥፋት (🛡️ Dynamic Table Scan)"""
         SiteRegistry = get_marketplace_model('SiteRegistry')
 
-        # 🛡️ FIXED: ድንገተኛ የመረጃ ማጥፋት አደጋን ለመከላከል የደህንነት ማረጋገጫ ቁልፍ መፈተሽ
         reset_allowed = os.getenv('ALLOW_EMERGENCY_SCHEMA_RESET', 'false').lower() == 'true'
         if not reset_allowed:
             logger.critical("🚨 EMERGENCY RESET BLOCKED: 'ALLOW_EMERGENCY_SCHEMA_RESET' is not enabled in Env.")
@@ -204,14 +197,21 @@ class UniversalHealer:
 
         logger.warning("🚨 EMERGENCY RESET: Hard resetting database schema...")
         try:
-            marketplace_tables = [
-                "marketplace_producttranslation", "marketplace_translationqueue",
-                "marketplace_product", "marketplace_sellerprofile", "marketplace_notificationqueue",
-                "marketplace_aiprojectbacklog", "marketplace_securitylog", "marketplace_agenterrorlog",
-                "marketplace_aievolutionlog", "marketplace_vectormemory", "marketplace_selfhealinglog",
-                "marketplace_category", "marketplace_siteregistry", "marketplace_usersearch", 
-                "marketplace_agenttask", "marketplace_predictionlog", "marketplace_abtest", "marketplace_externalapi"
-            ]
+            # 🛡️ FIXED: dynamic table lookup to prevent hardcoded failures on new models
+            try:
+                app_models = apps.get_app_config('marketplace').get_models()
+                marketplace_tables = [model._meta.db_table for model in app_models]
+            except Exception as registry_err:
+                logger.warning(f"Failed dynamic table lookup: {registry_err}. Falling back to hardcoded registry.")
+                marketplace_tables = [
+                    "marketplace_producttranslation", "marketplace_translationqueue",
+                    "marketplace_product", "marketplace_sellerprofile", "marketplace_notificationqueue",
+                    "marketplace_aiprojectbacklog", "marketplace_securitylog", "marketplace_agenterrorlog",
+                    "marketplace_aievolutionlog", "marketplace_vectormemory", "marketplace_selfhealinglog",
+                    "marketplace_category", "marketplace_siteregistry", "marketplace_usersearch", 
+                    "marketplace_agenttask", "marketplace_predictionlog", "marketplace_abtest", "marketplace_externalapi"
+                ]
+
             with connection.cursor() as cursor:
                 for table in marketplace_tables:
                     if connection.vendor == 'sqlite':
@@ -274,7 +274,6 @@ class UniversalHealer:
             return
 
         try:
-            # 🛡️ PROACTIVE SCHEMA METADATA SCANNING: የጠፉትን አምዶች መቃኘት እና በራስ-ሰር መፍጠር
             with connection.cursor() as cursor:
                 if connection.vendor == 'postgresql':
                     cursor.execute("""
@@ -347,7 +346,6 @@ class UniversalHealer:
                     logger.error(f"Cached SQL fix execution failed: {cached_err}")
                     AIUtils.clear_cache(cache_key)
             
-            # በ AI የሚመራውን SQL Healer ማነቃቃት
             try:
                 logger.warning("🚑 Schema Healer: Invoking Generative AI SQL Healer...")
                 all_tables = []
@@ -475,36 +473,32 @@ class UniversalHealer:
 
     def synthesize_daily_recon_reports(self):
         """
-        📊 [የአሰሳ ስለላ ሪፖርቶች ዕለታዊ አጠቃላይ ማጠቃለያ ሞተር - v10.82]
+        📊 [የአሰሳ ስለላ ሪፖርቶች ዕለታዊ አጠቃላይ ማጠቃለያ ሞተር]
         በባክሎግ ውስጥ የሚገኙትን 10+ የነጠላ ዌብሳይት ስህተቶች አውጥቶ በ AI በአንድ ላይ በመጭመቅ 
-        ባለ አንድ ማጠቃለያ መግለጫ ያዘጋጃል። (🛡️ FIXED: የነጠላ ሪፖርቶች በዳታቤዝ ውስጥ እንዲቀመጡ ተደርገዋል)
+        ባለ አንድ ማጠቃለያ መግለጫ ያዘጋጃል። (የነጠላ ሪፖርቶች በዳታቤዝ ውስጥ እንዲቀመጡ ተደርገዋል)
         """
         AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
         SiteConfig = get_marketplace_model('SiteConfig')
         if not AIProjectBacklog or not SiteConfig: return
 
-        # 1. ሁሉንም ንቁ የስለላ ሪፖርቶች መሰብሰብ (Blocked እና Scrapper_engine የሆኑትን)
         raw_reports = AIProjectBacklog.objects.filter(
             site=self.site,
             target_file="scrapper_engine",
             status="Blocked"
         )
         
-        # ሪፖርቶች ከ 10 በላይ ከሆኑ ብቻ ማጠቃለያውን ማዘጋጀት
         if raw_reports.count() < 10:
             return
 
         logger.warning(f"📊 Recon Synthesizer: Compressing {raw_reports.count()} individual reports into a Master Bulletin...")
         
-        # 2. የሳይቶቹን አድራሻ እና የስህተት አይነቶችን ለ AI ማዘጋጀት
         failed_domains = []
         for r in raw_reports:
             match = re.search(r'🌐 TARGET WEBSITE:\s*(https?://[^\s\n]+)', r.description)
             domain = match.group(1) if match else r.task_name
             failed_domains.append(domain)
 
-        # የተደጋገሙትን ማስወገድ
-        unique_failed = list(set(failed_domains))[:15] # ቢበዛ 15 ዌብሳይቶች በቶከን መጠን ምክንያት
+        unique_failed = list(set(failed_domains))[:15]
         
         prompt = (
             f"We have {raw_reports.count()} individual scraping failures for these domains: {json.dumps(unique_failed)}.\n"
@@ -521,13 +515,11 @@ class UniversalHealer:
             if data and isinstance(data, dict) and data.get('master_summary'):
                 master_summary = data['master_summary']
                 
-                # 3. ማጠቃለያውን በ SiteConfig ውስጥ ማስቀመጥ (Dashboard ላይ በቀጥታ እንዲነበብ)
                 SiteConfig.objects.update_or_create(
                     key=f"CRAWLER_DAILY_SUMMARY_{self.site.name}",
                     defaults={'value': {'summary': master_summary, 'updated_at': timezone.now().isoformat()}}
                 )
                 
-                # 🛡️ FIXED: የነጠላ ሪፖርቶች ለአድሚን ጥናት እንዲመቹ በዳታቤዝ ውስጥ ሳይሰረዙ እንዲቆዩ ማድረግ
                 logger.info("🧹 Recon Synthesizer: Successfully compressed reports. Kept individual reports for developer reverse-engineering.")
                 
         except Exception as e:
@@ -605,6 +597,11 @@ class PerformanceAuditor:
                         if isinstance(current.value, ast.Name):
                             model_name = current.value.id
                             if model_name in ['Product', 'Category']:
+                                # 🛡️ FIXED: N+1 የlatency ችግር የማይፈጥሩ የተለዩ ጥያቄዎችን ከማስጠንቀቂያ መዝለል (False positive reduction)
+                                bypass_methods = {'count', 'exists', 'get', 'update', 'delete', 'create', 'aggregate', 'annotate'}
+                                if any(method in chain for method in bypass_methods):
+                                    continue
+
                                 has_optimizer = any(opt in chain for opt in ['select_related', 'prefetch_related'])
                                 if not has_optimizer:
                                     issues.append(f"Critical Performance Issue: '{model_name}.objects' query detected in views.py that lacks select_related() or prefetch_related(), causing N+1 query latency.")
@@ -724,7 +721,8 @@ class PerformanceAuditor:
 
 class AntiBloatEngine:
     @staticmethod
-    def is_file_bloated(file_path: str, max_chars: int = 15000) -> bool:
+    def is_file_bloated(file_path: str, max_chars: int = 35000) -> bool:
+        # 🛡️ FIXED: Increased threshold from 15,000 to 35,000 characters to prevent expensive loops on agent core files
         if not file_path or not os.path.exists(file_path):
             return False
         try:
@@ -735,7 +733,7 @@ class AntiBloatEngine:
     @staticmethod
     def prune_and_optimize(old_code, new_code, file_path):
         is_bloated = AntiBloatEngine.is_file_bloated(file_path)
-        if not is_bloated and (len(new_code) < 12000 or (old_code and len(new_code) < len(old_code) * 1.20)):
+        if not is_bloated and (len(new_code) < 32000 or (old_code and len(new_code) < len(old_code) * 1.20)):
             return new_code
 
         logger.warning(f"⚠️ Anti-Bloat Guard: Code for {file_path} is bloated. Activating self-pruning...")
