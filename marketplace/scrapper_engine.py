@@ -1,6 +1,9 @@
-# --------------------------------------------------------------
-#  scrapper_engine.py  – high‑performance, thread‑safe, self‑healing
-# --------------------------------------------------------------
+# ============================================================
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/scrapper_engine.py
+# 📝 ስሪት፦ v12.16 (Enterprise Scrapper - Complete Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Fully integrated dynamic BS4 singular product card extractors, plural container/wrapper exclusions to prevent category leaks, resolved Django Async Deadlock via Isolated Thread Event Loops, and mapped Playwright Binary Auto-Detector.
+# 📅 ቀን፦ Tuesday, July 14, 2026
+# ============================================================
 
 import asyncio
 import hashlib
@@ -155,18 +158,173 @@ class SmartCache:
         return {"hits": self.hits, "misses": self.misses, "size": len(self.store)}
 
 # --------------------------------------------------------------
-#  Product extraction (unchanged – uses BeautifulSoup & regex)
+#  🔍 SMART PRODUCT EXTRACTOR (የላቀ የምርት መሰብሰቢያ)
 # --------------------------------------------------------------
 class SmartProductExtractor:
     @staticmethod
     def extract_products(html: str, url: str) -> List[Dict]:
-        # … original extraction logic (omitted for brevity) …
-        return []   # placeholder – replace with real implementation
+        """የድረ-ገጽ ምርቶችን በጥራት ለቅሞ የሚያወጣ ዋና መፈልቀቂያ (🛡️ v12.16 Aligned)"""
+        if not html: return []
+        products = []
+        soup = None
+        
+        # 🛡️ 1. [BS4 List Parser First] - የድረ-ገጹን የውስጥ ዝርዝር ሁልጊዜም አስቀድሞ መቃኘት
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            selectors = [
+                'div.b-list-advert__item', 
+                'div.b-trending-card',
+                'div.b-list-advert-single', 
+                'div.qa-advert-list-item', 
+                'div[class*="b-list-advert__item"]',
+                'div[class*="b-trending-card"]',
+                'div[class*="product"]', 
+                'div[class*="classified"]', 
+                'div[class*="item"]', 
+                'div[class*="card"]'
+            ]
+            
+            for selector in selectors:
+                elements = soup.select(selector)
+                if elements:
+                    valid_elements = []
+                    for elem in elements:
+                        # 🛡️ Plural የሆኑ የመያዣ ክፍሎች (cards, list-adverts, section, etc.) ካሉ እንዲዘለሉ መገደብ (Anti-Category Leak)
+                        classes_str = " ".join(elem.get('class', [])).lower()
+                        if any(x in classes_str for x in ['section', 'wrapper', 'container', 'cards', 'grid', 'holder', 'list-adverts']):
+                            continue
+
+                        # የጎን ዝርዝር (Sidebar/Menu) እና የራስጌ/ግርጌ ካቴጎሪዎችን ማጣሪያ (Anti-Category Leak)
+                        parent_classes = "".join(str(p.get('class', '')) for p in elem.parents).lower()
+                        if any(x in parent_classes for x in ['header', 'footer', 'nav', 'menu', 'sidebar', 'aside', 'category']):
+                            continue
+                        valid_elements.append(elem)
+                    
+                    if valid_elements:
+                        for elem in valid_elements[:20]:
+                            product = SmartProductExtractor._extract_from_soup_node(elem)
+                            if product and product.get('title') and len(product['title']) > 3:
+                                products.append(product)
+                        
+                        if products:
+                            return products
+        except Exception as e:
+            logger.debug(f"BS4 List Parser failed to extract products: {e}")
+
+        # 🛡️ 2. JSON-LD Extractor (Second Fallback)
+        try:
+            json_ld_matches = re.findall(r'"name"\s*:\s*"([^"]+)"[\s\S]*?"price"\s*:\s*"([^"]+)"', html, re.DOTALL | re.IGNORECASE)
+            if json_ld_matches:
+                for name, price in json_ld_matches[:15]:
+                    import html as html_parser
+                    clean_name = html_parser.unescape(name).strip()
+                    if clean_name.lower() in ['vehicles', 'fashion', 'electronics', 'property', 'phones & tablets']:
+                        continue
+                    try: clean_price = float(re.sub(r'[^\d.]', '', price))
+                    except: clean_price = 0.0
+                    products.append({
+                        'title': clean_name[:150], 'price': clean_price,
+                        'description': f"JSON-LD Structured Product: {clean_name}",
+                        'seller_contact': '0900000000', 'image_url': ''
+                    })
+                if products:
+                    return products
+        except: pass
+
+        # 🛡️ 3. SEO Meta-Tag Structured Harvester (Last Fallback - Only for single product detail pages)
+        try:
+            is_index_page = any(x in url.lower() for x in ['/vehicles', '/fashion', '/electronics', '/property', '/phones', '/index', 'jiji.et/', 'jiji.com.et/']) or url.strip().endswith('jiji.et') or url.strip().endswith('jiji.com.et')
+            
+            if soup and not is_index_page:
+                og_title = soup.find('meta', property=['og:title', 'twitter:title']) or soup.find('meta', name=['og:title', 'twitter:title'])
+                og_price = soup.find('meta', property=['product:price:amount', 'price']) or soup.find('meta', name=['product:price:amount', 'price'])
+                
+                if og_title and og_title.get('content'):
+                    title = og_title.get('content').strip()
+                    if not any(title.lower() == cat for cat in ['vehicles', 'fashion', 'electronics', 'property', 'phones & tablets', 'classifieds']):
+                        price = 0.0
+                        if og_price and og_price.get('content'):
+                            try: price = float(re.sub(r'[^\d.]', '', og_price.get('content')))
+                            except: pass
+                        
+                        og_desc = soup.find('meta', property=['og:description', 'twitter:description']) or soup.find('meta', name=['og:description', 'twitter:description'])
+                        og_img = soup.find('meta', property=['og:image', 'twitter:image']) or soup.find('meta', name=['og:image', 'twitter:image'])
+                        
+                        desc = og_desc.get('content', '')[:500] if og_desc else ""
+                        img = og_img.get('content', '') if og_img else ""
+                        
+                        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', desc)
+                        contact = "0900000000"
+                        if phone_match:
+                            contact = re.sub(r'[^\d+]', '', phone_match.group(0))
+                        else:
+                            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', desc)
+                            if tg_match: contact = tg_match.group(0)
+
+                        products.append({
+                            'title': title[:150], 'price': price,
+                            'description': desc or f"Meta Structured Product: {title}",
+                            'seller_contact': contact, 'image_url': img
+                        })
+                        return products
+        except Exception as e:
+            logger.debug(f"Meta SEO structured harvester fallback skipped: {e}")
+
+        return products
 
     @staticmethod
     def _extract_from_soup_node(node) -> Dict:
-        # … original node extraction logic (omitted) …
-        return {}
+        product = {'title': '', 'price': 0, 'description': '', 'seller_contact': '', 'image_url': ''}
+        
+        # 🛡️ Jiji-Specific title selectors to capture precise product titles instead of sections
+        title_el = node.select_one('div[class*="title"] a') or \
+                   node.select_one('div[class*="title"]') or \
+                   node.select_one('h3[class*="title"]') or \
+                   node.select_one('h4[class*="title"]') or \
+                   node.find(['h3', 'h4', 'h2', 'strong', 'span'], class_=re.compile(r'title|name|header|advert__item-title', re.I)) or \
+                   node.find(['h3', 'h4', 'strong'])
+                   
+        if title_el:
+            product['title'] = title_el.get_text(strip=True)[:150]
+            
+        # የካቴጎሪ መደራረብን መከላከል (Anti-Category Bypass)
+        if product['title'].lower() in ['trending ads', 'trending', 'recent ads', 'popular ads', 'sponsored ads', 'vehicles', 'fashion', 'electronics', 'property', 'phones & tablets']:
+            product['title'] = ''
+            return product
+                
+        # Jiji-Specific price selectors
+        price_el = node.select_one('div[class*="price"]') or \
+                   node.select_one('span[class*="price"]') or \
+                   node.find(class_=re.compile(r'price|amount|val|advert__item-price', re.I)) or \
+                   node.find(string=re.compile(r'(?:ETB|ብር|Birr|Br)', re.I))
+        if price_el:
+            try:
+                price_str = re.sub(r'[^\d]', '', price_el.get_text(strip=True))
+                product['price'] = float(price_str)
+            except: pass
+                
+        text_content = node.get_text(separator=' ')
+        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', text_content)
+        if phone_match:
+            product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
+        else:
+            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', text_content)
+            if tg_match: product['seller_contact'] = tg_match.group(0)
+                
+        product['description'] = " ".join(text_content.split())[:500]
+        
+        img_el = node.find('img')
+        if img_el:
+            img_url = img_el.get('data-src') or img_el.get('data-lazy') or img_el.get('lazy-src') or img_el.get('src')
+            if img_url:
+                if ',' in img_url:
+                    img_url = img_url.split(',')[0].strip().split(' ')[0]
+                product['image_url'] = img_url
+            
+        return product
+
 
 class AdvancedProductExtractor:
     def __init__(self) -> None:
@@ -180,6 +338,7 @@ class AdvancedProductExtractor:
         products = SmartProductExtractor.extract_products(html, url)
         self.cache.set(cache_key, products)
         return products
+
 
 # --------------------------------------------------------------
 #  ScrapperEngine – thread‑safe singleton with async Playwright runner
