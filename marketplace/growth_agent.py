@@ -966,7 +966,186 @@ def bootstrap_system_safely():
         broadcast_agent_log(None, "System auto‑registered primary site.", "success")
         logger.info("[GrowthAgent] Bootstrapped primary site.")
 
+# ============================================================
+# 🧬 SELF-READINESS GATE (የራስ-ማስነሻ በር)
+# ============================================================
 
+class SelfBootstrapManager:
+    CORE_MODULES = {
+        'growth_agent': 'marketplace/growth_agent.py',
+        'ai_utils': 'marketplace/ai_utils.py',
+        'code_apply': 'marketplace/code_apply.py',
+        'self_doctor': 'marketplace/self_doctor.py',
+    }
+    RUNNING_PROCESS_MODULES = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
+    READY_KEY = "SELF_BOOTSTRAP_STATUS"
+    REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
+    MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
+    MAX_TOTAL_ATTEMPTS_PER_MODULE = 15
+
+    @classmethod
+    def _scan_core_files(cls) -> Dict[str, Dict]:
+        broken = {}
+        base = str(settings.BASE_DIR)
+        for name, rel in cls.CORE_MODULES.items():
+            path = os.path.join(base, rel)
+            if not os.path.exists(path):
+                broken[name] = {"issue": "MISSING_FILE", "path": rel}
+                continue
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                if not content.strip():
+                    broken[name] = {"issue": "EMPTY_FILE", "path": rel}
+                else:
+                    ast.parse(content)
+            except SyntaxError as e:
+                broken[name] = {"issue": f"SYNTAX_ERROR: {e}", "path": rel}
+            except Exception as e:
+                broken[name] = {"issue": f"READ_ERROR: {e}", "path": rel}
+        return broken
+
+    @classmethod
+    def _get_total_attempts(cls, module_key):
+        SiteConfig = get_model('SiteConfig')
+        cfg = SiteConfig.objects.filter(key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}").first()
+        return cfg.value.get('count', 0) if cfg and isinstance(cfg.value, dict) else 0
+
+    @classmethod
+    def _increment_total_attempts(cls, module_key):
+        SiteConfig = get_model('SiteConfig')
+        cfg, _ = SiteConfig.objects.get_or_create(
+            key=f"{cls.REPAIR_ATTEMPT_KEY_PREFIX}{module_key}", defaults={'value': {'count': 0}}
+        )
+        count = (cfg.value.get('count', 0) if isinstance(cfg.value, dict) else 0) + 1
+        cfg.value = {'count': count, 'last_attempt': timezone.now().isoformat()}
+        cfg.save()
+        return count
+
+    @classmethod
+    def ensure_self_ready(cls) -> bool:
+        broken = cls._scan_core_files()
+        SiteConfig = get_model('SiteConfig')
+        if not broken:
+            SiteConfig.objects.update_or_create(
+                key=cls.READY_KEY,
+                defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
+            )
+            return True
+
+        logger.critical(f"[GrowthAgent] Core modules unhealthy: {list(broken.keys())}")
+        SiteConfig.objects.update_or_create(
+            key=cls.READY_KEY,
+            defaults={'value': {
+                'status': 'self_repairing',
+                'broken': {k: v['issue'] for k, v in broken.items()},
+                'checked_at': timezone.now().isoformat()
+            }}
+        )
+        SiteRegistry = get_model('SiteRegistry')
+        primary = SiteRegistry.objects.filter(name='primary').first()
+        if not primary:
+            logger.critical("[GrowthAgent] No primary site – cannot self‑repair.")
+            return False
+
+        attempts = 0
+        repaired_any = False
+        while broken and attempts < cls.MAX_REPAIR_ATTEMPTS_PER_CYCLE:
+            attempts += 1
+            for key, info in list(broken.items()):
+                if cls._get_total_attempts(key) >= cls.MAX_TOTAL_ATTEMPTS_PER_MODULE:
+                    logger.critical(f"[GrowthAgent] Exhausted repair attempts for {key}")
+                    continue
+                cls._increment_total_attempts(key)
+                if cls._repair_module(primary, key, info):
+                    repaired_any = repaired_any or key in cls.RUNNING_PROCESS_MODULES
+            broken = cls._scan_core_files()
+
+        if not broken:
+            SiteConfig.objects.update_or_create(
+                key=cls.READY_KEY,
+                defaults={'value': {'status': 'ready', 'checked_at': timezone.now().isoformat()}}
+            )
+            logger.info("[GrowthAgent] All core modules verified healthy.")
+            return True
+
+        SiteConfig.objects.update_or_create(
+            key=cls.READY_KEY,
+            defaults={'value': {
+                'status': 'repair_failed',
+                'broken': {k: v['issue'] for k, v in broken.items()},
+                'checked_at': timezone.now().isoformat()
+            }}
+        )
+        logger.critical("[GrowthAgent] Repair attempts exhausted – proceeding in degraded mode.")
+        return True
+
+    @classmethod
+    def _repair_module(cls, site, module_key, info) -> bool:
+        logger.warning(f"[GrowthAgent] Attempting self‑repair for {module_key} ({info['issue']})")
+        VectorMemory = get_model('VectorMemory')
+        _, _, _, compress_code_for_prompt = _get_ai_utils()
+        clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
+        SecurityAuditor, _, AntiBloatEngine = _get_self_doctor()
+        apply_code_change = _get_code_apply()
+
+        past = VectorMemory.objects.filter(site=site).order_by('-id')[:3]
+        context = [compress_code_for_prompt(m.content) for m in past]
+
+        prompt = (
+            f"Write a complete, syntactically valid replacement for the file {info['path']} "
+            f"(module '{module_key}') preserving its role in the autonomous e‑commerce CEO system. "
+            f"Avoid past failures: {json.dumps(context, ensure_ascii=False)}. Return JSON with key 'code'."
+        )
+        data = _safe_ai_call(prompt, task_type="coding")
+        if not data or 'code' not in data:
+            logger.error(f"[GrowthAgent] No valid code returned for {module_key}")
+            return False
+
+        new_code = data['code']
+        try:
+            ast.parse(new_code)
+        except SyntaxError as e:
+            logger.error(f"[GrowthAgent] Syntax error in generated code for {module_key}: {e}")
+            return False
+
+        is_safe, msg = SecurityAuditor.scan_code_safety(new_code, file_path=info['path'], site=site)
+        if not is_safe:
+            logger.error(f"[GrowthAgent] Security gate blocked repair for {module_key}: {msg}")
+            return False
+
+        new_code = AntiBloatEngine.prune_and_optimize("", new_code, module_key)
+        full_path = os.path.join(str(settings.BASE_DIR), info['path'])
+        old_code = ""
+        if os.path.exists(full_path):
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    old_code = f.read()
+            except Exception:
+                pass
+
+        result = apply_code_change(site, module_key, new_code, reason=f"Self‑repair: {info['issue']}")
+        if not result.get('success'):
+            logger.error(f"[GrowthAgent] apply_code_change failed for {module_key}: {result.get('message')}")
+            return False
+
+        applied = result.get('path', full_path)
+        verified, vmsg = verify_disk_write(applied)
+        if not verified:
+            logger.error(f"[GrowthAgent] Disk verification failed for {module_key}: {vmsg}. Rolling back...")
+            rollback_file(applied, old_code)
+            return False
+
+        if module_key in DJANGO_APP_FILES:
+            deep_ok, dmsg = deep_verify_django_app()
+            if not deep_ok:
+                logger.error(f"[GrowthAgent] Deep Django check failed for {module_key}: {dmsg}. Rolling back...")
+                rollback_file(applied, old_code)
+                return False
+
+        logger.info(f"[GrowthAgent] Successfully repaired {module_key}")
+        VectorMemory.objects.create(site=site, memory_type='solution', content=f"Self‑repaired {module_key}")
+        return True
 # ============================================================
 # 🎡 MASTER ENGINE EXECUTION LOOPS
 # ============================================================
