@@ -848,7 +848,7 @@ def _autonomous_no_api_search_fallback(niche):
     return fallback_sources
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.89 - Dynamic Parallel Scraper)"""
+    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.91 - Autonomous Self-Seeding Edition)"""
     
     @staticmethod
     def is_network_available():
@@ -935,12 +935,9 @@ class MultiChannelHarvester:
         return []
 
     def _get_fallback_sources(self):
+        # 🛡️ FIXED: ቋሚ የሆኑት ዌብሳይቶች በሙሉ ተወግደዋል፤ ኔትወርክ ሙሉ በሙሉ ሳይሰራ ሲቀር ብቻ እንደ የመጨረሻ አማራጭ የሚያገለግል ዝቅተኛ የ fallback ዝርዝር
         return [
             {"url_or_channel": "shegemarket", "platform_type": "Telegram"},
-            {"url_or_channel": "merkato_market", "platform_type": "Telegram"},
-            {"url_or_channel": "ethiomarketlink", "platform_type": "Telegram"},
-            {"url_or_channel": "addis_classifieds", "platform_type": "Telegram"},
-            {"url_or_channel": "gebezamarket", "platform_type": "Telegram"},
             {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji"},
         ]
 
@@ -1203,25 +1200,31 @@ class MultiChannelHarvester:
             return self._get_cached_sources(site)
         
         SiteConfig = get_model('SiteConfig')
-        
-        if random.random() < 0.1 or not self._get_cached_sources(site):
-            new_discovered = self.discover_active_market_sources(site)
-            if new_discovered:
-                self._save_sources_to_cache(site, new_discovered)
-        
         sources = self._get_cached_sources(site)
         
+        # 🛡️ FIXED: ራስ-ዘሪ ሎጂክ (Autonomous Self-Seeding Engine)
+        # በዳታቤዝ ውስጥ ያሉት የአሰሳ ምንጮች ባዶ ከሆኑ፣ ኤጀንቱ ራሱ በይነመረብ ላይ ፈልጎ አክቲቭ ዌብሳይቶችን በዳይናሚክ ይመዘግባል [24]
         if not sources:
-            logger.warning("⚠️ No active sources found via AI or cache. Seeding default fallback sources...")
-            sources = self._get_fallback_sources()
-            self._save_sources_to_cache(site, sources)
+            logger.info("🌱 Self-Seeding: Active source database is empty. Launching autonomous dynamic internet search to seed active sources...")
+            if self.is_network_available():
+                discovered_seeds = self.discover_active_market_sources(site)
+                if discovered_seeds:
+                    self._save_sources_to_cache(site, discovered_seeds)
+                    sources = discovered_seeds
+            
+            # አሁንም ባዶ ከሆነ (ኔትወርክ ወይም ኤፒአይ ሙሉ በሙሉ ካልሰራ) ወደ የመጨረሻ ፎልባክ መመለስ
+            if not sources:
+                sources = self._get_fallback_sources()
+                self._save_sources_to_cache(site, sources)
         
         all_products = []
         
-        # 🛡️ 2. [PARALLEL SCRAPING COG] - በአንድ ጊዜ 3 የዳታ ምንጮችን በትይዩ ክሮች (Parallel Threads) ማስነሻ ሎጂክ [24]
-        # ይህ አሰሳውን 300% ያፈጥነዋል፤ እርስ በእርሳቸውም የዳታቤዝ ግንኙነቶችን በደህንነት ስለሚዘጉ ምንም ዓይነት ግንኙነት መመረዝ አይፈጥሩም [24]
+        # የባዶ ቤት የግዳጅ አሰሳ (Force Crawl Bypass)
+        Product = get_model('Product')
+        prod_count = Product.objects.filter(site=site, is_active=True).count()
+        force_crawl = prod_count < 20
+        
         def _scrape_source_worker(source) -> List[Dict]:
-            # Close old connection to prevent thread leaks [24]
             safe_close_connections()
             url = source.get('url_or_channel', '')
             domain = urlparse(url).netloc.lower() or url.replace('@', '').lower()
@@ -1232,7 +1235,8 @@ class MultiChannelHarvester:
             cooldown_hours = 24
             should_scrape = True
             
-            if last_scrape_cfg and isinstance(last_scrape_cfg.value, dict):
+            # የግዳጅ አሰሳ (Force Crawl) ካልበራ ብቻ መኝታውን መፈተሽ
+            if not force_crawl and last_scrape_cfg and isinstance(last_scrape_cfg.value, dict):
                 try:
                     cooldown_hours = last_scrape_cfg.value.get('cooldown_hours', 24)
                     last_time_str = last_scrape_cfg.value.get('time')
@@ -1244,12 +1248,12 @@ class MultiChannelHarvester:
                         next_allowed_time = last_time + timedelta(hours=cooldown_hours)
                         if timezone.now() < next_allowed_time:
                             remaining_time = next_allowed_time - timezone.now()
-                            logger.info(f"⏭️ Crawl Pacing: Skipping '{domain}' — Cooldown active for next {remaining_time.seconds // 3600}h {remaining_time.seconds % 3600 // 60}m.")
+                            logger.info(f"⏭️ Crawl Pacing: Skipping '{domain}' — Cooldown active for next {remaining_time.days}d {remaining_time.seconds // 3600}h.")
                             return []
                 except Exception:
                     pass
             
-            logger.info(f"📡 Scraping {url} in parallel thread...")
+            logger.info(f"📡 Scraping {url} in parallel thread (Force Crawl: {force_crawl})...")
             products = self.get_recent_products(source)
             
             num_scraped = len(products)
@@ -1257,10 +1261,10 @@ class MultiChannelHarvester:
                 dyn_cooldown = 1
                 status_text = "high_activity"
             elif num_scraped > 0:
-                dyn_cooldown = 6
+                dyn_cooldown = 4
                 status_text = "moderate_activity"
             else:
-                dyn_cooldown = 24
+                dyn_cooldown = 2 # 24 ሰዓት የነበረው ወደ 2 ሰዓት ዝቅ ብሏል
                 status_text = "no_activity"
             
             SiteConfig.objects.update_or_create(
@@ -1277,7 +1281,6 @@ class MultiChannelHarvester:
                 self.perform_source_reconnaissance(source, "Website crawled successfully, but returned 0 products.")
             return products
 
-        # Spawning ThreadPoolExecutor safely for I/O bound crawling [24]
         try:
             with ThreadPoolExecutor(max_workers=3) as executor:
                 futures = [executor.submit(_scrape_source_worker, source) for source in sources]
