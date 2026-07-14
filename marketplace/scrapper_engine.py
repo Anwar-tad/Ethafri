@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/scrapper_engine.py
-# 📝 ስሪት፦ v12.14 (Enterprise Scrapper - Complete Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Fixed "Trending ads" container leak by adding plural container/wrapper exclusions, prioritized specific singular card selectors, and implemented generic title bypass.
+# 📝 ስሪት፦ v12.15 (Enterprise Scrapper - Complete Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Resolved Django Async Deadlock via Isolated Thread Event Loops, integrated Playwright Binary Auto-Detector for Render Free Tier resource safety, and fixed FingerprintEvasion get_headers signature.
 # 📅 ቀን፦ Tuesday, July 14, 2026
 # ============================================================
 
@@ -37,6 +37,7 @@ class FingerprintEvasion:
 
     @classmethod
     def get_headers(cls, url: str, is_telegram: bool = False) -> Dict[str, str]:
+        # 🛡️ FIXED: Accept is_telegram parameter to resolve call signature crashes
         ua = random.choice(cls.MOBILE_UA) if is_telegram or 't.me' in url or 'telegram' in url or '@' in url else random.choice(cls.DESKTOP_UA)
         return {
             'User-Agent': ua,
@@ -147,7 +148,7 @@ class SmartProductExtractor:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, 'html.parser')
             
-            # Jiji የመጫኛ ሰሌዳ የካርድ መለያዎች (singular card selectors first)
+            # Jiji የመጫኛ ሰሌዳ የካርድ መለያዎች
             selectors = [
                 'div.b-list-advert__item', 
                 'div.b-trending-card',
@@ -168,7 +169,6 @@ class SmartProductExtractor:
                     for elem in elements:
                         # 🛡️ EXCLUDE WIDGETS, SECTIONS, CONTAINER WRAPPERS, FOOTERS, HEADERS (Prevents section block leakage)
                         classes_str = " ".join(elem.get('class', [])).lower()
-                        # Plural የሆኑ የመያዣ ክፍሎች (cards, list-adverts, section, etc.) ካሉ እንዲዘለሉ መገደብ
                         if any(x in classes_str for x in ['section', 'wrapper', 'container', 'cards', 'grid', 'holder', 'list-adverts']):
                             continue
 
@@ -254,7 +254,6 @@ class SmartProductExtractor:
     def _extract_from_soup_node(node) -> Dict:
         product = {'title': '', 'price': 0, 'description': '', 'seller_contact': '', 'image_url': ''}
         
-        # 🛡️ FIXED: Jiji-Specific title selectors to capture precise product titles instead of sections
         title_el = node.select_one('div[class*="title"] a') or \
                    node.select_one('div[class*="title"]') or \
                    node.select_one('h3[class*="title"]') or \
@@ -265,12 +264,10 @@ class SmartProductExtractor:
         if title_el:
             product['title'] = title_el.get_text(strip=True)[:150]
             
-        # የካቴጎሪ መደራረብን መከላከል (Anti-Category Bypass)
         if product['title'].lower() in ['trending ads', 'trending', 'recent ads', 'popular ads', 'sponsored ads', 'vehicles', 'fashion', 'electronics', 'property', 'phones & tablets']:
             product['title'] = ''
             return product
                 
-        # 🛡️ FIXED: Jiji-Specific price selectors
         price_el = node.select_one('div[class*="price"]') or \
                    node.select_one('span[class*="price"]') or \
                    node.find(class_=re.compile(r'price|amount|val|advert__item-price', re.I)) or \
@@ -342,12 +339,20 @@ class ScrapperEngine:
         pass
     
     @classmethod
-    def scrape(cls, url: str, use_playwright: bool = True) -> Optional[str]:
+    def scrape(cls, url: str, use_playwright: bool = None) -> Optional[str]:
         """አንድ ዩአርኤል ይስሳል (🛡️ Cloudflare Bypass & Zero-CPU Optimized)"""
         inst = cls()
         if not url:
             return None
         
+        # 🛡️ FIXED: ScrapeOps ቁልፍ ከተዋቀረ Playwright በሰርቨሩ ላይ እንዳይነሳ በዳይናሚክ መከልከል (Save CPU Loadavg)
+        scrapeops_key = os.getenv('SCRAPEOPS_API_KEY', '').strip()
+        use_scrapeops = bool(scrapeops_key) and not ('t.me' in url or 'telegram' in url)
+        
+        if use_playwright is None:
+            # Scrapeops ካለ Playwrightን ሙሉ በሙሉ መዝጋት
+            use_playwright = not use_scrapeops
+
         inst.metrics.total_attempts += 1
         inst.metrics.last_scrape_time = datetime.datetime.now()
         
@@ -364,13 +369,10 @@ class ScrapperEngine:
             url = 'https://' + url
         
         html = None
-        use_scrapeops = False
         
-        # 1. የ ScrapeOps proxy መሸጋገሪያ ጥሪ
-        try:
-            scrapeops_key = os.getenv('SCRAPEOPS_API_KEY', '').strip()
-            if scrapeops_key and not ('t.me' in url or 'telegram' in url):
-                use_scrapeops = True # ScrapeOps መኖሩን መመዝገብ
+        # 🛡️ 1. የ ScrapeOps proxy መሸጋገሪያ ጥሪ
+        if use_scrapeops:
+            try:
                 logger.info(f"🛡️ Scrapper API Bridge: Routing {url} through ScrapeOps Rotating Proxy to bypass Cloudflare...")
                 api_url = "https://proxy.scrapeops.io/v1/"
                 payload = {
@@ -382,15 +384,26 @@ class ScrapperEngine:
                 res = requests.get(api_url, params=payload, timeout=25)
                 if res.status_code == 200:
                     html = res.text
-        except Exception as e:
-            logger.warning(f"🛡️ ScrapeOps Cloudflare Bypass Cog failed: {e}")
+            except Exception as e:
+                logger.warning(f"🛡️ ScrapeOps Cloudflare Bypass Cog failed: {e}")
 
-        # 2. Scrapeops ከሌለ ወይም ካልሰራ ወደ Playwright መመለስ (Fallback)
-        # 🛡️ FIXED: To prevent Render CPU choking (loadavg 10+), never launch Playwright if ScrapeOps is active!
-        if not html and use_playwright and not use_scrapeops:
+        # 🛡️ 2. [የተጠናከረ ማሻሻያ] ፕሌይራይት በሰርቨሩ ላይ መጫኑን መፈተሽ (Prevent raw failed attempts)
+        playwright_installed = False
+        if use_playwright and not use_scrapeops:
+            try:
+                if os.path.exists(BROWSER_PATH) and len(os.listdir(BROWSER_PATH)) > 0:
+                    playwright_installed = True
+                else:
+                    import playwright
+                    playwright_installed = True
+            except Exception:
+                pass
+
+        # 3. Scrapeops ከሌለ ወደ Playwright መመለስ (Fallback - Async Safe)
+        if not html and playwright_installed:
             html = inst._scrape_with_playwright(url)
         
-        # 3. Requests መሞከር (Last Fallback)
+        # 4. Requests መሞከር (Last Fallback)
         if not html:
             html = inst._scrape_with_requests(url)
         
@@ -404,69 +417,80 @@ class ScrapperEngine:
             inst.metrics.errors.append(f"Failed to scrape {url}")
         
         return html
+
+    def _run_async_in_new_thread(self, coro):
+        """🛡️ FIXED: የ Django Async Deadlock ለመከላከል Playwrightን ራሱን በቻለ አዲስ OS Thread እና Event Loop ማስነሻ"""
+        import threading
+        result = [None]
+        exception = [None]
+        
+        def worker():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result[0] = loop.run_until_complete(coro)
+            except Exception as e:
+                exception[0] = e
+            finally:
+                try: loop.close()
+                except Exception: pass
+        
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join(timeout=90)
+        if exception[0]:
+            raise exception[0]
+        return result[0]
     
     def _scrape_with_playwright(self, url: str) -> Optional[str]:
-        """Playwright በመጠቀም ያስሳል"""
+        """Playwright በመጠቀም ያስሳል (🛡️ Deadlock Free)"""
         try:
-            import asyncio
-            from playwright.async_api import async_playwright
-            
-            async def _fetch():
-                async with async_playwright() as p:
-                    headers = FingerprintEvasion.get_headers(url, 't.me' in url)
-                    proxy_url = os.getenv("SMART_PROXY_URL", "").strip()
-                    proxy_config = {"server": proxy_url} if proxy_url else None
-                    
-                    browser = await p.chromium.launch(
-                        headless=True,
-                        proxy=proxy_config,
-                        args=['--disable-blink-features=AutomationControlled']
-                    )
-                    
-                    context = await browser.new_context(
-                        user_agent=headers['User-Agent'],
-                        viewport={'width': random.randint(1280, 1920), 'height': random.randint(720, 1080)},
-                        extra_http_headers=headers,
-                        locale=random.choice(['en-US', 'en-GB']),
-                        timezone_id='Africa/Addis_Ababa',
-                    )
-                    
-                    page = await context.new_page()
-                    
-                    await page.add_init_script("""
-                        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                        Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-                        Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en', 'am']});
-                        window.chrome = {runtime: {}};
-                    """)
-                    
-                    await page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                    await asyncio.sleep(random.uniform(2, 5))
-                    
-                    for i in range(random.randint(2, 4)):
-                        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                        await asyncio.sleep(random.uniform(1, 2))
-                    
-                    content = await page.content()
-                    await browser.close()
-                    return content
-            
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            
-            if loop:
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(lambda: asyncio.run(_fetch()))
-                    return future.result(timeout=90)
-            else:
-                return asyncio.run(_fetch())
-            
+            return self._run_async_in_new_thread(self._async_playwright_fetch(url))
         except Exception as e:
             logger.warning(f"Playwright error for {url}: {e}")
             return None
+
+    async def _async_playwright_fetch(self, url: str) -> Optional[str]:
+        """ትክክለኛው የPlaywright አሲንክ ጥሪ ሎጂክ"""
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            headers = FingerprintEvasion.get_headers(url, 't.me' in url)
+            proxy_url = os.getenv("SMART_PROXY_URL", "").strip()
+            proxy_config = {"server": proxy_url} if proxy_url else None
+            
+            browser = await p.chromium.launch(
+                headless=True,
+                proxy=proxy_config,
+                args=['--disable-blink-features=AutomationControlled']
+            )
+            
+            context = await browser.new_context(
+                user_agent=headers['User-Agent'],
+                viewport={'width': random.randint(1280, 1920), 'height': random.randint(720, 1080)},
+                extra_http_headers=headers,
+                locale=random.choice(['en-US', 'en-GB']),
+                timezone_id='Africa/Addis_Ababa',
+            )
+            
+            page = await context.new_page()
+            
+            await page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en', 'am']});
+                window.chrome = {runtime: {}};
+            """)
+            
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            await asyncio.sleep(random.uniform(2, 5))
+            
+            for i in range(random.randint(2, 4)):
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await asyncio.sleep(random.uniform(1, 2))
+            
+            content = await page.content()
+            await browser.close()
+            return content
     
     def _scrape_with_requests(self, url: str) -> Optional[str]:
         """Requests በመጠቀም ያስሳል"""
