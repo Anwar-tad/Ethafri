@@ -406,7 +406,7 @@ def get_site_project_state_dynamic(site):
                         else:
                             state[key] = "❌ MISSING_FILE"
                         file_paths[key] = os.path.join(base, path_str)
-            except Exception as e:
+      except Exception as e:
                 logger.error(f"Remote GitHub Git Tree Scan failed: {e}")
     else:
         base_templates_dir = os.path.join(settings.BASE_DIR, 'marketplace', 'templates')
