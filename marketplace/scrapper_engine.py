@@ -343,7 +343,7 @@ class ScrapperEngine:
     
     @classmethod
     def scrape(cls, url: str, use_playwright: bool = True) -> Optional[str]:
-        """አንድ ዩአርኤል ይስሳል (🛡️ Cloudflare Bypass Integrated)"""
+        """አንድ ዩአርኤል ይስሳል (🛡️ Cloudflare Bypass & Zero-CPU Optimized)"""
         inst = cls()
         if not url:
             return None
@@ -364,10 +364,13 @@ class ScrapperEngine:
             url = 'https://' + url
         
         html = None
+        use_scrapeops = False
         
+        # 1. የ ScrapeOps proxy መሸጋገሪያ ጥሪ
         try:
             scrapeops_key = os.getenv('SCRAPEOPS_API_KEY', '').strip()
             if scrapeops_key and not ('t.me' in url or 'telegram' in url):
+                use_scrapeops = True # ScrapeOps መኖሩን መመዝገብ
                 logger.info(f"🛡️ Scrapper API Bridge: Routing {url} through ScrapeOps Rotating Proxy to bypass Cloudflare...")
                 api_url = "https://proxy.scrapeops.io/v1/"
                 payload = {
@@ -382,9 +385,12 @@ class ScrapperEngine:
         except Exception as e:
             logger.warning(f"🛡️ ScrapeOps Cloudflare Bypass Cog failed: {e}")
 
-        if not html and use_playwright:
+        # 2. Scrapeops ከሌለ ወይም ካልሰራ ወደ Playwright መመለስ (Fallback)
+        # 🛡️ FIXED: To prevent Render CPU choking (loadavg 10+), never launch Playwright if ScrapeOps is active!
+        if not html and use_playwright and not use_scrapeops:
             html = inst._scrape_with_playwright(url)
         
+        # 3. Requests መሞከር (Last Fallback)
         if not html:
             html = inst._scrape_with_requests(url)
         

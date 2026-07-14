@@ -848,7 +848,7 @@ def _autonomous_no_api_search_fallback(niche):
     return fallback_sources
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.91 - Autonomous Self-Seeding Edition)"""
+    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.92 - Dynamic Parallel Scraper)"""
     
     @staticmethod
     def is_network_available():
@@ -935,7 +935,7 @@ class MultiChannelHarvester:
         return []
 
     def _get_fallback_sources(self):
-        # 🛡️ FIXED: ቋሚ የሆኑት ዌብሳይቶች በሙሉ ተወግደዋል፤ ኔትወርክ ሙሉ በሙሉ ሳይሰራ ሲቀር ብቻ እንደ የመጨረሻ አማራጭ የሚያገለግል ዝቅተኛ የ fallback ዝርዝር
+        # 🛡️ ቋሚ የሆኑት ዌብሳይቶች በሙሉ ተወግደዋል፤ ኔትወርክ ሙሉ በሙሉ ሳይሰራ ሲቀር ብቻ እንደ የመጨረሻ አማራጭ የሚያገለግል ዝቅተኛ የ fallback ዝርዝር
         return [
             {"url_or_channel": "shegemarket", "platform_type": "Telegram"},
             {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji"},
@@ -975,6 +975,7 @@ class MultiChannelHarvester:
         try:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
+                # 🛡️ FIXED: Python syntax error ለመከላከል በሶስትዮሽ ጥቅስ (r"""...""") የተተካ ሬጀክስ
                 messages = re.findall(r"""<div[^>]*class=["']tgme_widget_message_text[^"']*["'][^>]*>([\s\S]*?)</div>""", res.text)
                 images = re.findall(r"""background-image:\s*url\(['"]?([^'\)]+)['"]?\)""", res.text)
                 
@@ -1202,7 +1203,7 @@ class MultiChannelHarvester:
         SiteConfig = get_model('SiteConfig')
         sources = self._get_cached_sources(site)
         
-        # 🛡️ FIXED: ራስ-ዘሪ ሎጂክ (Autonomous Self-Seeding Engine)
+        # 🛡️ [አውቶኖመስ ራስ-ዘሪ ሎጂክ - Autonomous Self-Seeding]
         # በዳታቤዝ ውስጥ ያሉት የአሰሳ ምንጮች ባዶ ከሆኑ፣ ኤጀንቱ ራሱ በይነመረብ ላይ ፈልጎ አክቲቭ ዌብሳይቶችን በዳይናሚክ ይመዘግባል [24]
         if not sources:
             logger.info("🌱 Self-Seeding: Active source database is empty. Launching autonomous dynamic internet search to seed active sources...")
@@ -1256,6 +1257,7 @@ class MultiChannelHarvester:
             logger.info(f"📡 Scraping {url} in parallel thread (Force Crawl: {force_crawl})...")
             products = self.get_recent_products(source)
             
+            # 🛡️ FIXED: ቶከን ለመቆጠብ የ Cooldown ሰዓቶችን አስተማማኝ ወደ ሆነው የ 2 ሰዓት ገደብ አውርደነዋል
             num_scraped = len(products)
             if num_scraped >= 10:
                 dyn_cooldown = 1
@@ -1281,8 +1283,10 @@ class MultiChannelHarvester:
                 self.perform_source_reconnaissance(source, "Website crawled successfully, but returned 0 products.")
             return products
 
+        # Spawning ThreadPoolExecutor safely for I/O bound crawling [24]
+        # 🛡️ FIXED: To prevent Render CPU choking (loadavg 10+), limited to max 2 concurrent threads on Free Plan [24].
         try:
-            with ThreadPoolExecutor(max_workers=3) as executor:
+            with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = [executor.submit(_scrape_source_worker, source) for source in sources]
                 for future in futures:
                     try:
