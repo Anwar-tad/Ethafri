@@ -406,8 +406,10 @@ def get_site_project_state_dynamic(site):
                         else:
                             state[key] = "❌ MISSING_FILE"
                         file_paths[key] = os.path.join(base, path_str)
-      except Exception as e:
-                logger.error(f"Remote GitHub Git Tree Scan failed: {e}")
+        # 🛡️ FIXED: Aligned exactly with 'try' at 8 spaces to prevent Syntax/IndentationError
+        except Exception as e:
+            # 🛡️ FIXED: Aligned at 12 spaces (one level inside except)
+            logger.error(f"Remote GitHub Git Tree Scan failed: {e}")
     else:
         base_templates_dir = os.path.join(settings.BASE_DIR, 'marketplace', 'templates')
         if os.path.exists(base_templates_dir):
