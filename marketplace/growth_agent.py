@@ -993,7 +993,8 @@ def execute_master_cycle():
     except Exception as e:
         logger.debug("Failed to record self-checking evolution lock: %s", e)
 
-    from .growth_agent import SelfBootstrapManager
+    # 🛡️ FIXED: Redundant self-import removed to prevent circular ImportError
+    # Since SelfBootstrapManager is already a global class in this file, we call it directly!
     is_self_ready = SelfBootstrapManager.ensure_self_ready()
 
     if not is_self_ready:
