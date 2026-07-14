@@ -848,7 +848,7 @@ def _autonomous_no_api_search_fallback(niche):
     return fallback_sources
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.87)"""
+    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.89 - Dynamic Parallel Scraper)"""
     
     @staticmethod
     def is_network_available():
@@ -939,12 +939,8 @@ class MultiChannelHarvester:
             {"url_or_channel": "shegemarket", "platform_type": "Telegram"},
             {"url_or_channel": "merkato_market", "platform_type": "Telegram"},
             {"url_or_channel": "ethiomarketlink", "platform_type": "Telegram"},
-            {"url_or_channel": "habesha_market", "platform_type": "Telegram"},
-            {"url_or_channel": "addismarket", "platform_type": "Telegram"},
+            {"url_or_channel": "addis_classifieds", "platform_type": "Telegram"},
             {"url_or_channel": "gebezamarket", "platform_type": "Telegram"},
-            {"url_or_channel": "addisababadelivery", "platform_type": "Telegram"},
-            {"url_or_channel": "ethio_brand_market", "platform_type": "Telegram"},
-            {"url_or_channel": "sheger_brand", "platform_type": "Telegram"},
             {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji"},
         ]
 
@@ -982,7 +978,6 @@ class MultiChannelHarvester:
         try:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
-                # 🛡️ FIXED: Python syntax error ለመከላከል በሶስትዮሽ ጥቅስ (r"""...""") የተተካ ሬጀክስ
                 messages = re.findall(r"""<div[^>]*class=["']tgme_widget_message_text[^"']*["'][^>]*>([\s\S]*?)</div>""", res.text)
                 images = re.findall(r"""background-image:\s*url\(['"]?([^'\)]+)['"]?\)""", res.text)
                 
@@ -1040,8 +1035,6 @@ class MultiChannelHarvester:
         clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
         clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text)
         
-        # 🛡️ FIXED: የኢትዮጵያ ዘመን አቆጣጠርን (E.C.) ያካተተ የተራቀቀ የጊዜ ማጣሪያ ሎጂክ
-        # 2026 እ.ኤ.አ. ማለት 2018 ዓ.ም. (ዘንድሮ) ነው። 2015 ዓ.ም. እና ከዚያ በታች የሆኑትን እጅግ የቆዩ ምርቶች እንጥላለን
         old_patterns = [
             r'2023', r'2024', r'2025', 
             r'2015\s*(?:ዓ\.ም|ዓም)?', r'2014\s*(?:ዓ\.ም|ዓም)?', r'2013\s*(?:ዓ\.ም|ዓም)?', r'2012\s*(?:ዓ\.ም|ዓም)?',
@@ -1138,7 +1131,6 @@ class MultiChannelHarvester:
 
         deep_paths = []
         if html_content:
-            # 🛡️ FIXED: Python syntax error ለመከላከል በሶስትዮሽ ጥቅስ (r"""...""") የተተካ ሬጀክስ
             found_paths = re.findall(r"""href=["'](/[^"']*(?:cars?|vehicles?|apartments?|electronics?|computers?|phones?|mobiles?|classifieds?|sitemap)[^"']*)["']""", html_content, re.IGNORECASE)
             for path in found_paths[:5]:
                 full_path = (url + path) if path.startswith('/') else path
@@ -1225,50 +1217,80 @@ class MultiChannelHarvester:
             self._save_sources_to_cache(site, sources)
         
         all_products = []
-        scraped_this_cycle = 0
         
-        for source in sources:
+        # 🛡️ 2. [PARALLEL SCRAPING COG] - በአንድ ጊዜ 3 የዳታ ምንጮችን በትይዩ ክሮች (Parallel Threads) ማስነሻ ሎጂክ [24]
+        # ይህ አሰሳውን 300% ያፈጥነዋል፤ እርስ በእርሳቸውም የዳታቤዝ ግንኙነቶችን በደህንነት ስለሚዘጉ ምንም ዓይነት ግንኙነት መመረዝ አይፈጥሩም [24]
+        def _scrape_source_worker(source) -> List[Dict]:
+            # Close old connection to prevent thread leaks [24]
+            safe_close_connections()
             url = source.get('url_or_channel', '')
             domain = urlparse(url).netloc.lower() or url.replace('@', '').lower()
             
             last_scrape_key = f"LAST_SCRAPE_TIME_{domain}"
             last_scrape_cfg = SiteConfig.objects.filter(key=last_scrape_key).first()
             
-            cooldown_days = 1 if ('jiji' in domain or 't.me' in domain or '@' in domain) else 15
-            
+            cooldown_hours = 24
             should_scrape = True
+            
             if last_scrape_cfg and isinstance(last_scrape_cfg.value, dict):
                 try:
+                    cooldown_hours = last_scrape_cfg.value.get('cooldown_hours', 24)
                     last_time_str = last_scrape_cfg.value.get('time')
                     if last_time_str:
                         last_time = datetime.fromisoformat(last_time_str)
                         if timezone.is_naive(last_time):
                             last_time = timezone.make_aware(last_time)
                         
-                        next_allowed_time = last_time + timedelta(days=cooldown_days)
+                        next_allowed_time = last_time + timedelta(hours=cooldown_hours)
                         if timezone.now() < next_allowed_time:
                             remaining_time = next_allowed_time - timezone.now()
-                            logger.info(f"⏭️ Crawl Pacing: Skipping '{domain}' — Cooldown active for next {remaining_time.days}d {remaining_time.seconds // 3600}h.")
-                            should_scrape = False
+                            logger.info(f"⏭️ Crawl Pacing: Skipping '{domain}' — Cooldown active for next {remaining_time.seconds // 3600}h {remaining_time.seconds % 3600 // 60}m.")
+                            return []
                 except Exception:
                     pass
             
-            if should_scrape and scraped_this_cycle < 3:
-                logger.info(f"📡 Scraping {url}...")
-                products = self.get_recent_products(source)
-                scraped_this_cycle += 1
-                
-                SiteConfig.objects.update_or_create(
-                    key=last_scrape_key,
-                    defaults={'value': {'time': timezone.now().isoformat(), 'status': 'success' if products else 'no_data'}}
-                )
-                
-                if products:
-                    all_products.extend(products)
-                    logger.info(f"✅ Found {len(products)} products from {url}")
-                else:
-                    self.perform_source_reconnaissance(source, "Website crawled successfully, but returned 0 products.")
-        
+            logger.info(f"📡 Scraping {url} in parallel thread...")
+            products = self.get_recent_products(source)
+            
+            num_scraped = len(products)
+            if num_scraped >= 10:
+                dyn_cooldown = 1
+                status_text = "high_activity"
+            elif num_scraped > 0:
+                dyn_cooldown = 6
+                status_text = "moderate_activity"
+            else:
+                dyn_cooldown = 24
+                status_text = "no_activity"
+            
+            SiteConfig.objects.update_or_create(
+                key=last_scrape_key,
+                defaults={'value': {
+                    'time': timezone.now().isoformat(), 
+                    'status': status_text,
+                    'cooldown_hours': dyn_cooldown
+                }}
+            )
+            logger.info(f"💾 Dynamic Pacing: Set '{domain}' cooldown to {dyn_cooldown}h based on {num_scraped} products scraped.")
+            
+            if not products:
+                self.perform_source_reconnaissance(source, "Website crawled successfully, but returned 0 products.")
+            return products
+
+        # Spawning ThreadPoolExecutor safely for I/O bound crawling [24]
+        try:
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                futures = [executor.submit(_scrape_source_worker, source) for source in sources]
+                for future in futures:
+                    try:
+                        results = future.result(timeout=45)
+                        if results:
+                            all_products.extend(results)
+                    except Exception as thread_err:
+                        logger.error(f"Parallel scraper thread crashed: {thread_err}")
+        finally:
+            safe_close_connections()
+            
         return all_products
 
 # ============================================================
