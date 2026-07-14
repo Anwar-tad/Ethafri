@@ -163,16 +163,18 @@ class SmartCache:
 class SmartProductExtractor:
     @staticmethod
     def extract_products(html: str, url: str) -> List[Dict]:
-        """የድረ-ገጽ ምርቶችን በጥራት ለቅሞ የሚያወጣ ዋና መፈልቀቂያ (🛡️ v12.16 Aligned)"""
+        """የድረ-ገጽ ምርቶችን በደህንነት የሚለቅም ዋና ሞተር (🛡️ v12.16 Aligned)"""
         if not html: return []
         products = []
         soup = None
         
-        # 🛡️ 1. [BS4 List Parser First] - የድረ-ገጹን የውስጥ ዝርዝር ሁልጊዜም አስቀድሞ መቃኘት
+        # 🛡️ 1. [BS4 List Parser First] - የውስጥ የካርድ ዝርዝሮችን አስቀድሞ መቃኘት
+        # ይህ አሰላለፍ የገጹን አጠቃላይ የካቴጎሪ ሜታ-ዳታ ምርት አድርጎ የመሳብ ስህተትን በዘላቂነት ይከላከላል
         try:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, 'html.parser')
             
+            # Jiji እና ሌሎች ገጾች የካርድ መለያዎች
             selectors = [
                 'div.b-list-advert__item', 
                 'div.b-trending-card',
@@ -278,7 +280,7 @@ class SmartProductExtractor:
     def _extract_from_soup_node(node) -> Dict:
         product = {'title': '', 'price': 0, 'description': '', 'seller_contact': '', 'image_url': ''}
         
-        # 🛡️ Jiji-Specific title selectors to capture precise product titles instead of sections
+        # 🛡️ FIXED: Jiji-Specific title selectors to capture precise product titles instead of sections
         title_el = node.select_one('div[class*="title"] a') or \
                    node.select_one('div[class*="title"]') or \
                    node.select_one('h3[class*="title"]') or \
@@ -293,7 +295,7 @@ class SmartProductExtractor:
         if product['title'].lower() in ['trending ads', 'trending', 'recent ads', 'popular ads', 'sponsored ads', 'vehicles', 'fashion', 'electronics', 'property', 'phones & tablets']:
             product['title'] = ''
             return product
-                
+                    
         # Jiji-Specific price selectors
         price_el = node.select_one('div[class*="price"]') or \
                    node.select_one('span[class*="price"]') or \
@@ -339,7 +341,6 @@ class AdvancedProductExtractor:
         self.cache.set(cache_key, products)
         return products
 
-
 # --------------------------------------------------------------
 #  ScrapperEngine – thread‑safe singleton with async Playwright runner
 # --------------------------------------------------------------
@@ -363,11 +364,15 @@ class ScrapperEngine:
         self.metrics = ScraperMetrics()
         self.session_counter = 0
 
+    def __init__(self):
+        pass
+    
     # ------------------------------------------------------------------
     #  Public API
     # ------------------------------------------------------------------
     @classmethod
     def scrape(cls, url: str, use_playwright: Optional[bool] = None) -> Optional[str]:
+        """አንድ ዩአርኤል ይስሳል (🛡️ Cloudflare Bypass & Zero-CPU Optimized)"""
         inst = cls()
         if not url:
             return None
@@ -495,7 +500,7 @@ class ScrapperEngine:
         async with async_playwright() as p:
             headers = FingerprintEvasion.get_headers(url, _is_telegram(url))
             proxy_url = os.getenv("SMART_PROXY_URL", "").strip()
-            proxy_cfg = {"server": proxy_url} if proxy_url else None
+            proxy_cfg = {"server": proxy_url} if proxy_cfg else None
 
             browser = await p.chromium.launch(
                 headless=True,
