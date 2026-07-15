@@ -1,8 +1,4 @@
 # ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ዙር 1/3)
-# 📝 ስሪት፦ v10.52 (Ultimate Self-Learning & Auto-Correcting CEO - Production Ready)
-# ✅ የተፈቱ ችግሮች፦ Hardened thread-safe connections.close_all() releases, dynamic App model loader, resolved empty-house auto-memory bypass, fixed 'Very High' ValueError in Spy Engine, and disabled Track A coding temporarily.
-# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from __future__ import annotations
@@ -49,7 +45,6 @@ def get_model(model_name: str):
 
 
 # ============================================================
-# ✅ LATE IMPORTS (የስርዓት መገናኛዎች መፍቻ)
 # ============================================================
 
 def _get_self_doctor():
@@ -106,10 +101,10 @@ def safe_close_connections():
 def translate_text_incremental(texts, target_lang):
     if not texts:
         return {}
-    
-    _, ask_master_ai_smart, _, _ = _get_ai_utils()
-    clean_and_parse_json, _, _, _ = _get_ai_utils()
-    
+
+    # 🛡️ FIXED: single import call instead of two redundant _get_ai_utils() calls
+    clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
+
     prompt = (
         f"Translate the following text keys into {target_lang}.\n"
         f"Text Data: {json.dumps(texts, ensure_ascii=False)}.\n"
@@ -951,7 +946,7 @@ class MultiChannelHarvester:
         try:
             res = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
             return res.status_code == 200
-        except:
+        except Exception:
             return False
 
     def get_recent_products(self, source):
@@ -1069,7 +1064,7 @@ class MultiChannelHarvester:
         if price_match:
             try:
                 product['price'] = float(price_match.group(1).replace(',', ''))
-            except: pass
+            except Exception: pass
             
         phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
         if phone_match:
@@ -1301,10 +1296,6 @@ class MultiChannelHarvester:
         return all_products
 
 # ============================================================
-# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py (ዙር 3/3)
-# 📝 ስሪት፦ v10.53 (Ultimate Self-Learning & Auto-Correcting CEO - Production Ready)
-# ✅ የተፈቱ ችግሮች፦ Replaced garbage descriptions with professional Amharic sales pitches, generated unique/stable Ethiopian phone numbers for Jiji sellers, applied promo banner title blacklists, and fully integrated SelfBootstrapManager.
-# 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 
@@ -1767,15 +1758,28 @@ class CEOOperations:
 
     def _call_huggingface(self, prompt: str, timeout: int) -> Optional[str]:
         api_key = os.getenv('HUGGINGFACE_API_KEY')
-        if not api_key: return None
+        if not api_key:
+            return None
         url = "https://api-inference.huggingface.co/models/NousResearch/Meta-Llama-3-8B-Instruct"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        payload = {"inputs": f"<|system|>\nYou are a helpful assistant.\n<|user|>\n{prompt}\n<|assistant|>\n"}
-        res = requests.post(url, headers=headers, json=payload, timeout=timeout)
-        if res.status_code == 200:
-            data = res.json()
-            if data and 'generated_text' in data[0]:
-                return data[0]['generated_text'].strip()
+        # 🛡️ FIXED: malformed prompt template (stray/empty tokens) replaced with proper ChatML format
+        payload = {
+            "inputs": f"<|im_start|>user\n{prompt}\n<|im_end|>\n<|im_start|>assistant\n",
+            "parameters": {"max_new_tokens": 1024, "temperature": 0.4, "return_full_text": False},
+        }
+        try:
+            res = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            if res.status_code == 200:
+                data = res.json()
+                # 🛡️ FIXED: guard against non-list / empty responses before indexing data[0]
+                if isinstance(data, list) and data and isinstance(data[0], dict):
+                    return (data[0].get('generated_text') or '').strip()
+                if isinstance(data, dict) and 'generated_text' in data:
+                    return data['generated_text'].strip()
+            else:
+                logger.debug(f"HuggingFace API returned HTTP {res.status_code}")
+        except Exception as e:
+            logger.warning(f"HuggingFace inference failed: {e}")
         return None
 
     def _call_github(self, prompt: str, timeout: int) -> Optional[str]:
@@ -1811,7 +1815,8 @@ class CEOOperations:
 
     def _search_google_for_product_image(self, title) -> str:
         """ምርቱ የራሱ ፎቶ ከሌለው በከፍተኛ ጥራት በ DuckDuckGo ፈልጎ እውነተኛ ምስል ያመጣል (Fuzzy Locked Fallback)"""
-        clean_title = re.sub(r'[^a-zA-Z0-9\s\u01200-\u0137F]', '', title).strip()
+        # 🛡️ FIXED: Unicode range was \u01200-\u0137F (invalid 5-hex-digit) → \u1200-\u137F (correct Amharic block)
+        clean_title = re.sub(r'[^a-zA-Z0-9\s\u1200-\u137F]', '', title).strip()
         if not clean_title or len(clean_title) < 3:
             clean_title = "product"
             
@@ -1974,6 +1979,61 @@ class CEOOperations:
 
             except Exception as seed_err:
                 logger.error(f"Failed to compile bulk listing: {seed_err}")
+
+        # 🛡️ CRITICAL FIX: the loop built `products_to_create` / `notifications_to_create`
+        # but NEVER persisted them. Products were silently dropped. Now we bulk-insert.
+        created_count = 0
+        if products_to_create:
+            try:
+                created_count = len(products_to_create)
+                Product.objects.bulk_create(products_to_create, ignore_conflicts=True)
+                logger.info(f"✅ Bulk Harvester: Persisted {created_count} new products to DB via bulk_create.")
+            except Exception as bulk_err:
+                # Fallback: some DBs / model configs reject ignore_conflicts. Insert one-by-one.
+                logger.warning(f"⚠️ bulk_create failed ({bulk_err}). Falling back to individual saves.")
+                saved = 0
+                for prod in products_to_create:
+                    try:
+                        prod.save()
+                        saved += 1
+                    except Exception as one_err:
+                        logger.debug(f"Individual product save skipped: {one_err}")
+                created_count = saved
+                logger.info(f"✅ Bulk Harvester: Persisted {saved} products via individual saves.")
+
+        # 🛡️ FIX: prevent duplicate notifications for the same recipient+message
+        if notifications_to_create:
+            saved_notif = 0
+            for notif in notifications_to_create:
+                try:
+                    notif_exists = NotificationQueue.objects.filter(
+                        site=self.site,
+                        recipient=notif.recipient,
+                        notification_type=notif.notification_type,
+                        message=notif.message,
+                    ).exists()
+                    if not notif_exists:
+                        notif.save()
+                        saved_notif += 1
+                except Exception as notif_err:
+                    logger.debug(f"NotificationQueue save skipped: {notif_err}")
+            if saved_notif:
+                logger.info(f"✅ Bulk Harvester: Queued {saved_notif} new seller notifications.")
+
+        # Record a SiteConfig growth counter so the CEO dashboard reflects real progress
+        try:
+            SiteConfig.objects.update_or_create(
+                key=f"BULK_HARVEST_LAST_RUN_{self.site.name}",
+                defaults={'value': {
+                    'persisted_products': created_count,
+                    'queued_notifications': saved_notif if notifications_to_create else 0,
+                    'ran_at': timezone.now().isoformat(),
+                }}
+            )
+        except Exception as cfg_err:
+            logger.debug(f"Failed to record harvest SiteConfig: {cfg_err}")
+
+        return created_count
 
     @staticmethod
     def generate_contact_links(contact_str):
@@ -2153,12 +2213,17 @@ class CompetitorIntelligenceEngine:
                 try:
                     demand_level = int(demand_raw)
                 except (ValueError, TypeError):
-                    if str(demand_raw).lower() in ['high', 'critical', 'very high', 'active', 'very_high']:
-                        demand_level = 80
-                    elif str(demand_raw).lower() in ['medium', 'moderate']:
-                        demand_level = 50
+                    # 🛡️ FIXED: comprehensive string→int mapping so 'Very High', 'Peak', 'Extreme'
+                    # never raise ValueError again. Covers spaced/underscored variants.
+                    _demand_str = str(demand_raw).strip().lower().replace('-', '_').replace(' ', '_')
+                    if _demand_str in ('very_high', 'veryhigh', 'extreme', 'peak', 'surging', 'booming', 'critical', 'high', 'active', 'hot'):
+                        demand_level = 90
+                    elif _demand_str in ('medium', 'moderate', 'average', 'normal', 'steady'):
+                        demand_level = 55
+                    elif _demand_str in ('low', 'slow', 'weak', 'declining', 'cold', 'stagnant'):
+                        demand_level = 25
                     else:
-                        demand_level = 30
+                        demand_level = 50
 
                 MarketTrend.objects.update_or_create(
                     niche_name=self.site.niche,
