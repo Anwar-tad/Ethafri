@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.41 (Production Grade - Ultimate Brain - Adaptive Pacing & Alternating Spacing)
-# ✅ የተፈቱ ችግሮች፦ Integrated Dynamic Quota Quarantine (24-hour lock on exhausted free keys to prevent key fatigue), robust docstring parsing in code compressor, and thread-safe local cache fallbacks.
-# 📅 ቀን፦ Monday, July 13, 2026
+# 📝 ስሪት፦ v10.43 (Production Grade - Master Brain - Shift, Spacing & JSON Healer)
+# ✅ የተፈቱ ችግሮች፦ Dynamic Quota 24h Quarantine using MD5 key hashes, LRU Local Cache Memory Guard, Cerebras model preserved, Gemini 6-hour shift rotation, circular dependency prevention, and automatic JSON Self-Healer added in clean_and_parse_json to fix Unterminated string errors on the fly (v10.43).
+# 📅 ቀን፦ Thursday, July 13, 2026
 # ============================================================
 
 import os
@@ -20,11 +20,14 @@ from django.utils import timezone
 from django.core.cache import cache
 from django.conf import settings
 from django import template
+from django.apps import apps
 
 logger = logging.getLogger(__name__)
 
-# Django Cache ካልተዋቀረ በስተጀርባ የሚሰራ ጊዜያዊ የአካባቢ መሸጎጫ (Local Memory Fallback)
+# Django Cache ካልተዋቀረ በስተጀርባ የሚሰራ ጊዜያዊ የአካባቢ መሸጎጫ (Memory Guard Fallback)
 _LOCAL_CACHE = {}
+_LOCAL_CACHE_MAX_SIZE = 100
+
 
 class AIUtils:
     """
@@ -64,7 +67,7 @@ class AIUtils:
     
     @staticmethod
     def set_cached(key: str, value: Any, timeout: Optional[int] = None) -> bool:
-        """ውጤቶችን በመሸጎጫ ውስጥ ማስቀመጥ (ከLocal Fallback ጋር)"""
+        """ውጤቶችን በመሸጎጫ ውስጥ ማስቀመጥ (ከ Memory Guard LRU Fallback ጋር)"""
         cache_key = AIUtils.generate_cache_key(key)
         timeout = timeout or AIUtils.DEFAULT_CACHE_TIMEOUT
         try:
@@ -72,6 +75,14 @@ class AIUtils:
         except Exception:
             pass
         
+        # 🛡️ LOCAL MEMORY GUARD: የራም ማህደረ-ትውስታ እንዳይሞላ የቆዩ መሸጎጫዎችን ማስወገድ
+        if len(_LOCAL_CACHE) >= _LOCAL_CACHE_MAX_SIZE:
+            try:
+                oldest_key = next(iter(_LOCAL_CACHE))
+                del _LOCAL_CACHE[oldest_key]
+            except Exception:
+                pass
+                
         _LOCAL_CACHE[cache_key] = (value, time.time() + timeout)
         return True
     
@@ -123,7 +134,7 @@ class AIUtils:
     
     @staticmethod
     def get_ai_model_version() -> str:
-        return getattr(settings, 'AI_MODEL_VERSION', '2026.07.05')
+        return getattr(settings, 'AI_MODEL_VERSION', '2026.07.13')
     
     @staticmethod
     def is_ai_feature_enabled(feature_name: str) -> bool:
@@ -185,19 +196,16 @@ class AIUtils:
         if not code or not isinstance(code, str):
             return ""
         
-        # 🛡️ FIXED: Python multiline docstrings (''' ... ''' and """ ... """) ማጽዳት አስተማማኝ እንዲሆን ማስተካከል
+        # 🛡️ multiline docstrings (''' ... ''' and """ ... """) ማጽዳት
         code = re.sub(r'(""\"[\s\S]*?""\"|\'\'\'[\s\S]*?\'\'\'|"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\')', '', code)
         
         compressed_lines = []
         for line in code.splitlines():
-            # የነጠላ መስመር የፓይተን/የኤችቲኤምኤል ኮሜንቶችን ማጽዳት
             stripped_line = line.strip()
             if stripped_line.startswith('#'):
                 continue
             if stripped_line.startswith('<!--') and stripped_line.endswith('-->'):
                 continue
-            
-            # ባዶ መስመሮችን ማስወገድ
             if not stripped_line:
                 continue
             
@@ -216,7 +224,6 @@ def clean_json_response(raw_text: str) -> str:
     
     clean_text = raw_text.strip()
     
-    # የ Markdown json አጥርን ማስወገድ (```json ... ```)
     if "```json" in clean_text:
         clean_text = clean_text.split("```json")[-1].split("```")[0]
     elif "```" in clean_text:
@@ -240,21 +247,25 @@ def clean_json_response(raw_text: str) -> str:
 
 
 def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
-    """ንጹህ JSON በመፍጠር ያለምንም ስህተት parse አድርጎ ዲክሽነሪ ይመልሳል"""
+    """ንጹህ JSON በመፍጠር ያለምንም ስህተት parse አድርጎ ዲክሽነሪ ይመልሳል (የራስ-ጥገና ጋሻ የተጫነበት)"""
+    cleaned = ""
     try:
         cleaned = clean_json_response(raw_text)
         return json.loads(cleaned)
     except Exception as e:
-        logger.error(f"❌ JSON Parsing failed after sanitization: {e}")
+        logger.warning(f"⚠️ JSON Parsing failed initially: {e}. Activating automatic JSON self-repair...")
         try:
-            repaired = re.sub(r',\s*([\]}])', r'\1', cleaned)
+            # 1. በምርት ዲስክሪፕሽን ውስጥ ያሉ ያልተጠበቁ አዳዲስ መስመሮችን (Newlines/Tabs) ማጽዳት (Unterminated string repair)
+            repaired = re.sub(r',\s*([\]}])', r'\1', cleaned) # የመዝጊያ ኮማዎችን ማጥፋት
+            repaired = re.sub(r'[\t\n\r]', ' ', repaired) # አዳዲስ መስመሮችን በባዶ ቦታ መተካት
             return json.loads(repaired)
-        except Exception:
+        except Exception as e2:
+            logger.error(f"❌ JSON Self-Healer failed to parse: {e2}")
             return {}
 
 
 # ============================================================
-# 📡 3. DYNAMIC WEB SEARCH COG (የበይነመረብ ራስ-ገዝ ፍለጋ መሳቢያ)
+# 📡 DYNAMIC WEB SEARCH COG (የበይነመረብ ራስ-ገዝ ፍለጋ መሳቢያ)
 # ============================================================
 
 def _fetch_raw_search_results(query: str) -> str:
@@ -291,18 +302,18 @@ def _get_priority_providers(task_type: str) -> List[str]:
     ቅደም-ተከተል በዳይናሚክ መንገድ የሚወስን የስራ ክፍፍል ማዕከል
     """
     if task_type in ["translation", "analysis", "critical"]:
-        return ["CEREBRAS", "SAMBANOVA", "GEMINI", "GITHUB", "MISTRAL"]
+        return ["GEMINI", "CEREBRAS", "SAMBANOVA", "GITHUB", "MISTRAL"]
         
     elif task_type in ["coding", "self_evolution"]:
-        return ["SAMBANOVA", "CEREBRAS", "GITHUB", "MISTRAL", "GEMINI"]
+        return ["CEREBRAS", "SAMBANOVA", "GITHUB", "MISTRAL", "GEMINI"]
         
     elif task_type in ["seo", "curation", "spam_filter"]:
         return ["GROQ", "NVIDIA", "CEREBRAS", "OPENROUTER", "MISTRAL"]
         
     elif task_type == "market_research":
-        return ["GEMINI", "MISTRAL", "OPENROUTER", "GITHUB"]
+        return ["CEREBRAS", "MISTRAL", "OPENROUTER", "GITHUB", "GEMINI"]
         
-    return ["SAMBANOVA", "CEREBRAS", "NVIDIA", "GEMINI", "GROQ", "MISTRAL", "OPENROUTER", "GITHUB"]
+    return ["GEMINI", "CEREBRAS", "SAMBANOVA", "NVIDIA", "GROQ", "MISTRAL", "OPENROUTER", "GITHUB"]
 
 
 def _detect_and_route_provider_specs(provider: str, api_key: str) -> Tuple[str, Dict[str, str], Any]:
@@ -384,8 +395,8 @@ def _parse_provider_response(provider: str, response_data: Any) -> str:
 
 def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruction: str = "", task=None) -> str:
     """
-    11ዱንም የኤአይ ቁልፎች የሥራ ክፍፍል በታስኩ ዓይነት (Task Type) የሚመራ፣
-    በ 4ቱ የጌሚኒ ቁልፎች መካከል በራስ-ሰር የሚያሽከረክር እና የ 429 Cooldown Cache የያዘ የላቀ ሮውተር
+    12ዱንም የኤአይ ቁልፎች የሥራ ክፍፍል በታስኩ ዓይነት (Task Type) የሚመራ፣
+    የጌሚኒ ቁልፎችን በ6 ሰዓት ፈረቃ ለትርጉም የሚለይ እና የ 24h Quota Lockdown የያዘ የላቀ ሮውተር
     """
     quota_lock = cache.get("ai_quota_locked_until")
     if quota_lock:
@@ -394,42 +405,13 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
     
     prompt_compressed = AIUtils.compress_code_for_prompt(prompt)
     
-    api_keys = [os.getenv('GEMINI_API_KEY', '')]
-    fallback_keys = getattr(settings, 'AI_FALLBACK_API_KEYS', [])
-    if fallback_keys:
-        api_keys.extend(fallback_keys)
-        
-    cleaned_api_keys = []
-    for k in api_keys:
-        if k:
-            clean_k = str(k).strip().replace('"', '').replace("'", "")
-            if clean_k and clean_k not in cleaned_api_keys:
-                cleaned_api_keys.append(clean_k)
-                
-    if not cleaned_api_keys:
-        logger.error("❌ AI Router Error: No active keys found in settings/env.")
-        return "{}"
-    
-    # የ 429 ስህተት መደጋገምን መከላከል
-    try:
-        active_cooldowns = sum(
-            1 for prov in ['gemini', 'groq', 'mistral', 'openrouter', 'github', 'sambanova', 'cerebras', 'nvidia']
-            if cache.get(f"ai_cooldown_{prov}") or any(cache.get(f"ai_cooldown_GEMINI_KEY_{i}") for i in range(1, 5))
-        )
-        if active_cooldowns > 0:
-            adaptive_delay = random.uniform(2.0, 4.5)
-            logger.info(f"⏳ Adaptive Pacing: Spacing out API requests by {adaptive_delay:.2f}s due to active rate limits.")
-            time.sleep(adaptive_delay)
-    except Exception as pacing_err:
-        logger.debug(f"Adaptive pacing bypassed: {pacing_err}")
-        
     last_error = ""
     for provider in _get_priority_providers(task_type):
         api_keys_to_use = []
         
         if provider == "GEMINI":
             current_hour = datetime.now().hour
-            shift_index = current_hour // 6 # 0, 1, 2, or 3
+            shift_index = current_hour // 6
             
             gemini_keys = [
                 os.getenv('GEMINI_API_KEY', ''),
@@ -452,10 +434,10 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
         if not api_keys_to_use:
             continue
             
-        for idx, api_key in enumerate(api_keys_to_use):
-            provider_tag = f"{provider}_KEY_{idx+1}" if provider == "GEMINI" else provider
+        for api_key in api_keys_to_use:
+            key_hash = hashlib.md5(api_key.encode('utf-8')).hexdigest()[:12]
+            cooldown_key = f"ai_cooldown_{provider}_{key_hash}"
             
-            cooldown_key = f"ai_cooldown_{provider_tag}"
             if cache.get(cooldown_key):
                 continue
                 
@@ -468,25 +450,24 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
                         f"Based on the above real-time web search results, answer the user request:\n{prompt_compressed}"
                     )
             
-            url, headers, payload_builder = _detect_and_route_provider_specs(provider, api_key)
-            
-            timeout_limit = 15 if provider == "MISTRAL" else 10
-            if provider in ["GITHUB", "HUGGINGFACE"]:
-                sleep_time = random.uniform(1.5, 3.5)
-                time.sleep(sleep_time)
+            if provider != "GEMINI":
+                spacing_delay = random.uniform(2.5, 4.5)
+                logger.info(f"⏳ Alternating Spacing: Spacing out {provider} request by {spacing_delay:.2f}s to maintain 24/7 uptime.")
+                time.sleep(spacing_delay)
                 
+            url, headers, payload_builder = _detect_and_route_provider_specs(provider, api_key)
+            timeout_limit = 15 if provider == "MISTRAL" else 10
+            
             try:
                 payload = payload_builder(active_prompt, system_instruction)
                 res = requests.post(url, json=payload, headers=headers, timeout=timeout_limit)
                 
-                # 🛡️ FIXED: Smart Quota Exhaustion detection & 24h quarantine cache to prevent key fatigue [1]
                 if res.status_code in [429, 403, 400]:
                     error_text = res.text.lower()
-                    # የዕለታዊ የኮታ ገደብ ማለቁን መለየት (Detect Daily Quota Exhaustion)
                     is_quota_exhausted = any(x in error_text for x in ["quota", "exhausted", "limit exceeded", "daily", "budget"])
                     
-                    cooldown_time = 86400 if is_quota_exhausted else 120 # ኮታ ካለቀ ለ 24 ሰዓት፣ ጊዜያዊ ፍጥነት ከሆነ ለ 2 ደቂቃ ቁልፉን ማገድ
-                    logger.warning(f"⚠️ {provider_tag} hit limit ({res.status_code}). Quota Exhausted: {is_quota_exhausted}. Locking key for {cooldown_time}s...")
+                    cooldown_time = 86400 if is_quota_exhausted else 120
+                    logger.warning(f"⚠️ {provider} rate limit ({res.status_code}). Quota Empty: {is_quota_exhausted}. Locking key hash {key_hash} for {cooldown_time}s...")
                     cache.set(cooldown_key, True, timeout=cooldown_time)
                     continue
                     
@@ -495,27 +476,24 @@ def ask_master_ai_smart(prompt: str, task_type: str = "analysis", system_instruc
                     return _parse_provider_response(provider, response_data)
                     
                 last_error = f"HTTP {res.status_code}: {res.text}"
-                logger.warning(f"⚠️ {provider_tag} failed with {last_error}. Trying next fallback...")
+                logger.warning(f"⚠️ {provider} key hash {key_hash} failed with {last_error}. Trying fallback...")
                 cache.set(cooldown_key, True, timeout=120) 
                 continue
                 
             except requests.exceptions.Timeout:
-                last_error = f"Timeout ({timeout_limit}s) reached for {provider_tag}"
-                logger.warning(f"⏱️ Fail-Fast: {provider_tag} timed out. Swapping...")
+                last_error = f"Timeout ({timeout_limit}s) reached for {provider}"
+                logger.warning(f"⏱️ Fail-Fast: {provider} key hash {key_hash} timed out. Swapping...")
                 cache.set(cooldown_key, True, timeout=120)
             except Exception as e:
                 last_error = str(e)
-                logger.warning(f"⚠️ Connection to {provider_tag} failed: {e}. Swapping...")
+                logger.warning(f"⚠️ Connection to {provider} key hash {key_hash} failed: {e}. Swapping...")
                 cache.set(cooldown_key, True, timeout=120)
                 
-    logger.error(f"❌ AI Router: All 11 configured keys exhausted. Last error: {last_error}")
+    logger.error(f"❌ AI Router: All configured keys exhausted. Last error: {last_error}")
     return "{}"
 
 
 def translate_text_incremental(texts: List[str], target_lang: str) -> Dict[str, str]:
-    """
-    ይዘቶችን ወደ Amharic/Oromo በ AI ተለዋዋጭ በሆነ መንገድ የሚተረጉም ረዳት ሎጂክ [1]።
-    """
     if not texts:
         return {}
     
@@ -535,15 +513,16 @@ def translate_text_incremental(texts: List[str], target_lang: str) -> Dict[str, 
 
 
 def broadcast_agent_log(site, message: str, status_type: str = "info"):
-    """የኤጀንቱን እንቅስቃሴ በዳታቤዝ ላይ ከመመዝገብ ባሻገር ለሬንደር ሎግ ምቹ በሆነ መልኩ ተርሚናል ላይ ያትማል"""
+    """የኤጀንቱን እንቅስቃሴ በዳታቤዝ ላይ በዳይናሚክ መንገድ የሚመዘግብ ሎጂክ (የክብ ጥገኝነት መከላከያ)"""
     try:
-        from .models import SelfHealingLog
-        SelfHealingLog.objects.create(
-            error_message=f"Agent Activity [{status_type.upper()}]: {message}",
-            resolved=True
-        )
+        SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
+        if SelfHealingLog:
+            SelfHealingLog.objects.create(
+                error_message=f"Agent Activity [{status_type.upper()}]: {message}",
+                resolved=True
+            )
     except Exception as e:
-        logger.debug(f"Failed to broadcast agent activity log to database: {e}")
+        logger.debug(f"Failed to broadcast agent activity log dynamically: {e}")
     
     logger.info(f"📣 Agent Broadcast [{status_type.upper()}]: {message}")
 

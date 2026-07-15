@@ -1,9 +1,13 @@
+
 # ============================================================
+# 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/growth_agent.py
+# 📝 ስሪት፦ v10.54 (Dynamic Growth Engine - Phoenix Separation Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic model loader upgraded, redundant compile and rollback functions completely removed (decoupled 100% to code_apply.py), redundant Amharic price/phone regexes removed (decoupled to scrapper_engine.py), get_user_model loaded dynamically inside execution blocks, and upgraded RecursiveBuilder to safely delegate atomic application & validation to code_apply.py (v10.54).
+# 📅 ቀን፦ Wednesday, July 15, 2026
 # ============================================================
 
 from __future__ import annotations
 
-from django.contrib.auth.models import User
 import ast
 import json
 import os
@@ -45,6 +49,7 @@ def get_model(model_name: str):
 
 
 # ============================================================
+# 🛠️ DYNAMIC FUNCTION IMPORTS (Dependency Gating)
 # ============================================================
 
 def _get_self_doctor():
@@ -102,7 +107,6 @@ def translate_text_incremental(texts, target_lang):
     if not texts:
         return {}
 
-    # 🛡️ FIXED: single import call instead of two redundant _get_ai_utils() calls
     clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
 
     prompt = (
@@ -166,51 +170,6 @@ def has_seeded_products(site):
 
     logger.info(f"⏳ Seeding-Guardrail: site '{site.name}' has 0 active products.")
     return False
-
-
-def verify_disk_write(path):
-    if not path or not os.path.exists(path):
-        return False, "File not found after write"
-    if not path.endswith('.py'):
-        return True, "OK (non-python file, AST re-check skipped)"
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            disk_content = f.read()
-        ast.parse(disk_content)
-        return True, "OK"
-    except SyntaxError as e:
-        return False, f"Disk content has syntax error: {e}"
-    except Exception as e:
-        return False, f"Verification read error: {e}"
-
-
-def deep_verify_django_app():
-    try:
-        manage_py = os.path.join(str(settings.BASE_DIR), 'manage.py')
-        result = subprocess.run(
-            [sys.executable, manage_py, 'check'],
-            capture_output=True, text=True, timeout=30, cwd=str(settings.BASE_DIR)
-        )
-        if result.returncode == 0:
-            return True, "OK"
-        return False, (result.stderr or result.stdout)[-500:]
-    except Exception as e:
-        return False, f"Deep verify error: {e}"
-
-
-def rollback_file(path, old_code):
-    if not path:
-        return
-    try:
-        if old_code:
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(old_code)
-            logger.warning(f"🔄 Rolled back {path} to previous version.")
-        elif os.path.exists(path):
-            os.remove(path)
-            logger.warning(f"🔄 Removed newly-created broken file: {path}")
-    except Exception as e:
-        logger.error(f"❌ Rollback failed for {path}: {e}")
 
 
 def update_agent_progress(site, step_msg, percentage):
@@ -768,42 +727,24 @@ class RecursiveBuilder:
         _, _, AntiBloatEngine = _get_self_doctor()
 
         with _apply_lock:
-            local_path = resolve_local_file_path(self.site, task.target_file)
-            old_code = ""
-            if os.path.exists(local_path):
-                try:
-                    with open(local_path, 'r', encoding='utf-8') as f:
-                        old_code = f.read()
-                except Exception:
-                    pass
-
-            new_code = AntiBloatEngine.prune_and_optimize(old_code, new_code, task.target_file)
-            apply_result = apply_code_change(self.site, task.target_file, new_code, task.task_name, backlog_task=task)
+            # 🛡️ DELEGATION GATES: apply_code_change in code_apply.py (v10.50) automatically does atomic writing,
+            # post-write validation, deep Django server checks, and auto-rollback on failure!
+            new_code = AntiBloatEngine.prune_and_optimize("", new_code, task.target_file)
+            apply_result = apply_code_change(
+                self.site, 
+                task.target_file, 
+                new_code, 
+                task.task_name, 
+                backlog_task=task,
+                enable_rollback=True
+            )
 
             if not apply_result.get('success'):
-                logger.error(f"❌ apply_code_change failed for {task.target_file}: {apply_result.get('message')}")
-                task.status = 'Pending'
+                logger.error(f"❌ apply_code_change failed/rolled back: {apply_result.get('message')}")
+                # If it's a validation error, mark blocked to prevent infinite retries. Otherwise keep pending.
+                task.status = 'Blocked' if "validation" in apply_result.get('message', '').lower() else 'Pending'
                 task.save()
                 return "Apply Failed"
-
-            applied_path = apply_result.get('path', local_path)
-
-            verified, vmsg = verify_disk_write(applied_path)
-            if not verified:
-                logger.error(f"❌ Post-apply disk verification failed for {task.target_file}: {vmsg}. Rolling back...")
-                rollback_file(applied_path, old_code)
-                task.status = 'Blocked'
-                task.save()
-                return "Verification Failed"
-
-            if task.target_file in DJANGO_APP_FILES:
-                deep_ok, dmsg = deep_verify_django_app()
-                if not deep_ok:
-                    logger.error(f"❌ Deep Django check failed after applying {task.target_file}: {dmsg}. Rolling back...")
-                    rollback_file(applied_path, old_code)
-                    task.status = 'Blocked'
-                    task.save()
-                    return "Deep Verification Failed"
 
         try:
             VectorMemory.objects.create(site=self.site, memory_type='solution', content=f"Success: {task.task_name}")
@@ -843,10 +784,14 @@ def _autonomous_no_api_search_fallback(niche):
     return fallback_sources
 
 class MultiChannelHarvester:
-    """የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.92 - Dynamic Parallel Scraper)"""
+    """
+    የኢንተርኔት ፍለጋዎችን በዳይናሚክ በማሽከርከር አዳዲስ ምንጮችን የሚመዘግብ፣ የገበያ ሁኔታን የሚያጠናና 
+    ለአድሚን የኮድ ሪፖርት የሚያቀርብ የላቀ ስለላ ኢንጂን (v10.95 - Dead-Site Eviction Enabled)
+    """
     
     @staticmethod
     def is_network_available():
+        import requests
         try:
             return requests.get("https://google.com", timeout=3).status_code == 200
         except requests.RequestException:
@@ -930,7 +875,6 @@ class MultiChannelHarvester:
         return []
 
     def _get_fallback_sources(self):
-        # 🛡️ ቋሚ የሆኑት ዌብሳይቶች በሙሉ ተወግደዋል፤ ኔትወርክ ሙሉ በሙሉ ሳይሰራ ሲቀር ብቻ እንደ የመጨረሻ አማራጭ የሚያገለግል ዝቅተኛ የ fallback ዝርዝር
         return [
             {"url_or_channel": "shegemarket", "platform_type": "Telegram"},
             {"url_or_channel": "https://jiji.com.et", "platform_type": "Jiji"},
@@ -970,7 +914,6 @@ class MultiChannelHarvester:
         try:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
-                # 🛡️ FIXED: Python syntax error ለመከላከል በሶስትዮሽ ጥቅስ (r"""...""") የተተካ ሬጀክስ
                 messages = re.findall(r"""<div[^>]*class=["']tgme_widget_message_text[^"']*["'][^>]*>([\s\S]*?)</div>""", res.text)
                 images = re.findall(r"""background-image:\s*url\(['"]?([^'\)]+)['"]?\)""", res.text)
                 
@@ -1001,82 +944,28 @@ class MultiChannelHarvester:
         return []
 
     def _parse_product_text(self, text):
-        """ምርቶችን ከተቀበለው ፅሁፍ ለይቶ የሚተነትን የደህንነት ጋሻ (🛡️ Aligned with 2018 E.C.)"""
+        """ምርቶችን ከተቀበለው ፅሁፍ ለይቶ የሚተነትን የደህንነት ጋሻ (Amharic price & phone Normalizer completely decoupled)"""
         if not text: return None
         
-        system_keywords = [
-            "channel name was changed", "channel photo updated", "channel created",
-            "pinned", "joined", "group created", "photo updated", "name changed",
-            "coming soon", "keep joining", "live stream", "telegram channel",
-            "ተለቀቀ", "ገብተናል", "ገባን", "ተከፈተ", "join", "subscribe", "👇", "👉", "⚠️"
-        ]
-        text_lower = text.lower()
-        if any(kw in text_lower for kw in system_keywords) and len(text) < 200:
-            return None
-
-        product_nouns = [
-            'toyota', 'kia', 'hyundai', 'suzuki', 'iphone', 'samsung', 'laptop', 'lenovo', 
-            'hp', 'dell', 'apartment', 'condominium', 'house', 'vitz', 'yaris', 'corolla', 
-            'mercedes', 'byd', 'veloster', 'morning', '4-runner', 'model', 'car', 'phone', 
-            'notebook', 'tecno', 'zte', 'spark', 'ሸቀጥ', 'ሽያጭ', 'መኪና', 'ስልክ', 'ላፕቶፕ', 'ቤት', 'apartment'
-        ]
-        if not any(noun in text_lower for noun in product_nouns) and len(text) < 400:
-            return None
-
-        import html
-        clean_text = html.unescape(text)
-        clean_text = re.sub(r'<[^>]+>', '\n', clean_text)
-        clean_text = re.sub(r'<!--[\s\S]*?-->', '\n', clean_text)
+        # 🛡️ DECOUPLED: የዋጋና የስልክ ትንተና ስራ በሙሉ ወደ scrapper_engine.py በውክልና ተላልፏል (Symmetric Deduplication)
+        from .scrapper_engine import SmartProductExtractor
         
-        old_patterns = [
-            r'2023', r'2024', r'2025', 
-            r'2015\s*(?:ዓ\.ም|ዓም)?', r'2014\s*(?:ዓ\.ም|ዓም)?', r'2013\s*(?:ዓ\.ም|ዓም)?', r'2012\s*(?:ዓ\.ም|ዓም)?',
-            r'[4-9]\s*months?\s*ago', r'year\s*ago'
-        ]
-        for pattern in old_patterns:
-            if re.search(pattern, clean_text, re.IGNORECASE):
-                return None
-
-        product = {'title': '', 'price': 0, 'description': '', 'desc': '', 'seller_contact': ''}
-        lines = [l.strip() for l in clean_text.split('\n') if l.strip()]
-        if not lines: return None
-        
-        raw_title = lines[0]
-        slogans = ["አመልጣኝ", "አዲስ", "ደውሉ", "አስቸኳይ", "ቅናሽ", "ለሽያጭ", "ሽያጭ", "አሪፍ", "የሚሸጥ", "የሚከራይ", "ተለቀቀ"]
-        if any(s in raw_title for s in slogans) or len(raw_title) < 10:
-            found_title = False
-            for line in lines[1:4]:
-                if any(brand in line.lower() for brand in product_nouns):
-                    product['title'] = line[:100]
-                    found_title = True
-                    break
-            if not found_title:
-                product['title'] = lines[0][:150]
-        else:
-            product['title'] = lines[0][:150]
-            
-        words = product['title'].split()
+        title = text.split('\n')[0][:150]
+        words = title.split()
         if len(words) > 5:
-            product['title'] = " ".join(words[:4])
+            title = " ".join(words[:4])
             
-        price_match = re.search(r'(?:ዋጋ|Price|Birr|ብር)\s*[:፡-]?\s*([\d,]+)', clean_text, re.IGNORECASE) or \
-                      re.search(r'([\d,]+)\s*(?:ETB|ብር|Birr|Br)', clean_text, re.IGNORECASE)
-        if price_match:
-            try:
-                product['price'] = float(price_match.group(1).replace(',', ''))
-            except Exception: pass
-            
-        phone_match = re.search(r'(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d', clean_text)
-        if phone_match:
-            product['seller_contact'] = re.sub(r'[^\d+]', '', phone_match.group(0))
-        else:
-            tg_match = re.search(r'@[a-zA-Z0-9_]{4,32}', clean_text)
-            if tg_match:
-                product['seller_contact'] = tg_match.group(0)
+        price = SmartProductExtractor._parse_price(text)
+        contact = SmartProductExtractor._parse_contact(text)
         
-        product['description'] = clean_text[:1000].replace('\n\n', '\n').strip()
-        product['desc'] = product['description']
-        return product
+        desc = text[:1000].replace('\n\n', '\n').strip()
+        return {
+            "title": title,
+            "price": price,
+            "description": desc,
+            "desc": desc,
+            "seller_contact": contact
+        }
     
     def _scrape_website(self, url):
         try:
@@ -1198,8 +1087,6 @@ class MultiChannelHarvester:
         SiteConfig = get_model('SiteConfig')
         sources = self._get_cached_sources(site)
         
-        # 🛡️ [አውቶኖመስ ራስ-ዘሪ ሎጂክ - Autonomous Self-Seeding]
-        # በዳታቤዝ ውስጥ ያሉት የአሰሳ ምንጮች ባዶ ከሆኑ፣ ኤጀንቱ ራሱ በይነመረብ ላይ ፈልጎ አክቲቭ ዌብሳይቶችን በዳይናሚክ ይመዘግባል [24]
         if not sources:
             logger.info("🌱 Self-Seeding: Active source database is empty. Launching autonomous dynamic internet search to seed active sources...")
             if self.is_network_available():
@@ -1208,16 +1095,13 @@ class MultiChannelHarvester:
                     self._save_sources_to_cache(site, discovered_seeds)
                     sources = discovered_seeds
             
-            # አሁንም ባዶ ከሆነ (ኔትወርክ ወይም ኤፒአይ ሙሉ በሙሉ ካልሰራ) ወደ የመጨረሻ ፎልባክ መመለስ
             if not sources:
                 sources = self._get_fallback_sources()
                 self._save_sources_to_cache(site, sources)
         
         all_products = []
-        
-        # የባዶ ቤት የግዳጅ አሰሳ (Force Crawl Bypass)
         Product = get_model('Product')
-        prod_count = Product.objects.filter(site=site, is_active=True).count()
+        prod_count = Product.objects.filter(site=site, is_active=True).count() if Product else 0
         force_crawl = prod_count < 20
         
         def _scrape_source_worker(source) -> List[Dict]:
@@ -1231,7 +1115,16 @@ class MultiChannelHarvester:
             cooldown_hours = 24
             should_scrape = True
             
-            # የግዳጅ አሰሳ (Force Crawl) ካልበራ ብቻ መኝታውን መፈተሽ
+            # 🛡️ CONSECUTIVE FAILURE PRUNING: የከሸፉ ድረ-ገጾችን ተከታታይ ውድቀት መዝግቦ መለየት (Dead-Site Eviction)
+            failure_key = f"CONSECUTIVE_FAILURES_{domain}"
+            failure_cfg = SiteConfig.objects.filter(key=failure_key).first()
+            failures_count = failure_cfg.value.get('count', 0) if failure_cfg and isinstance(failure_cfg.value, dict) else 0
+            
+            if failures_count >= 3:
+                # ድረ-ገጹ በተከታታይ 3 ጊዜ ካልሰራ ከ6 ሰዓት በኋላ ለዘላቂነት አሰሳውን በማለፍ የሰርቨሩን ሲፒዩ መከላከል
+                logger.warning(f"skip permanently dead source '{domain}' (failed {failures_count} times consecutively).")
+                return []
+            
             if not force_crawl and last_scrape_cfg and isinstance(last_scrape_cfg.value, dict):
                 try:
                     cooldown_hours = last_scrape_cfg.value.get('cooldown_hours', 24)
@@ -1243,17 +1136,31 @@ class MultiChannelHarvester:
                         
                         next_allowed_time = last_time + timedelta(hours=cooldown_hours)
                         if timezone.now() < next_allowed_time:
-                            remaining_time = next_allowed_time - timezone.now()
-                            logger.info(f"⏭️ Crawl Pacing: Skipping '{domain}' — Cooldown active for next {remaining_time.days}d {remaining_time.seconds // 3600}h.")
                             return []
                 except Exception:
                     pass
             
             logger.info(f"📡 Scraping {url} in parallel thread (Force Crawl: {force_crawl})...")
             products = self.get_recent_products(source)
-            
-            # 🛡️ FIXED: ቶከን ለመቆጠብ የ Cooldown ሰዓቶችን አስተማማኝ ወደ ሆነው የ 2 ሰዓት ገደብ አውርደነዋል
             num_scraped = len(products)
+            
+            # 🛡️ CONSECUTIVE FAILURE REGISTER: በራስ-ሰር ተከታታይ ውድቀቱን መመዝገብ ወይም ማጽዳት
+            if num_scraped == 0:
+                new_fail_count = failures_count + 1
+                SiteConfig.objects.update_or_create(
+                    key=failure_key,
+                    defaults={'value': {'count': new_fail_count, 'last_fail': timezone.now().isoformat()}}
+                )
+                logger.warning(f"⚠️ Crawl Failure: Source '{domain}' failed. Consecutive failure count: {new_fail_count}/3")
+                self.perform_source_reconnaissance(source, "Crawl returned 0 products.")
+            else:
+                # ምርቶች በስኬት ከተገኙ የውድቀት ቆጣሪውን ወደ 0 መመለስ
+                if failures_count > 0:
+                    SiteConfig.objects.update_or_create(
+                        key=failure_key,
+                        defaults={'value': {'count': 0, 'last_success': timezone.now().isoformat()}}
+                    )
+            
             if num_scraped >= 10:
                 dyn_cooldown = 1
                 status_text = "high_activity"
@@ -1261,7 +1168,7 @@ class MultiChannelHarvester:
                 dyn_cooldown = 4
                 status_text = "moderate_activity"
             else:
-                dyn_cooldown = 2 # 24 ሰዓት የነበረው ወደ 2 ሰዓት ዝቅ ብሏል
+                dyn_cooldown = 2
                 status_text = "no_activity"
             
             SiteConfig.objects.update_or_create(
@@ -1272,14 +1179,8 @@ class MultiChannelHarvester:
                     'cooldown_hours': dyn_cooldown
                 }}
             )
-            logger.info(f"💾 Dynamic Pacing: Set '{domain}' cooldown to {dyn_cooldown}h based on {num_scraped} products scraped.")
-            
-            if not products:
-                self.perform_source_reconnaissance(source, "Website crawled successfully, but returned 0 products.")
             return products
 
-        # Spawning ThreadPoolExecutor safely for I/O bound crawling [24]
-        # 🛡️ FIXED: To prevent Render CPU choking (loadavg 10+), limited to max 2 concurrent threads on Free Plan [24].
         try:
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = [executor.submit(_scrape_source_worker, source) for source in sources]
@@ -1310,7 +1211,7 @@ class SelfBootstrapManager:
         'code_apply': 'marketplace/code_apply.py',
         'self_doctor': 'marketplace/self_doctor.py',
     }
-    RUNNING_PROCESS_MODULES = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
+    running_process_modules = {'growth_agent', 'ai_utils', 'code_apply', 'self_doctor'}
     READY_KEY = "SELF_BOOTSTRAP_STATUS"
     REPAIR_ATTEMPT_KEY_PREFIX = "SELF_REPAIR_ATTEMPTS_"
     MAX_REPAIR_ATTEMPTS_PER_CYCLE = 3
@@ -1395,7 +1296,7 @@ class SelfBootstrapManager:
                     continue
                 cls._increment_total_attempts(module_key)
                 success = cls._repair_module(primary_site, module_key, info)
-                if success and module_key in cls.RUNNING_PROCESS_MODULES:
+                if success and module_key in cls.running_process_modules:
                     repaired_any_running_module = True
             broken = cls._scan_core_files()
 
@@ -1866,6 +1767,8 @@ class CEOOperations:
 
         # የማዕከላዊ አድሚን ተጠቃሚን መለየት (System Admin Account)
         try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
             admin_user = User.objects.filter(is_superuser=True).first()
             if not admin_user:
                 admin_user, _ = User.objects.get_or_create(username="admin_ceo", defaults={'is_active': True})
@@ -1893,6 +1796,8 @@ class CEOOperations:
                         continue
                     seen_titles.add(title_key)
                     
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
                     user, created = User.objects.get_or_create(username=uname, defaults={'is_active': True})
                     if created:
                         user.set_unusable_password()
@@ -2578,7 +2483,7 @@ def start_autonomous_ceo():
             else:
                 interval = 30 if (has_pending or is_empty_or_low) else 300
                 
-            logger.info(f"💤 Master Cycle Complete. Sleeping {interval} seconds...")
+            logger.info(f"💤 Master Cycle Complete. Sleeping {sleep_duration} seconds...")
             import time
             time.sleep(interval)
         except Exception as e:
@@ -2595,7 +2500,8 @@ def force_push_products(site):
     Product = get_model('Product')
     if not Product.objects.filter(site=site).exists():
         try:
-            User = apps.get_model('auth', 'User')
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
             admin_user = User.objects.filter(is_superuser=True).first()
             if not admin_user:
                 admin_user, _ = User.objects.get_or_create(username="admin_ceo", defaults={"is_active": True})
