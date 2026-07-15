@@ -2483,7 +2483,8 @@ def start_autonomous_ceo():
             else:
                 interval = 30 if (has_pending or is_empty_or_low) else 300
                 
-            logger.info(f"💤 Master Cycle Complete. Sleeping {sleep_duration} seconds...")
+            # 🛡️ FIXED: sleep_duration -> interval (ስሕተቱ ሙሉ በሙሉ ተፈቷል)
+            logger.info(f" Master Cycle Complete. Sleeping {interval} seconds...")
             import time
             time.sleep(interval)
         except Exception as e:
