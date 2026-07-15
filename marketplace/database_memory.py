@@ -1,20 +1,19 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/database_memory.py
-# 📝 ዓላማ፦ Safe Offline-First & Semantic Cache Memory Controller (v10.18 - Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Fixed AttributeError on timezone.datetime, integrated Self-Doctor DB connection refresher, network graceful degradation, and automatic database task repair.
+# 📝 ዓላማ፦ Safe Offline-First & Semantic Cache Memory Controller (v10.19)
+# ✅ የተፈቱ ችግሮች፦ Dynamic apps model registry, dynamic function imports added to prevent boot circular dependency, getattr dynamic safe-reading added on Product attributes to prevent unmigrated database crashes, and experiential failure memory logging added on cache generation failures (v10.19).
 # 📅 ቀን፦ Saturday, July 04, 2026
 # ============================================================
 
 import json
 import logging
-from datetime import datetime, timedelta # ✅ datetime የጊዜ መፍቻ እዚህ ተጨምሯል
+from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db import connection, transaction
 from django.apps import apps
 
-from marketplace.self_doctor import refresh_db_connection_on_error # ✅ የዳታቤዝ ግንኙነት ራስ-ጥገና እዚህ መጥቷል
-
 logger = logging.getLogger(__name__)
+
 
 class OfflineCacheManager:
     """ኤጀንቱ ኦፍላይን በሚሆንበት ጊዜ የትውስታ መዝገብን (Cache) ተጠቅሞ ስራዎችን እንዲሰራ የሚያስችል"""
@@ -26,6 +25,11 @@ class OfflineCacheManager:
         ካሽ ካለቀበት ወይም ከሌለ ኔትወርክ ግንኙነቱን አረጋግጦ አዲስ መረጃ ያመነጫል [1]
         """
         SiteConfig = apps.get_model('marketplace', 'SiteConfig')
+        VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+        
+        if not SiteConfig:
+            return fallback_func() if fallback_func else None
+
         cache_key = f"OFFLINE_CACHE_{site.name}_{key}"
         cached_data = SiteConfig.objects.filter(key=cache_key).first()
         
@@ -34,7 +38,6 @@ class OfflineCacheManager:
         # 1. ትኩስ ካሽ ካለ በቀጥታ ካሹን መጠቀም (Cache-First)
         if cached_data and isinstance(cached_data.value, dict):
             try:
-                # 🛡️ FIXED: module 'django.utils.timezone' has no attribute 'datetime' ስህተት ተስተካክሏል
                 timestamp = datetime.fromisoformat(cached_data.value.get('cached_at', ''))
                 if timezone.is_naive(timestamp):
                     timestamp = timezone.make_aware(timestamp)
@@ -66,6 +69,16 @@ class OfflineCacheManager:
                 return fresh_data
             except Exception as e:
                 logger.error(f"Fallback function execution failed: {e}")
+                # 🛡️ EXPERIENTIAL LEARNING: የካሽ ማመንጨት ውድቀትን በታሪክ መዝገብ ውስጥ መመዝገብ
+                if VectorMemory:
+                    try:
+                        VectorMemory.objects.create(
+                            site=site,
+                            memory_type='failed_attempt',
+                            content=f"Cache fallback generation failed for key '{key}' with error: {str(e)}",
+                            success_rate=0.0
+                        )
+                    except Exception: pass
 
         # 3. ኔትወርክ ከሌለ የቆየውንም ቢሆን ካሽ መረጃ መጠቀም (Degraded Mode)
         if cached_data and isinstance(cached_data.value, dict):
@@ -81,6 +94,9 @@ class OfflineCacheManager:
         """ኔትወርክ በማይኖርበት ጊዜ ካሉ እውነተኛ ምርቶች ላይ ስልታዊ የገበያ ጥናቶችን (Insights) ያመነጫል"""
         VectorMemory = apps.get_model('marketplace', 'VectorMemory')
         Product = apps.get_model('marketplace', 'Product')
+        
+        if not VectorMemory or not Product:
+            return []
 
         logger.info(f"🧠 Offline-First: Analysing existing product data on site '{site.name}' for strategic insights.")
         
@@ -95,8 +111,11 @@ class OfflineCacheManager:
         insights = []
         
         for p in hot_products:
-            # በእያንዳንዱ ተወዳጅ ምርት ላይ በመመስረት የ RAG Insight መዝገብ መፍጠር
-            insight_content = f"Product '{p.title}' has high user engagement with {p.view_count} views and {p.inquiry_count} inquiries."
+            # 🛡️ FIXED: Safe attribute reading to prevent crashes on fresh unmigrated databases
+            views = getattr(p, 'view_count', 0)
+            inquiries = getattr(p, 'inquiry_count', 0)
+            
+            insight_content = f"Product '{p.title}' has high user engagement with {views} views and {inquiries} inquiries."
             
             # 3. insight-type Vector Memory መዝገብ መፍጠር
             VectorMemory.objects.create(
@@ -105,8 +124,8 @@ class OfflineCacheManager:
                 content=insight_content,
                 metadata={
                     'product_id': p.id,
-                    'views': p.view_count,
-                    'inquiries': p.inquiry_count,
+                    'views': views,
+                    'inquiries': inquiries,
                     'offline_analyzed': True
                 },
                 success_rate=80.0,
@@ -115,13 +134,15 @@ class OfflineCacheManager:
             )
             insights.append(insight_content)
             
-        logger.info(f"✨ Offline-First Analysis Complete: Generated {len(insights)} RAG Vector memories for future context.")
+        logger.info(f"✨ Offline-First Analysis Complete: Generated {len(insights)} RAG Vector memories.")
         return insights
 
     @classmethod
     def process_stale_offline_tasks(cls, site):
         """ኦፍላይን በሆንንበት ጊዜ ኤፒአይ ሳይጠየቅ በዳታቤዝ ውስጥ ያሉ የቆዩ ወይም የታገዱ ታስኮችን ራሱ መርምሮ ያጸዳል"""
         AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+        if not AIProjectBacklog:
+            return
 
         logger.info(f"🧹 Offline-First Maintenance: Scanning for blocked or stale tasks on site '{site.name}'.")
         
@@ -161,7 +182,11 @@ class OfflineCacheManager:
                 logger.info(f"🧹 Cleaned up {cleared_count} duplicate backlog tasks from queue.")
                 
         except Exception as e:
-            # 🛡️ FIXED: OperationalError ከተከሰተ በራስ-ሰር ሪፍሬሽ በማድረግ ግንኙነቱን መጠገን
-            db_refreshed = refresh_db_connection_on_error(str(e))
-            if db_refreshed:
-                logger.warning("🚑 Database connection refreshed safely during offline-first maintenance.")
+            # 🛡️ DYNAMIC FUNCTION IMPORT: የዳታቤዝ ግንኙነት ጥገና ጥሪን በዳይናሚክ መንገድ በመጫን የክብ ጥገኝነት መከላከል [1]
+            try:
+                from marketplace.self_doctor import refresh_db_connection_on_error
+                db_refreshed = refresh_db_connection_on_error(str(e))
+                if db_refreshed:
+                    logger.warning("🚑 Database connection refreshed safely during offline-first maintenance.")
+            except Exception as import_err:
+                logger.error(f"Failed to load DB refresher dynamically: {import_err}")

@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/self_doctor.py
-# 📝 ስሪት፦ v10.83 (Ultimate System Doctor - Safe Recon Synthesizer Enabled)
-# ✅ የተፈቱ ችግሮች፦ Dynamic schema dropping, increased Anti-Bloat threshold to 35,000 chars, and bypass safe scalar ORM queries (count, exists, get, create, etc.) from AST N+1 warnings to reduce false positives.
+# 📝 ስሪት፦ v10.85 (Ultimate System Doctor - Zero Duplication Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic schema dropping, dynamic table lookup, Security Log Null Site Guard, and complete deduplication of PostgreSQL column checks, inline asset scanners, and logging blocks to optimize execution (v10.85).
 # 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
@@ -24,6 +24,7 @@ from typing import Dict, List, Optional, Union, Any
 
 logger = logging.getLogger(__name__)
 
+
 def get_marketplace_model(model_name: str):
     """ሞዴሎችን በዳይናሚክ መንገድ በመጫን AppRegistryNotReady ስህተትን ይከላከላል"""
     try:
@@ -31,6 +32,7 @@ def get_marketplace_model(model_name: str):
     except Exception as e:
         logger.error(f"Failed to load model {model_name} dynamically inside doctor: {e}")
         return None
+
 
 class DecimalEncoder(json.JSONEncoder):
     """Decimal እሴቶች በዳታቤዝ ውስጥ ወደ JSON ሲለወጡ የሚከሰቱ ስህተቶችን መከላከያ"""
@@ -54,12 +56,15 @@ class SecurityAuditor:
 
         is_python = file_path.endswith('.py') if file_path else True
         
-        # 🛡️ 1. SYMMETRIC DESIGN AUDIT: የኤችቲኤምኤል ቴምፕሌቶችን የስታይል እና የስክሪፕት መደጋገም መፈተሽ
+        # 🛡️ DEDUPLICATED: የኤችቲኤምኤል ቴምፕሌቶችን የስታይል እና የስክሪፕት መደጋገም በአንድ ላይ መፈተሽ
         if not is_python or 'html' in file_path.lower():
-            if "<style>" in code or "<style " in code:
-                issues.append("Performance Warning: Inline CSS blocks <style> found. Move these to global.css to unblock page rendering.")
-            if "<script>" in code or "<script " in code:
-                issues.append("Performance Warning: Inline JavaScript blocks <script> found. Move these to global.js to unblock page rendering.")
+            inline_assets = [
+                ("<style", "CSS", "global.css"),
+                ("<script", "JavaScript", "global.js")
+            ]
+            for tag, label, target_file in inline_assets:
+                if tag in code:
+                    issues.append(f"Performance Warning: Inline {label} blocks found. Move these to {target_file} to unblock page rendering.")
             
             self_log_issues(issues, file_path, site)
             return len(issues) == 0, issues
@@ -69,7 +74,6 @@ class SecurityAuditor:
             dangerous_builtins = {'eval', 'exec'}
             dangerous_attributes = {'system', 'popen', 'spawn'}
 
-            # 🛡️ 2. SYMMETRIC DESIGN AUDIT: የፓይተን ኮዶች መደጋገምን መፈተሽ
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call):
                     func_name = ""
@@ -85,7 +89,6 @@ class SecurityAuditor:
                             if node.func.value.id.lower() == 'subprocess' and func_name in ['run', 'call', 'popen', 'check_output', 'check_call']:
                                 issues.append(f"Critical: Dangerous subprocess call 'subprocess.{func_name}' detected.")
 
-                # የፈንክሽኖችን የወደፊት እድገት እና ተለዋዋጭነት መመርመር
                 elif isinstance(node, ast.FunctionDef):
                     has_kwargs = any(isinstance(arg, ast.arg) and arg.arg == 'kwargs' for arg in node.args.kwonlyargs + [node.args.kwarg] if arg)
                     has_args = node.args.kwarg is not None or node.args.vararg is not None
@@ -128,6 +131,11 @@ class SecurityAuditor:
 
 def self_log_issues(issues, file_path, site):
     """የተገኙ የደህንነት እና የንድፍ ስጋቶችን በዳታቤዝ ውስጥ መዝግቦ ማስቀመጫ ረዳት"""
+    if not site:
+        for issue in issues:
+            logger.warning(f"🛡️ Security Issue (No active site): {issue} in {file_path}")
+        return
+
     if issues:
         SecurityLog = get_marketplace_model('SecurityLog')
         if not SecurityLog: return
@@ -197,7 +205,6 @@ class UniversalHealer:
 
         logger.warning("🚨 EMERGENCY RESET: Hard resetting database schema...")
         try:
-            # 🛡️ FIXED: dynamic table lookup to prevent hardcoded failures on new models
             try:
                 app_models = apps.get_app_config('marketplace').get_models()
                 marketplace_tables = [model._meta.db_table for model in app_models]
@@ -220,7 +227,7 @@ class UniversalHealer:
                         cursor.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE;')
                 cursor.execute("DELETE FROM django_migrations WHERE app='marketplace';")
             
-            logger.info("✨ Emergency Reset: All marketplace tables dropped. Initiating fresh migrations...")
+            logger.info("✨ Emergency Reset: All marketplace tables dropped. Fresh migrations...")
             call_command('migrate', interactive=False)
             
             if SiteRegistry:
@@ -235,10 +242,11 @@ class UniversalHealer:
             return False
 
     def heal_database_migrations_autonomously(self, force=False):
-        """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ጠጋኝ"""
+        """የ PostgreSQL የኢንዴክስ ወይም የስኬማ ስህተቶችን በራስ-ሰር ጠጋኝ (ከቀድሞ ውድቀት መማር ጋር)"""
         SiteConfig = get_marketplace_model('SiteConfig')
         AgentErrorLog = get_marketplace_model('AgentErrorLog')
         SelfHealingLog = get_marketplace_model('SelfHealingLog')
+        VectorMemory = get_marketplace_model('VectorMemory')
         
         if not SiteConfig: return
 
@@ -276,26 +284,20 @@ class UniversalHealer:
         try:
             with connection.cursor() as cursor:
                 if connection.vendor == 'postgresql':
-                    cursor.execute("""
-                        SELECT column_name FROM information_schema.columns 
-                        WHERE table_name='marketplace_product' AND column_name='listing_type';
-                    """)
-                    if not cursor.fetchone():
-                        cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS listing_type varchar(50) DEFAULT 'sale';")
-                        
-                    cursor.execute("""
-                        SELECT column_name FROM information_schema.columns 
-                        WHERE table_name='marketplace_product' AND column_name='contact_info';
-                    """)
-                    if not cursor.fetchone():
-                        cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS contact_info varchar(255) DEFAULT '';")
-                        
-                    cursor.execute("""
-                        SELECT column_name FROM information_schema.columns 
-                        WHERE table_name='marketplace_product' AND column_name='image_gallery';
-                    """)
-                    if not cursor.fetchone():
-                        cursor.execute("ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS image_gallery jsonb DEFAULT '[]'::jsonb;")
+                    # 🛡️ DEDUPLICATED: የ PostgreSQL አምድ መፈተሻዎችን እና መፍጠሪያዎችን በጥራት ማጠቃለል (Zero duplication)
+                    columns_to_ensure = [
+                        ('listing_type', "varchar(50) DEFAULT 'sale'"),
+                        ('contact_info', "varchar(255) DEFAULT ''"),
+                        ('image_gallery', "jsonb DEFAULT '[]'::jsonb")
+                    ]
+                    
+                    for col_name, col_type in columns_to_ensure:
+                        cursor.execute(f"""
+                            SELECT column_name FROM information_schema.columns 
+                            WHERE table_name='marketplace_product' AND column_name='{col_name}';
+                        """)
+                        if not cursor.fetchone():
+                            cursor.execute(f'ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS {col_name} {col_type};')
 
             call_command('migrate', interactive=False)
             logger.info("🚑 Schema Healer: Database migrations check passed.")
@@ -355,9 +357,19 @@ class UniversalHealer:
                         "fields": [f.name for f in model._meta.fields]
                     })
 
+                # 🛡️ EXPERIENTIAL FAILURE MEMORY: የከሸፉ ሙከራዎችን ከታሪክ መዝገብ አውጥቶ ወደ ፕሮምፕት ማካተት (እንዳይደግማቸው መከላከል)
+                past_failed_sql_prompts = []
+                if VectorMemory:
+                    try:
+                        failures = VectorMemory.objects.filter(site=self.site, memory_type='failed_db_patch').order_by('-id')[:3]
+                        past_failed_sql_prompts = [f.content for f in failures]
+                    except Exception:
+                        pass
+
                 prompt = (
                     f"We encountered a database migration or schema error: '{err_msg}'.\n"
                     f"Actual database structure: {json.dumps(all_tables, ensure_ascii=False)}\n"
+                    f"CRITICAL (Do not generate these failed SQL statements from past attempts): {json.dumps(past_failed_sql_prompts, ensure_ascii=False)}\n"
                     f"Generate the exact, safe, raw SQL DDL statement to execute on DB to resolve this error.\n"
                     f"Return JSON with key 'sql' containing only the query."
                 )
@@ -366,8 +378,22 @@ class UniversalHealer:
                 
                 if res and isinstance(res, dict) and res.get('sql'):
                     sql_query = res['sql']
-                    with connection.cursor() as cursor:
-                        cursor.execute(sql_query)
+                    try:
+                        with connection.cursor() as cursor:
+                            cursor.execute(sql_query)
+                    except Exception as sql_exec_err:
+                        # 🛡️ EXPERIENTIAL LEARNING: የከሸፈውን የ SQL ሙከራ ወደ ታሪክ መዝገብ መጻፍ
+                        if VectorMemory:
+                            try:
+                                VectorMemory.objects.create(
+                                    site=self.site,
+                                    memory_type='failed_db_patch',
+                                    content=sql_query,
+                                    success_rate=0.0
+                                )
+                                logger.warning(f"Logged failed DDL query to experiential failure memory: {sql_query}")
+                            except Exception: pass
+                        raise sql_exec_err
                     
                     AIUtils.set_cached(cache_key, sql_query, timeout=86400)
                     
@@ -716,13 +742,11 @@ class PerformanceAuditor:
 
 
 # ============================================================
-# ✂️ 5. ANTI-BLOAT ENGINE (የኮድ ማሳጠሪያ እና ማሻሻያ ሞተር)
+# ✂️ 5. ANTI-BLOAT ENGINE (የደቂቅ የ AST ኮድ ማሳጠሪያ እና ማሻሻያ ሞተር)
 # ============================================================
-
 class AntiBloatEngine:
     @staticmethod
     def is_file_bloated(file_path: str, max_chars: int = 35000) -> bool:
-        # 🛡️ FIXED: Increased threshold from 15,000 to 35,000 characters to prevent expensive loops on agent core files
         if not file_path or not os.path.exists(file_path):
             return False
         try:
@@ -736,8 +760,22 @@ class AntiBloatEngine:
         if not is_bloated and (len(new_code) < 32000 or (old_code and len(new_code) < len(old_code) * 1.20)):
             return new_code
 
-        logger.warning(f"⚠️ Anti-Bloat Guard: Code for {file_path} is bloated. Activating self-pruning...")
+        logger.warning(f"⚠️ Anti-Bloat Guard: Code for {file_path} is bloated. Activating surgical self-pruning...")
 
+        # 🛡️ 1. SURGICAL REGEX CLEANUP: የኮሜንት እና ባዶ መስመሮችን 0% ሲፒዩ/ቶከን ወጪ በሆነ ሬጀክስ ማጽዳት (Surgical Pruning)
+        cleaned_lines = []
+        for line in new_code.splitlines():
+            stripped = line.strip()
+            if stripped.startswith('#') and len(stripped) > 1 and not stripped.startswith('#!'):
+                continue
+            cleaned_lines.append(line)
+            
+        pruned_new_code = "\n".join(cleaned_lines)
+        if len(pruned_new_code) < 32000:
+            logger.info(f"✨ Anti-Bloat: Surgically cleaned comments and blank spaces of {file_path} without calling AI.")
+            return pruned_new_code
+
+        # 2. የላቀ የኤአይ ሪፋክተሪንግ ፍላጎት
         prompt = (
             f"Optimize and shrink this Python code for '{file_path}'.\n"
             f"1. Remove any dead code, unused helper functions, and redundant imports.\n"

@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/apps.py
-# 📝 ስሪት፦ v10.31 Phoenix Auto-Installer — Lightning Boot Edition (Zero-Crash & Instant Startup)
-# ✅ የተፈቱ ችግሮች፦ Dynamic pre-flight scaffolding signatures upgraded with *args, **kwargs to prevent TypeError crashes, preserved instant 1-second startup, SQLite WAL mode activation, and GC memory clearing.
+# 📝 ስሪት፦ v10.32 Phoenix Safe-Boot Edition (Thread-Locked & Dynamic Self-Healing)
+# ✅ የተፈቱ ችግሮች፦ Dynamic pre-flight scaffolding upgraded, Thread Collision prevented with atomic Master Cycle Lock, startup_self_heal_migration integrated to safely resolve db issues at launch, SQLite WAL mode, and memory collection.
 # 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
@@ -23,6 +23,12 @@ from django.db.models import Count
 logger = logging.getLogger(__name__)
 
 # ============================================================
+# 🔒 GLOBAL THREAD SAFETY LOCK (የክሮች ግጭት መከላከያ መቆለፊያ)
+# ============================================================
+_master_cycle_lock = threading.Lock()
+
+
+# ============================================================
 # 🚑 STARTUP SELF-HEALER (የቅድመ-ጅማሮ ራስ-ገዝ የስኬማ ጠጋኝ)
 # ============================================================
 def startup_self_heal_migration(err_msg):
@@ -39,7 +45,7 @@ def startup_self_heal_migration(err_msg):
                         re.search(r'table "([^"]+)" does not exist', err_msg, re.IGNORECASE)
         if match_missing:
             table_name = match_missing.group(1)
-            logger.warning(f"🚑 Startup Healer: Dynamically creating dummy table '{table_name}' to unblock migrations...")
+            logger.warning(f"Relation not found. Creating dummy table '{table_name}' to unblock migrations...")
             with connection.cursor() as cursor:
                 id_type = "integer PRIMARY KEY AUTOINCREMENT" if connection.vendor == 'sqlite' else "serial NOT NULL PRIMARY KEY"
                 cursor.execute(f'CREATE TABLE IF NOT EXISTS "{table_name}" ("id" {id_type});')
@@ -51,7 +57,7 @@ def startup_self_heal_migration(err_msg):
                        re.search(r'index "([^"]+)" already exists', err_msg, re.IGNORECASE)
         if match_exists:
             relation_name = match_exists.group(1)
-            logger.warning(f"🚑 Startup Healer: Dropping conflicting relation/index '{relation_name}' to unblock migrations...")
+            logger.warning(f"Conflict found. Dropping relation/index '{relation_name}' to unblock migrations...")
             with connection.cursor() as cursor:
                 try:
                     cursor.execute(f'DROP INDEX IF EXISTS "{relation_name}";')
@@ -77,7 +83,6 @@ def ensure_healthy_db_connections():
     """
     try:
         from django.db import connections, connection
-        # ቀላል ጥያቄ በማስኬድ ግንኙነቱ ክፍት መሆኑን ማረጋገጥ
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1;")
     except Exception as e:
@@ -99,7 +104,6 @@ def verify_and_bootstrap_agent_files():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     marketplace_dir = os.path.join(base_dir, 'marketplace')
     
-    # 🛡️ FIXED: All dynamic scaffolding skeletons upgraded with *args, **kwargs to prevent call signature crashes in production
     skeletons = {
         'ai_utils.py': """# Generated dynamically by apps.py (Phoenix Scaffolding)
 import os, json, requests, logging
@@ -207,7 +211,7 @@ class MarketplaceConfig(AppConfig):
     name = 'marketplace'
 
     def ready(self):
-        """ሲስተሙ ሲነሳ ኤጀንቱን፣ የዳታቤዝ ጥገናውን እና የጀርባ ክሮቹን በራስ-ሰር ይቀሰቅሳል (ለፈጣን ጅማሮ ማይግሬሽን ተወግዷል)"""
+        """ሲስተሙ ሲነሳ ኤጀንቱን፣ የዳታቤዝ ጥገናውን እና የጀርባ ክሮቹን በራስ-ሰር ይቀሰቅሳል"""
         
         # 1. ለማይግሬሽን እና ለትዕዛዞች ኤጀንቱ እንዳይነሳ መከልከል
         if 'manage.py' in sys.argv:
@@ -225,16 +229,42 @@ class MarketplaceConfig(AppConfig):
         except Exception as e:
             logger.error(f"Pre-flight bootstrapping failed: {e}")
 
-        # SQLite WAL Mode ማነቃቂያ
+        # SQLite WAL Mode ማነቃቂያ እና የቅድመ-በረራ ዳታቤዝ ጤና ፍተሻ
         try:
             from django.db import connection
             with connection.cursor() as cursor:
+                # 🩺 ራስ-ሰር የማይግሬሽን ፍተሻ እና ጥገና (Boot DB-Healer Integration)
+                try:
+                    cursor.execute("SELECT 1;")
+                except Exception as db_err:
+                    logger.warning(f"🚑 Database check failed during boot: {db_err}")
+                    startup_self_heal_migration(str(db_err))
+
                 if connection.vendor == 'sqlite':
                     cursor.execute("PRAGMA journal_mode=WAL;")
                     cursor.execute("PRAGMA busy_timeout=30000;")
                     logger.info("⚡ Auto-Healer: Activated WAL Mode on SQLite.")
         except Exception as e:
-            logger.debug(f"SQLite WAL activation safely bypassed: {e}")
+            logger.debug(f"Database initialization and boot check safely bypassed: {e}")
+
+        # 🔒 የጋራ ክር መቆለፊያ (Global Lock Integration) በይፋዊ ደረጃ ማስኬጃ
+        try:
+            import marketplace.growth_agent
+            original_master_cycle = marketplace.growth_agent.execute_master_cycle
+
+            # ኤጀንቱ በተለያዩ ክሮች በአንድ ጊዜ ዑደቱን እንዳያስነሳ በመቆለፊያ መከልከል (Monkeypatching for thread safety)
+            def safe_locked_master_cycle(*args, **kwargs):
+                if _master_cycle_lock.acquire(blocking=False):
+                    try:
+                        return original_master_cycle(*args, **kwargs)
+                    finally:
+                        _master_cycle_lock.release()
+                else:
+                    logger.warning("⏭️ Thread Lock Active: Master cycle is currently running on another thread. Skipping concurrent execution.")
+
+            marketplace.growth_agent.execute_master_cycle = safe_locked_master_cycle
+        except Exception as patch_err:
+            logger.error(f"Failed to apply safety thread lock monkeypatch: {patch_err}")
 
         logger.info("🚀 Starting EthAfri Autonomous System (Agent + SafetyNet + Self-Healer)...")
 

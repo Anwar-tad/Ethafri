@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/consumers.py
-# 📝 ስሪት፦ v10.21 (Phoenix Concurrency - Aligned Health Matrix & CPU Stream)
-# ✅ የተፈቱ ችግሮች፦ Aligned API health streaming with all 2026 high-performance providers (SambaNova, Cerebras, Nvidia), fully transitioned to connections.close_all() for async DB safety, optimized ORM lookups with select_related, and pruned redundant stub classes.
+# 📝 ስሪት፦ v10.22 (Phoenix Concurrency - Aligned Health Matrix & API Hashing)
+# ✅ የተፈቱ ችግሮች፦ Dynamic models loading preserved to prevent AppRegistryNotReady, eliminated unused User model import to prevent import leaks, upgraded connections.close_all() for async DB thread safety, select_related optimized to prevent N+1 ORM queries, and updated get_api_health_states to dynamically check keys using their MD5 hashes aligned with ai_utils.py (v10.22).
 # 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
@@ -12,6 +12,7 @@ import logging
 import time
 import asyncio
 import threading
+import hashlib
 from datetime import datetime, timedelta
 
 from django.utils import timezone
@@ -20,7 +21,6 @@ from django.db import connection, connections
 from django.core.cache import cache
 from typing import Dict, List, Optional, Union, Any
 from django.db.models import Count, Sum, Case, When, IntegerField, Value
-from django.contrib.auth.models import User
 from django.apps import apps
 from django.core.serializers.json import DjangoJSONEncoder
 
@@ -205,7 +205,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_api_health_states(self):
-        # 🛡️ FIXED: Aligned providers list with modern 2026 specs (added sambanova, cerebras, nvidia)
         providers = ['gemini', 'groq', 'mistral', 'openrouter', 'huggingface', 'github', 'sambanova', 'cerebras', 'nvidia']
         cooldowns = {}
         configured = {}
@@ -213,14 +212,29 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         for prov in providers:
             # 1. በ Env ውስጥ መጫኑን መፈተሽ
             key_name = f"{prov.upper()}_API_KEY" if prov != 'github' else "GITHUB_TOKEN"
-            configured[prov] = bool(os.getenv(key_name))
+            raw_key = os.getenv(key_name, '').strip().replace('"', '').replace("'", "")
+            configured[prov] = bool(raw_key)
             
-            # 2. የ 429 rate limit እገዳ መኖሩን መፈተሽ
+            # 2. የ 429 rate limit እገዳ መኖሩን በቁልፍ MD5 Hash መሠረት መፈተሽ (Aligned with ai_utils.py)
             is_cooldown = False
-            if prov == 'gemini':
-                is_cooldown = any(cache.get(f"ai_cooldown_GEMINI_KEY_{i}") for i in range(1, 5))
-            else:
-                is_cooldown = bool(cache.get(f"ai_cooldown_{prov.upper()}"))
+            if raw_key:
+                if prov == 'gemini':
+                    gemini_keys = [
+                        os.getenv('GEMINI_API_KEY', ''),
+                        os.getenv('GEMINI_API_KEY_2', ''),
+                        os.getenv('GEMINI_API_KEY_3', ''),
+                        os.getenv('GEMINI_API_KEY_4', '')
+                    ]
+                    for gkey in gemini_keys:
+                        if gkey:
+                            gkey_clean = gkey.strip().replace('"', '').replace("'", "")
+                            ghash = hashlib.md5(gkey_clean.encode('utf-8')).hexdigest()[:12]
+                            if cache.get(f"ai_cooldown_GEMINI_{ghash}"):
+                                is_cooldown = True
+                                break
+                else:
+                    key_hash = hashlib.md5(raw_key.encode('utf-8')).hexdigest()[:12]
+                    is_cooldown = bool(cache.get(f"ai_cooldown_{prov.upper()}_{key_hash}"))
                 
             cooldowns[prov] = is_cooldown
             
@@ -440,7 +454,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading site tasks: {e}")
             return []
         finally:
-            # 🛡️ FIXED: Transitioned to connections.close_all() for async DB safety
             connections.close_all()
     
     @database_sync_to_async
@@ -462,7 +475,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error reading site errors: {e}")
             return []
         finally:
-            # 🛡️ FIXED: Transitioned to connections.close_all() for async DB safety
             connections.close_all()
     
     @database_sync_to_async
@@ -470,7 +482,6 @@ class AgentStatusConsumer(AsyncWebsocketConsumer):
         AIProjectBacklog = self.models_ref['AIProjectBacklog']
         AIEvolutionLog = self.models_ref['AIEvolutionLog']
         try:
-            # 🛡️ Micro-Optimization: added select_related('site') to prevent N+1 ORM queries inside background thread context
             recent_tasks = AIProjectBacklog.objects.select_related('site').order_by('-updated_at')[:5]
             recent_evolutions = AIEvolutionLog.objects.select_related('site').order_by('-created_at')[:5]
             

@@ -1,10 +1,7 @@
 # --------------------------------------------------------------
 #  scrapper_engine.py  – high‑performance, thread‑safe, self‑healing
-#  v10.55  •  SmartProductExtractor now fully implemented (was a
-#            placeholder returning []).  Multi‑strategy extraction:
-#            JSON‑LD  →  site‑specific selectors  →  generic e‑comm
-#            selectors  →  regex fallback.  Amharic‑aware price &
-#            contact parsing aligned with growth_agent.py contract.
+#  v10.56  •  SmartProductExtractor fully implemented with unified Amharic-aware price & contact parsing (Zero duplication across files).
+#          •  Render CPU Guard added to prevent Playwright browser launch OOM crashes under heavy server load.
 #          •  bs4 is optional – degrades to regex path if missing.
 #          •  429 / Retry‑After aware backoff with jitter.
 #          •  intra‑page title dedup, stale‑listing filtering.
@@ -207,25 +204,8 @@ class SmartCache:
 #  Product extraction  (BeautifulSoup + regex, multi‑strategy)
 # ==============================================================
 class SmartProductExtractor:
-    """Extracts product dicts from marketplace HTML.
+    """Extracts product dicts from marketplace HTML."""
 
-    Each returned dict matches the contract consumed by
-    ``growth_agent._seed_listings_bulk``::
-
-        {
-          "title":          str,        # required, non‑empty
-          "price":          float,      # 0.0 when unknown
-          "description":    str,
-          "desc":           str,        # mirror of description
-          "seller_contact": str,        # ET phone / @telegram / "0900000000"
-          "image_url":      str,        # absolute url or ""
-          "source_url":     str,        # page url
-          "listing_type":   str,        # "sale" | "rent" | "service"
-        }
-    """
-
-    # --- selectors grouped by strategy (most specific first) ----------
-    # Jiji‑style classifieds (jiji.com.et & clones)
     JIJI_LISTING_SELECTORS = [
         "div.b-list-advert__item",
         "div.b-list-advert",
@@ -250,7 +230,6 @@ class SmartProductExtractor:
         "img[data-cy=\"ad-image\"]",
     ]
 
-    # Generic e‑commerce cards (works on most Shopify/Woo/custom sites)
     GENERIC_CARD_SELECTORS = [
         "div.product",
         "div.product-card",
@@ -281,9 +260,6 @@ class SmartProductExtractor:
         "img",
     ]
 
-    # ----------------------------------------------------------
-    #  Public entry point
-    # ----------------------------------------------------------
     @staticmethod
     def extract_products(html: str, url: str) -> List[Dict]:
         if not html or not html.strip():
@@ -293,7 +269,6 @@ class SmartProductExtractor:
         products: List[Dict] = []
         seen_titles: set = set()
 
-        # ---- Strategy 1: JSON‑LD structured data -----------------
         for p in SmartProductExtractor._extract_from_jsonld(html, url):
             t = (p.get("title") or "").strip().lower()
             if t and t not in seen_titles:
@@ -302,11 +277,9 @@ class SmartProductExtractor:
             if len(products) >= ScraperConfig.MAX_PRODUCTS_PER_PAGE:
                 return products
 
-        # If we already have enough from structured data, stop early.
         if len(products) >= ScraperConfig.MAX_PRODUCTS_PER_PAGE:
             return products
 
-        # ---- Strategy 2‑4: DOM based (needs bs4) -----------------
         if _HAS_BS4:
             try:
                 soup = BeautifulSoup(html, "html.parser")
@@ -315,7 +288,6 @@ class SmartProductExtractor:
                 soup = None
 
             if soup is not None:
-                # 2. site‑specific (Jiji‑style)
                 for p in SmartProductExtractor._extract_with_selectors(
                     soup, url,
                     SmartProductExtractor.JIJI_LISTING_SELECTORS,
@@ -330,7 +302,6 @@ class SmartProductExtractor:
                     if len(products) >= ScraperConfig.MAX_PRODUCTS_PER_PAGE:
                         return products
 
-                # 3. generic e‑commerce cards
                 if len(products) < ScraperConfig.MAX_PRODUCTS_PER_PAGE:
                     for p in SmartProductExtractor._extract_with_selectors(
                         soup, url,
@@ -346,13 +317,11 @@ class SmartProductExtractor:
                         if len(products) >= ScraperConfig.MAX_PRODUCTS_PER_PAGE:
                             return products
 
-                # 4. Open Graph / single‑product meta fallback
                 if not products:
                     og = SmartProductExtractor._extract_og_meta(soup, url)
                     if og and (og.get("title")):
                         products.append(og)
 
-        # ---- Strategy 5: pure regex fallback ---------------------
         if not products:
             for p in SmartProductExtractor._extract_with_regex(html, url):
                 t = (p.get("title") or "").strip().lower()
@@ -364,14 +333,10 @@ class SmartProductExtractor:
 
         return products
 
-    # ----------------------------------------------------------
-    #  Strategy 1: JSON‑LD  <script type="application/ld+json">
-    # ----------------------------------------------------------
     @staticmethod
     def _extract_from_jsonld(html: str, url: str) -> List[Dict]:
         out: List[Dict] = []
         if not _HAS_BS4:
-            # regex fallback for json‑ld blocks
             for m in re.finditer(
                 r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>([\s\S]*?)</script>',
                 html, re.IGNORECASE,
@@ -392,7 +357,6 @@ class SmartProductExtractor:
         data = _safe_json_load(raw.strip())
         if data is None:
             return
-        # ld+json may be a single object or a list (or @graph)
         if isinstance(data, dict) and "@graph" in data:
             data = data["@graph"]
         if isinstance(data, list):
@@ -442,9 +406,6 @@ class SmartProductExtractor:
                 "listing_type": "sale",
             })
 
-    # ----------------------------------------------------------
-    #  Strategy 2/3: selector‑driven extraction
-    # ----------------------------------------------------------
     @staticmethod
     def _extract_with_selectors(
         soup, url: str,
@@ -477,9 +438,6 @@ class SmartProductExtractor:
                 out.append(prod)
         return out
 
-    # ----------------------------------------------------------
-    #  Per‑node extraction (the method that was a placeholder)
-    # ----------------------------------------------------------
     @staticmethod
     def _extract_from_soup_node(
         node, url: str = "",
@@ -516,7 +474,6 @@ class SmartProductExtractor:
                     src = el.get("data-src") or el.get("src") or ""
                     if src:
                         return urljoin(url, src)
-                # selector may target a container with bg image
                 if el:
                     style = el.get("style") or ""
                     m = re.search(r"url\(['\"]?([^'\")]+)['\"]?\)", style)
@@ -524,10 +481,8 @@ class SmartProductExtractor:
                         return urljoin(url, m.group(1))
             return ""
 
-        # ---- title ----------------------------------------------
         title = _first_text(title_sels)
         if not title:
-            # fall back to the node's own heading / link text
             for cand in node.find_all(["h1", "h2", "h3", "h4", "h5", "a"], limit=3):
                 txt = cand.get_text(strip=True)
                 if txt and len(txt) >= ScraperConfig.MIN_TITLE_LEN:
@@ -540,25 +495,18 @@ class SmartProductExtractor:
             return {}
         title = title[:ScraperConfig.MAX_TITLE_LEN]
 
-        # ---- price ----------------------------------------------
         price_text = _first_text(price_sels)
         price = SmartProductExtractor._parse_price(price_text)
         if price == 0.0:
-            # search the whole node text for a price pattern
             price = SmartProductExtractor._parse_price(node.get_text(" ", strip=True))
 
-        # ---- contact --------------------------------------------
         node_text = node.get_text(" ", strip=True)
         contact = SmartProductExtractor._parse_contact(node_text)
-
-        # ---- image ----------------------------------------------
         image_url = _first_img(img_sels)
 
-        # ---- description ----------------------------------------
         desc = node.get_text(" ", strip=True)
         desc = re.sub(r"\s+", " ", desc)[:ScraperConfig.MAX_DESC_LEN].strip()
 
-        # ---- stale / non‑product filter -------------------------
         if SmartProductExtractor._is_stale(node_text):
             return {}
 
@@ -573,9 +521,6 @@ class SmartProductExtractor:
             "listing_type": SmartProductExtractor._guess_listing_type(node_text),
         }
 
-    # ----------------------------------------------------------
-    #  Strategy 4: Open Graph / meta single‑product page
-    # ----------------------------------------------------------
     @staticmethod
     def _extract_og_meta(soup, url: str) -> Optional[Dict]:
         def _meta(prop: str) -> str:
@@ -609,19 +554,14 @@ class SmartProductExtractor:
             "listing_type": SmartProductExtractor._guess_listing_type(desc),
         }
 
-    # ----------------------------------------------------------
-    #  Strategy 5: pure regex (no DOM)
-    # ----------------------------------------------------------
     @staticmethod
     def _extract_with_regex(html: str, url: str) -> List[Dict]:
         out: List[Dict] = []
-        # strip tags into plain text, keep structure with newlines
         text = re.sub(r"<[^>]+>", "\n", html)
         import html as _html
         text = _html.unescape(text)
         text = re.sub(r"\n{2,}", "\n", text)
         lines = [l.strip() for l in text.split("\n") if l.strip()]
-        # try to group lines into "blocks" separated by blank-ish gaps
         block: List[str] = []
         for line in lines:
             if len(line) >= ScraperConfig.MIN_TITLE_LEN and not block:
@@ -666,22 +606,33 @@ class SmartProductExtractor:
         }
 
     # ----------------------------------------------------------
-    #  Shared parsing helpers
+    #  Shared parsing helpers (Deduplicated & Amharic-aware)
     # ----------------------------------------------------------
     @staticmethod
     def _parse_price(text: str) -> float:
         if not text:
             return 0.0
-        m = ScraperConfig.PRICE_RE.search(text)
+        m = ScraperConfig.PRICE_RE.search(text) or ScraperConfig.PRICE_TAIL_RE.search(text)
         if not m:
-            m = ScraperConfig.PRICE_TAIL_RE.search(text)
-        if not m:
-            # bare 4‑7 digit number with currency‑like context
-            m = re.search(r"(?<!\d)([\d,]{4,7})(?!\d)", text)
+            m = re.search(r"(?<!\d)([\d,]{4,9})(?!\d)", text)
         if not m:
             return 0.0
         try:
-            return float(m.group(1).replace(",", ""))
+            val_str = m.group(1).replace(",", "")
+            val = float(val_str)
+            
+            # Deduplicated Amharic unit multipliers mapping (Zero duplication)
+            text_lower = text.lower()
+            amharic_numeral_map = {
+                "፩": 1, "፪": 2, "፫": 3, "፬": 4, "፭": 5, "፮": 6, "፯": 7, "፰": 8, "፺": 9,
+                "፲": 10, "፳": 20, "፴": 30, "፵": 40, "፶": 50, "፷": 60, "፸": 70, "፹": 80, "፺": 90,
+                "፻": 100, "ሺ": 1000, "ሺህ": 1000, "ሚሊዮን": 1000000, "m": 1000000, "k": 1000
+            }
+            for key, multiplier in amharic_numeral_map.items():
+                if key in text_lower:
+                    val *= multiplier
+                    break
+            return val
         except (ValueError, TypeError):
             return 0.0
 
@@ -691,7 +642,14 @@ class SmartProductExtractor:
             return "0900000000"
         m = ScraperConfig.PHONE_RE.search(text)
         if m:
-            return re.sub(r"[^\d+]", "", m.group(0))
+            clean_phone = re.sub(r"[^\d+]", "", m.group(0))
+            # Standardise local phone numbers (Deduplicated logic)
+            if clean_phone.startswith('0'):
+                clean_phone = '251' + clean_phone[1:]
+            elif clean_phone.startswith('+'):
+                clean_phone = clean_phone.replace('+', '')
+            return clean_phone
+            
         m = ScraperConfig.TELEGRAM_RE.search(text)
         if m:
             return m.group(0)
@@ -757,16 +715,12 @@ class ScrapperEngine:
         self.metrics = ScraperMetrics()
         self.session_counter = 0
 
-    # ------------------------------------------------------------------
-    #  Public API
-    # ------------------------------------------------------------------
     @classmethod
     def scrape(cls, url: str, use_playwright: Optional[bool] = None) -> Optional[str]:
         inst = cls()
         if not url:
             return None
 
-        # Normalise URL for cache key consistency
         norm_url = url.rstrip("/")
         scrapeops_key = os.getenv('SCRAPEOPS_API_KEY', '').strip()
         use_scrapeops = bool(scrapeops_key) and not _is_telegram(norm_url)
@@ -774,7 +728,6 @@ class ScrapperEngine:
         if use_playwright is None:
             use_playwright = not use_scrapeops
 
-        # Metrics (guarded)
         try:
             inst.metrics.total_attempts += 1
             inst.metrics.last_scrape_time = datetime.now()
@@ -802,7 +755,6 @@ class ScrapperEngine:
 
         html: Optional[str] = None
 
-        # 1️⃣ ScrapeOps proxy
         if use_scrapeops:
             try:
                 logger.info("[Scraper] Routing via ScrapeOps proxy")
@@ -813,14 +765,13 @@ class ScrapperEngine:
             except Exception as e:
                 logger.warning(f"[Scraper] ScrapeOps failed: {e}")
 
-        # 2️⃣ Playwright fallback (if installed)
         playwright_installed = False
         if use_playwright and not use_scrapeops:
             try:
                 if os.path.isdir(ScraperConfig.BROWSER_PATH) and os.listdir(ScraperConfig.BROWSER_PATH):
                     playwright_installed = True
                 else:
-                    import playwright  # noqa: F401
+                    import playwright
                     playwright_installed = True
             except Exception:
                 pass
@@ -828,11 +779,9 @@ class ScrapperEngine:
         if not html and playwright_installed:
             html = inst._scrape_with_playwright(norm_url)
 
-        # 3️⃣ Simple Requests fallback
         if not html:
             html = inst._scrape_with_requests(norm_url)
 
-        # Metrics & caching
         if html:
             try:
                 inst.metrics.successful_scrapes += 1
@@ -850,9 +799,6 @@ class ScrapperEngine:
 
         return html
 
-    # ------------------------------------------------------------------
-    #  Async Playwright execution in a dedicated thread
-    # ------------------------------------------------------------------
     def _run_async_in_new_thread(self, coro):
         result = [None]
         exc = [None]
@@ -878,6 +824,16 @@ class ScrapperEngine:
         return result[0]
 
     def _scrape_with_playwright(self, url: str) -> Optional[str]:
+        # 🛡️ RENDER Performance Safeguard: Disable heavy browser launch under high CPU load average
+        try:
+            load_avg = os.getloadavg()[0]
+        except (AttributeError, OSError, Exception):
+            load_avg = 0.5
+            
+        if load_avg > 1.5:
+            logger.warning(f"⚠️ CPU Load is heavy ({load_avg:.2f}). Playwright launch bypassed to protect RAM.")
+            return None
+
         try:
             return self._run_async_in_new_thread(self._async_playwright_fetch(url))
         except Exception as e:
@@ -924,9 +880,6 @@ class ScrapperEngine:
             await browser.close()
             return content
 
-    # ------------------------------------------------------------------
-    #  Simple Requests fallback  (429 / Retry‑After aware)
-    # ------------------------------------------------------------------
     def _scrape_with_requests(self, url: str) -> Optional[str]:
         try:
             headers = FingerprintEvasion.get_headers(url, _is_telegram(url))
@@ -937,7 +890,6 @@ class ScrapperEngine:
             if res.status_code == 429:
                 logger.warning(f"[Scraper] Rate limited (429) on {url}")
                 self.rate_limiter.record_failure()
-                # Honour Retry‑After when provided, else exponential jitter
                 retry_after = res.headers.get("Retry-After")
                 try:
                     wait = float(retry_after) if retry_after else random.uniform(8, 15)
@@ -948,9 +900,6 @@ class ScrapperEngine:
             logger.warning(f"[Scraper] Requests error for {url}: {e}")
         return None
 
-    # ------------------------------------------------------------------
-    #  High‑level scrape‑and‑extract
-    # ------------------------------------------------------------------
     @classmethod
     def scrape_and_extract(cls, url: str) -> List[Dict]:
         html = cls.scrape(url)
@@ -962,9 +911,6 @@ class ScrapperEngine:
             cls()._save_report(report)
         return products
 
-    # ------------------------------------------------------------------
-    #  Diagnostic helpers (lightweight)
-    # ------------------------------------------------------------------
     def _generate_diagnostic_report(self, url: str, html: Optional[str]) -> Dict:
         domain = urlparse(url).netloc.lower()
         return {
@@ -994,9 +940,6 @@ class ScrapperEngine:
         except Exception as e:
             logger.debug(f"[Scraper] Failed to write diagnostic report: {e}")
 
-    # ------------------------------------------------------------------
-    #  Public metrics accessor
-    # ------------------------------------------------------------------
     @classmethod
     def get_metrics(cls) -> Dict:
         inst = cls()

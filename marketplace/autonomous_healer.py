@@ -1,20 +1,19 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/autonomous_healer.py
-# 📝 ዓላማ፦ Autonomous Healing Orchestrator (v10.49)
-# ✅ የተፈቱ ችግሮች፦ Dynamic path resolution for all target files, markdown code-fence sanitization, circular reference safety via django.apps dynamic model loader, and prevention of infinite retry loops to save AI tokens.
+# 📝 ዓላማ፦ Autonomous Healing Coordinator (The Planner)
+# ✅ ዝማኔ፦ Code deployment, compilation checking, and rollbacks 100% delegated to code_apply.py (The sole Executor). Added Experiential Failure Memory retrieval from VectorMemory, and a 2-attempt dynamic prompt mutation retry loop to prevent infinite loops (v10.50).
 # 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 import os
 import re
-import ast
 import logging
+import json
 from django.conf import settings
-from django.apps import apps # 🛡️ FIXED: dynamic model loader to prevent circular imports
-from .code_apply import apply_code_change
-from .ai_utils import ask_master_ai_smart
+from django.apps import apps
 
 logger = logging.getLogger(__name__)
+
 
 def resolve_target_file_path(site, target_file: str) -> str:
     """
@@ -53,7 +52,6 @@ def extract_pure_code(text: str) -> str:
     if not text:
         return ""
     
-    # የማርክዳውን ኮድ መክፈቻዎችን (Fences) መፈለግ
     match = re.search(r'```python\s*([\s\S]*?)```', text, re.IGNORECASE)
     if match:
         return match.group(1).strip()
@@ -67,35 +65,42 @@ def extract_pure_code(text: str) -> str:
 
 def execute_autonomous_healing_cycle(site):
     """
-    ይህ ሞጁል በስርዓቱ የተመዘገቡ ስህተቶችን በዳይናሚክ መንገድ ይለያል፣ በ AI መፍትሄ ያመነጫል፣ 
-    እና ኮዱን በደህንነት ለመተግበር ወደ code_apply.py ይልካል።
+    በስርዓቱ የተመዘገቡ ስህተቶችን በዳይናሚክ መንገድ ይለያል፣ በ RAG ታሪክ መሠረት ፕሮምፕቱን ያዘጋጃል፣ 
+    እና ኮዱን በደህንነት ለመተግበር 100% ወደ code_apply.py በውክልና ያስተላልፋል (The Planner)።
     """
-    # 🛡️ FIXED: Django Apps Registry በመጠቀም ሞዴሉን በዳይናሚክ መንገድ መጫን (Circular import safety)
+    # 🛡️ DYNAMIC MODEL LOADER: የክብ ጥገኝነት ጥሪን መከላከያ
     AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
+    VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+    
+    if not AIProjectBacklog:
+        return
 
-    # 1. አዳዲስ መፍትሄ የሚጠይቁ ሁሉንም ታስኮች ለይ (🛡️ Dynamic File Scope)
-    # scrapper_engine ብቻ ሳይሆን ማንኛውንም የተበላሸ ፋይል (views, models, urls, etc.) እንዲያስተካክል ተደርጓል
+    # 🛡️ DYNAMIC FUNCTION IMPORTS: ዑደቱ በሚጀምርበት ጊዜ ብቻ ፋይሎቹን መጫን
+    from .ai_utils import ask_master_ai_smart, clean_and_parse_json
+    from .code_apply import apply_code_change
+
+    # 1. አዳዲስ መፍትሄ የሚጠይቁ ሁሉንም የጥገና ታስኮች ለይ
     pending_tasks = AIProjectBacklog.objects.filter(
         site=site, 
         status="Pending", 
-        task_name__icontains="EMERGENCY" # ወይም critical የሆኑ የጥገና ታስኮችን ለይቶ ለማስኬድ
+        task_name__icontains="EMERGENCY"
     ) | AIProjectBacklog.objects.filter(
         site=site, 
         status="Pending", 
-        task_type="code_repair" # የጥገና ስራዎችን ለመለየት
+        task_type="code_repair"
     ) | AIProjectBacklog.objects.filter(
         site=site, 
         status="Pending", 
-        target_file="scrapper_engine" # ለተኳሃኝነት ሲባል
+        target_file="scrapper_engine"
     )
 
     pending_tasks = pending_tasks.distinct()
     
     if not pending_tasks.exists():
-        logger.info("Healer: No pending tasks found. System stable.")
+        logger.info("Healer Coordinator: No pending repair tasks found. System stable.")
         return
 
-    logger.info(f"Healer: Found {pending_tasks.count()} tasks. Starting healing cycle...")
+    logger.info(f"Healer Coordinator: Found {pending_tasks.count()} tasks. Starting planning cycle...")
 
     for task in pending_tasks:
         try:
@@ -103,57 +108,111 @@ def execute_autonomous_healing_cycle(site):
             task.status = "Running"
             task.save()
             
-            # 3. የፋይል አቅጣጫውን በዳይናሚክ መንገድ መወሰን (Dynamic File Resolver)
             target_file = task.target_file or "scrapper_engine"
             target_path = resolve_target_file_path(site, target_file)
             
             current_code = ""
             if os.path.exists(target_path):
-                with open(target_path, "r", encoding="utf-8") as f:
-                    current_code = f.read()
-            else:
-                logger.warning(f"Healer: Target file {target_path} not found. Creating a fresh file...")
+                try:
+                    with open(target_path, "r", encoding="utf-8") as f:
+                        current_code = f.read()
+                except Exception as r_err:
+                    logger.warning(f"Healer could not read target file: {r_err}")
 
-            # 4. መፍትሄ በ AI አመንጭ
-            prompt = f"""
-            CRITICAL REPAIR TASK: {task.task_name}
-            File to modify: {target_file} (Full Path: {target_path})
-            Requirement: {task.description}. 
-            
-            Below is the current content of the file:
-            {current_code}
-            
-            Please rewrite/fix this file. Write the complete, syntactically valid code.
-            """
-            ai_response = ask_master_ai_smart(prompt, task_type="code_repair")
-            
-            # 🛡️ 5. ኮዱን ከማርክዳውን ማጽዳት (Markdown Code-fence Stripper)
-            fixed_code = extract_pure_code(ai_response)
+            # 🛡️ EXPERIENTIAL LEARNING: ከዚህ ቀደም ያጋጠሙ ውድቀቶችን ከ RAG ማስታወሻ መሳብ
+            past_failed_patches = []
+            if VectorMemory:
+                try:
+                    failures = VectorMemory.objects.filter(site=site, memory_type='failed_attempt').order_by('-id')[:2]
+                    past_failed_patches = [f.content for f in failures]
+                except Exception:
+                    pass
 
-            # 6. መፍትሄውን ወደ code_apply.py ላክ (የመጨረሻው እና ብቸኛው መተግበሪያ)
-            if fixed_code and len(fixed_code.strip()) > 10:
-                result = apply_code_change(
-                    site=site,
-                    file_key=target_file,
-                    new_content=fixed_code,
-                    reason=f"Auto-Heal Task ID: {task.id} - {task.description}",
-                    path=target_path,
-                    backlog_task=task,
-                    push_to_github=True # አውቶማቲክ Deployment እንዲቀሰቀስ
-                )
+            attempts = 0
+            success = False
+            last_error_msg = ""
+
+            # 🔄 PROMPT MUTATION RETRY LOOP: በተከታታይ የኤአይ አቅራቢዎችን እና መመሪያዎችን የመቀየር ዑደት
+            while attempts < 2 and not success:
+                attempts += 1
                 
-                if result.get('success'):
-                    logger.info(f"✅ Healer: Task {task.id} successfully healed and applied to {target_file}.")
+                # የመጀመሪያው ሙከራ ከከሸፈ ስህተቱን ለቀጣዩ ኤአይ በመስጠት ፕሮምፕቱን ይቀይረዋል (Mutation)
+                if attempts > 1 and last_error_msg:
+                    prompt = (
+                        f"REPAIR RETRY LOOP (Attempt {attempts}/2):\n"
+                        f"Task: {task.task_name}\n"
+                        f"File to modify: {target_file} (Full Path: {target_path})\n"
+                        f"Our previous attempt failed with compile or runtime error: '{last_error_msg}'.\n"
+                        f"Please fully repair and refactor the code to fix this issue completely.\n"
+                        f"Return JSON with key 'code' containing only the corrected and tested python snippet."
+                    )
                 else:
-                    # 🛡️ ቶከን መቆጠቢያ፦ ጥገናው ካልተሳካ ታስክን ወደ Blocked በመቀየር ድጋሚ የማይቆም ሉፕ (Infinite loop) ውስጥ እንዳይገባ መከላከል
-                    task.status = "Blocked"
-                    task.save()
-                    logger.error(f"❌ Healer: Application failed: {result.get('message')}")
-            else:
-                raise Exception("AI response was empty or invalid.")
+                    prompt = (
+                        f"CRITICAL REPAIR TASK:\n"
+                        f"Task: {task.task_name}\n"
+                        f"File to modify: {target_file} (Full Path: {target_path})\n"
+                        f"Requirement: {task.description}.\n\n"
+                        f"Current File Content:\n{current_code}\n\n"
+                        f"CRITICAL (Do not generate code that matches these past failed approaches): {json.dumps(past_failed_patches, ensure_ascii=False)}\n"
+                        f"Write the optimal, syntactically valid code. Return JSON with key 'code' containing only the code."
+                    )
+
+                # መፍትሄ በ AI router በኩል በደህንነት አመንጭ
+                try:
+                    ai_response = ask_master_ai_smart(prompt, task_type="coding", task=task)
+                    res_data = clean_and_parse_json(ai_response)
+                    fixed_code = res_data.get('code', '') if res_data else ""
+                    if not fixed_code:
+                        fixed_code = extract_pure_code(ai_response)
+                except Exception as ai_err:
+                    last_error_msg = f"AI response generation failed: {ai_err}"
+                    continue
+
+                if fixed_code and len(fixed_code.strip()) > 10:
+                    # 🛡️ DELEGATION GATES: የኮድ ፍተሻ፣ መጻፍ፣ ቼክ እና ሮልባክ ሥራን በሙሉ ለ code_apply.py ውክልና መስጠት
+                    logger.info(f"Healer Coordinator: Delegating code deployment of {target_file} to code_apply...")
+                    
+                    # በታስኩ ርዕስ/መግለጫ ውስጥ ደቂቅ ቀዶ-ጥገና የሚጠይቅ ፈንክሽን ወይም ክላስ ካለ መለየት
+                    surgical_target = None
+                    match_node = re.search(r'(?:class|def)\s+([a-zA-Z0-9_]+)', task.description)
+                    if match_node:
+                        surgical_target = match_node.group(1)
+
+                    result = apply_code_change(
+                        site=site,
+                        file_key=target_file,
+                        new_content=fixed_code,
+                        reason=f"Healer Task ID: {task.id} - {task.task_name}",
+                        backlog_task=task,
+                        target_name=surgical_target
+                    )
+
+                    if result.get('success'):
+                        success = True
+                        logger.info(f"✅ Healer Coordinator: Task {task.id} successfully healed and applied via code_apply on {target_file}.")
+                    else:
+                        last_error_msg = result.get('message', 'Unknown application failure')
+                        logger.warning(f"⚠️ Healer Coordinator: Application attempt {attempts} failed: {last_error_msg}")
+                else:
+                    last_error_msg = "Generated code was empty or invalid"
+
+            if not success:
+                # 🛡️ EXPERIENTIAL LEARNING: ታስኩ ሙሉ በሙሉ ከከሸፈ ውድቀቱን በ RAG ማህደረ-ትውስታ ውስጥ መመዝገብ
+                if VectorMemory:
+                    try:
+                        VectorMemory.objects.create(
+                            site=site,
+                            memory_type='failed_attempt',
+                            content=f"File: {target_file} failed to heal. Last error: {last_error_msg}",
+                            success_rate=0.0
+                        )
+                    except Exception: pass
+
+                task.status = "Blocked"
+                task.save()
+                logger.error(f"❌ Healer Coordinator: Task {task.id} is blocked after exhaustively failing retries. Error: {last_error_msg}")
 
         except Exception as e:
             logger.error(f"Healer: Critical error in task {task.id}: {e}")
-            # አደገኛ ስህተት ሲፈጠር ታስክን ወደ Blocked በመቀየር የቁልፍ ቶከኖችን መባከን መከላከል
             task.status = "Blocked"
             task.save()

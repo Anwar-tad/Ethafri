@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/sync_translations.py
-# 📝 ዓላማ፦ Safe & Intelligent Translation Sync Command (v10.19 - Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Lazy-loading of marketplace modules to eliminate early boot-time AppRegistryNotReady crashes, upgraded connection cleanup with connections.close_all() to prevent DB leaks, and polib safe import shielding.
+# 📝 ዓላማ፦ Safe & Intelligent Translation Sync Command (v10.20)
+# ✅ የተፈቱ ችግሮች፦ Dynamic apps model registry upgraded, SiteRegistry registry check added in handle() to prevent unmigrated database crashes, and experiential failure memory logging added on translation sync failures (v10.20).
 # 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
@@ -10,13 +10,13 @@ import json
 import shutil
 import logging
 import re
-import time  # 429 Rate Limit ለመከላከል መኝታ (Pacing) የተጨመረበት
+import time
 
 from django.core.management.base import BaseCommand, CommandError
 from django.core.management import call_command
 from django.conf import settings
 from django.apps import apps
-from django.db import connections # 🛡️ connections እዚህ ተጨምሯል
+from django.db import connections
 from typing import Dict, List, Optional, Union, Any
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,6 @@ def ask_ai_with_failover(prompt, pool_type="translation", expected_keys=None):
     """
     [Dependency Resolver] በልዩ ሁኔታ የተዘጋጀውን የትርጉም ሥራ ወደ ai_utils.ask_master_ai_smart ያዞራል (Lazy Loaded)
     """
-    # 🛡️ FIXED: settings.py ወይም uvicorn በሚነሳበት ወቅት የሚፈጠረውን የ AppRegistryNotReady ስህተትን ለመከላከል Lazy-loading [1]
     from marketplace.ai_utils import ask_master_ai_smart
     return ask_master_ai_smart(prompt, task_type="translation")
 
@@ -66,6 +65,11 @@ class Command(BaseCommand):
 
         # 2. የሞዴል ተለዋዋጭ ጭነት (Registry Safety)
         SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
+
+        # 🛡️ FIXED: Safety guard when registry load fails to prevent AttributeErrors on startup [1]
+        if not SiteRegistry:
+            self.stdout.write(self.style.WARNING("⚠️ Command: Delayed execution as models are not fully registered yet."))
+            return
 
         site_name = kwargs.get('site')
         all_sites = kwargs.get('all_sites')
@@ -116,7 +120,6 @@ class Command(BaseCommand):
                 logger.error(f"❌ Critical error in Translation Sync: {e}")
                 self.stdout.write(self.style.ERROR(f"Error: {e}"))
         finally:
-            # 🧹 የዳታቤዝ ግንኙነቶችን መልቀቅ (Multi-Thread Safe release)
             try:
                 connections.close_all()
             except Exception:
@@ -206,7 +209,6 @@ class Command(BaseCommand):
                 else:
                     self.stdout.write(self.style.ERROR(f"❌ Batch request failed or returned invalid schema."))
 
-                # DYNAMIC API PACING: የ 24-ሰዓት የ AI ኮታ መቆለፊያን ለመከላከል በእያንዳንዱ ጥሪ መካከል መኝታ
                 time.sleep(1.5)
 
             po.save()
@@ -276,7 +278,6 @@ class Command(BaseCommand):
                                 entry.msgstr = str(translated_text).strip()
                                 count += 1
                 
-                # DYNAMIC API PACING: የ 24-ሰዓት የ AI ኮታ መቆለፊያን ለመከላከል በእያንዳንዱ ጥሪ መካከል መኝታ
                 time.sleep(1.5)
             
             po.save()
@@ -285,3 +286,15 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"  ✅ {count} {lang_name} translations compiled for {site.name}"))
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"  ❌ Error saving {lang_name} for {site.name}: {e}"))
+                
+                # 🛡️ EXPERIENTIAL LEARNING: የትርጉም ማጠናቀሪያ ውድቀትን በታሪክ መዝገብ ውስጥ መመዝገብ (የመማር ሎጂክ)
+                VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+                if VectorMemory:
+                    try:
+                        VectorMemory.objects.create(
+                            site=site,
+                            memory_type='failed_attempt',
+                            content=f"Translation sync failed for site {site.name} on language {lang_name} with error: {str(e)}",
+                            success_rate=0.0
+                        )
+                    except Exception: pass

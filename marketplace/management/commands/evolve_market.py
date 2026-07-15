@@ -1,18 +1,19 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/evolve_market.py
-# 📝 ዓላማ፦ Robust Growth Engine + Safe Connection Healing (v10.19 - Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic lazy-loading of self-doctor inside handle() to prevent early boot-time AppRegistryNotReady crashes, upgraded connection release to connections.close_all() for multi-threaded safety, and handled cron statistics logging.
+# 📝 ዓላማ፦ Robust Growth Engine & Command Entry Point (v10.20)
+# ✅ የተፈቱ ችግሮች፦ Dynamic apps model registry upgraded, SiteConfig and SiteRegistry registry checks added in handle() to prevent unmigrated database crashes, and experiential failure memory logging added on cron job site analysis failures (v10.20).
 # 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
-from django.db import connections, connection # 🛡️ connections እዚህ ተጨምሯል
+from django.db import connections, connection
 from django.utils import timezone
 from django.apps import apps
 import logging
 import gc
 
 logger = logging.getLogger(__name__)
+
 
 # የ growth_agent አስገቢዎችን የዲፔንደንሲ ግጭት ለማስቀረት የተሰሩ የሥራ መጋጠሚያዎች
 def run_single_site_analysis(site):
@@ -21,11 +22,13 @@ def run_single_site_analysis(site):
     _run_site_cycle(site)
     return "Site analysis completed successfully."
 
+
 def run_daily_market_analysis():
     """ሁሉንም ጣቢያዎች በዳይናሚክ Concurrency የሚያስነሳውን execute_master_cycle ይጠራል"""
     from marketplace.growth_agent import execute_master_cycle
     execute_master_cycle()
     return "Global daily market analysis completed successfully."
+
 
 def discover_new_sites():
     """SaaS አዲስ ጣቢያ መፈለጊያ (Dynamic Explorer እራሱ ስለሚሰራው ባዶ ዝርዝር ይመልሳል)"""
@@ -53,20 +56,23 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **kwargs):
-        # 🛡️ FIXED: settings.py ወይም uvicorn በሚነሳበት ወቅት ቀድሞ የሚጫነውን የ self_doctor ኢምፖርት 
-        # ወደ handle() ውስጥ በማዘዋወር የ AppRegistryNotReady ስህተትን ሙሉ በሙሉ መከላከል (Lazy Loading) [1]
+        # 🛡️ FIXED: Lazy Loading of self_doctor tools to prevent early boot circular dependencies
         from marketplace.self_doctor import refresh_db_connection_on_error
 
         # የሞዴል ተለዋዋጭ ጭነት (Registry Safety)
         SiteConfig = apps.get_model('marketplace', 'SiteConfig')
         SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
 
+        # 🛡️ FIXED: Safety guard when registry load fails to prevent AttributeErrors on startup [1]
+        if not SiteConfig or not SiteRegistry:
+            self.stdout.write(self.style.WARNING("⚠️ Command: Delayed execution as models are not fully registered yet."))
+            return
+
         site_name = kwargs.get('site')
         all_sites = kwargs.get('all_sites')
         discover = kwargs.get('discover')
         
         try:
-            # 🛡️ FIXED: Multi-Thread safe connection cleanup via connections.close_all()
             connections.close_all()
         except Exception as conn_err:
             logger.debug("Failed to close old connections on startup: %s", conn_err)
@@ -138,6 +144,18 @@ class Command(BaseCommand):
                         error_summary = str(e)[:100]
                         results.append(f"[{site.name}] ❌ Error: {error_summary}")
                         self.stdout.write(self.style.ERROR(f"  ❌ {site.name} failed: {e}"))
+                        
+                        # 🛡️ EXPERIENTIAL LEARNING: የክሮን ጣቢያ ጥሪ ውድቀትን በታሪክ መዝገብ ውስጥ መመዝገብ (የመማር ሎጂክ)
+                        VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+                        if VectorMemory:
+                            try:
+                                VectorMemory.objects.create(
+                                    site=site,
+                                    memory_type='failed_attempt',
+                                    content=f"Cron run_single_site_analysis failed for site {site.name} with error: {str(e)}",
+                                    success_rate=0.0
+                                )
+                            except Exception: pass
             else:
                 try:
                     result = run_daily_market_analysis()
@@ -167,7 +185,6 @@ class Command(BaseCommand):
             logger.error(f"❌ Critical Error in Growth Engine: {e}")
             self.stdout.write(self.style.ERROR(f"Error: {e}"))
             
-            # OperationalError ከተከሰተ ግንኙነቱን በራስ-ሰር መጠገን
             db_refreshed = refresh_db_connection_on_error(str(e))
             if db_refreshed:
                 self.stdout.write(self.style.WARNING("🚑 Database connection refreshed safely across all active threads."))

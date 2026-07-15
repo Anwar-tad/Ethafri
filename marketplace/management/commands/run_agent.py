@@ -1,12 +1,12 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/run_agent.py
-# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with CPU-Load Adaptive Pacing (v10.19 - Hardened Healing Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic lazy-loading of system modules inside handle() to prevent early boot-time AppRegistryNotReady crashes, decoupled network connectivity checker from growth_agent.py, and fully transitioned to connections.close_all() for thread-safe DB releases.
+# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with CPU-Load Adaptive Pacing (v10.20)
+# ✅ የተፈቱ ችግሮች፦ Dynamic apps model registry upgraded, AIProjectBacklog registry check added in handle() to prevent unmigrated database crashes, and experiential failure memory logging added on daemon loop fatal exceptions (v10.20).
 # 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
-from django.db import connections, connection, reset_queries # 🛡️ connections እዚህ ተጨምሯል
+from django.db import connections, connection, reset_queries
 from django.utils import timezone
 from django.apps import apps
 import logging
@@ -52,8 +52,7 @@ class Command(BaseCommand):
         )
     
     def handle(self, *args, **kwargs):
-        # 🛡️ FIXED: settings.py ወይም uvicorn በሚነሳበት ወቅት ቀድመው የሚጫኑትን የአናት-ደረጃ የኤጀንት ሞጁሎች ኢምፖርት 
-        # ወደ handle() ውስጥ በማዘዋወር የ AppRegistryNotReady ስህተትን ሙሉ በሙሉ መከላከል (Lazy Loading) [1]
+        # 🛡️ FIXED: Lazy Loading of agent and doctor modules inside handle()
         from marketplace.growth_agent import execute_master_cycle
         from marketplace.ai_utils import broadcast_agent_log
         from marketplace.self_doctor import refresh_db_connection_on_error
@@ -108,7 +107,12 @@ class Command(BaseCommand):
                                 self.stdout.write(self.style.WARNING("🌐 Network is offline. Slow-pacing active (1800s sleep to save tokens)..."))
                                 broadcast_agent_log(None, "Pacing Alert: Server is offline. Sleeping for 30 minutes.", "warning")
                             else:
-                                has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
+                                # 🛡️ FIXED: Safety guard when registry load fails to prevent AttributeErrors on startup [1]
+                                if AIProjectBacklog:
+                                    has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
+                                else:
+                                    has_pending = False
+                                    
                                 if has_pending:
                                     sleep_duration = 30  # የሚሰሩ ስራዎች ካሉ በፍጥነት በየ30 ሰከንዱ ይነሳል
                                     self.stdout.write(self.style.NOTICE("⚡ Backlog has pending tasks. Fast-pacing active (30s sleep)..."))
@@ -130,7 +134,18 @@ class Command(BaseCommand):
                 logger.error(f"❌ Fatal Agent Loop Exception: {e}", exc_info=True)
                 self.stdout.write(self.style.ERROR(f"Fatal Loop Error: {e}"))
                 
-                # 🛡️ FIXED: OperationalError ከተከሰተ በራስ-ሰር ሪፍሬሽ በማድረግ ግንኙነቱን መጠገን
+                # 🛡️ EXPERIENTIAL LEARNING: የዴሞን ሉፕ መቆራረጥ ውድቀትን በታሪክ መዝገብ ውስጥ መመዝገብ (የመማር ሎጂክ)
+                VectorMemory = apps.get_model('marketplace', 'VectorMemory')
+                if VectorMemory:
+                    try:
+                        VectorMemory.objects.create(
+                            site=None,
+                            memory_type='failed_attempt',
+                            content=f"24/7 Agent Daemon Loop failed with exception: {str(e)}",
+                            success_rate=0.0
+                        )
+                    except Exception: pass
+
                 db_refreshed = refresh_db_connection_on_error(str(e))
                 if db_refreshed:
                     self.stdout.write(self.style.WARNING("🚑 Database connection refreshed safely across all active threads."))

@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/feature_evolution.py
-# 📝 ስሪት፦ v10.52 (Dynamic Self-Evolution Engine - Hardened R&D Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading to prevent AppRegistryNotReady, integrated 12-hour pacing cooldown to protect free API keys, token-optimized codebase context scanner (slices to 2000 chars), and circular-import free design.
-# 📅 ቀን፦ Monday, July 13, 2026
+# 📝 ስሪት፦ v10.54 (Dynamic Self-Evolution Engine - Spy-to-Evolution Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading to prevent AppRegistryNotReady, integrated 12-hour pacing cooldown, token-optimized codebase context scanner, and dynamic RAG Competitor Spying (Spy-to-Evolution Loop) integration to organically discover gaps and prioritize tasks (v10.54).
+# 📅 ቀን፦ Wednesday, July 15, 2026
 # ============================================================
 
 import os
@@ -17,7 +17,9 @@ from django.conf import settings
 from django.db import connections
 from django.apps import apps
 from typing import Dict, List, Optional, Union, Any
+
 logger = logging.getLogger(__name__)
+
 
 # ============================================================
 # 🛡️ 1. TOKEN-OPTIMIZED CODEBASE CONTEXT SCANNER
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 def _scan_local_marketplace_code(site) -> Dict[str, str]:
     """
     የስርዓቱን አሁናዊ የኮድ ይዘት በከፊል በመቃኘት (ቶከን ለመቆጠብ ለእያንዳንዱ ፋይል ቢበዛ 
-    የመጀመሪያዎቹን 2000 ፊደላት ብቻ በመውሰድ) ለ AI CTO አርክቴክት መረጃ ያዘጋጃል [1]
+    የመጀመሪያዎቹን 2000 ፊደላት ብቻ በመውሰድ) ለ AI CTO አርክቴክት መረጃ ያዘጋጃል
     """
     base_dir = str(settings.BASE_DIR)
     app_name = 'marketplace'
@@ -67,7 +69,7 @@ def _scan_local_marketplace_code(site) -> Dict[str, str]:
 
 
 # ============================================================
-# 🧬 2. FEATURE EVOLUTION ENGINE
+# 🧬 2. FEATURE EVOLUTION ENGINE (THE PLANNER)
 # ============================================================
 class FeatureEvolutionEngine:
     """የኤጀንቱን የኮድ ይዘት እና ብቃት በ AI አማካኝነት በዳይናሚክ መንገድ የሚያሳድግ ዋና ሎጂክ"""
@@ -76,14 +78,18 @@ class FeatureEvolutionEngine:
         self.site = site
 
     def evolve(self):
-        """የእድገት ዑደቱን ያስፈጽማል (የባክሎግ ታስኮችን በመቃኘት አዳዲስ ፊቸሮችን ያስተዋውቃል)"""
+        """የእድገት ዑደቱን ያስፈጽማል (የተፎካካሪ ስለላ ታሪክን ከአሁኑ ኮድ ጋር በማወዳደር ክፍተቶችን ይለያል)"""
         logger.info(f"🧬 FeatureEvolution: Initializing R&D evolution cycle for site '{self.site.name}'...")
         
         # የክብ ጥገኝነትን በዘላቂነት ለመከላከል ሞዴሎችን በዳይናሚክ መጫን
         SiteConfig = apps.get_model('marketplace', 'SiteConfig')
         AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
         Product = apps.get_model('marketplace', 'Product')
+        VectorMemory = apps.get_model('marketplace', 'VectorMemory')
         
+        if not SiteConfig or not AIProjectBacklog:
+            return
+
         cooldown_key = f"LAST_SELF_EVOLUTION_GEN_{self.site.name}"
         last_gen = SiteConfig.objects.filter(key=cooldown_key).first()
         
@@ -94,13 +100,12 @@ class FeatureEvolutionEngine:
                 if timezone.is_naive(last_time):
                     last_time = timezone.make_aware(last_time)
                 if timezone.now() - last_time < timedelta(hours=12):
-                    logger.info(f"🧬 FeatureEvolution: Engine is on 12-hour cooldown for site '{self.site.name}'. Skipping generation to save API tokens.")
+                    logger.info(f"🧬 FeatureEvolution: Engine is on 12-hour cooldown. Skipping generation to save API tokens.")
                     return
             except Exception as e:
                 logger.warning(f"Error parsing evolution timestamp: {e}")
 
         # 1. በዳታቤዝ ውስጥ አስቀድሞ 'Pending' የሆኑ የኮድ ስራዎች ካሉ አዲስ ፊቸር አለመፍጠር
-        # ይህ ኤጀንቱ ያሉትን ስራዎች ሳይጨርስ አዳዲስ ታስኮችን በመፍጠር ባክሎጉን እንዳያጨናንቅ ይከላከላል
         existing_pending = AIProjectBacklog.objects.filter(
             site=self.site, 
             status='Pending',
@@ -116,9 +121,26 @@ class FeatureEvolutionEngine:
         
         # 3. የድረ-ገጹን ምርቶች ብዛት መረጃ ማካተት
         try:
-            products_count = Product.objects.filter(site=self.site, is_active=True).count()
+            products_count = Product.objects.filter(site=self.site, is_active=True).count() if Product else 0
         except Exception:
             products_count = 0
+
+        # 🛡️ SPY-TO-EVOLUTION: የቅርብ ጊዜዎቹን የተፎካካሪ ስለላ መረጃዎች ከ RAG ማስታወሻ መሳብ
+        competitor_insights = []
+        if VectorMemory:
+            try:
+                insights = VectorMemory.objects.filter(site=self.site, memory_type='insight').order_by('-id')[:5]
+                competitor_insights = [i.content for i in insights]
+            except Exception as e:
+                logger.debug(f"Failed to query competitor insights: {e}")
+
+        # መረጃዎች ባዶ ከሆኑ እንደ መጠባበቂያ መሠረታዊ የገበያ ግቦችን መጠቀም
+        if not competitor_insights:
+            competitor_insights = [
+                "Trending features from Jumia: Advanced product filtering by category/price.",
+                "Competitor benchmark: Secure seller panel to edit and deactivate listings dynamically.",
+                "Local trend: Instant search suggestions in Amharic on home page."
+            ]
             
         system_summary = {
             "niche": self.site.niche or "general",
@@ -129,17 +151,26 @@ class FeatureEvolutionEngine:
 
         logger.info(f"🧠 FeatureEvolution: Asking Master AI CTO to architect the next optimal feature...")
 
+        # 🛡️ ራስ-ገዝ ክፍተት ፍለጋ የቅደም-ተከተል መመሪያ (Symmetric Blueprint & Gap Analysis Rules)
         prompt = f"""
         Act as an Enterprise AI Chief Technology Officer (CTO). 
         Our dynamic Django 4/5 marketplace system state is: {json.dumps(system_summary, ensure_ascii=False)}
         
         Here are code snippet summaries for context (imports and class definitions):
         {json.dumps(code_context, ensure_ascii=False)}
+
+        We recently scraped competitors and discovered these highly requested features:
+        {json.dumps(competitor_insights, ensure_ascii=False)}
         
-        Please identify exactly ONE highly optimized, advanced, and non-redundant business feature 
-        that would drastically improve UX, SEO, Page-load Speed, or Revenue for our niche '{self.site.niche}'.
+        Your task is to identify exactly ONE missing business feature in our codebase from the scraped list. 
+        Rank the missing features by strict priority guidelines:
+        1. Priority 1 (Critical): Core product and seller operations (e.g. Seller panel to edit/deactivate listings).
+        2. Priority 2 (High): Search, advanced filters (price range, region), categories, or UX optimizations.
+        3. Priority 3 (Medium): Secondary marketing or social share tools.
         
-        Format Requirement: You MUST return the result strictly in a JSON format with exactly one key 'architected_feature' containing:
+        Check the current codebase context. If we already have a class or view that satisfies Priority 1, organically move to Priority 2, and so on. Never generate a task for a feature that is already present in our code.
+        
+        Format Requirement: Return strictly in JSON format with exactly one key 'architected_feature':
         {{
             "task_name": "🧠 SELF-EVOLUTION: [A short descriptive name of the advanced feature]",
             "target_file": "[The file to insert the code, e.g. 'views', 'models', 'urls', 'forms']",
@@ -157,7 +188,7 @@ class FeatureEvolutionEngine:
             feature = data.get('architected_feature') if data else None
             
             if feature and isinstance(feature, dict) and feature.get('task_name'):
-                task_name = feature['task_name'][:200] # PostgreSQL character limit
+                task_name = feature['task_name'][:200]
                 
                 # በስህተት ተደጋገሚ ታስክ እንዳይፈጠር መከላከል (Deduplication)
                 task_exists = AIProjectBacklog.objects.filter(site=self.site, task_name=task_name).exists()
@@ -181,7 +212,7 @@ class FeatureEvolutionEngine:
                     
                     broadcast_agent_log(
                         self.site, 
-                        f"🧬 Self-Evolution: Successfully researched and injected new feature task: '{task_name}' into backlog queue!", 
+                        f"🧬 Self-Evolution: Organically identified missing feature task: '{task_name}' based on competitor spy and codebase gap analysis!", 
                         "success"
                     )
                 else:

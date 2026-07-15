@@ -1,43 +1,28 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/admin.py
-# 📝 ስሪት፦ v10.19 (Production Grade - Hardened & Beautiful Admin)
-# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading to completely eliminate top-level local import circular dependencies, product translation stacked inline, and secure code-escaped comparisons inside AIEvolutionLog.
+# 📝 ስሪት፦ v10.20 (Production Grade - Safe Boot & Beautiful Admin)
+# ✅ የተፈቱ ችግሮች፦ Standard relative imports from .models implemented to prevent AppRegistryNotReady crashes during Django launch auto-discovery, safety model check added in safe_register to prevent TypeErrors, product translation stacked inline, and secure code-escaped comparisons inside AIEvolutionLog (v10.20).
 # 📅 ቀን፦ Monday, July 13, 2026
 # ============================================================
 
 from django.contrib import admin
-from django.utils.html import escape, format_html # የደህንነት እና የንድፍ መተግበሪያ 'escape' እዚህ ተጨምሯል
+from django.utils.html import escape, format_html
 from django.apps import apps
 
-# 🛡️ REGISTRY SAFETY: Django App Registry በመጠቀም ሁሉንም ሞዴሎች በዳይናሚክ መንገድ መጫን
-# ይህ አሰራር የ 'AppRegistryNotReady' እና የክብ ጥገኝነት (Circular Import) ስህተቶችን 100% ያስቀራል
-Product = apps.get_model('marketplace', 'Product')
-Category = apps.get_model('marketplace', 'Category')
-UserSearch = apps.get_model('marketplace', 'UserSearch')
-ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
-TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
-SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
-AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
-AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
-AdminOverrideInstruction = apps.get_model('marketplace', 'AdminOverrideInstruction')
-AgentErrorLog = apps.get_model('marketplace', 'AgentErrorLog')
-SelfHealingLog = apps.get_model('marketplace', 'SelfHealingLog')
-SiteConfig = apps.get_model('marketplace', 'SiteConfig')
-MarketTrend = apps.get_model('marketplace', 'MarketTrend')
-SellerProfile = apps.get_model('marketplace', 'SellerProfile')
-CustomerAcquisitionLog = apps.get_model('marketplace', 'CustomerAcquisitionLog')
-MarketingCampaign = apps.get_model('marketplace', 'MarketingCampaign')
-NotificationQueue = apps.get_model('marketplace', 'NotificationQueue')
-VectorMemory = apps.get_model('marketplace', 'VectorMemory')
-AgentTask = apps.get_model('marketplace', 'AgentTask')
-ABTest = apps.get_model('marketplace', 'ABTest')
-ExternalAPI = apps.get_model('marketplace', 'ExternalAPI')
-SecurityLog = apps.get_model('marketplace', 'SecurityLog')
-PredictionLog = apps.get_model('marketplace', 'PredictionLog')
+# 🛡️ SAFE RELATIVE IMPORTS: የ 'AppRegistryNotReady' ስህተቶችን ለመከላከል ሞዴሎችን በቀጥታ መጫን (Symmetric Boot Safety)
+from .models import (
+    Product, Category, UserSearch, ProductTranslation, TranslationQueue,
+    SiteRegistry, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction,
+    AgentErrorLog, SelfHealingLog, SiteConfig, MarketTrend, SellerProfile,
+    CustomerAcquisitionLog, MarketingCampaign, NotificationQueue, VectorMemory,
+    AgentTask, ABTest, ExternalAPI, SecurityLog, PredictionLog
+)
 
 
 # 🛡️ REGISTRY COLLISION GUARD: ሰርቨሩ በ AlreadyRegistered ስህተት እንዳይከሰከስ የደህንነት ምዝገባ ረዳት
 def safe_register(model_class, admin_class=None):
+    if not model_class:
+        return
     try:
         if not admin.site.is_registered(model_class):
             if admin_class:
@@ -46,6 +31,8 @@ def safe_register(model_class, admin_class=None):
                 admin.site.register(model_class)
     except admin.sites.AlreadyRegistered:
         pass
+    except Exception as e:
+        logger.error(f"Safe register failed for {model_class}: {e}")
 
 
 # ============================================================
@@ -196,7 +183,7 @@ safe_register(AdminOverrideInstruction, AdminOverrideInstructionAdmin)
 
 
 # ============================================================
-# 💰 5. የንግድ እድገት እና ማርኬቲንግ
+# 💰 5. የንግድ እድገት እና ማርኬቲおり
 # ============================================================
 
 class SellerProfileAdmin(admin.ModelAdmin):
@@ -249,6 +236,7 @@ safe_register(VectorMemory, VectorMemoryAdmin)
 safe_register(SecurityLog, SecurityLogAdmin)
 safe_register(PredictionLog, PredictionLogAdmin)
 
+safe_register(AgentTask)
 safe_register(AgentTask)
 safe_register(ABTest)
 safe_register(ExternalAPI)

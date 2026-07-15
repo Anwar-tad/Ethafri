@@ -1,14 +1,7 @@
 # ============================================================
 # 📁 የፋይል አስተካከያ: EthAfri/marketplace/code_apply.py
-# 📝 ቅጂ: Safe & Precise Code Application — Guardian Standard (v10.48)
-# ✅ v10.47: Atomic writes, async patch, precise path-traversal,
-#    full-header import scan, confidence_score logging, GitHub branch.
-# 🚀 v10.48: NEW FEATURES — Rollback engine, dry-run mode, diff
-#    generation, multi-file batch apply, validation hook, change
-#    provenance hash, pre/post import auto-injection, decorator-
-#    preserving method rename, smart merge for conflicting patches,
-#    file integrity checksums, retry-on-GitHub-rate-limit, and
-#    structured JSON status responses.
+# 📝 ቅጂ: Safe & Precise Code Application — Guardian Standard (v10.50)
+# ✅ v10.50: Atomic writes, async patch, precise path-traversal, dynamic models loaded via apps registry to prevent circular boot imports, deep Django server integration checking (deep_verify_django_app) added, and post-write atomic auto-rollback to protect runtime stability.
 # 📅 ቀን: Monday, July 13, 2026
 # ============================================================
 
@@ -22,11 +15,13 @@ import requests
 import base64
 import tempfile
 import time
+import sys
+import subprocess
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from django.conf import settings
-from .models import AIEvolutionLog
+from django.apps import apps
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +45,28 @@ def _status(success: bool, applied: bool, message: str, **extra) -> Dict[str, An
 def _content_hash(content: str) -> str:
     """SHA-256 hex digest of file content (for integrity / dedup)."""
     return hashlib.sha256(content.encode('utf-8')).hexdigest()[:16]
+
+
+# ============================================================
+# 🩺 DEEP DJANGO INTEGRITY CHECKER (የጃንጎ ሰርቨር ጤንነት ፍተሻ)
+# ============================================================
+
+def deep_verify_django_app() -> Tuple[bool, str]:
+    """
+    በፓይተን በኩል 'manage.py check' ጥሪን በተለየ ንዑስ ፕሮሰስ በማስኬድ
+    የጃንጎ ሰርቨር አጠቃላይ ጤንነት (conflict, broken imports) በትክክል ያረጋግጣል
+    """
+    try:
+        manage_py = os.path.join(str(settings.BASE_DIR), 'manage.py')
+        result = subprocess.run(
+            [sys.executable, manage_py, 'check'],
+            capture_output=True, text=True, timeout=30, cwd=str(settings.BASE_DIR)
+        )
+        if result.returncode == 0:
+            return True, "OK"
+        return False, (result.stderr or result.stdout)[-500:]
+    except Exception as e:
+        return False, f"Deep verify error: {e}"
 
 
 # ============================================================
@@ -93,7 +110,7 @@ def _atomic_write(path: str, content: str, encoding: str = 'utf-8') -> None:
 
 
 # ============================================================
-# 📜 ROLLBACK MANAGER  (NEW — v10.48)
+# 📜 ROLLBACK MANAGER
 # ============================================================
 
 class RollbackManager:
@@ -152,7 +169,7 @@ class RollbackManager:
 
 
 # ============================================================
-# 🔍 DIFF GENERATOR  (NEW — v10.48)
+# 🔍 DIFF GENERATOR
 # ============================================================
 
 def generate_diff(old_content: str, new_content: str, context: int = 3) -> str:
@@ -177,7 +194,7 @@ def generate_diff(old_content: str, new_content: str, context: int = 3) -> str:
 
 
 # ============================================================
-# 🩺 VALIDATION HOOK  (NEW — v10.48)
+# 🩺 VALIDATION HOOK
 # ============================================================
 
 def validate_python_file(path: str) -> Tuple[bool, Optional[str]]:
@@ -266,7 +283,7 @@ def inject_import_to_file(path: str, import_line: str) -> Tuple[bool, str]:
 
 def auto_inject_imports(path: str, imports: List[str]) -> Dict[str, Any]:
     """
-    በተከታታይ በርካታ imports ለማስገባት ይሞክራል። (NEW — v10.48)
+    በተከታታይ በርካታ imports ለማስገባት ይሞክራል።
 
     Returns a summary dict with per-import results.
     """
@@ -399,7 +416,7 @@ def apply_surgical_patch(path: str, target_name: str, new_code_segment: str) -> 
 
 
 # ============================================================
-# 🔁 3b. METHOD RENAME  (NEW — v10.48)
+# 🔁 3b. METHOD RENAME
 # ============================================================
 
 def rename_method(path: str, old_name: str, new_name: str) -> Tuple[bool, str]:
@@ -443,7 +460,7 @@ def rename_method(path: str, old_name: str, new_name: str) -> Tuple[bool, str]:
 
 
 # ============================================================
-# 🧩 3c. SMART MERGE  (NEW — v10.48)
+# 🧩 3c. SMART MERGE
 # ============================================================
 
 def smart_merge_methods(path: str, new_methods_code: str) -> Tuple[bool, str]:
@@ -562,12 +579,6 @@ def _append_method_to_class(source: str, method_src: str) -> Optional[str]:
 def _resolve_base_dir(site: Any = None) -> str:
     """
     Resolve the working base directory for file operations.
-
-    * For non-primary sites, prefer ``site.repo_path`` (local dirs only;
-      remote URLs fall back to a sandbox under /tmp).
-    * For the primary site, use ``settings.BASE_DIR`` when available,
-      otherwise fall back to the current working directory so the
-      module remains import-safe even when BASE_DIR is not set.
     """
     if site and getattr(site, 'name', None) != 'primary':
         repo_path = getattr(site, 'repo_path', None)
@@ -589,31 +600,15 @@ def _resolve_base_dir(site: Any = None) -> str:
 def _is_path_traversal(path: str, base: str, allow_explicit: bool = False) -> bool:
     """
     Precise path-traversal detection.
-
-    Returns ``True`` only when ``path`` escapes ``base`` via a
-    traversal pattern (``..``).
-
-    * When ``allow_explicit`` is ``False`` (default — auto-resolved
-      paths), ANY path outside ``base`` is blocked.
-    * When ``allow_explicit`` is ``True`` (caller-supplied absolute
-      paths), only genuine ``..`` traversal is blocked — legitimate
-      absolute paths elsewhere on the filesystem are permitted so
-      that agents can operate on files outside the project root.
-
-    Separates the genuine ``ValueError`` that ``os.commonpath``
-    raises on incompatible paths from an actual traversal attempt.
     """
     real_path = os.path.abspath(path)
     real_base = os.path.abspath(base)
 
-    # Always block raw traversal patterns regardless of mode
     raw = str(path)
     if '..' in raw.split(os.sep) or '..' in raw.split('/'):
         return True
 
     if allow_explicit:
-        # Caller gave an explicit absolute path — allow it as long as
-        # it doesn't contain traversal segments.
         return False
 
     try:
@@ -628,7 +623,7 @@ def _is_path_traversal(path: str, base: str, allow_explicit: bool = False) -> bo
 
 
 # ============================================================
-# 🛠️ 5. DRY-RUN MODE  (NEW — v10.48)
+# 🛠️ 5. DRY-RUN MODE
 # ============================================================
 
 def dry_run_apply(
@@ -640,14 +635,6 @@ def dry_run_apply(
 ) -> Dict[str, Any]:
     """
     Simulate an apply without writing anything to disk.
-
-    Returns a structured dict with:
-      • ``valid_syntax``: bool
-      • ``syntax_error``: str | None
-      • ``diff``: unified diff string (if file exists)
-      • ``would_apply``: bool
-      • ``path``: resolved path
-      • ``content_hash_before`` / ``content_hash_after``
     """
     base = _resolve_base_dir(site)
     app_name = 'marketplace'
@@ -725,15 +712,8 @@ def apply_code_change(
     """
     ኮዱን በንጽህና Sandbox ውስጥ ያረጋግጥ፣ ከዚያ በሎካል ፋይል ላይ
     ተግባራዊ ያድርግ፣ እና (ከተጠየቀ) ወደ GitHub ይግፋ።
-
-    NEW parameters (v10.48):
-      • ``auto_imports``: list of import lines to inject before write.
-      • ``dry_run``: if True, simulate only — no disk writes.
-      • ``enable_rollback``: if True, register a rollback snapshot
-        before the write so the caller can undo later.
     """
 
-    # --- Dry-run short-circuit ---
     if dry_run:
         return dry_run_apply(site, file_key, new_content, path=path, target_name=target_name)
 
@@ -766,7 +746,7 @@ def apply_code_change(
                 logger.error(f"❌ Import Injection Blocked: {msg}")
                 return _status(False, False, f"Import Injection Failed: {msg}", path=path, file_key=file_key)
 
-    # 3b. Auto-imports (list form) — NEW v10.48
+    # 3b. Auto-imports (list form)
     if auto_imports and isinstance(auto_imports, list):
         for imp in auto_imports:
             inject_import_to_file(path, imp)
@@ -800,7 +780,7 @@ def apply_code_change(
             path=path, file_key=file_key,
         )
 
-    # 6b. Rollback snapshot — NEW v10.48
+    # 6b. Rollback snapshot
     if enable_rollback and old_code:
         RollbackManager.snapshot(path, old_code)
 
@@ -824,18 +804,37 @@ def apply_code_change(
             RollbackManager.rollback_last()
         return _status(False, False, str(e), path=path, file_key=file_key)
 
-    # 7b. Post-write validation — NEW v10.48
+    # 7b. Post-write validation (ሰዋስው እና የሰርቨር ጤንነት ፍተሻ ከሮልባክ ጥበቃ ጋር)
     if path.endswith('.py'):
         valid, vmsg = validate_python_file(path)
         if not valid:
             logger.error(f"❌ Post-write validation failed: {vmsg}")
-            if enable_rollback:
+            if old_code:
+                _atomic_write(path, old_code)
+            elif enable_rollback:
                 RollbackManager.rollback_last()
             return _status(
                 False, False,
                 f"Post-write validation failed: {vmsg}",
                 path=path, file_key=file_key,
             )
+
+        # 🛡️ ራስ-ሰር የጃንጎ ሰርቨር ጤንነት ፍተሻ (Deep Django Verification Integration)
+        core_django_files = {'models.py', 'views.py', 'urls.py', 'forms.py', 'admin.py', 'apps.py', 'code_apply.py', 'growth_agent.py', 'self_doctor.py'}
+        if os.path.basename(path) in core_django_files:
+            deep_ok, dmsg = deep_verify_django_app()
+            if not deep_ok:
+                logger.error(f"❌ Deep Django check failed: {dmsg}")
+                # ሰርቨሩ እንዳይቆም ወዲያውኑ ወደ ቀድሞው የሰነድ ይዘት መመለስ (Auto-Rollback)
+                if old_code:
+                    _atomic_write(path, old_code)
+                elif enable_rollback:
+                    RollbackManager.rollback_all()
+                return _status(
+                    False, False,
+                    f"Deep Django verification failed: {dmsg}",
+                    path=path, file_key=file_key,
+                )
 
     # 8. GitHub push
     push_status = "Skipped (Local Only)"
@@ -847,24 +846,26 @@ def apply_code_change(
             push_status = f"GitHub Error: {e}"
             logger.error(push_status)
 
-    # 9. Evolution log
+    # 9. Dynamic Evolution log (የክብ ጥገኝነት መከላከያ)
     try:
-        log_kwargs = {
-            'site': site,
-            'target_file': file_key,
-            'reason_for_change': reason,
-            'old_code_backup': old_code,
-            'new_code_patch': new_content,
-            'backlog_task': backlog_task,
-        }
-        try:
-            AIEvolutionLog._meta.get_field('confidence_score')
-            log_kwargs['confidence_score'] = confidence_score
-        except Exception:
-            pass
-        AIEvolutionLog.objects.create(**log_kwargs)
+        AIEvolutionLog = apps.get_model('marketplace', 'AIEvolutionLog')
+        if AIEvolutionLog:
+            log_kwargs = {
+                'site': site,
+                'target_file': file_key,
+                'reason_for_change': reason,
+                'old_code_backup': old_code,
+                'new_code_patch': new_content,
+                'backlog_task': backlog_task,
+            }
+            try:
+                AIEvolutionLog._meta.get_field('confidence_score')
+                log_kwargs['confidence_score'] = confidence_score
+            except Exception:
+                pass
+            AIEvolutionLog.objects.create(**log_kwargs)
     except Exception as e:
-        logger.warning(f"⚠️ Could not log evolution entry: {e}")
+        logger.warning(f"⚠️ Could not log evolution entry dynamically: {e}")
 
     # 10. Backlog task update
     if backlog_task:
@@ -884,7 +885,7 @@ def apply_code_change(
 
 
 # ============================================================
-# 📦 7. BATCH MULTI-FILE APPLY  (NEW — v10.48)
+# 📦 7. BATCH MULTI-FILE APPLY
 # ============================================================
 
 def batch_apply_changes(
@@ -895,32 +896,6 @@ def batch_apply_changes(
 ) -> Dict[str, Any]:
     """
     Apply a list of file changes atomically as a group.
-
-    Each item in ``changes`` is a dict with the same kwargs as
-    ``apply_code_change``::
-
-        {
-            "file_key": "views",
-            "new_content": "...",
-            "reason": "...",
-            "target_name": "my_func",      # optional
-            "inject_import": {...},         # optional
-            "auto_imports": ["import os"],  # optional
-        }
-
-    If ``stop_on_error`` is True (default), a failure in any file
-    triggers a full rollback of all previously applied files in the
-    batch.
-
-    Returns a structured summary::
-
-        {
-            "success": bool,
-            "applied_count": int,
-            "failed_count": int,
-            "results": [ ...per-file dicts... ],
-            "rolled_back": [ ...paths... ],
-        }
     """
     results: List[Dict[str, Any]] = []
     applied_count = 0
@@ -979,11 +954,6 @@ def push_to_github_raw(
 ) -> str:
     """
     Push a single file to GitHub via the Contents API.
-
-    Enhancements:
-    • Cleaner regex, branch support, richer error messages.
-    • Retry on 429 rate-limit with exponential backoff. — NEW v10.48
-    • Respects ``GITHUB_API_BASE`` for GitHub Enterprise.
     """
     token = getattr(settings, 'GITHUB_TOKEN', None)
 
