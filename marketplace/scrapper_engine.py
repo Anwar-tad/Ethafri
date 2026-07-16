@@ -215,28 +215,50 @@ class SmartCache:
 class SmartProductExtractor:
     """Extracts product dicts from marketplace HTML."""
 
+    # 🛡️ FIXED: የፌስቡክ ማርኬትፕሌስ እና የሀገር ውስጥ ድረ-ገጾች ልዩ አሰሳ መዋቅሮች እዚህ ተጨምረዋል
+    FB_LISTING_SELECTORS = [
+        "div[role='feed'] div[style*='max-width']",
+        "div.x9f619.x78zum5.x1r8u6il",
+        "div[class*='x1lliihq']",
+        "div.product-card",
+    ]
+    FB_TITLE_SELECTORS = [
+        "span[style*='-webkit-line-clamp']",
+        "span.x1lliihq.x6ikm8r",
+        "h2",
+    ]
+    FB_PRICE_SELECTORS = [
+        "span.x193iq5w.xeuugli",
+        "div.x1zoom55.x1lliihq",
+        "span.price",
+    ]
+
     JIJI_LISTING_SELECTORS = [
         "div.b-list-advert__item",
         "div.b-list-advert",
         "article.b-list-advert",
         "div[data-cy=\"l-ad\"]",
         "div.listing",
-    ]
+    ] + FB_LISTING_SELECTORS
+    
     JIJI_TITLE_SELECTORS = [
         "h4.b-advert-title-inner",
         "a.b-advert-title",
         "h4.ta-title",
         "div.b-advert-title",
-    ]
+    ] + FB_TITLE_SELECTORS
+    
     JIJI_PRICE_SELECTORS = [
         "div.b-j-advert__price",
         "span.b-advert-price",
         "div.b-advert-price",
-    ]
+    ] + FB_PRICE_SELECTORS
+    
     JIJI_IMG_SELECTORS = [
         "div.b-advert-images-inner img",
         "img.b-advert-image",
         "img[data-cy=\"ad-image\"]",
+        "img",
     ]
 
     GENERIC_CARD_SELECTORS = [
@@ -381,7 +403,6 @@ class SmartProductExtractor:
             if itype and "product" not in itype and "offer" not in itype:
                 continue
             title = (item.get("name") or "").strip()
-            # 🛡️ ርዕሶች ላይ የሚፈጠሩ የኤችቲኤምኤል ምልክቶችን ማጽዳት (Unescape Integration)
             import html as _html
             title = _html.unescape(title)
             if not title or len(title) < ScraperConfig.MIN_TITLE_LEN:
@@ -504,9 +525,14 @@ class SmartProductExtractor:
         if not title:
             title = node.get_text(" ", strip=True)
             
-        # 🛡️ ርዕሶች ላይ የሚፈጠሩ የኤችቲኤምኤል ምልክቶችን ማጽዳት (Unescape Integration)
         import html as _html
         title = _html.unescape(title)
+        
+        # 🛡️ Boilerplate Stripper (የቆሻሻ የJiji እና የዋጋ መግለጫዎችን ከርዕስ ላይ መቁረጥ)
+        title = re.sub(r'\d+\+?\s*(?:years?|ዓመታት|months?|ወራት)\s*(?:on Jiji|በ Jiji ላይ)', '', title, flags=re.I)
+        title = re.sub(r'(?:ETB|Birr|ብር)\s*[:፡-]?\s*[\d,]+', '', title, flags=re.I)
+        title = re.sub(r'[\d,]+\s*(?:ETB|Birr|ብር)', '', title, flags=re.I)
+        
         title = re.sub(r"\s+", " ", title).strip()
         if len(title) < ScraperConfig.MIN_TITLE_LEN:
             return {}
@@ -525,7 +551,6 @@ class SmartProductExtractor:
         desc = node_text
         desc = re.sub(r"\s+", " ", desc)[:ScraperConfig.MAX_DESC_LEN].strip()
 
-        # 🛡️ የቴሌግራም ሲስተም መልዕክቶች እና የከሸፉ listings ማጣሪያ
         if SmartProductExtractor._is_stale(node_text):
             return {}
 
@@ -647,15 +672,23 @@ class SmartProductExtractor:
             val_str = m.group(1).replace(",", "")
             val = float(val_str)
             
-            # Deduplicated Amharic unit multipliers mapping (Zero duplication)
+            # Smart Adjacent/Proximity Check (የዋጋ ማባዣዎችን ጥቅል በሆነ ፍተሻ ሳይሆን ከቁጥሩ ጀርባ ባሉት 10 ፊደላት ውስጥ ብቻ መፈለግ)
             text_lower = text.lower()
+            matched_price_segment = text_lower[max(0, text_lower.find(val_str)-10) : text_lower.find(val_str)+len(val_str)+10]
+            
             amharic_numeral_map = {
                 "፩": 1, "፪": 2, "፫": 3, "፬": 4, "፭": 5, "፮": 6, "፯": 7, "፰": 8, "፺": 9,
                 "፲": 10, "፳": 20, "፴": 30, "፵": 40, "፶": 50, "፷": 60, "፸": 70, "፹": 80, "፺": 90,
-                "፻": 100, "ሺ": 1000, "ሺህ": 1000, "ሚሊዮን": 1000000, "m": 1000000, "k": 1000
+                "፻": 100, "ሺ": 1000, "ሺህ": 1000, "ሚሊዮን": 1000000, "k": 1000, "m": 1000000
             }
+            
             for key, multiplier in amharic_numeral_map.items():
-                if key in text_lower:
+                # 🛡️ FIXED: Checking word boundaries strictly for single-char keys "k" and "m" to avoid mashing with "samsung" etc.
+                if key in ["k", "m"]:
+                    if re.search(rf"\b{val_str}\s*{key}\b", text_lower):
+                        val *= multiplier
+                        break
+                elif key in matched_price_segment:
                     val *= multiplier
                     break
             return val
@@ -669,7 +702,6 @@ class SmartProductExtractor:
         m = ScraperConfig.PHONE_RE.search(text)
         if m:
             clean_phone = re.sub(r"[^\d+]", "", m.group(0))
-            # Standardise local phone numbers (Deduplicated logic)
             if clean_phone.startswith('0'):
                 clean_phone = '251' + clean_phone[1:]
             elif clean_phone.startswith('+'):
@@ -689,7 +721,6 @@ class SmartProductExtractor:
             return True
         if ScraperConfig.OLD_DATE_RE.search(text):
             return True
-        # 🛡️ ቴሌግራም ላይ የሚለጠፉ የምርት ያልሆኑ የሲስተም መልዕክቶች ማጣሪያ
         if hasattr(ScraperConfig, 'SYSTEM_MSG_RE') and ScraperConfig.SYSTEM_MSG_RE.search(text):
             return True
         return False

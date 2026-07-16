@@ -1759,17 +1759,19 @@ class CEOOperations:
         return stable_fallback
 
     def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የባዶ ሻጭ ሎጂክ እና የእውነተኛ መረጃ ማረጋገጫ የተገጠመለት"""
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የአድሚን አንዋር ስልክን ያካተተ የተጠቃሚ ግብዣ መልዕክት የያዘ"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
         SiteConfig = get_model('SiteConfig')
+        if not Product or not SellerProfile or not NotificationQueue or not SiteConfig:
+            return 0
 
         products_to_create = []
         notifications_to_create = []
         seen_titles = set() 
 
-        # የማዕከላዊ አድሚን ተጠቃሚን መለየት (System Admin Account)
+        # የማዕከላዊ አድሚን ተጠቃሚን መለየት
         try:
             from django.contrib.auth import get_user_model
             User = get_user_model()
@@ -1784,11 +1786,7 @@ class CEOOperations:
                 continue
             
             contact = p.get('seller_contact', '').strip()
-            
-            # 🛡️ 1. [እውነተኛ መረጃ ማረጋገጫ] የJiji ወይም የውሸት ስልክ ከሆነ መለየት
-            is_verified_seller = False
-            if contact and contact != "0900000000" and contact != "09000000" and len(contact) >= 9:
-                is_verified_seller = True
+            is_verified_seller = contact and contact != "0900000000" and contact != "09000000" and len(contact) >= 9
                 
             try:
                 if is_verified_seller:
@@ -1810,14 +1808,12 @@ class CEOOperations:
                     SellerProfile.objects.get_or_create(user=user, defaults={'site': self.site})
                     target_seller = user
                 else:
-                    # እውነተኛ ስልክ ከሌለው ምርቱን ለማዕከላዊው አድሚን መመደብ (የውሸት አካውንት መፍጠር ቀርቷል!)
                     if admin_user:
                         target_seller = admin_user
                         uname = admin_user.username
                     else:
                         continue
 
-                # በአሮጌው ስህተት ምክንያት የገቡ የኮድ ቆሻሻዎችን ማጽዳት
                 Product.objects.filter(
                     seller=target_seller,
                     site=self.site,
@@ -1832,7 +1828,6 @@ class CEOOperations:
                 ).exists()
                 
                 if product_exists:
-                    logger.info(f"⏭️ Bulk Harvester: Skipping duplicate product '{p['title']}' for user '{uname}'")
                     continue
 
                 try:
@@ -1840,44 +1835,36 @@ class CEOOperations:
                 except (ValueError, TypeError):
                     clean_price = 0.0
 
-                raw_photo = p.get('image_url', '')
-                if not raw_photo:
-                    raw_photo = self._search_google_for_product_image(p['title'])
-
+                raw_photo = p.get('image_url', '') or self._search_google_for_product_image(p['title'])
                 cloudinary_photo_url = self._save_image_to_cloudinary_permanently(raw_photo)
 
-                # ዲስክሪፕሽን ማጽጃ
                 raw_desc = p.get('desc', '').strip()
-                if "ads" in raw_desc.lower() or len(raw_desc) < 30 or ("furniture" in raw_desc.lower() and "appliances" in raw_desc.lower()):
-                    description_clean = f"ይህን እጅግ ምርጥ {p['title']} በጥራትና በታማኝነት ያግኙ። ምርቱ አሁኑኑ እጅዎ እንዲደርስ በስልክ ወይም በውስጥ መስመር ይገናኙን።"
-                else:
-                    description_clean = raw_desc
+                description_clean = raw_desc if len(raw_desc) > 30 else f"ይህን እጅግ ምርጥ {p['title']} በጥራትና በታማኝነት ያግኙ።"
 
                 product_obj = Product(
                     seller=target_seller, site=self.site, title=p['title'], price=clean_price,
                     description=description_clean, image_url=cloudinary_photo_url,
                     listing_type=p.get('listing_type', 'sale') or 'sale', 
-                    contact_info=contact if is_verified_seller else "0900000000", # የJiji ምርቶች ወደ ማዕከላዊ የደንበኞች ድጋፍ ይመራሉ
+                    contact_info=contact if is_verified_seller else "0900000000",
                     is_active=True
                 )
                 products_to_create.append(product_obj)
 
-                # 🛡️ 2. [የኤስኤምኤስ ጥበቃ] ማሳወቂያ የሚላከው ለእውነተኛውና ለተረጋገጠው ሻጭ ብቻ ነው!
+                # 🛡️ ሻጮች ምርታቸው በነፃ መለጠፉን የሚገልጽ እና የአንዋርን (0962200856) የድጋፍ ስልክ ያካተተ መልዕክት
                 if is_verified_seller:
                     login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode('utf-8')).hexdigest()[:16]
-                    
                     SiteConfig.objects.update_or_create(
                         key=f"ACCESS_TOKEN_{uname}",
                         defaults={'value': {'token': login_token, 'created_at': timezone.now().isoformat()}}
                     )
 
-                    magic_login_url = f"{self.site.deployment_url or 'http://localhost:8000'}/api/magic-token/?phone={uname}&token={login_token}"
+                    magic_login_url = f"{self.site.deployment_url or 'http://ethafri.com'}/api/magic-token/?phone={uname}&token={login_token}"
 
                     message = (
-                        f"ሰላም! የለጠፉት '{p['title']}' ምርት በድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
+                        f"ሰላም! በይነመረብ ላይ የለጠፉት '{p['title']}' ምርት በኢትአፍሪ (EthAfri) ድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
                         f"ምርትዎን ለማስተዳደር በዚህ ሊንክ ይግቡ፦\n"
                         f"{magic_login_url}\n\n"
-                        f"EthAfri"
+                        f"ማንኛውንም ድጋፍ ከፈለጉ አስተዳዳሪውን አንዋርን በስልክ ቁጥር 0962200856 ያነጋግሩ።"
                     )
 
                     notification_obj = NotificationQueue(
@@ -1889,8 +1876,6 @@ class CEOOperations:
             except Exception as seed_err:
                 logger.error(f"Failed to compile bulk listing: {seed_err}")
 
-        # 🛡️ CRITICAL FIX: the loop built `products_to_create` / `notifications_to_create`
-        # but NEVER persisted them. Products were silently dropped. Now we bulk-insert.
         created_count = 0
         if products_to_create:
             try:
@@ -1898,49 +1883,26 @@ class CEOOperations:
                 Product.objects.bulk_create(products_to_create, ignore_conflicts=True)
                 logger.info(f"✅ Bulk Harvester: Persisted {created_count} new products to DB via bulk_create.")
             except Exception as bulk_err:
-                # Fallback: some DBs / model configs reject ignore_conflicts. Insert one-by-one.
-                logger.warning(f"⚠️ bulk_create failed ({bulk_err}). Falling back to individual saves.")
                 saved = 0
                 for prod in products_to_create:
                     try:
                         prod.save()
                         saved += 1
-                    except Exception as one_err:
-                        logger.debug(f"Individual product save skipped: {one_err}")
+                    except Exception: pass
                 created_count = saved
-                logger.info(f"✅ Bulk Harvester: Persisted {saved} products via individual saves.")
 
-        # 🛡️ FIX: prevent duplicate notifications for the same recipient+message
         if notifications_to_create:
             saved_notif = 0
             for notif in notifications_to_create:
                 try:
                     notif_exists = NotificationQueue.objects.filter(
-                        site=self.site,
-                        recipient=notif.recipient,
-                        notification_type=notif.notification_type,
-                        message=notif.message,
+                        site=self.site, recipient=notif.recipient,
+                        notification_type=notif.notification_type, message=notif.message,
                     ).exists()
                     if not notif_exists:
                         notif.save()
                         saved_notif += 1
-                except Exception as notif_err:
-                    logger.debug(f"NotificationQueue save skipped: {notif_err}")
-            if saved_notif:
-                logger.info(f"✅ Bulk Harvester: Queued {saved_notif} new seller notifications.")
-
-        # Record a SiteConfig growth counter so the CEO dashboard reflects real progress
-        try:
-            SiteConfig.objects.update_or_create(
-                key=f"BULK_HARVEST_LAST_RUN_{self.site.name}",
-                defaults={'value': {
-                    'persisted_products': created_count,
-                    'queued_notifications': saved_notif if notifications_to_create else 0,
-                    'ran_at': timezone.now().isoformat(),
-                }}
-            )
-        except Exception as cfg_err:
-            logger.debug(f"Failed to record harvest SiteConfig: {cfg_err}")
+                except Exception: pass
 
         return created_count
 
@@ -1968,18 +1930,23 @@ class CEOOperations:
                 links['facebook_messenger'] = f"https://m.me/{clean_username}"
         return links
 
-    def curate_user_listings(self, limit=5):
+    def curate_user_listings(self, limit=3):
+        """የተመዘገቡ የምርት መረጃዎችን (ርዕስ፣ ዋጋ፣ ዲስክሪፕሽን) በ AI እያጣራ በዳታቤዝ ውስጥ በራሱ ቦታ የሚያበለጽግ ሞተር (AI Post-Scrape Refiner)"""
         SiteConfig = get_model('SiteConfig')
         Product = get_model('Product')
         NotificationQueue = get_model('NotificationQueue')
-        _, _, broadcast_agent_log, _ = _get_ai_utils()
+        if not SiteConfig or not Product:
+            return
+
         clean_and_parse_json, _, _, _ = _get_ai_utils()
+        _, ask_master_ai_smart, _, _ = _get_ai_utils()
 
         try:
             dedup_key = f"CURATED_PRODUCT_IDS_{self.site.name}"
             dedup_config, _ = SiteConfig.objects.get_or_create(key=dedup_key, defaults={'value': []})
             curated_ids = set(dedup_config.value if isinstance(dedup_config.value, list) else [])
 
+            # ገና ያልተገመገሙ ምርቶችን መውሰድ
             candidates = list(Product.objects.filter(site=self.site, is_active=True).exclude(id__in=list(curated_ids))[:limit])
             if not candidates: 
                 return
@@ -1987,39 +1954,39 @@ class CEOOperations:
             newly_curated = []
             for product in candidates:
                 try:
-                    is_valid = True
-                    reason = "Valid Listing"
-                    
-                    if self.site.name == 'primary' and product.price < 10.0:
-                        is_valid = False
-                        reason = "Price is below 10 ETB"
-                    else:
-                        try:
-                            prompt = (
-                                f"Verify listing for scams/spam. Title: {product.title}. Price: {product.price}. "
-                                f"Return JSON with key 'is_valid' (true/false) and 'reason'."
-                            )
-                            result = clean_and_parse_json(ask_master_ai_smart(prompt, task_type="market_research"))
-                            if result and not result.get('is_valid', True):
-                                is_valid = False
-                                reason = result.get('reason', 'Suspicious listing')
-                        except Exception as ai_curate_err:
-                            logger.debug("AI curation skipped: %s", ai_curate_err)
+                    title_words = len(product.title.split())
+                    has_stale_boilerplate = any(w in product.title.lower() for w in ["jiji", "etb", "bole", "years", "channel"])
+                    is_suspicious_price = product.price > 20000000.0  # ከ 20 ሚሊዮን በላይ ዋጋ ካለው (የማባዛት ስህተት ጥርጣሬ)
 
-                    if not is_valid:
-                        product.is_active = False
-                        product.save()
-                        NotificationQueue.objects.create(
-                            site=self.site, recipient=product.seller.username, notification_type='sms',
-                            message=f"ሰላም {product.seller.username}፤ የለጠፉት '{product.title}' ምርት ማጣሪያችን አልፏል። ምክንያት፦ {reason}።"
+                    # 🛡️ AI POST-SCRAPE REFINER: ርዕሱ በጣም ረጅም ወይም ዋጋው የተጋነነ ከሆነ በ AI ማጣራትና ማሻሻል
+                    if title_words > 4 or has_stale_boilerplate or is_suspicious_price:
+                        prompt = (
+                            f"You are a Senior E-Commerce Merchandiser. Inspect and repair this scraped product details:\n"
+                            f"Raw Title: {product.title}\n"
+                            f"Raw Price: {product.price}\n"
+                            f"Raw Description: {product.description}\n\n"
+                            f"Format Requirement: You MUST return a clean JSON format with these exact keys:\n"
+                            f"{{\n"
+                            f"    \"title\": \"[A clean, descriptive, highly appealing title in Amharic (max 4 words, e.g. 'Toyota Vitz 2018') - strip all footers like '3+ years on jiji' or currency signs]\",\n"
+                            f"    \"price\": [A highly realistic market price in Birr as a float, e.g. 1500000.0 - resolve any year-to-million multiplication errors],\n"
+                            f"    \"description\": \"[A clean, readable product description in Amharic]\"\n"
+                            f"}}"
                         )
-                        logger.warning(f"🛡️ CEO Agent: Deactivated invalid listing: {product.title}")
-                    else:
-                        self._generate_translations_for_product(product)
+                        
+                        res = ask_master_ai_smart(prompt, task_type="analysis")
+                        data = clean_and_parse_json(res)
+                        
+                        if data and isinstance(data, dict) and data.get('title') and data.get('price'):
+                            logger.info(f"✨ AI Curation Refiner: Purified product {product.id} metadata. Title: '{data['title']}', Price: {data['price']}")
+                            product.title = data['title']
+                            product.price = float(data['price'])
+                            product.description = data['description']
+                            product.save()
 
+                    self._generate_translations_for_product(product)
                     newly_curated.append(product.id)
                 except Exception as e:
-                    logger.error(f"curate_user_listings failed: {e}")
+                    logger.error(f"curate_user_listings item refiner failed: {e}")
 
             if newly_curated:
                 curated_ids.update(newly_curated)
@@ -2060,7 +2027,85 @@ class CEOOperations:
                 note.save()
         except Exception as e:
             logger.error(f"Outbound Dispatcher failed: {e}")
+    def enrich_missing_seller_contacts(self, limit=3):
+        """የባለቤት ስልክ ቁጥር ያልተገኘላቸውን ምርቶች በይነመረብ ላይ ፈልጎ አድራሻቸውን የሚያበለጽግ ሞተር (Seller Contact Enrichment)"""
+        Product = get_model('Product')
+        SiteConfig = get_model('SiteConfig')
+        if not Product or not SiteConfig:
+            return
 
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        from .ai_utils import ask_master_ai_smart, clean_and_parse_json
+
+        # ስልክ ቁጥር የሌላቸውን (በዲፎልት በአድሚን የተመዘገቡትን) ምርቶች መለየት
+        unverified_products = Product.objects.filter(
+            site=self.site,
+            contact_info="0900000000",
+            is_active=True
+        ).order_by('-id')[:limit]
+
+        for product in unverified_products:
+            # የሻጩን አድራሻ በይነመረብ ላይ መፈለጊያ አጭር ጥያቄ ማዘጋጀት
+            search_query = f"Ethiopia contact phone {product.title}"
+            
+            # ያለ ኤፒአይ ኪይ ቀጥታ ከ DuckDuckGo ላይ የፍለጋ መረጃዎችን መሳብ
+            search_context = _autonomous_no_api_search_fallback(search_query)
+            if not search_context:
+                continue
+
+            prompt = (
+                f"We are looking for the official seller phone number or Telegram handle for this product listing: '{product.title}'.\n"
+                f"Based on these web search snippets: {json.dumps(search_context, ensure_ascii=False)}.\n"
+                f"Extract the official Ethiopian phone number (must start with +251, 09, or 07) or Telegram handle (starts with @).\n"
+                f"Return JSON with key 'contact_info' (string, or empty if not found)."
+            )
+            try:
+                res = ask_master_ai_smart(prompt, task_type="market_research")
+                data = clean_and_parse_json(res)
+                contact = data.get('contact_info', '').strip() if data else ""
+                
+                # እውነተኛ ስልክ ቁጥር ወይም ቴሌግራም ከተገኘ
+                if contact and contact != "0900000000" and len(contact) >= 9:
+                    uname = contact.replace('@', '').replace('+', '').strip()
+                    uname = re.sub(r'[^a-zA-Z0-9_@.+\-]', '', uname)[:150]
+                    
+                    user, created = User.objects.get_or_create(username=uname, defaults={'is_active': True})
+                    if created:
+                        user.set_unusable_password()
+                        user.save()
+                        
+                    get_model('SellerProfile').objects.get_or_create(user=user, defaults={'site': self.site})
+                    
+                    # 1. ምርቱን ለትክክለኛው ሻጭ በዳታቤዝ ደረጃ ማስተላለፍ (Ownership Enrichment)
+                    product.seller = user
+                    product.contact_info = contact
+                    product.save()
+                    
+                    # 2. የምስጢር መግቢያ ሊንኩን ማመንጨት
+                    login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode('utf-8')).hexdigest()[:16]
+                    SiteConfig.objects.update_or_create(
+                        key=f"ACCESS_TOKEN_{uname}",
+                        defaults={'value': {'token': login_token, 'created_at': timezone.now().isoformat()}}
+                    )
+                    
+                    magic_login_url = f"{self.site.deployment_url or 'http://ethafri.com'}/api/magic-token/?phone={uname}&token={login_token}"
+                    
+                    # 3. የአድሚን አንዋርን ስልክ (0962200856) የያዘውን ግብዣ በኤስኤምኤስ ወረፋ መመዝገብ
+                    message = (
+                        f"ሰላም! በይነመረብ ላይ የለጠፉት '{product.title}' ምርት በኢትአፍሪ (EthAfri) ድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
+                        f"ምርትዎን ዋጋ ለመቀየር ወይም ለማስተዳደር በዚህ ሊንክ ይግቡ፦\n"
+                        f"{magic_login_url}\n\n"
+                        f"ማንኛውንም ድጋፍ ከፈለጉ አስተዳዳሪውን አንዋርን በስልክ ቁጥር 0962200856 ያነጋግሩ።"
+                    )
+                    
+                    get_model('NotificationQueue').objects.create(
+                        site=self.site, recipient=contact, notification_type='sms',
+                        message=message
+                    )
+                    logger.info(f"✨ Contact Enrichment: Successfully enriched contact for '{product.title}' -> {contact}")
+            except Exception as e:
+                logger.debug(f"Contact enrichment failed for {product.title}: {e}")
 
 # ============================================================
 # 🕵️ COMPETITOR INTELLIGENCE ENGINE (ተፎካካሪ ስለላ)
