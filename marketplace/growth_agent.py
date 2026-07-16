@@ -2292,15 +2292,22 @@ def execute_master_cycle():
 
 
 def _run_site_cycle(site):
-    """የአንድ ንዑስ ጣቢያን ሙሉ የዕድገት እና የዕድገት ማጠናከሪያ ዑደት ያስፈጽማል (v10.90 - Lightweight Paced Evolution)"""
+    """
+    የአንድ ንዑስ ጣቢያን ሙሉ የዕድገት እና የዕድገት ማጠናከሪያ ዑደት ያስፈጽማል (Symmetric Alternating Pacing Enabled)
+    """
     _, _, broadcast_agent_log, _ = _get_ai_utils()
     FeatureEvolutionEngine = _get_feature_evolution()
+    SiteConfig = get_model('SiteConfig')
     
     network_active = MultiChannelHarvester.is_network_available()
 
+    # 🛡️ SYMMETRIC ALTERNATING PACING: በዳታቤዝ መለያ ሁለቱ ዑደቶች በየተራ ብቻ እንዲሠሩ ማድረግ
+    track_key = f"EVOLUTION_TRACK_MODE_{site.name}"
+    track_cfg, _ = SiteConfig.objects.get_or_create(key=track_key, defaults={'value': {'mode': 'A'}})
+    current_mode = track_cfg.value.get('mode', 'A') if isinstance(track_cfg.value, dict) else 'A'
+
     def run_track_a_evolution():
         try:
-            SiteConfig = get_model('SiteConfig')
             last_evolution_key = f"LAST_EVOLUTION_TIME_{site.name}"
             last_evo_cfg = SiteConfig.objects.filter(key=last_evolution_key).first()
             
@@ -2324,8 +2331,9 @@ def _run_site_cycle(site):
             except Exception:
                 load_avg = 0.5
                 
-            if load_avg > 1.2:
-                logger.warning(f"⚠️ CPU Load is heavy ({load_avg:.2f}). Postponing Track A evolution to keep site responsive.")
+            # 🛡️ FIXED: የሲፒዩ መቆጣጠሪያውን ከ 1.2 ወደ 4.5 በማሳደግ በሪንደር ላይ ኮድ መጻፍ እንዲችል ማድረግ
+            if load_avg > 4.5:
+                logger.warning(f"⚠️ CPU Load is extremely heavy ({load_avg:.2f}). Postponing Track A evolution to keep site responsive.")
                 should_run_evo = False
 
             if not should_run_evo:
@@ -2393,8 +2401,17 @@ def _run_site_cycle(site):
         finally:
             safe_close_connections()
 
-    run_track_a_evolution()
-    run_track_b_growth()
+    # 🔄 በየተራ ሥራዎችን በፈረቃ የማስፈጸም ውሳኔ
+    if current_mode == 'A':
+        broadcast_agent_log(site, "Symmetric Alternating Pacing: Running ONLY Track A (Self-Doctor & Code Building)...", "info")
+        run_track_a_evolution()
+        # ለቀጣይ ዑደት ወደ ዑደት B ማስተላለፍ
+        SiteConfig.objects.update_or_create(key=track_key, defaults={'value': {'mode': 'B'}})
+    else:
+        broadcast_agent_log(site, "Symmetric Alternating Pacing: Running ONLY Track B (Web Scraping & Product Seeding)...", "info")
+        run_track_b_growth()
+        # ለቀጣይ ዑደት ወደ ዑደት A ማስተላለፍ
+        SiteConfig.objects.update_or_create(key=track_key, defaults={'value': {'mode': 'A'}})
 
     update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
     broadcast_agent_log(site, f"✨ Master Cycle executed successfully for {site.name}.", "success")
