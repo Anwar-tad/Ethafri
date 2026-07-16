@@ -30,6 +30,8 @@ from django.db import transaction, connections
 from django.db.models import Q
 from django.apps import apps
 
+# 🛡️ BOOT TIME TRACKER: ሰርቨሩ በጅማሮ ጊዜ የሚፈጥረውን ጊዜያዊ የሲፒዩ እብጠት ለመለካት
+_BOOT_TIME = timezone.now()
 # ============================================================
 # ⚙️ LOGGER SETUP
 # ============================================================
@@ -2338,7 +2340,7 @@ def execute_master_cycle():
 
 def _run_site_cycle(site):
     """
-    የአንድ ንዑስ ጣቢያን ሙሉ የዕድገት እና የዕድገት ማጠናከሪያ ዑደት ያስፈጽማል (Symmetric Alternating Pacing Enabled)
+    የአንድ ንዑስ ጣቢያን ሙሉ የዕድገት እና የዕድገት ማጠናከሪያ ዑደት ያስፈጽማል (Symmetric Alternating Pacing & Boot Warm-up)
     """
     _, _, broadcast_agent_log, _ = _get_ai_utils()
     FeatureEvolutionEngine = _get_feature_evolution()
@@ -2371,12 +2373,17 @@ def _run_site_cycle(site):
                 except Exception:
                     should_run_evo = True
                     
-            try:
-                load_avg = os.getloadavg()[0]
-            except Exception:
+            # 🛡️ BOOT WARM-UP GRACE PERIOD: ሰርቨሩ ከተነሳ ከ 5 ደቂቃ በታች ከሆነ የሲፒዩ ጫናውን ችላ ማለት (False Alarm Shield)
+            uptime = timezone.now() - _BOOT_TIME
+            if uptime < timedelta(minutes=5):
                 load_avg = 0.5
+                logger.info("⏱️ Boot Warm-up: Ignoring startup CPU spike during first 5 minutes of server boot.")
+            else:
+                try:
+                    load_avg = os.getloadavg()[0]
+                except Exception:
+                    load_avg = 0.5
                 
-            # 🛡️ FIXED: የሲፒዩ መቆጣጠሪያውን ከ 1.2 ወደ 4.5 በማሳደግ በሪንደር ላይ ኮድ መጻፍ እንዲችል ማድረግ
             if load_avg > 4.5:
                 logger.warning(f"⚠️ CPU Load is extremely heavy ({load_avg:.2f}). Postponing Track A evolution to keep site responsive.")
                 should_run_evo = False
@@ -2450,12 +2457,10 @@ def _run_site_cycle(site):
     if current_mode == 'A':
         broadcast_agent_log(site, "Symmetric Alternating Pacing: Running ONLY Track A (Self-Doctor & Code Building)...", "info")
         run_track_a_evolution()
-        # ለቀጣይ ዑደት ወደ ዑደት B ማስተላለፍ
         SiteConfig.objects.update_or_create(key=track_key, defaults={'value': {'mode': 'B'}})
     else:
         broadcast_agent_log(site, "Symmetric Alternating Pacing: Running ONLY Track B (Web Scraping & Product Seeding)...", "info")
         run_track_b_growth()
-        # ለቀጣይ ዑደት ወደ ዑደት A ማስተላለፍ
         SiteConfig.objects.update_or_create(key=track_key, defaults={'value': {'mode': 'A'}})
 
     update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
