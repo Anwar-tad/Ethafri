@@ -118,9 +118,10 @@ else:
     }
 
 # =====================================================================
-# 5. Internationalization & Localization
+# 5. Internationalization & Localization (ቋንቋዎች ማግኛ እና ማቀናበሪያ)
 # =====================================================================
-LANGUAGE_CODE = 'am' # ዲፎልት ቋንቋ አማርኛ
+# 🛡️ FIXED: ዌብሳይቱ ዲፎልት ቋንቋ በእንግሊዝኛ (en) ሆኖ እንዲነሳ ተስተካክሏል
+LANGUAGE_CODE = 'en'
 
 TIME_ZONE = 'Africa/Addis_Ababa'
 
@@ -128,15 +129,19 @@ USE_I18N = True
 
 USE_TZ = True
 
-# 🛡️ FIXED: (translation.E004) You have provided a value for the LANGUAGE_CODE setting that is not in the LANGUAGES setting.
-# የተፈቀዱትን ቋንቋዎች በግልጽ ማስቀመጥ የ Django i18n የደህንነት ፍተሻን ያሳልፋል [1]
+# 🛡️ FIXED: (translation.E004) ሁሉንም 9ኙን የሀገር ውስጥና የአፍሪካ ቋንቋዎች በጃንጎ i18n ስኬማ ውስጥ ማካተት [1]
 LANGUAGES = [
-    ('am', _('Amharic')),
     ('en', _('English')),
+    ('am', _('Amharic')),
     ('om', _('Oromo')),
     ('ar', _('Arabic')),
     ('so', _('Somali')),
     ('ti', _('Tigrinya')),
+    ('aa', _('Afar')),
+    ('sid', _('Sidama')),
+    ('wal', _('Wolaytta')),
+    ('stv', _("Silt'e")),
+    ('sw', _('Swahili')),
     ('fr', _('French')),
 ]
 

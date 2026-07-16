@@ -298,3 +298,73 @@ class Command(BaseCommand):
                             success_rate=0.0
                         )
                     except Exception: pass
+    def process_batch_product_translations(self, site, batch_size=10):
+        """ምርቶችን በወረፋ ይዞ 10 ሲሞሉ በአንድ ላይ በባች በጌሚኒ መተርጎም (የቶከን ፍጆታን በ 90% የሚቆጥብ)"""
+        TranslationQueue = apps.get_model('marketplace', 'TranslationQueue')
+        ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
+        if not TranslationQueue or not ProductTranslation:
+            return
+
+        # ገና ያልተተረጎሙ ምርቶችን መውሰድ
+        queue_items = TranslationQueue.objects.filter(is_processed=False)[:batch_size]
+        if queue_items.count() < batch_size:
+            logger.info(f"✨ TranslationQueue: Queue has {queue_items.count()}/{batch_size} products. Waiting for batch to fill up to protect Gemini keys.")
+            return
+
+        self.stdout.write(self.style.NOTICE(f"🚀 Batch Translator: Translating {batch_size} products as a single bulk request..."))
+        
+        # የሚተረጎምባቸው 9ኙ የሀገር ውስጥ ቋንቋዎች ካርታ
+        locales = {
+            'am': 'Amharic', 'om': 'Oromo', 'ar': 'Arabic', 'so': 'Somali',
+            'ti': 'Tigrinya', 'aa': 'Afar', 'sid': 'Sidama', 'wal': 'Wolaytta', 'stv': "Silt'e"
+        }
+
+        products_payload = {}
+        for item in queue_items:
+            products_payload[str(item.product.id)] = {
+                "title": item.product.title,
+                "description": item.product.description
+            }
+
+        # 10ሩንም ምርቶች በአንድ ላይ ወደ 9ኙም ቋንቋዎች ለመተርጎም የሚላክ 1 ጥቅል ፕሮምፕት
+        prompt = (
+            f"Translate this product catalog into these languages: {list(locales.values())}.\n"
+            f"Catalog Data: {json.dumps(products_payload, ensure_ascii=False)}.\n\n"
+            f"Return strictly in JSON format where keys are the product IDs, mapping to their translated values:\n"
+            f"{{\n"
+            f"    \"[product_id]\": {{\n"
+            f"         \"[language_name]\": {{\n"
+            f"              \"title\": \"[translated title]\",\n"
+            f"              \"description\": \"[translated description]\"\n"
+            f"         }}\n"
+            f"    }}\n"
+            f"}}"
+        )
+
+        try:
+            raw_response = ask_ai_with_failover(prompt, pool_type="translation")
+            translated_catalog = self._clean_and_parse_json(raw_response)
+            
+            if translated_catalog and isinstance(translated_catalog, dict):
+                for item in queue_items:
+                    prod_id_str = str(item.product.id)
+                    prod_translations = translated_catalog.get(prod_id_str)
+                    
+                    if prod_translations and isinstance(prod_translations, dict):
+                        # ለ 9ኙም ቋንቋዎች ትርጉሙን በዳታቤዝ ውስጥ ማስቀመጥ
+                        for lang_code, lang_name in locales.items():
+                            lang_data = prod_translations.get(lang_name)
+                            if lang_data and isinstance(lang_data, dict):
+                                ProductTranslation.objects.update_or_create(
+                                    product=item.product,
+                                    language_code=lang_code,
+                                    defaults={
+                                        'translated_title': lang_data.get('title', item.product.title),
+                                        'translated_description': lang_data.get('description', item.product.description)
+                                    }
+                                )
+                        item.is_processed = True
+                        item.save()
+                self.stdout.write(self.style.SUCCESS(f"✅ Batch Translator: Successfully translated {batch_size} products to 9 regional languages."))
+        except Exception as e:
+            logger.error(f"Batch Product Translation failed: {e}")

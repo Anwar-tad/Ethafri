@@ -301,8 +301,12 @@ def _get_priority_providers(task_type: str) -> List[str]:
     በታስኩ ዓይነት (Task Type) መሠረት ምርጥ የሆኑትን የ AI አቅራቢዎች
     ቅደም-ተከተል በዳይናሚክ መንገድ የሚወስን የስራ ክፍፍል ማዕከል
     """
-    if task_type in ["translation", "analysis", "critical"]:
-        return ["GEMINI", "CEREBRAS", "SAMBANOVA", "GITHUB", "MISTRAL"]
+    # 🛡️ FIXED: የትርጉም ሥራዎችን አማርኛ ለማይችሉ አቅራቢዎች ከመስጠት መከልከል (ጌሚኒን ብቻ መገደብ) [1]
+    if task_type in ["translation"]:
+        return ["GEMINI"]
+        
+    elif task_type in ["analysis", "critical"]:
+        return ["CEREBRAS", "SAMBANOVA", "GEMINI", "GITHUB", "MISTRAL"]
         
     elif task_type in ["coding", "self_evolution"]:
         return ["CEREBRAS", "SAMBANOVA", "GITHUB", "MISTRAL", "GEMINI"]

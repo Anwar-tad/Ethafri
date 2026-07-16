@@ -1,7 +1,7 @@
 # ============================================================
 # 📁 የፋይል አስተካከያ: EthAfri/marketplace/code_apply.py
-# 📝 ቅጂ: Safe & Precise Code Application — Guardian Standard (v10.50)
-# ✅ v10.50: Atomic writes, async patch, precise path-traversal, dynamic models loaded via apps registry to prevent circular boot imports, deep Django server integration checking (deep_verify_django_app) added, and post-write atomic auto-rollback to protect runtime stability.
+# 📝 ቅጂ: Safe & Precise Code Application — Guardian Standard (v10.51)
+# ✅ v10.51: Atomic writes, async patch, precise path-traversal, dynamic models loaded via apps registry to prevent circular boot imports, deep Django server integration checking (deep_verify_django_app) added, post-write atomic auto-rollback to protect runtime stability, and background sync_translations trigger added to instantly compile newly written HTML/Form tags.
 # 📅 ቀን: Monday, July 13, 2026
 # ============================================================
 
@@ -804,7 +804,7 @@ def apply_code_change(
             RollbackManager.rollback_last()
         return _status(False, False, str(e), path=path, file_key=file_key)
 
-    # 7b. Post-write validation (ሰዋስው እና የሰርቨር ጤንነት ፍተሻ ከሮልባክ ጥበቃ ጋር)
+    # 7b. Post-write validation (ሰዋስው፣ የሰርቨር ጤንነት እና የሎጂክ ዩኒት ቴስት ፍተሻ ከሮልባክ ጥበቃ ጋር)
     if path.endswith('.py'):
         valid, vmsg = validate_python_file(path)
         if not valid:
@@ -825,7 +825,6 @@ def apply_code_change(
             deep_ok, dmsg = deep_verify_django_app()
             if not deep_ok:
                 logger.error(f"❌ Deep Django check failed: {dmsg}")
-                # ሰርቨሩ እንዳይቆም ወዲያውኑ ወደ ቀድሞው የሰነድ ይዘት መመለስ (Auto-Rollback)
                 if old_code:
                     _atomic_write(path, old_code)
                 elif enable_rollback:
@@ -835,6 +834,30 @@ def apply_code_change(
                     f"Deep Django verification failed: {dmsg}",
                     path=path, file_key=file_key,
                 )
+
+            # 🛡️ ራስ-ሰር የጃንጎ የሎጂክ ቴስት ፍተሻ (Dynamic Unit Test Execution Trigger) [NEW - v10.51]
+            test_ok, tmsg = deep_test_django_app()
+            if not test_ok:
+                logger.error(f"❌ Unit Test Verification failed: {tmsg}")
+                # ቴስቱ ካልቀለቀ ወዲያውኑ ሮልባክ በማድረግ ሰርቨሩን ከሎጂክ ስህተት ማዳን
+                if old_code:
+                    _atomic_write(path, old_code)
+                elif enable_rollback:
+                    RollbackManager.rollback_all()
+                return _status(
+                    False, False,
+                    f"Unit Test Verification failed: {tmsg}",
+                    path=path, file_key=file_key,
+                )
+
+    # 🛡️ DYNAMIC STATIC I18N TRIGGER: አዲስ ኮድ ሲጻፍ በስተጀርባ የ i18n ቃላትን ወዲያውኑ 1 ጊዜ ብቻ መተርጎም
+    if path.endswith('.py') or path.endswith('.html'):
+        try:
+            manage_py = os.path.join(str(settings.BASE_DIR), 'manage.py')
+            subprocess.Popen([sys.executable, manage_py, 'sync_translations'], close_fds=True)
+            logger.info("⚡ Code Apply Trigger: Launched background sync_translations to parse newly applied i18n tags.")
+        except Exception as trigger_err:
+            logger.debug(f"Failed to trigger sync_translations in background: {trigger_err}")
 
     # 8. GitHub push
     push_status = "Skipped (Local Only)"
@@ -1026,3 +1049,23 @@ def push_to_github_raw(
             return f"Exception: {e}"
 
     return "Error: Max retries exceeded"
+    
+def deep_test_django_app() -> Tuple[bool, str]:
+    """
+    በፓይተን በኩል 'manage.py test' ጥሪን በተለየ ንዑስ ፕሮሰስ በማስኬድ
+    የጃንጎ ሰርቨር የሎጂክ ዩኒት ቴስቶችን በደህንነት ያረጋግጣል (Test-Driven Self-Correction)
+    """
+    import sys
+    import subprocess
+    try:
+        manage_py = os.path.join(str(settings.BASE_DIR), 'manage.py')
+        # '--noinput' የሚለውን በመጠቀም የሰው ጣልቃ ገብነት ሳይኖር በራሱ እንዲያጠናቅቅ ማድረግ
+        result = subprocess.run(
+            [sys.executable, manage_py, 'test', 'marketplace.tests', '--noinput'],
+            capture_output=True, text=True, timeout=40, cwd=str(settings.BASE_DIR)
+        )
+        if result.returncode == 0:
+            return True, "OK"
+        return False, (result.stderr or result.stdout)[-500:]
+    except Exception as e:
+        return False, f"Test execution error: {e}"
