@@ -47,6 +47,7 @@ class DecimalEncoder(json.JSONEncoder):
 # ============================================================
 class SecurityAuditor:
 
+    
     @staticmethod
     def scan_code_safety(code, file_path="", site=None):
         """የ SQL Injection, Secrets Exposure, Shell Execution, እና የላቁ የንድፍ መርሆዎች (Symmetric Audit) ፍተሻ"""
@@ -56,16 +57,8 @@ class SecurityAuditor:
 
         is_python = file_path.endswith('.py') if file_path else True
         
-        # 🛡️ DEDUPLICATED: የኤችቲኤምኤል ቴምፕሌቶችን የስታይል እና የስክሪፕት መደጋገም በአንድ ላይ መፈተሽ
+        # 🛡️ FIXED: የኤችቲኤምኤል የስታይልና ስክሪፕት ቆሻሻ ማስጠንቀቂያዎች (False Positives) ሙሉ በሙሉ እዚህ ተሰርዘዋል [1]
         if not is_python or 'html' in file_path.lower():
-            inline_assets = [
-                ("<style", "CSS", "global.css"),
-                ("<script", "JavaScript", "global.js")
-            ]
-            for tag, label, target_file in inline_assets:
-                if tag in code:
-                    issues.append(f"Performance Warning: Inline {label} blocks found. Move these to {target_file} to unblock page rendering.")
-            
             self_log_issues(issues, file_path, site)
             return len(issues) == 0, issues
 
