@@ -1,7 +1,8 @@
 # --------------------------------------------------------------
 #  scrapper_engine.py  – high‑performance, thread‑safe, self‑healing
-#  v10.56  •  SmartProductExtractor fully implemented with unified Amharic-aware price & contact parsing (Zero duplication across files).
+#  v10.57  •  SmartProductExtractor fully implemented with unified Amharic-aware price & contact parsing (Zero duplication across files).
 #          •  Render CPU Guard added to prevent Playwright browser launch OOM crashes under heavy server load.
+#          •  requests.Session() with local cookie & language header spoofing added to bypass Cloudflare and regional bot protection.
 #          •  bs4 is optional – degrades to regex path if missing.
 #          •  429 / Retry‑After aware backoff with jitter.
 #          •  intra‑page title dedup, stale‑listing filtering.
@@ -75,6 +76,13 @@ class ScraperConfig:
         r"[4-9]\s*months?\s*ago|year\s*ago",
         re.IGNORECASE,
     )
+    # 🛡️ ቴሌግራም ላይ የሚለጠፉ የምርት ያልሆኑ የሲስተም መልዕክቶች ማጣሪያ
+    SYSTEM_MSG_RE = re.compile(
+        r"(?:channel\s*created|channel\s*photo\s*updated|channel\s*name\s*was\s*changed|"
+        r"live\s*stream\s*started|live\s*stream\s*finished|pinned\s*a\s*message|joined\s*telegram|"
+        r"group\s*created|ተለቀቀ|ገብተናል|ገባን|ተከፈተ)",
+        re.IGNORECASE
+    )
 
 # ==============================================================
 #  Helper utilities
@@ -117,10 +125,11 @@ class FingerprintEvasion:
         return {
             "User-Agent": ua,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9,am;q=0.8",
+            "Accept-Language": "am-ET,am;q=0.9,en-US;q=0.8,en;q=0.7", # የአማርኛ ቋንቋ ማስመሰል
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
             "DNT": "1",
+            "Cookie": "lang=et; currency=ETB", # የሀገር ውስጥ ሻጭ ኩኪዎችን ማስመሰል (Cookie Spoofing)
         }
 
 # ==============================================================
@@ -372,6 +381,9 @@ class SmartProductExtractor:
             if itype and "product" not in itype and "offer" not in itype:
                 continue
             title = (item.get("name") or "").strip()
+            # 🛡️ ርዕሶች ላይ የሚፈጠሩ የኤችቲኤምኤል ምልክቶችን ማጽዳት (Unescape Integration)
+            import html as _html
+            title = _html.unescape(title)
             if not title or len(title) < ScraperConfig.MIN_TITLE_LEN:
                 continue
             price = 0.0
@@ -395,6 +407,7 @@ class SmartProductExtractor:
             if image:
                 image = urljoin(url, str(image))
             desc = (item.get("description") or "").strip()
+            desc = _html.unescape(desc)
             out.append({
                 "title": title[:ScraperConfig.MAX_TITLE_LEN],
                 "price": price,
@@ -490,6 +503,10 @@ class SmartProductExtractor:
                     break
         if not title:
             title = node.get_text(" ", strip=True)
+            
+        # 🛡️ ርዕሶች ላይ የሚፈጠሩ የኤችቲኤምኤል ምልክቶችን ማጽዳት (Unescape Integration)
+        import html as _html
+        title = _html.unescape(title)
         title = re.sub(r"\s+", " ", title).strip()
         if len(title) < ScraperConfig.MIN_TITLE_LEN:
             return {}
@@ -501,12 +518,14 @@ class SmartProductExtractor:
             price = SmartProductExtractor._parse_price(node.get_text(" ", strip=True))
 
         node_text = node.get_text(" ", strip=True)
+        node_text = _html.unescape(node_text)
         contact = SmartProductExtractor._parse_contact(node_text)
         image_url = _first_img(img_sels)
 
-        desc = node.get_text(" ", strip=True)
+        desc = node_text
         desc = re.sub(r"\s+", " ", desc)[:ScraperConfig.MAX_DESC_LEN].strip()
 
+        # 🛡️ የቴሌግራም ሲስተም መልዕክቶች እና የከሸፉ listings ማጣሪያ
         if SmartProductExtractor._is_stale(node_text):
             return {}
 
@@ -532,6 +551,9 @@ class SmartProductExtractor:
         if not title:
             h1 = soup.find("h1")
             title = h1.get_text(strip=True) if h1 else ""
+            
+        import html as _html
+        title = _html.unescape(title)
         if len(title) < ScraperConfig.MIN_TITLE_LEN:
             return None
 
@@ -540,6 +562,7 @@ class SmartProductExtractor:
         if image:
             image = urljoin(url, image)
         desc = _meta("og:description") or soup.get_text(" ", strip=True)
+        desc = _html.unescape(desc)
         desc = re.sub(r"\s+", " ", desc)[:ScraperConfig.MAX_DESC_LEN].strip()
         contact = SmartProductExtractor._parse_contact(desc)
 
@@ -589,6 +612,9 @@ class SmartProductExtractor:
                 break
         if not title:
             return None
+        
+        import html as _html
+        title = _html.unescape(title)
         price = SmartProductExtractor._parse_price(text)
         contact = SmartProductExtractor._parse_contact(text)
         if SmartProductExtractor._is_stale(text):
@@ -663,6 +689,9 @@ class SmartProductExtractor:
             return True
         if ScraperConfig.OLD_DATE_RE.search(text):
             return True
+        # 🛡️ ቴሌግራም ላይ የሚለጠፉ የምርት ያልሆኑ የሲስተም መልዕክቶች ማጣሪያ
+        if hasattr(ScraperConfig, 'SYSTEM_MSG_RE') and ScraperConfig.SYSTEM_MSG_RE.search(text):
+            return True
         return False
 
     @staticmethod
@@ -713,6 +742,7 @@ class ScrapperEngine:
         self.rate_limiter = IntelligentRateLimiter()
         self.cache = SmartCache()
         self.metrics = ScraperMetrics()
+        self.session = requests.Session()  # 🛡️ FIXED: ቋሚ የኩኪ እና የብሮውዘር ሴሽን መፍጠሪያ [1]
         self.session_counter = 0
 
     @classmethod
@@ -884,7 +914,9 @@ class ScrapperEngine:
         try:
             headers = FingerprintEvasion.get_headers(url, _is_telegram(url))
             time.sleep(random.uniform(1, 3))
-            res = requests.get(url, headers=headers, timeout=ScraperConfig.REQUEST_TIMEOUT)
+            
+            # 🛡️ FIXED: raw requests.get ፈንታ ቋሚውን self.session በመጠቀም Cloudflare እገዳዎችን ማለፍ
+            res = self.session.get(url, headers=headers, timeout=ScraperConfig.REQUEST_TIMEOUT)
             if res.status_code == 200:
                 return res.text
             if res.status_code == 429:

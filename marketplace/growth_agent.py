@@ -982,15 +982,22 @@ class MultiChannelHarvester:
         platform = source.get('platform_type', 'GenericWeb')
         domain = urlparse(url).netloc.lower() or url.replace('@', '').lower()
         
-        block_reason = "የማይታወቅ እገዳ (Access Blocked)"
-        if "403" in error_msg or "Forbidden" in error_msg:
-            block_reason = "HTTP 403 Forbidden (Firewall/Cloudflare IP Ban ተገኝቷል)"
-        elif "429" in error_msg or "Too Many Requests" in error_msg:
-            block_reason = "HTTP 429 Too Many Requests (የኤፒአይ ፍጥነት ገደብ/Throttled)"
-        elif "Timeout" in error_msg or "timed out" in error_msg:
-            block_reason = "የሰዓት ማለፍ ግንኙነት መቋረጥ (Timeout - ሰርቨሩ ጥበቃ አለው ወይም ጠፍቷል)"
-        elif "0 products extracted" in error_msg:
-            block_reason = "የይዘት አወቃቀር መዛባት (DOM Structure Mismatch - የዌብሳይቱ ዲዛይን ተቀይሯል)"
+        AIProjectBacklog = get_model('AIProjectBacklog')
+        if not AIProjectBacklog:
+            return
+
+        task_name = f"🕵️ RECON INTEL BRIEF: {domain}"[:200]
+
+        # 🛡️ RECON THROTTLE: 7-day Cooldown guard to prevent backlog task flooding (Zero duplication)
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        recon_exists = AIProjectBacklog.objects.filter(
+            task_name=task_name,
+            created_at__gte=seven_days_ago
+        ).exists()
+
+        if recon_exists:
+            logger.info(f"⏭️ Recon Throttle: Already generated a Recon Brief for '{domain}' in the last 7 days. Skipping duplicate task creation.")
+            return
 
         density_estimation = "Cannot evaluate (Complete connection block)"
         if html_content:
@@ -1046,36 +1053,33 @@ class MultiChannelHarvester:
 
         try:
             AIProjectBacklog = get_model('AIProjectBacklog')
-            task_name = f"🕵️ RECON INTEL BRIEF: {domain}"[:200]
-            
-            if not AIProjectBacklog.objects.filter(task_name=task_name).exists():
-                AIProjectBacklog.objects.create(
-                    site=get_model('SiteRegistry').objects.filter(is_active=True).first(),
-                    task_name=task_name,
-                    target_file="scrapper_engine",
-                    priority="High",
-                    status="Blocked",
-                    description=(
-                        f"============================================================\n"
-                        f"🕵️ AUTONOMOUS SCRAPER RECONNAISSANCE INTELLIGENCE BRIEF\n"
-                        f"============================================================\n"
-                        f"🌐 TARGET WEBSITE: {url}\n"
-                        f"🛡️ OBSTACLE ENCOUNTERED: {block_reason}\n"
-                        f"📊 TARGET MARKET STATISTICS:\n{density_estimation}\n\n"
-                        f"🔍 DEEP-DIVE CRAWL TARGETS:\n{deep_path_brief}\n\n"
-                        f"------------------------------------------------------------\n"
-                        f"💡 AI STRATEGIST BYPASS GUIDE:\n"
-                        f"------------------------------------------------------------\n"
-                        f"{analysis_text}\n\n"
-                        f"------------------------------------------------------------\n"
-                        f"🛠️ RECOMMENDED CODE PATCH FOR ADMIN (COPY & PASTE TO FIX):\n"
-                        f"------------------------------------------------------------\n"
-                        f"```python\n{code_patch}\n```\n"
-                        f"============================================================\n"
-                    ),
-                    business_impact_score=8,
-                    trigger_condition="Autonomous Scraper Reconnaissance Loop"
-                )
+            AIProjectBacklog.objects.create(
+                site=get_model('SiteRegistry').objects.filter(is_active=True).first(),
+                task_name=task_name,
+                target_file="scrapper_engine",
+                priority="High",
+                status="Blocked",
+                description=(
+                    f"============================================================\n"
+                    f"🕵️ AUTONOMOUS SCRAPER RECONNAISSANCE INTELLIGENCE BRIEF\n"
+                    f"============================================================\n"
+                    f"🌐 TARGET WEBSITE: {url}\n"
+                    f"🛡️ OBSTACLE ENCOUNTERED: {block_reason}\n"
+                    f"📊 TARGET MARKET STATISTICS:\n{density_estimation}\n\n"
+                    f"🔍 DEEP-DIVE CRAWL TARGETS:\n{deep_path_brief}\n\n"
+                    f"------------------------------------------------------------\n"
+                    f"💡 AI STRATEGIST BYPASS GUIDE:\n"
+                    f"------------------------------------------------------------\n"
+                    f"{analysis_text}\n\n"
+                    f"------------------------------------------------------------\n"
+                    f"🛠️ RECOMMENDED CODE PATCH FOR ADMIN (COPY & PASTE TO FIX):\n"
+                    f"------------------------------------------------------------\n"
+                    f"```python\n{code_patch}\n```\n"
+                    f"============================================================\n"
+                ),
+                business_impact_score=8,
+                trigger_condition="Autonomous Scraper Reconnaissance Loop"
+            )
         except Exception as db_err:
             logger.error(f"Failed to save Reconnaissance Task: {db_err}")
 
