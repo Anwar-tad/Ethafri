@@ -223,6 +223,13 @@ class MarketplaceConfig(AppConfig):
         if os.environ.get('RUN_MAIN') != 'true' and 'manage.py' in sys.argv[0]:
             return
 
+        # 🛡️ FIXED: በ Uvicorn/Daphne ማስነሻ ላይ የሚፈጠሩ ድርብ ክሮችን በኬሽ መቆለፊያ 100% መከልከል (Thread Guard) [NEW - v10.33]
+        from django.core.cache import cache
+        if cache.get("agent_threads_spawned_active"):
+            logger.info("⏭️ Thread Guard: Background threads already active. Skipping duplicate spawn to protect CPU.")
+            return
+        cache.set("agent_threads_spawned_active", True, timeout=86400) # ለ24 ሰዓት መቆለፍ
+
         # የቅድመ-በረራ ራስ-መፍጠርያ ሎጂክን መጥራት (ይህ በጣም ፈጣን ነው)
         try:
             verify_and_bootstrap_agent_files()
@@ -379,7 +386,8 @@ class MarketplaceConfig(AppConfig):
                 finally:
                     connections.close_all()
                     gc.collect() # ራም መቆጠብ
-        # --- ክር 4፦ የ 12 ቱ የኤአይ ቁልፎች የጤና ፍተሻ (API Health Monitor - ፊቸር 7) ---
+
+        # --- ክር 4፦ የ 12 ቱ የኤአይ ቁልፎች የጤና ፍተሻ (የታረመው ሎጂክ - ፊቸር 7) ---
         def run_api_health_monitor_thread():
             logger.info("📡 API Health Monitor Thread starting (1-hour cycle)...")
             while True:
@@ -400,32 +408,33 @@ class MarketplaceConfig(AppConfig):
                             key_hash = hashlib.md5(raw_key.encode('utf-8')).hexdigest()[:12]
                             cooldown_key = f"ai_cooldown_{prov.upper()}_{key_hash}"
                             
-                            # 🛡️ ቁልፉ አስቀድሞ በኳራንቲን ካልታገደ የጤና ሁኔታውን በፈጣን ፒንግ (Ping) መፈተሽ
                             if not cache.get(cooldown_key):
                                 test_url = "https://generativelanguage.googleapis.com" if prov == "gemini" else "https://api.github.com"
                                 try:
                                     res = requests.head(test_url, timeout=5)
-                                    # ቁልፉ ጊዜው ያለፈበት ወይም የተሰረዘ መሆኑን መለየት (HTTP 401/403)
-                                    if res.status_code in [401, 403]:
-                                        logger.warning(f"⚠️ API Monitor: Detected expired/invalid key for {prov.upper()}. Quarantining key hash {key_hash}...")
-                                        cache.set(cooldown_key, True, timeout=86400) # ለ 24 ሰዓት ማገድ
-                                except Exception:
-                                    pass
+                                    # አገልጋዩ ሙሉ በሙሉ ከወደቀ (HTTP 5xx Server Error) ብቻ ቁልፉን ለ 2 ደቂቃ ማገድ
+                                    if res.status_code >= 500:
+                                        logger.warning(f"⚠️ API Monitor: Provider {prov.upper()} host is down (HTTP {res.status_code}). Temporarily quarantining...")
+                                        cache.set(cooldown_key, True, timeout=120)
+                                except (requests.exceptions.RequestException, Exception) as conn_err:
+                                    # ኔትወርክ ሙሉ በሙሉ ከተቋረጠ ለ 5 ደቂቃ ማገድ
+                                    logger.warning(f"⚠️ API Monitor: Provider {prov.upper()} is unreachable ({conn_err}). Temporarily quarantining...")
+                                    cache.set(cooldown_key, True, timeout=300)
                 except Exception as e:
                     logger.error(f"❌ API Health Monitor Error: {e}")
                 finally:
                     connections.close_all()
-                    gc.collect() # ራም ማጽጃ
-                time.sleep(3600) # በየ 1 ሰዓቱ (3600 ሰከንድ) ይፈትሻል
+                    gc.collect()
+                time.sleep(3600) # በየ 1 ሰዓቱ ይፈትሻል
 
         t1 = threading.Thread(target=run_agent_thread, daemon=True)
         t2 = threading.Thread(target=run_safetynet_thread, daemon=True)
         t3 = threading.Thread(target=run_health_check_thread, daemon=True)
+        t4 = threading.Thread(target=run_api_health_monitor_thread, daemon=True)
         
         t1.start()
         t2.start()
         t3.start()
-        t4 = threading.Thread(target=run_api_health_monitor_thread, daemon=True)
         t4.start()
 
         logger.info("✅ All systems initialized. Autonomous loop is running.")
