@@ -184,7 +184,7 @@ def home(request):
     return render(request, 'marketplace/home.html', context)
 
 def product_detail(request, pk):
-    """የምርት ዝርዝር — እይታን ይቆጥራል..."""
+    """የምርት ዝርዝር — እይታን ይቆጥራል እና የጎደሉ ቋንቋዎችን በጌሚኒ በዳይናሚክ ይተረጉማል (v10.20 - On-Demand Translation Loop)"""
     Product = apps.get_model('marketplace', 'Product')
     ABTest = apps.get_model('marketplace', 'ABTest')
 
@@ -197,13 +197,48 @@ def product_detail(request, pk):
     translated_description = product.description
     
     if lang and lang != 'en':
-        translation = getattr(product, 'translations', None)
-        if translation:
-            lang_text = getattr(translation, lang, '')
-            if lang_text and "|||" in lang_text:
-                parts = lang_text.split("|||")
-                translated_title = parts[0].strip()
-                translated_description = parts[1].strip()
+        ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
+        translation, _ = ProductTranslation.objects.get_or_create(product=product)
+        lang_text = getattr(translation, lang, '').strip()
+        
+        # 🛡️ DYNAMIC ON-DEMAND TRANSLATION: ትርጉሙ ከሌለ ጌሚኒን ጠርቶ ወዲያውኑ መተርጎምና ማስቀመጥ (የመማር ሎጂክ)
+        if not lang_text:
+            try:
+                from .ai_utils import ask_master_ai_smart, clean_and_parse_json
+                
+                # የቋንቋዎች ካርታ
+                locales_map = {
+                    'am': 'Amharic', 'om': 'Oromo', 'ar': 'Arabic', 'so': 'Somali',
+                    'ti': 'Tigrinya', 'aa': 'Afar', 'sid': 'Sidama', 'wal': 'Wolaytta',
+                    'stv': "Silt'e", 'sw': 'Swahili', 'fr': 'French'
+                }
+                lang_name = locales_map.get(lang, 'Amharic')
+                
+                prompt = (
+                    f"Translate this product details into {lang_name}.\n"
+                    f"Title: {product.title}\n"
+                    f"Description: {product.description}\n\n"
+                    f"Return JSON format strictly with keys 'title' and 'description'."
+                )
+                
+                res = ask_master_ai_smart(prompt, task_type="translation")
+                data = clean_and_parse_json(res)
+                
+                if data and isinstance(data, dict) and data.get('title'):
+                    t_title = data.get('title', product.title)
+                    t_desc = data.get('description', product.description)
+                    # በ "|||" አጣብቆ በአንድ አምድ ውስጥ ማስቀመጥ (Symmetric Column Match)
+                    lang_text = f"{t_title} ||| {t_desc}"
+                    setattr(translation, lang, lang_text)
+                    translation.save()
+            except Exception as e:
+                logger.debug(f"Dynamic on-demand translation failed: {e}")
+
+        # ትርጉሙን ለይቶ ማውጣት
+        if lang_text and "|||" in lang_text:
+            parts = lang_text.split("|||")
+            translated_title = parts[0].strip()
+            translated_description = parts[1].strip()
 
     active_test = ABTest.objects.filter(site=product.site, status='running').first()
     variant = 'A'
