@@ -255,9 +255,31 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
     except Exception as e:
         logger.warning(f"⚠️ JSON Parsing failed initially: {e}. Activating automatic JSON self-repair...")
         try:
-            # 1. በምርት ዲስክሪፕሽን ውስጥ ያሉ ያልተጠበቁ አዳዲስ መስመሮችን (Newlines/Tabs) ማጽዳት (Unterminated string repair)
+            # 1. በምርት ዲስክሪፕሽን ውስጥ ያሉ ያልተጠበቁ አዳዲስ መስመሮችን (Newlines/Tabs) እና የመዝጊያ ኮማዎችን ማጽዳት
             repaired = re.sub(r',\s*([\]}])', r'\1', cleaned) # የመዝጊያ ኮማዎችን ማጥፋት
             repaired = re.sub(r'[\t\n\r]', ' ', repaired) # አዳዲስ መስመሮችን በባዶ ቦታ መተካት
+            
+            # 2. 🛡️ SURGICAL QUOTE ESCAPER: በምርት ርዕስ/መግለጫ ውስጥ ያሉ ያልተጠበቁ ጥቅሶችን በራስ-ሰር በ slash (\") መተካት [NEW]
+            repaired = re.sub(r'(?<=[:\s,\[])"([\s\S]*?)"(?=[\s,\]}])', lambda m: '"' + m.group(1).replace('"', '\\"') + '"', repaired)
+            
+            # 3. 🛡️ TRUNCATED JSON REPAIRER: በቶከን ገደብ መሃል ላይ የተቋረጠ የ AI ጽሑፍ ከሆነ የቅንፎችና የጥቅሶች ብዛት ማመጣጠን [NEW]
+            repaired = repaired.strip()
+            if repaired:
+                # የጥቅስ ምልክት ብዛት ያልተመጣጠነ ከሆነ በጥቅስ መዝጋት
+                if repaired.count('"') % 2 != 0:
+                    repaired += '"'
+                    
+                # የቅንፎች እና የኩርባ ቅንፎች ብዛትን ፈልጎ ማመጣጠን
+                open_braces = repaired.count('{')
+                close_braces = repaired.count('}')
+                open_brackets = repaired.count('[')
+                close_brackets = repaired.count(']')
+                
+                if open_brackets > close_brackets:
+                    repaired += ']' * (open_brackets - close_brackets)
+                if open_braces > close_braces:
+                    repaired += '}' * (open_braces - close_braces)
+                    
             return json.loads(repaired)
         except Exception as e2:
             logger.error(f"❌ JSON Self-Healer failed to parse: {e2}")
