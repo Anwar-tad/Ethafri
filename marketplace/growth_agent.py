@@ -1446,7 +1446,7 @@ class CEOOperations:
         self.site = site
 
     def run_business_growth(self):
-        """የንግድ ዕድገት ዑደት (Bulk Harvesting + Listing Curation)"""
+        """የንግድ ዕድገት ዑደት (Bulk Harvesting + Curation + Spying + Campaign + Optimization)"""
         try:
             prod_count = get_model('Product').objects.filter(site=self.site, is_active=True).count()
             logger.info(f"📈 Running business growth cycle for {self.site.name}")
@@ -1457,6 +1457,19 @@ class CEOOperations:
 
         self._harvest_verified_products_bulk()
         self.curate_user_listings()
+        
+        # 🛡️ Dynamic Local Optimizations: ፊቸር 5, 9, 10 በስራ ላይ ማዋል
+        self.enrich_missing_seller_contacts()
+        self.optimize_listings_seo()
+        self.calculate_predictive_pricing()
+        
+        # 🛡️ ፊቸር 1፦ የማህበራዊ ሚዲያ አውቶማቲክ ማስታወቂያ (Telegram Bot Post)
+        try:
+            from .growth_agent import SocialMediaCampaigner
+            SocialMediaCampaigner.run_automated_campaigns(self.site)
+        except Exception as e:
+            logger.debug(f"Failed to run automated social campaign: {e}")
+
         self._boost_revenue()
         self.dispatch_pending_notifications()
 
@@ -1669,7 +1682,6 @@ class CEOOperations:
             return None
         url = "https://api-inference.huggingface.co/models/NousResearch/Meta-Llama-3-8B-Instruct"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        # 🛡️ FIXED: malformed prompt template (stray/empty tokens) replaced with proper ChatML format
         payload = {
             "inputs": f"<|im_start|>user\n{prompt}\n<|im_end|>\n<|im_start|>assistant\n",
             "parameters": {"max_new_tokens": 1024, "temperature": 0.4, "return_full_text": False},
@@ -1678,7 +1690,6 @@ class CEOOperations:
             res = requests.post(url, headers=headers, json=payload, timeout=timeout)
             if res.status_code == 200:
                 data = res.json()
-                # 🛡️ FIXED: guard against non-list / empty responses before indexing data[0]
                 if isinstance(data, list) and data and isinstance(data[0], dict):
                     return (data[0].get('generated_text') or '').strip()
                 if isinstance(data, dict) and 'generated_text' in data:
@@ -1721,8 +1732,6 @@ class CEOOperations:
         return raw_img_url
 
     def _search_google_for_product_image(self, title) -> str:
-        """ምርቱ የራሱ ፎቶ ከሌለው በከፍተኛ ጥራት በ DuckDuckGo ፈልጎ እውነተኛ ምስል ያመጣል (Fuzzy Locked Fallback)"""
-        # 🛡️ FIXED: Unicode range was \u01200-\u0137F (invalid 5-hex-digit) → \u1200-\u137F (correct Amharic block)
         clean_title = re.sub(r'[^a-zA-Z0-9\s\u1200-\u137F]', '', title).strip()
         if not clean_title or len(clean_title) < 3:
             clean_title = "product"
@@ -1761,7 +1770,6 @@ class CEOOperations:
         return stable_fallback
 
     def _seed_listings_bulk(self, products_list):
-        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የአድሚን አንዋር ስልክን ያካተተ የተጠቃሚ ግብዣ መልዕክት የያዘ"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
@@ -1773,7 +1781,6 @@ class CEOOperations:
         notifications_to_create = []
         seen_titles = set() 
 
-        # የማዕከላዊ አድሚን ተጠቃሚን መለየት
         try:
             from django.contrib.auth import get_user_model
             User = get_user_model()
@@ -1852,7 +1859,6 @@ class CEOOperations:
                 )
                 products_to_create.append(product_obj)
 
-                # 🛡️ ሻጮች ምርታቸው በነፃ መለጠፉን የሚገልጽ እና የአንዋርን (0962200856) የድጋፍ ስልክ ያካተተ መልዕክት
                 if is_verified_seller:
                     login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode('utf-8')).hexdigest()[:16]
                     SiteConfig.objects.update_or_create(
@@ -1908,8 +1914,7 @@ class CEOOperations:
 
         return created_count
 
-    @staticmethod
-    def generate_contact_links(contact_str):
+    def generate_contact_links(self, contact_str):
         links = {}
         if not contact_str: 
             return links
@@ -1948,7 +1953,6 @@ class CEOOperations:
             dedup_config, _ = SiteConfig.objects.get_or_create(key=dedup_key, defaults={'value': []})
             curated_ids = set(dedup_config.value if isinstance(dedup_config.value, list) else [])
 
-            # ገና ያልተገመገሙ ምርቶችን መውሰድ
             candidates = list(Product.objects.filter(site=self.site, is_active=True).exclude(id__in=list(curated_ids))[:limit])
             if not candidates: 
                 return
@@ -1958,9 +1962,8 @@ class CEOOperations:
                 try:
                     title_words = len(product.title.split())
                     has_stale_boilerplate = any(w in product.title.lower() for w in ["jiji", "etb", "bole", "years", "channel"])
-                    is_suspicious_price = product.price > 20000000.0  # ከ 20 ሚሊዮን በላይ ዋጋ ካለው (የማባዛት ስህተት ጥርጣሬ)
+                    is_suspicious_price = product.price > 20000000.0
 
-                    # 🛡️ AI POST-SCRAPE REFINER: ርዕሱ በጣም ረጅም ወይም ዋጋው የተጋነነ ከሆነ በ AI ማጣራትና ማሻሻል
                     if title_words > 4 or has_stale_boilerplate or is_suspicious_price:
                         prompt = (
                             f"You are a Senior E-Commerce Merchandiser. Inspect and repair this scraped product details:\n"
@@ -2029,6 +2032,8 @@ class CEOOperations:
                 note.save()
         except Exception as e:
             logger.error(f"Outbound Dispatcher failed: {e}")
+
+    # 🛡️ ፊቸር 5፦ የባለቤት ስልክ ቁጥር ማበልጸጊያ (Seller Contact Enrichment)
     def enrich_missing_seller_contacts(self, limit=3):
         """የባለቤት ስልክ ቁጥር ያልተገኘላቸውን ምርቶች በይነመረብ ላይ ፈልጎ አድራሻቸውን የሚያበለጽግ ሞተር (Seller Contact Enrichment)"""
         Product = get_model('Product')
@@ -2051,7 +2056,8 @@ class CEOOperations:
             # የሻጩን አድራሻ በይነመረብ ላይ መፈለጊያ አጭር ጥያቄ ማዘጋጀት
             search_query = f"Ethiopia contact phone {product.title}"
             
-            # ያለ ኤፒአይ ኪይ ቀጥታ ከ DuckDuckGo ላይ የፍለጋ መረጃዎችን መሳብ
+            # ሰርቨሩ ሳይበላሽ ከ DuckDuckGo ላይ የፍለጋ መረጃዎችን መሳብ
+            from .growth_agent import _autonomous_no_api_search_fallback
             search_context = _autonomous_no_api_search_fallback(search_query)
             if not search_context:
                 continue
@@ -2096,7 +2102,7 @@ class CEOOperations:
                     # 3. የአድሚን አንዋርን ስልክ (0962200856) የያዘውን ግብዣ በኤስኤምኤስ ወረፋ መመዝገብ
                     message = (
                         f"ሰላም! በይነመረብ ላይ የለጠፉት '{product.title}' ምርት በኢትአፍሪ (EthAfri) ድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
-                        f"ምርትዎን ዋጋ ለመቀየር ወይም ለማስተዳደር በዚህ ሊንክ ይግቡ፦\n"
+                        f"ምርትዎን ለማስተዳደር በዚህ ሊንክ ይግቡ፦\n"
                         f"{magic_login_url}\n\n"
                         f"ማንኛውንም ድጋፍ ከፈለጉ አስተዳዳሪውን አንዋርን በስልክ ቁጥር 0962200856 ያነጋግሩ።"
                     )
@@ -2108,6 +2114,74 @@ class CEOOperations:
                     logger.info(f"✨ Contact Enrichment: Successfully enriched contact for '{product.title}' -> {contact}")
             except Exception as e:
                 logger.debug(f"Contact enrichment failed for {product.title}: {e}")
+
+    # 🛡️ ፊቸር 9፦ የአገር ውስጥ SEO እና የይዘት አሻሽል ሞተር (Dynamic Local SEO Optimizer)
+    def optimize_listings_seo(self, limit=3):
+        """ዝቅተኛ እይታ ያላቸውን ምርቶች ርዕስና መግለጫ በአገር ውስጥ SEO ቁልፍ ቃላት በጌሚኒ ያበለጽጋል"""
+        Product = get_model('Product')
+        if not Product: return
+        
+        from .ai_utils import ask_master_ai_smart, clean_and_parse_json
+        
+        underperforming = Product.objects.filter(site=self.site, is_active=True, view_count__lt=10).order_by('id')[:limit]
+        for prod in underperforming:
+            seo_key = f"SEO_OPTIMIZATION_RUN_{prod.id}"
+            if get_model('SiteConfig').objects.filter(key=seo_key).exists():
+                continue
+                
+            prompt = (
+                f"Enrich this product listing using high-performing Amharic local SEO keywords.\n"
+                f"Raw Title: {prod.title}\nRaw Description: {prod.description}\n\n"
+                f"Return JSON with keys: 'seo_title' (max 4 words Amharic) and 'seo_description'."
+            )
+            try:
+                res = ask_master_ai_smart(prompt, task_type="analysis")
+                data = clean_and_parse_json(res)
+                if data and isinstance(data, dict) and data.get('seo_title'):
+                    prod.title = data['seo_title']
+                    prod.description = data['seo_description']
+                    prod.save()
+                    get_model('SiteConfig').objects.create(key=seo_key, defaults={'value': {'optimized_at': timezone.now().isoformat()}})
+                    logger.info(f"✨ SEO Optimizer: Successfully rewritten SEO text for product {prod.id}")
+            except Exception as e:
+                logger.debug(f"SEO listing optimization failed: {e}")
+
+    # 🛡️ ፊቸር 10፦ የፍላጎት ትንበያና የዋጋ ማመጣጠኛ (Predictive Inventory & Smart Price Optimizer)
+    def calculate_predictive_pricing(self, limit=3):
+        """ወቅታዊ የምርት ፍላጎቶችንና እይታዎችን አጥንቶ ተስማሚ የዋጋ ግምት ሪፖርት ያዘጋጃል"""
+        Product = get_model('Product')
+        if not Product: return
+        
+        from .ai_utils import ask_master_ai_smart, clean_and_parse_json
+        
+        high_demand = Product.objects.filter(site=self.site, is_active=True, view_count__gt=80).order_by('-view_count')[:limit]
+        for prod in high_demand:
+            pricing_key = f"PREDICTIVE_PRICING_{prod.id}"
+            if get_model('SiteConfig').objects.filter(key=pricing_key).exists():
+                continue
+                
+            prompt = (
+                f"You are a pricing analyst. Analyze this hot listing's details:\n"
+                f"Title: {prod.title}\nPrice: {prod.price} ETB\nViews: {prod.view_count}\n\n"
+                f"Suggest the optimal dynamic price adjustment percentage (e.g. +5% or -3%) and explain why.\n"
+                f"Return JSON with keys 'adjustment_percentage' (float, e.g. 5.0) and 'rationale'."
+            )
+            try:
+                res = ask_master_ai_smart(prompt, task_type="analysis")
+                data = clean_and_parse_json(res)
+                if data and isinstance(data, dict) and 'adjustment_percentage' in data:
+                    get_model('SiteConfig').objects.create(
+                        key=pricing_key, 
+                        defaults={'value': {
+                            'original_price': prod.price,
+                            'suggested_adjustment': data['adjustment_percentage'],
+                            'rationale': data.get('rationale', ''),
+                            'calculated_at': timezone.now().isoformat()
+                        }}
+                    )
+                    logger.info(f"🎯 Price Optimizer: Logged dynamic pricing advice for product {prod.id}")
+            except Exception as e:
+                logger.debug(f"Predictive pricing optimization failed: {e}")
 
 # ============================================================
 # 🕵️ COMPETITOR INTELLIGENCE ENGINE (ተፎካካሪ ስለላ)
@@ -2589,3 +2663,138 @@ def force_push_products(site):
             logger.info("✅ Emergency Seeder: ዱሚ ምርት ተፈጥሯል፤ የኮዲንግ እገዳው ተሰብሯል!")
         except Exception as e:
             logger.error(f"Failed to run emergency seeding: {e}")
+# ============================================================
+# 📣 1. AUTONOMOUS SOCIAL MEDIA MARKETING ENGINE
+# ============================================================
+class SocialMediaCampaigner:
+    """ኤጀንቱ በየቀኑ በድረ-ገጹ ላይ ከፍተኛ እይታ ያገኙትን ምርጥ ምርቶች ለይቶ ወደ ቴሌግራም/ፌስቡክ በራስ-ሰር የሚለጥፍበት ሞተር"""
+    
+    @staticmethod
+    def run_automated_campaigns(site, limit=3):
+        Product = get_model('Product')
+        SiteConfig = get_model('SiteConfig')
+        if not Product or not SiteConfig:
+            return
+            
+        from .ai_utils import ask_master_ai_smart, clean_and_parse_json
+        
+        # ከፍተኛ እይታ (views > 50) ያገኙ ምርጥ ምርቶችን መለየት
+        hot_listings = Product.objects.filter(site=site, is_active=True, view_count__gt=50).order_by('-view_count')[:limit]
+        for prod in hot_listings:
+            campaign_key = f"SOCIAL_POST_CAMPAIGN_{prod.id}"
+            if SiteConfig.objects.filter(key=campaign_key).exists():
+                continue # ቀድሞ የተለጠፈ ከሆነ መዝለል
+                
+            prompt = (
+                f"Write a highly engaging, persuasive social media ad in Amharic for this product:\n"
+                f"Title: {prod.title}\nPrice: {prod.price} ETB\nDescription: {prod.description}\n\n"
+                f"Include relevant hashtags (#EthAfri, #AddisAbaba, etc.). Return JSON with key 'ad_copy'."
+            )
+            try:
+                res = ask_master_ai_smart(prompt, task_type="analysis")
+                data = clean_and_parse_json(res)
+                ad_copy = data.get('ad_copy', '') if data else ""
+                
+                if ad_copy:
+                    # በራስ-ሰር ወደ ይፋዊው የቴሌግራም ቻናል መልዕክቱን መላክ (Telegram Bot API)
+                    tg_token = os.getenv('TELEGRAM_BOT_TOKEN')
+                    channel_id = os.getenv('TELEGRAM_CHANNEL_ID', '@ethafri_marketplace')
+                    
+                    if tg_token:
+                        url = f"https://api.telegram.org/bot{tg_token}/sendMessage"
+                        payload = {"chat_id": channel_id, "text": f"{ad_copy}\n\n🌐 View listing: {site.deployment_url or 'http://ethafri.com'}/product/{prod.id}/"}
+                        requests.post(url, json=payload, timeout=5)
+                        
+                    SiteConfig.objects.create(key=campaign_key, defaults={'value': {'posted_at': timezone.now().isoformat()}})
+                    logger.info(f"📣 Social Campaigner: Posted ad copy for product {prod.id} successfully.")
+            except Exception as e:
+                logger.debug(f"Social campaign generation failed: {e}")
+
+
+# ============================================================
+# 📣 1. AUTONOMOUS SOCIAL MEDIA MARKETING ENGINE (ፊቸር 1)
+# ============================================================
+class SocialMediaCampaigner:
+    """ኤጀንቱ በየቀኑ በድረ-ገጹ ላይ ከፍተኛ እይታ ያገኙትን ምርጥ ምርቶች ለይቶ ወደ ቴሌግራም/ፌስቡክ በራስ-ሰር የሚለጥፍበት ሞተር"""
+    
+    @staticmethod
+    def run_automated_campaigns(site, limit=3):
+        Product = get_model('Product')
+        SiteConfig = get_model('SiteConfig')
+        if not Product or not SiteConfig:
+            return
+            
+        from .ai_utils import ask_master_ai_smart, clean_and_parse_json
+        
+        hot_listings = Product.objects.filter(site=site, is_active=True, view_count__gt=50).order_by('-view_count')[:limit]
+        for prod in hot_listings:
+            campaign_key = f"SOCIAL_POST_CAMPAIGN_{prod.id}"
+            if SiteConfig.objects.filter(key=campaign_key).exists():
+                continue
+                
+            prompt = (
+                f"Write a highly engaging, persuasive social media ad in Amharic for this product:\n"
+                f"Title: {prod.title}\nPrice: {prod.price} ETB\nDescription: {prod.description}\n\n"
+                f"Include relevant hashtags (#EthAfri, #AddisAbaba, etc.). Return JSON with key 'ad_copy'."
+            )
+            try:
+                res = ask_master_ai_smart(prompt, task_type="analysis")
+                data = clean_and_parse_json(res)
+                ad_copy = data.get('ad_copy', '') if data else ""
+                
+                if ad_copy:
+                    tg_token = os.getenv('TELEGRAM_BOT_TOKEN')
+                    channel_id = os.getenv('TELEGRAM_CHANNEL_ID', '@ethafri_marketplace')
+                    
+                    if tg_token:
+                        url = f"https://api.telegram.org/bot{tg_token}/sendMessage"
+                        payload = {"chat_id": channel_id, "text": f"{ad_copy}\n\n🌐 View listing: {site.deployment_url or 'http://ethafri.com'}/product/{prod.id}/"}
+                        requests.post(url, json=payload, timeout=5)
+                        
+                    SiteConfig.objects.create(key=campaign_key, defaults={'value': {'posted_at': timezone.now().isoformat()}})
+                    logger.info(f"📣 Social Campaigner: Posted ad copy for product {prod.id} successfully.")
+            except Exception as e:
+                logger.debug(f"Social campaign generation failed: {e}")
+
+
+# ============================================================
+# 📊 2. COGNITIVE BEHAVIOR & UI RESTRUCTURER (ፊቸር 3)
+# ============================================================
+class UIBehaviorOptimizer:
+    """የተጠቃሚዎችን የፍለጋ መዝገቦች በማጥናት የድረ-ገጹን መዋቅር በዳይናሚክ መንገድ የሚቀይር ማዕከል"""
+    
+    @staticmethod
+    def optimize_homepage_layout(site):
+        UserSearch = get_model('UserSearch')
+        SiteConfig = get_model('SiteConfig')
+        if not UserSearch or not SiteConfig:
+            return
+            
+        try:
+            seven_days_ago = timezone.now() - timedelta(days=7)
+            top_searches = list(UserSearch.objects.filter(site=site, created_at__gte=seven_days_ago)
+                                .values('query_text')
+                                .annotate(count=Count('id'))
+                                .order_by('-count')[:5])
+            
+            if not top_searches:
+                return
+                
+            from .ai_utils import ask_master_ai_smart, clean_and_parse_json
+            prompt = (
+                f"Analyze these trending search terms on our Ethiopian marketplace: {json.dumps(top_searches, ensure_ascii=False)}.\n"
+                f"Determine which product categories (e.g. 'Cars', 'Apartments', 'Electronics') are currently most demanded.\n"
+                f"Return JSON with key 'category_priorities' containing a ranked list of category names as strings."
+            )
+            res = ask_master_ai_smart(prompt, task_type="analysis")
+            data = clean_and_parse_json(res)
+            priorities = data.get('category_priorities', []) if data else []
+            
+            if priorities:
+                SiteConfig.objects.update_or_create(
+                    key=f"HOMEPAGE_CATEGORY_PRIORITY_{site.name}",
+                    defaults={'value': {'ranked_categories': priorities, 'updated_at': timezone.now().isoformat()}}
+                )
+                logger.info(f"📊 UI Optimizer: Dynamic homepage category priorities set to: {priorities}")
+        except Exception as e:
+            logger.debug(f"UI restructurer failed: {e}")

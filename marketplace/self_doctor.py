@@ -185,6 +185,7 @@ class UniversalHealer:
 
         self._heal_production_errors()
         self._heal_security_issues()
+        self.heal_broken_api_integration()  # 🛡️ FIXED: የክፍያ ኤፒአይ ራስ-ጥገናን (Feature 12) እዚህ ማገናኘት
         PerformanceAuditor.run_daily_performance_audit(self.site)
 
     def hard_reset_database_schema(self):
@@ -277,7 +278,7 @@ class UniversalHealer:
         try:
             with connection.cursor() as cursor:
                 if connection.vendor == 'postgresql':
-                    # 🛡️ DEDUPLICATED: የ PostgreSQL አምድ መፈተሻዎችን እና መፍጠሪያዎችን በጥራት ማጠቃለል (Zero duplication)
+                    # 🛡️ DEDUPLICATED: የ PostgreSQL አምድ መፈተሻዎችን እና መፍጠሪያዎችን በጥራት ማጠቃለል
                     columns_to_ensure = [
                         ('listing_type', "varchar(50) DEFAULT 'sale'"),
                         ('contact_info', "varchar(255) DEFAULT ''"),
@@ -292,9 +293,18 @@ class UniversalHealer:
                         if not cursor.fetchone():
                             cursor.execute(f'ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS {col_name} {col_type};')
 
-            call_command('migrate', interactive=False)
+            # 🛡️ FIXED: makemigrations እና migrate ትዕዛዞችን በተለየ ሳንድቦክስ በራስ-ሰር ማካሄድ (Feature 8)
+            try:
+                import sys
+                import subprocess
+                manage_py = os.path.join(str(settings.BASE_DIR), 'manage.py')
+                subprocess.run([sys.executable, manage_py, 'makemigrations', 'marketplace', '--noinput'], timeout=30, cwd=str(settings.BASE_DIR))
+                subprocess.run([sys.executable, manage_py, 'migrate', 'marketplace', '--noinput'], timeout=30, cwd=str(settings.BASE_DIR))
+                logger.info("🚑 Schema Healer: Dynamically completed makemigrations and migrate checks.")
+            except Exception as cmd_err:
+                logger.debug(f"Dynamic migration command failed: {cmd_err}")
+
             logger.info("🚑 Schema Healer: Database migrations check passed.")
-            
             SiteConfig.objects.update_or_create(key=last_check_key, defaults={'value': {'time': timezone.now().isoformat()}})
         except Exception as e:
             err_msg = str(e)
@@ -350,7 +360,6 @@ class UniversalHealer:
                         "fields": [f.name for f in model._meta.fields]
                     })
 
-                # 🛡️ EXPERIENTIAL FAILURE MEMORY: የከሸፉ ሙከራዎችን ከታሪክ መዝገብ አውጥቶ ወደ ፕሮምፕት ማካተት (እንዳይደግማቸው መከላከል)
                 past_failed_sql_prompts = []
                 if VectorMemory:
                     try:
@@ -375,7 +384,6 @@ class UniversalHealer:
                         with connection.cursor() as cursor:
                             cursor.execute(sql_query)
                     except Exception as sql_exec_err:
-                        # 🛡️ EXPERIENTIAL LEARNING: የከሸፈውን የ SQL ሙከራ ወደ ታሪክ መዝገብ መጻፍ
                         if VectorMemory:
                             try:
                                 VectorMemory.objects.create(
@@ -543,7 +551,58 @@ class UniversalHealer:
                 
         except Exception as e:
             logger.error(f"Recon Synthesizer failed: {e}")
+    def heal_broken_api_integration(self):
+        """የቴሌብር/ሲቢኢ ብር የክፍያ ስህተቶች (API errors) ሲከሰቱ የኤፒአይ ሰነዶችን በRAG አንብቦ ኮዱን በራሱ ይጠግናል (Feature 12)"""
+        SecurityLog = get_marketplace_model('SecurityLog')
+        AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
+        if not SecurityLog or not AIProjectBacklog:
+            return
 
+        try:
+            # የክፍያ ኤፒአይ ስህተቶችን መለየት (telebirr/chapa dependency errors)
+            api_errors = SecurityLog.objects.filter(
+                site=self.site,
+                category='dependency',
+                is_fixed=False
+            ).filter(Q(description__icontains="telebirr") | Q(description__icontains="chapa") | Q(description__icontains="checkout"))
+
+            for err in api_errors:
+                task_name = f"🚑 API GATEWAY HEAL: {err.description[:50]}"
+                
+                if not AIProjectBacklog.objects.filter(site=self.site, task_name=task_name).exists():
+                    VectorMemory = get_marketplace_model('VectorMemory')
+                    api_docs_context = "No specific API docs found in memory."
+                    if VectorMemory:
+                        try:
+                            # የገንቢውን ኦፊሴላዊ የክፍያ ሰነድ ከ RAG ማስታወሻ መሳብ
+                            docs = VectorMemory.objects.filter(site=self.site, memory_type='insight', content__icontains="api").first()
+                            if docs:
+                                api_docs_context = docs.content
+                        except Exception: pass
+
+                    description_spec = (
+                        f"External API integration failed: '{err.description}'.\n"
+                        f"Target File: views.py\n"
+                        f"RAG Developer API Documentation Context:\n{api_docs_context}\n\n"
+                        f"Please refactor the checkout view inside views.py to comply with this official API spec."
+                    )
+
+                    AIProjectBacklog.objects.create(
+                        site=self.site,
+                        task_name=task_name,
+                        target_file="views",
+                        priority="Critical",
+                        status="Pending",
+                        description=description_spec,
+                        business_impact_score=10,
+                        trigger_condition="Self-Healing External API Integration Loop"
+                    )
+                    logger.warning(f"🚑 API Healer Gateway: Registered critical self-healing task for broken payment gateway: {err.description}")
+                
+                err.is_fixed = True
+                err.save()
+        except Exception as e:
+            logger.error(f"External API Gateway healer failed: {e}")
 
 # ============================================================
 # 💾 3. AUTONOMOUS DATABASE BACKUP & CLOUD ARCHIVER

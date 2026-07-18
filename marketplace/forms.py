@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Union, Any
 # 🛡️ REGISTRY SAFETY: የ 'AppRegistryNotReady' ስህተትን ለመከላከል ሞዴሎችን በዳይናሚክ መጫን
 # ይህ አሰራር የክብ ጥገኝነት (Circular Import) ስህተቶችን 100% ያስቀራል
 Product = apps.get_model('marketplace', 'Product')
+from .models import Product, Category, SiteRegistry
 Category = apps.get_model('marketplace', 'Category')
 SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
 
@@ -142,14 +143,17 @@ class ProductForm(forms.ModelForm):
         return description
 
     def clean_contact_info(self):
-        """🛡️ ሻጮች ስልካቸውን ወይም @username በትክክል ማስገባታቸውን ማረጋገጫ"""
+        """🛡️ ሻጮች ስልካቸውን ወይም @username በትክክል ማስገባታቸውን ማረጋገጫ (decoupled to scrapper_engine.py)"""
         contact = self.cleaned_data.get('contact_info', '').strip()
         if contact:
-            # የጃንጎን ዩዘር ስም ጋሻ እንዳያጋጭ አላስፈላጊ ልዩ ምልክቶችን ማጽዳት
-            clean_contact = re.sub(r'[^a-zA-Z0-9_@.+\- ]', '', contact).strip()
-            if len(clean_contact) < 4:
-                raise forms.ValidationError(_("Contact info must be a valid phone number or telegram handle."))
-            return clean_contact
+            # 🛡️ DECOUPLED: የስልክ ትንተና ስራ በሙሉ ወደ scrapper_engine.py በውክልና ተላልፏል (Zero duplication)
+            from .scrapper_engine import SmartProductExtractor
+            parsed_contact = SmartProductExtractor._parse_contact(contact)
+            
+            # ስልኩ ወይም @username ትክክለኛ ካልሆነ
+            if parsed_contact == "0900000000":
+                raise forms.ValidationError(_("እባክዎ ትክክለኛ የኢትዮጵያ ስልክ ቁጥር (09... ወይም 07...) ወይም የቴሌግራም @username ያስገቡ።"))
+            return parsed_contact
         return contact
     
     def save(self, commit=True):

@@ -693,7 +693,6 @@ def dry_run_apply(
 # ============================================================
 # 🛠️ 6. MAIN CODE APPLICATION (apply_code_change)
 # ============================================================
-
 def apply_code_change(
     site,
     file_key: str,
@@ -784,14 +783,24 @@ def apply_code_change(
     if enable_rollback and old_code:
         RollbackManager.snapshot(path, old_code)
 
-    # 7. Write
+    # 7. 🌿 Git Sandbox: ዲስክ ላይ ከመጻፉ በፊት ጊዜያዊ የሙከራ ቅርንጫፍ በራስ-ሰር መፍጠር
+    branch_name = f"auto-evolution-{hashlib.md5(new_content.encode()).hexdigest()[:6]}"
+    sandbox_active = False
+    if path.endswith('.py'):
+        ok, bmsg = GitSandboxManager.create_git_branch(branch_name)
+        sandbox_active = ok
+
+    # 8. Write
     try:
         if os.path.dirname(path):
             os.makedirs(os.path.dirname(path), exist_ok=True)
         if target_name:
             success, msg = apply_surgical_patch(path, target_name, new_content)
             if not success:
-                if enable_rollback:
+                if sandbox_active:
+                    subprocess.run(["git", "checkout", "main"], timeout=15, cwd=str(settings.BASE_DIR))
+                    subprocess.run(["git", "branch", "-D", branch_name], timeout=15, cwd=str(settings.BASE_DIR))
+                elif enable_rollback:
                     RollbackManager.rollback_last()
                 return _status(False, False, msg, path=path, file_key=file_key)
             logger.info(f"💾 Surgically patched '{target_name}' in: {path}")
@@ -800,7 +809,10 @@ def apply_code_change(
             logger.info(f"💾 File overwritten successfully: {path}")
     except Exception as e:
         logger.error(f"❌ Failed to write file: {e}")
-        if enable_rollback:
+        if sandbox_active:
+            subprocess.run(["git", "checkout", "main"], timeout=15, cwd=str(settings.BASE_DIR))
+            subprocess.run(["git", "branch", "-D", branch_name], timeout=15, cwd=str(settings.BASE_DIR))
+        elif enable_rollback:
             RollbackManager.rollback_last()
         return _status(False, False, str(e), path=path, file_key=file_key)
 
@@ -809,6 +821,9 @@ def apply_code_change(
         valid, vmsg = validate_python_file(path)
         if not valid:
             logger.error(f"❌ Post-write validation failed: {vmsg}")
+            if sandbox_active:
+                subprocess.run(["git", "checkout", "main"], timeout=15, cwd=str(settings.BASE_DIR))
+                subprocess.run(["git", "branch", "-D", branch_name], timeout=15, cwd=str(settings.BASE_DIR))
             if old_code:
                 _atomic_write(path, old_code)
             elif enable_rollback:
@@ -825,6 +840,9 @@ def apply_code_change(
             deep_ok, dmsg = deep_verify_django_app()
             if not deep_ok:
                 logger.error(f"❌ Deep Django check failed: {dmsg}")
+                if sandbox_active:
+                    subprocess.run(["git", "checkout", "main"], timeout=15, cwd=str(settings.BASE_DIR))
+                    subprocess.run(["git", "branch", "-D", branch_name], timeout=15, cwd=str(settings.BASE_DIR))
                 if old_code:
                     _atomic_write(path, old_code)
                 elif enable_rollback:
@@ -835,11 +853,13 @@ def apply_code_change(
                     path=path, file_key=file_key,
                 )
 
-            # 🛡️ ራስ-ሰር የጃንጎ የሎጂክ ቴስት ፍተሻ (Dynamic Unit Test Execution Trigger) [NEW - v10.51]
+            # 🛡️ ራስ-ሰር የጃንጎ የሎጂክ ቴስት ፍተሻ (Dynamic Unit Test Execution Trigger)
             test_ok, tmsg = deep_test_django_app()
             if not test_ok:
                 logger.error(f"❌ Unit Test Verification failed: {tmsg}")
-                # ቴስቱ ካልቀለቀ ወዲያውኑ ሮልባክ በማድረግ ሰርቨሩን ከሎጂክ ስህተት ማዳን
+                if sandbox_active:
+                    subprocess.run(["git", "checkout", "main"], timeout=15, cwd=str(settings.BASE_DIR))
+                    subprocess.run(["git", "branch", "-D", branch_name], timeout=15, cwd=str(settings.BASE_DIR))
                 if old_code:
                     _atomic_write(path, old_code)
                 elif enable_rollback:
@@ -849,6 +869,10 @@ def apply_code_change(
                     f"Unit Test Verification failed: {tmsg}",
                     path=path, file_key=file_key,
                 )
+
+        # 🌿 Git Sandbox: ሁሉም የሰርቨር ቴስቶች በስኬት ሲያልፉ ቅርንጫፉን ወደ ዋናው ማዋሃድ (Dynamic Merge)
+        if sandbox_active:
+            GitSandboxManager.merge_branch_to_main(branch_name)
 
     # 🛡️ DYNAMIC STATIC I18N TRIGGER: አዲስ ኮድ ሲጻፍ በስተጀርባ የ i18n ቃላትን ወዲያውኑ 1 ጊዜ ብቻ መተርጎም
     if path.endswith('.py') or path.endswith('.html'):
@@ -905,7 +929,6 @@ def apply_code_change(
         content_hash=_content_hash(new_content),
         push_status=push_status,
     )
-
 
 # ============================================================
 # 📦 7. BATCH MULTI-FILE APPLY
@@ -1069,3 +1092,51 @@ def deep_test_django_app() -> Tuple[bool, str]:
         return False, (result.stderr or result.stdout)[-500:]
     except Exception as e:
         return False, f"Test execution error: {e}"
+# ============================================================
+# 🌿 2. SAFE GIT-BRANCH SANDBOXING MANAGER (ፊቸር 2)
+# ============================================================
+class GitSandboxManager:
+    """ኤጀንቱ አዳዲስ ኮዶችን ከመጻፉ በፊት በተለየ ቅርንጫፍ (Branch) ፈትኖ በጥራት እንዲያዋህድ መቆጣጠሪያ"""
+
+    @staticmethod
+    def create_git_branch(branch_name: str) -> Tuple[bool, str]:
+        import subprocess
+        try:
+            # አዲስ ቅርንጫፍ መፍጠርና ወደ እሱ ማዛወር (Git Checkout)
+            res = subprocess.run(
+                ["git", "checkout", "-b", branch_name],
+                capture_output=True, text=True, timeout=15, cwd=str(settings.BASE_DIR)
+            )
+            if res.returncode == 0:
+                logger.info(f"🌿 Git Sandbox: Created and checked out branch '{branch_name}'")
+                return True, f"Branch '{branch_name}' created successfully"
+            return False, res.stderr
+        except Exception as e:
+            return False, str(e)
+
+    @staticmethod
+    def merge_branch_to_main(branch_name: str) -> Tuple[bool, str]:
+        import subprocess
+        try:
+            # 1. ወደ ዋናው የጃንጎ ቅርንጫፍ መመለስ (Switch to main/master)
+            res_checkout = subprocess.run(
+                ["git", "checkout", "main"],
+                capture_output=True, text=True, timeout=15, cwd=str(settings.BASE_DIR)
+            )
+            if res_checkout.returncode != 0:
+                # 'main' ከሌለ 'master' ቅርንጫፍ መሞከር (Legacy Fallback)
+                subprocess.run(["git", "checkout", "master"], timeout=15, cwd=str(settings.BASE_DIR))
+
+            # 2. የጻፍነውን የሳንድቦክስ ኮድ ማዋሃድ (Git Merge)
+            res_merge = subprocess.run(
+                ["git", "merge", branch_name],
+                capture_output=True, text=True, timeout=15, cwd=str(settings.BASE_DIR)
+            )
+            if res_merge.returncode == 0:
+                # ጊዜያዊውን የሙከራ ቅርንጫፍ ማጥፋት
+                subprocess.run(["git", "branch", "-d", branch_name], timeout=15, cwd=str(settings.BASE_DIR))
+                logger.info(f"🌿 Git Sandbox: Merged branch '{branch_name}' successfully into main production.")
+                return True, "Merged successfully"
+            return False, res_merge.stderr
+        except Exception as e:
+            return False, str(e)

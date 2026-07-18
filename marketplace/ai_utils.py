@@ -532,30 +532,68 @@ def broadcast_agent_log(site, message: str, status_type: str = "info"):
 
 
 # ============================================================
-# 🗳️ MULTI-AGENT CONSENSUS & DEBATE LOOP
+# 🗳️ MULTI-AGENT CONSENSUS & DEBATE LOOP (ፊቸር 4)
 # ============================================================
 def run_multi_ai_debate(prompt: str, task_type: str = "coding") -> str:
-    coder_instruction = "You are a master Coder. Generate the optimal, production-grade Django Python code based on requirements."
-    code_proposal = ask_master_ai_smart(prompt, task_type=task_type, system_instruction=coder_instruction)
+    """
+    ባለብዙ-ኤአይ የጋራ የኮድ ውይይት መረብ (Multi-Agent Consensus Network - ፊቸር 4)
+    • Sambanova/Mistral (Coder) ➔ Gemini (Linguist) ➔ Cerebras (Architect) የጋራ ውይይት እና ፍተሻ
+    """
+    logger.info("🗳️ Consensus Network: Initiating 3-Agent Dynamic Code Debate loop...")
+
+    # 🥷 1. Agent 1: Sambanova/Mistral (The Coder) writes the initial proposal
+    coder_instruction = (
+        "You are an Elite Python Coder. Generate the optimal, production-grade Django Python code "
+        "based strictly on the user requirements."
+    )
+    code_proposal = ask_master_ai_smart(prompt, task_type="coding", system_instruction=coder_instruction)
     
     if not code_proposal or code_proposal == "{}":
         return "{}"
         
-    auditor_instruction = (
-        "You are a strict Security & Performance Auditor. Audit the provided Python code.\n"
-        "1. Identify any syntax bugs, security gaps (like injection or traversal), or optimization issues.\n"
-        "2. Rewrite and return the finalized, patched code with zero bugs.\n"
-        "3. Preserve all original features, but make it clean."
+    # 🌻 2. Agent 2: Gemini (The Linguistic & Culture Auditor) reviews Amharic semantics
+    linguist_instruction = (
+        "You are an Amharic Translation & Cultural Auditor. Inspect the provided Django code.\n"
+        "1. Identify any literal machine translation errors, broken Amharic strings, or cultural context gaps.\n"
+        "2. Rewrite the Amharic localized strings to be natural, professional, and appealing to Ethiopian users.\n"
+        "3. Output only your specific linguistic feedback and corrected Amharic string mappings."
     )
-    
-    debate_prompt = (
-        f"Here is the proposed code segment:\n{code_proposal}\n\n"
-        f"Audit this code for security, logic errors, and styling. Output the finalized optimized version."
+    linguistic_feedback = ask_master_ai_smart(
+        f"Review this proposed code for Amharic localization issues:\n{code_proposal}",
+        task_type="translation",
+        system_instruction=linguist_instruction
     )
-    
-    final_approved_code = ask_master_ai_smart(debate_prompt, task_type=task_type, system_instruction=auditor_instruction)
-    return final_approved_code
 
+    # 🩺 3. Agent 3: Cerebras (The Performance & Security Architect) reviews Django structures
+    architect_instruction = (
+        "You are a Senior Django Performance & Security Architect. Inspect the provided Python code.\n"
+        "1. Scan for SQL injections, XSS vulnerabilities, insecure file operations, or N+1 query latency.\n"
+        "2. Output only your critical structural feedback and necessary code patches."
+    )
+    architect_feedback = ask_master_ai_smart(
+        f"Review this proposed code for Django security and query performance issues:\n{code_proposal}",
+        task_type="analysis",
+        system_instruction=architect_instruction
+    )
+
+    # 🗳️ 4. Final Consensus: Coder integrates both audits to output the green-lit compilable patch
+    consensus_instruction = (
+        "You are the Master Lead Engineer. Integrate the linguistic and architectural audits into the proposed code.\n"
+        "1. Resolve all structural, performance, and security issues raised by the Architect.\n"
+        "2. Apply all pristine, natural Amharic translations corrected by the Linguist.\n"
+        "3. Output only the finalized, production-grade compilable Python code block. Keep it completely clean."
+    )
+
+    consensus_prompt = (
+        f"Original Proposal:\n{code_proposal}\n\n"
+        f"Linguistic Feedback:\n{linguistic_feedback}\n\n"
+        f"Architectural Feedback:\n{architect_feedback}\n\n"
+        f"Please apply both feedbacks and output the final compilable code segment."
+    )
+
+    final_approved_code = ask_master_ai_smart(consensus_prompt, task_type="coding", system_instruction=consensus_instruction)
+    logger.info("✅ Consensus Network: Dynamic multi-agent debate complete. Final code green-lit.")
+    return final_approved_code
 
 # Django Template Tag Registration
 register = template.Library()

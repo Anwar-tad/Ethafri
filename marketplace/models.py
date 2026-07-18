@@ -116,8 +116,10 @@ class Product(models.Model):
 
 
 class ProductTranslation(models.Model):
-    """ምርቶችን በ 7 ቋንቋዎች በራስ-ሰር ተርጉሞ ለማከማቸት"""
+    """ምርቶችን በ 12 የሀገር ውስጥና የአፍሪካ ቋንቋዎች በራስ-ሰር ተርጉሞ ለማከማቸት (v10.20)"""
     product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='translations')
+    
+    # 1. ነባር ቋንቋዎች
     en = models.TextField(blank=True, verbose_name="English")
     am = models.TextField(blank=True, verbose_name="Amharic")
     om = models.TextField(blank=True, verbose_name="Oromo")
@@ -125,6 +127,13 @@ class ProductTranslation(models.Model):
     so = models.TextField(blank=True, verbose_name="Somali")
     ti = models.TextField(blank=True, verbose_name="Tigrinya")
     fr = models.TextField(blank=True, verbose_name="French")
+    
+    # 🛡️ 2. አዳዲስ አገር በቀል ቋንቋዎች (Symmetric Linguistic Schema Alignment - ፊቸር 6)
+    aa = models.TextField(blank=True, verbose_name="Afar")       # አፋርኛ
+    sid = models.TextField(blank=True, verbose_name="Sidama")     # ሲዳመኛ
+    wal = models.TextField(blank=True, verbose_name="Wolaytta")   # ወላይተኛ
+    stv = models.TextField(blank=True, verbose_name="Silt'e")     # ስልጠኛ
+    sw = models.TextField(blank=True, verbose_name="Swahili")     # ሰዋሂሊ
 
     def __str__(self):
         return f"Translations for: {self.product.title}"

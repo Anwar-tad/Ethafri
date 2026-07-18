@@ -1,0 +1,131 @@
+{% load i18n %}
+{% load static %}
+
+<!-- ============================================================
+📊 1. የፍለጋ ውጤት መቆጣጠሪያ ባር (Header & View Toggle)
+============================================================ -->
+<div class="d-flex justify-content-between align-items-center mb-3 mt-4">
+    <div class="product-count-title">
+        <h5 class="fw-bold m-0 text-dark">
+            {% trans "Latest Items" %} 
+            <span class="text-muted fs-6 fw-normal">({{ products.count }} {% trans "found" %})</span>
+        </h5>
+    </div>
+    
+    <!-- 2 አይነት እይታ መቆጣጠሪያ ቁልፎች (Grid vs List View Toggle) -->
+    <div class="btn-group view-toggle-group" role="group" aria-label="View Toggle">
+        <button type="button" class="btn btn-outline-secondary btn-sm active" id="btn-grid-view" onclick="toggleProductView('grid')">
+            <i class="fas fa-th-large"></i>
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-list-view" onclick="toggleProductView('list')">
+            <i class="fas fa-list"></i>
+        </button>
+    </div>
+</div>
+
+<!-- ============================================================
+🛍️ 2. የምርቶች ስርጭት መድረክ (Products Grid/List Container)
+============================================================ -->
+<div class="row g-2 g-md-3" id="products-master-container">
+    {% for product in products %}
+    <!-- በዲፎልት ባለ 2 አምድ (col-6) ሆኖ የሚነሳ እና በሊስት ጊዜ ወደ ባለ 1 አምድ (col-12) የሚቀየር የደህንነት ካርድ -->
+    <div class="col-6 col-md-4 col-lg-3 product-card-wrapper" data-product-card>
+        <div class="card h-100 border-0 shadow-sm product-card-custom position-relative">
+            
+            <!-- የጌጥ ባጅ (New Badge or Type) -->
+            <span class="badge position-absolute top-0 start-0 m-2 px-2 py-1 small" style="background: var(--accent-purple); z-index: 10;">
+                {{ product.get_listing_type_display }}
+            </span>
+            
+            <!-- የምርት ምስል ማከማቻ -->
+            <a href="{% url 'product_detail' product.id %}" class="product-img-link d-block overflow-hidden">
+                {% if product.image_url %}
+                    <img src="{{ product.image_url }}" class="card-img-top product-img-custom" alt="{{ product.title }}">
+                {% elif product.image %}
+                    <img src="{{ product.image.url }}" class="card-img-top product-img-custom" alt="{{ product.title }}">
+                {% else %}
+                    <img src="{% static 'images/default-product.png' %}" class="card-img-top product-img-custom" alt="No Image">
+                {% endif %}
+            </a>
+            
+            <div class="card-body p-2 d-flex flex-column justify-content-between">
+                <div class="product-info-block">
+                    <!-- የካታጎሪ ስም በጥራት -->
+                    <span class="text-uppercase text-muted extra-small fw-bold d-block mb-1">
+                        {{ product.category.name|default:"General" }}
+                    </span>
+                    <!-- የተረጎመው ርዕስ -->
+                    <h6 class="card-title product-title-custom m-0">
+                        <a href="{% url 'product_detail' product.id %}" class="text-decoration-none text-dark fw-bold">
+                            {{ product.get_translated_title }}
+                        </a>
+                    </h6>
+                </div>
+                
+                <div class="product-price-block mt-2">
+                    <!-- የምርት ዋጋ አቀራረብ -->
+                    <h5 class="fw-extrabold m-0 text-primary">
+                        {% if product.price > 0 %}
+                            {{ product.price|floatformat:2 }} <span class="fs-6 text-muted fw-normal">ETB</span>
+                        {% else %}
+                            <span class="fs-6 text-success fw-bold">{% trans "Negotiable" %}</span>
+                        {% endif %}
+                    </h5>
+                    
+                    <!-- አድራሻ እና እይታዎች -->
+                    <div class="d-flex justify-content-between align-items-center mt-1 extra-small text-muted">
+                        <span><i class="fas fa-map-marker-alt"></i> {{ product.location|truncatechars:15 }}</span>
+                        <span><i class="fas fa-eye"></i> {{ product.view_count }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5">
+        <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+        <p class="text-muted fw-bold">{% trans "No products found in this category." %}</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ============================================================
+⚡ 3. DUAL-VIEW TOGGLE JAVASCRIPT (ያለ ገጽ መጫን ስታይል መለወጫ)
+============================================================ -->
+<script>
+    function toggleProductView(viewMode) {
+        const container = document.getElementById('products-master-container');
+        const cards = document.querySelectorAll('.product-card-wrapper');
+        const btnGrid = document.getElementById('btn-grid-view');
+        const btnList = document.getElementById('btn-list-view');
+        
+        if (!container || cards.length === 0) return;
+        
+        if (viewMode === 'list') {
+            // 1. ወደ ባለ 1 አምድ (col-12 List) መቀየር
+            cards.forEach(card => {
+                card.classList.remove('col-6', 'col-md-4', 'col-lg-3');
+                card.classList.add('col-12');
+                // ካርዱን ወደ አግድም አቀራረብ መለወጥ (Flex row style)
+                const cardInner = card.querySelector('.card');
+                if (cardInner) cardInner.classList.add('flex-row', 'align-items-center');
+                const imgLink = card.querySelector('.product-img-link');
+                if (imgLink) imgLink.style.width = '140px';
+            });
+            btnList.classList.add('active');
+            btnGrid.classList.remove('active');
+        } else {
+            // 2. ወደ ባለ 2 አምድ (col-6 Grid) መመለስ
+            cards.forEach(card => {
+                card.classList.remove('col-12');
+                card.classList.add('col-6', 'col-md-4', 'col-lg-3');
+                const cardInner = card.querySelector('.card');
+                if (cardInner) cardInner.classList.remove('flex-row', 'align-items-center');
+                const imgLink = card.querySelector('.product-img-link');
+                if (imgLink) imgLink.style.width = '100%';
+            });
+            btnGrid.classList.add('active');
+            btnList.classList.remove('active');
+        }
+    }
+</script>

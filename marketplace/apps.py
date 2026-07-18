@@ -379,6 +379,44 @@ class MarketplaceConfig(AppConfig):
                 finally:
                     connections.close_all()
                     gc.collect() # ራም መቆጠብ
+        # --- ክር 4፦ የ 12 ቱ የኤአይ ቁልፎች የጤና ፍተሻ (API Health Monitor - ፊቸር 7) ---
+        def run_api_health_monitor_thread():
+            logger.info("📡 API Health Monitor Thread starting (1-hour cycle)...")
+            while True:
+                ensure_healthy_db_connections()
+                try:
+                    from django.core.cache import cache
+                    import hashlib
+                    import os
+                    import requests
+                    
+                    providers = ['gemini', 'groq', 'mistral', 'openrouter', 'huggingface', 'github', 'sambanova', 'cerebras', 'nvidia']
+                    
+                    for prov in providers:
+                        key_name = f"{prov.upper()}_API_KEY" if prov != 'github' else "GITHUB_TOKEN"
+                        raw_key = os.getenv(key_name, '').strip().replace('"', '').replace("'", "")
+                        
+                        if raw_key:
+                            key_hash = hashlib.md5(raw_key.encode('utf-8')).hexdigest()[:12]
+                            cooldown_key = f"ai_cooldown_{prov.upper()}_{key_hash}"
+                            
+                            # 🛡️ ቁልፉ አስቀድሞ በኳራንቲን ካልታገደ የጤና ሁኔታውን በፈጣን ፒንግ (Ping) መፈተሽ
+                            if not cache.get(cooldown_key):
+                                test_url = "https://generativelanguage.googleapis.com" if prov == "gemini" else "https://api.github.com"
+                                try:
+                                    res = requests.head(test_url, timeout=5)
+                                    # ቁልፉ ጊዜው ያለፈበት ወይም የተሰረዘ መሆኑን መለየት (HTTP 401/403)
+                                    if res.status_code in [401, 403]:
+                                        logger.warning(f"⚠️ API Monitor: Detected expired/invalid key for {prov.upper()}. Quarantining key hash {key_hash}...")
+                                        cache.set(cooldown_key, True, timeout=86400) # ለ 24 ሰዓት ማገድ
+                                except Exception:
+                                    pass
+                except Exception as e:
+                    logger.error(f"❌ API Health Monitor Error: {e}")
+                finally:
+                    connections.close_all()
+                    gc.collect() # ራም ማጽጃ
+                time.sleep(3600) # በየ 1 ሰዓቱ (3600 ሰከንድ) ይፈትሻል
 
         t1 = threading.Thread(target=run_agent_thread, daemon=True)
         t2 = threading.Thread(target=run_safetynet_thread, daemon=True)
@@ -387,5 +425,7 @@ class MarketplaceConfig(AppConfig):
         t1.start()
         t2.start()
         t3.start()
+        t4 = threading.Thread(target=run_api_health_monitor_thread, daemon=True)
+        t4.start()
 
         logger.info("✅ All systems initialized. Autonomous loop is running.")

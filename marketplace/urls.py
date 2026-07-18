@@ -80,4 +80,5 @@ urlpatterns = [
     # 📡 9. የይዘት አሰሳ መቆጣጠሪያ አድራሻ (Harvester Orchestrator)
     path('harvester/', views.harvester_orchestrator_view, name='harvester_orchestrator'),
     path('evolution-result/', views.evolution_result_view, name='evolution_result'),
+    path('api/voice-search/', views.voice_search_api, name='voice_search_api'),
 ]
