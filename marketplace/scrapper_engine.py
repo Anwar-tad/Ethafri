@@ -1015,6 +1015,73 @@ class ScrapperEngine:
                 "cache_misses": inst.extractor.cache.misses,
             },
         }
+    # ==================================================================
+    #  Unauthenticated Search Engine Fallback ( Symmetrical Deduplication - Feature 7b )
+    # ==================================================================
+    @staticmethod
+    def unauthenticated_search_lookup(query: str, extract_telegram_links: bool = False) -> Any:
+        """
+        🛡️ DUAL-ENGINE FALLBACK: ከጌሚኒ ውጪ ላሉት አቅራቢዎች በይነመረብ ላይ በ Google/Bing ፈልጎ 
+        ጥሬ የጽሑፍ ማጠቃለያዎችን ወይም የቴሌግራም ሊንኮችን ለይቶ የሚያወጣ ብቸኛው የጋራ ሞተር (Zero Duplication across files)
+        """
+        import requests
+        import re
+        from urllib.parse import quote
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
+        raw_html = ""
+        
+        # 1. መጀመሪያ በ DuckDuckGo መሞከር
+        try:
+            url = f"https://html.duckduckgo.com/html/?q={quote(query)}"
+            res = requests.get(url, headers=headers, timeout=5)
+            if res.status_code == 200:
+                raw_html = res.text
+        except Exception:
+            pass
+
+        # 2. DuckDuckGo ካልሠራ ወዲያውኑ ወደ Google Search Fallback መሸጋገር
+        if not raw_html:
+            try:
+                google_url = f"https://www.google.com/search?q={quote(query)}"
+                res = requests.get(google_url, headers=headers, timeout=5)
+                if res.status_code == 200:
+                    raw_html = res.text
+            except Exception:
+                pass
+
+        # 3. Google ካልሠራ ወደ Bing Search Fallback መሸጋገር
+        if not raw_html:
+            try:
+                bing_url = f"https://www.bing.com/search?q={quote(query)}"
+                res = requests.get(bing_url, headers=headers, timeout=5)
+                if res.status_code == 200:
+                    raw_html = res.text
+            except Exception:
+                pass
+
+        if not raw_html:
+            return [] if extract_telegram_links else ""
+
+        # 🟢 ሀ. ለ growth_agent.py የቴሌግራም ሊንኮች ተለይተው ከተጠየቁ
+        if extract_telegram_links:
+            telegram_usernames = re.findall(r't\.me/([a-zA-Z0-9_]{5,32})', raw_html)
+            fallback_sources = []
+            for username in list(set(telegram_usernames))[:4]:
+                if username.lower() not in ['s', 'joinchat', 'share', 'tgme']:
+                    fallback_sources.append({"url_or_channel": username, "platform_type": "Telegram"})
+            return fallback_sources
+
+        # 🟢 ለ. ለ ai_utils.py የጽሑፍ ማጠቃለያዎች ከተጠየቁ
+        results = re.findall(r'<a class="result__snippet"[^>]*>(.*?)</a>', raw_html, re.DOTALL)
+        snippets = []
+        for r in results[:5]:
+            clean_r = re.sub(r'<[^>]+>', ' ', r).strip()
+            if clean_r:
+                snippets.append(clean_r)
+        return "\n".join(snippets)
 
 # ==============================================================
 #  Compatibility layer
@@ -1026,3 +1093,4 @@ def scrape_and_extract_products(url: str) -> List[Dict]:
 
 def scrape_url(url: str) -> Optional[str]:
     return _shared_engine.scrape(url)
+    

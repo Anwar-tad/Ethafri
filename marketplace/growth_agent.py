@@ -759,65 +759,8 @@ class RecursiveBuilder:
 # 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ - v10.60)
 # ============================================================
 
-def _autonomous_no_api_search_fallback(niche):
-    """
-    🛡️ DUAL-ENGINE FALLBACK: DuckDuckGo እገዳ ወይም የሰዓት ማለፍ ሲያጋጥመው ወዲያውኑ 
-    ወደ Google/Bing የፍለጋ ሞተሮች በመሸጋገር መረጃዎችን በደህንነት የሚሰበስብ ጠንካራ ሎጂክ (v10.55)
-    """
-    import requests
-    import re
-    from urllib.parse import quote
-    
-    query = f"Ethiopia buying and selling telegram channel {niche}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-    }
-    
-    fallback_sources = []
-    
-    # 1. መጀመሪያ በ DuckDuckGo መሞከር
-    try:
-        url = f"https://html.duckduckgo.com/html/?q={quote(query)}"
-        res = requests.get(url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            telegram_usernames = re.findall(r't\.me/([a-zA-Z0-9_]{5,32})', res.text)
-            for username in list(set(telegram_usernames))[:4]:
-                if username.lower() not in ['s', 'joinchat', 'share', 'tgme']:
-                    fallback_sources.append({"url_or_channel": username, "platform_type": "Telegram"})
-            if fallback_sources:
-                return fallback_sources
-    except Exception as e:
-        logger.warning(f"⚠️ Search Fallback: DuckDuckGo failed ({e}). Trying Google Search Fallback...")
-
-    # 2. DuckDuckGo ካልሠራ ወዲያውኑ ወደ Google Search Fallback መሸጋገር
-    try:
-        google_url = f"https://www.google.com/search?q={quote(query)}"
-        res = requests.get(google_url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            telegram_usernames = re.findall(r't\.me/([a-zA-Z0-9_]{5,32})', res.text)
-            for username in list(set(telegram_usernames))[:4]:
-                if username.lower() not in ['s', 'joinchat', 'share', 'tgme']:
-                    fallback_sources.append({"url_or_channel": username, "platform_type": "Telegram"})
-            if fallback_sources:
-                logger.info(f"✨ Google Fallback Search: Discovered {len(fallback_sources)} sources!")
-                return fallback_sources
-    except Exception as e2:
-        logger.warning(f"⚠️ Search Fallback: Google failed ({e2}). Trying Bing Search Fallback...")
-
-    # 3. Google ካልሠራ ወደ Bing Search Fallback መሸጋገር
-    try:
-        bing_url = f"https://www.bing.com/search?q={quote(query)}"
-        res = requests.get(bing_url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            telegram_usernames = re.findall(r't\.me/([a-zA-Z0-9_]{5,32})', res.text)
-            for username in list(set(telegram_usernames))[:4]:
-                if username.lower() not in ['s', 'joinchat', 'share', 'tgme']:
-                    fallback_sources.append({"url_or_channel": username, "platform_type": "Telegram"})
-            return fallback_sources
-    except Exception as e3:
-        logger.error(f"❌ All Fallback Search Engines Exhausted: {e3}")
-        
-    return fallback_sources
+from .scrapper_engine import ScrapperEngine
+sources = ScrapperEngine.unauthenticated_search_lookup(query, extract_telegram_links=True)
 
 class MultiChannelHarvester:
     """

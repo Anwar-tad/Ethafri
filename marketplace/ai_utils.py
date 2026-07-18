@@ -290,28 +290,8 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
 # 📡 DYNAMIC WEB SEARCH COG (የበይነመረብ ራስ-ገዝ ፍለጋ መሳቢያ)
 # ============================================================
 
-def _fetch_raw_search_results(query: str) -> str:
-    """
-    🛡️ Dynamic Search Scraper: ጌሚኒ ቢያልቅ ወይም ቢሰናከል፣ ያለ ምንም ኤፒአይ ኪይ
-    ቀጥታ ከ DuckDuckGo ላይ የፍለጋ መረጃዎችን በፅሁፍ ደረጃ የሚስብ ረዳት
-    """
-    url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
-    }
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            results = re.findall(r'<a class="result__snippet"[^>]*>(.*?)</a>', res.text, re.DOTALL)
-            snippets = []
-            for r in results[:5]:
-                clean_r = re.sub(r'<[^>]+>', ' ', r).strip()
-                if clean_r:
-                    snippets.append(clean_r)
-            return "\n".join(snippets)
-    except Exception as e:
-        logger.debug(f"Raw DuckDuckGo fetch failed: {e}")
-    return ""
+from .scrapper_engine import ScrapperEngine
+search_context = ScrapperEngine.unauthenticated_search_lookup(query, extract_telegram_links=False)
 
 
 # ============================================================
