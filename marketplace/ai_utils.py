@@ -290,10 +290,13 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
 # 📡 DYNAMIC WEB SEARCH COG (የበይነመረብ ራስ-ገዝ ፍለጋ መሳቢያ)
 # ============================================================
 
-from .scrapper_engine import ScrapperEngine
-search_context = ScrapperEngine.unauthenticated_search_lookup(query, extract_telegram_links=False)
-
-
+def _fetch_raw_search_results(query: str) -> str:
+    """
+    🛡️ DECOUPLED WRAPPER: የ RAG የፍለጋ መረጃዎችን በቀጥታ ወደ scrapper_engine ያዞራል (v10.43)
+    """
+    from .scrapper_engine import ScrapperEngine
+    # extract_telegram_links=False በማድረግ ጥሬ የጽሑፍ ማጠቃለያዎችን ብቻ ይስባል
+    return ScrapperEngine.unauthenticated_search_lookup(query, extract_telegram_links=False)
 # ============================================================
 # 🧠 DYNAMIC MULTI-PROVIDER AI ROUTER WITH TASK-BASED GATING
 # ============================================================

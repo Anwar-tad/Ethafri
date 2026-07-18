@@ -759,8 +759,14 @@ class RecursiveBuilder:
 # 📡 4. DYNAMIC MULTI-CHANNEL HARVESTER (የበይነመረብ ፍለጋ አሳሽ - v10.60)
 # ============================================================
 
-from .scrapper_engine import ScrapperEngine
-sources = ScrapperEngine.unauthenticated_search_lookup(query, extract_telegram_links=True)
+def _autonomous_no_api_search_fallback(niche):
+    """
+    🛡️ DECOUPLED WRAPPER: የቴሌግራም አሰሳ ፈላጊን በቀጥታ ወደ scrapper_engine ያዞራል (v10.56)
+    """
+    from .scrapper_engine import ScrapperEngine
+    query = f"Ethiopia buying and selling telegram channel {niche}"
+    # extract_telegram_links=True በማድረግ የቴሌግራም ሊንኮችን ብቻ ይስባል
+    return ScrapperEngine.unauthenticated_search_lookup(query, extract_telegram_links=True)
 
 class MultiChannelHarvester:
     """
