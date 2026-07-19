@@ -176,8 +176,8 @@
         </div>
     </div>
 
-    <!-- 🌍 AI Multi-Lingual Section (ዘመናዊ የRAG 12 ቋንቋዎች ትርጉም ሰሌዳ) -->
-    {% if product.translations %}
+<!-- 🌍 AI Multi-Lingual Section (በቪውስ ደረጃ ደህንነቱ የተጠበቀ የRAG ትርጉም ሰሌዳ) -->
+    {% if has_translations %}
     <div class="mt-5">
         <div class="d-flex align-items-center justify-content-between mb-4">
             <h4 class="fw-bold mb-0"><i class="fas fa-language text-warning me-2"></i> {% trans "AI Translations" %}</h4>
@@ -199,19 +199,20 @@
             <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#fr">Français</button></li>
         </ul>
         
+        <!-- 🛡️ FIXED: ቴምፕሌቱ ዳታቤዙን ቀጥታ ሳይጠይቅ በቪውስ የተላከውን translations_data በጥራት እንዲያነብ ማድረግ (500 error ተፈቷል) -->
         <div class="tab-content mt-3">
-            <div class="tab-pane fade show active p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="en">{{ product.translations.en|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="am">{{ product.translations.am|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="om">{{ product.translations.om|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="ti">{{ product.translations.ti|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="so">{{ product.translations.so|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="aa">{{ product.translations.aa|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="sid">{{ product.translations.sid|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="wal">{{ product.translations.wal|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="stv">{{ product.translations.stv|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="sw">{{ product.translations.sw|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8; direction: rtl;" id="ar">{{ product.translations.ar|default:_("Translation in progress...") }}</div>
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="fr">{{ product.translations.fr|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade show active p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="en">{{ translations_data.en|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="am">{{ translations_data.am|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="om">{{ translations_data.om|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="ti">{{ translations_data.ti|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="so">{{ translations_data.so|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="aa">{{ translations_data.aa|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="sid">{{ translations_data.sid|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="wal">{{ translations_data.wal|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="stv">{{ translations_data.stv|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="sw">{{ translations_data.sw|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8; direction: rtl;" id="ar">{{ translations_data.ar|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="fr">{{ translations_data.fr|default:_("Translation in progress...") }}</div>
         </div>
     </div>
     {% endif %}
