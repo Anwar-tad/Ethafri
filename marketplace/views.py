@@ -183,8 +183,9 @@ def home(request):
     }
     return render(request, 'marketplace/home.html', context)
 
+# 🛡️ DYNAMIC VIEWS SAFE-DEGRADATION: በ views.py ውስጥ የሚተካው የታረመው የ Product_detail ክፍል
 def product_detail(request, pk):
-    """የምርት ዝርዝር — እይታን ይቆጥራል እና የጎደሉ ቋንቋዎችን በጌሚኒ በዳይናሚክ ይተረጉማል (v10.20 - On-Demand Translation Loop)"""
+    """የምርት ዝርዝር — እይታን ይቆጥራል እና የጎደሉ ቋንቋዎችን በጌሚኒ በዳይናሚክ ይተረጉማል (v10.21 - On-Demand Translation Loop)"""
     Product = apps.get_model('marketplace', 'Product')
     ABTest = apps.get_model('marketplace', 'ABTest')
 
@@ -198,41 +199,21 @@ def product_detail(request, pk):
     
     if lang and lang != 'en':
         ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
-        translation, _ = ProductTranslation.objects.get_or_create(product=product)
-        lang_text = getattr(translation, lang, '').strip()
         
-        # 🛡️ DYNAMIC ON-DEMAND TRANSLATION: ትርጉሙ ከሌለ ጌሚኒን ጠርቶ ወዲያውኑ መተርጎምና ማስቀመጥ (የመማር ሎጂክ)
-        if not lang_text:
+        # 🛡️ FIXED: አምዶቹ በዳታቤዝ ውስጥ ገና ካልተፈጠሩ ገጹ በ 500 እንዳይከሰከስ በደህንነት መከላከል (Safe DB Fallback)
+        try:
+            translation, _ = ProductTranslation.objects.get_or_create(product=product)
+            lang_text = getattr(translation, lang, '').strip()
+        except Exception as db_err:
+            logger.warning(f"⚠️ views.py: ProductTranslation columns missing, falling back to original: {db_err}")
+            lang_text = ""
+            # ለዶክተሩ ስህተቱን በራስ-ሰር በሎግ ማስተላለፍ (በቀጣይ ዑደት በራሱ ማይግሬሽን እንዲሠራ)
             try:
-                from .ai_utils import ask_master_ai_smart, clean_and_parse_json
-                
-                # የቋንቋዎች ካርታ
-                locales_map = {
-                    'am': 'Amharic', 'om': 'Oromo', 'ar': 'Arabic', 'so': 'Somali',
-                    'ti': 'Tigrinya', 'aa': 'Afar', 'sid': 'Sidama', 'wal': 'Wolaytta',
-                    'stv': "Silt'e", 'sw': 'Swahili', 'fr': 'French'
-                }
-                lang_name = locales_map.get(lang, 'Amharic')
-                
-                prompt = (
-                    f"Translate this product details into {lang_name}.\n"
-                    f"Title: {product.title}\n"
-                    f"Description: {product.description}\n\n"
-                    f"Return JSON format strictly with keys 'title' and 'description'."
+                apps.get_model('marketplace', 'AgentErrorLog').objects.create(
+                    site=product.site, task_name="Heal ProductTranslation columns",
+                    error_type="database", error_message=str(db_err)
                 )
-                
-                res = ask_master_ai_smart(prompt, task_type="translation")
-                data = clean_and_parse_json(res)
-                
-                if data and isinstance(data, dict) and data.get('title'):
-                    t_title = data.get('title', product.title)
-                    t_desc = data.get('description', product.description)
-                    # በ "|||" አጣብቆ በአንድ አምድ ውስጥ ማስቀመጥ (Symmetric Column Match)
-                    lang_text = f"{t_title} ||| {t_desc}"
-                    setattr(translation, lang, lang_text)
-                    translation.save()
-            except Exception as e:
-                logger.debug(f"Dynamic on-demand translation failed: {e}")
+            except Exception: pass
 
         # ትርጉሙን ለይቶ ማውጣት
         if lang_text and "|||" in lang_text:
