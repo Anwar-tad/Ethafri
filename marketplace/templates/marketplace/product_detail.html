@@ -1,8 +1,8 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/product_detail.html
-📝 ስሪት፦ v10.18 (Master CEO Product Detail - Clean & Consolidated)
-✅ የተፈቱ ችግሮች፦ Resolved duplicate HTML ID "om" bug in translations tabs, aligned with central design system, and secured dynamic session-aware A/B testing.
-📅 ቀን፦ Saturday, July 04, 2026
+📝 ስሪት፦ v10.20 (Master CEO Product Detail - Clean, Consolidated & 12 Languages)
+✅ የተፈቱ ችግሮች፦ Expanded translation tabs and panels to support 12 domestic and African languages (Afar, Sidama, Wolaytta, Silt'e, Swahili added), resolved duplicate HTML ID "om" bug, aligned with the central design system, and secured dynamic session-aware A/B testing.
+📅 ቀን፦ Monday, July 13, 2026
 ============================================================ -->
 
 {% extends 'marketplace/base.html' %}
@@ -36,7 +36,7 @@
                         <div class="verified-badge" style="position: absolute; top: 20px; left: 20px; background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 50px; font-weight: 800; font-size: 0.75rem; box-shadow: 0 4px 10px rgba(16,185,129,0.3); z-index: 10;"><i class="fas fa-check-circle me-1"></i> CEO VERIFIED</div>
                     {% endif %}
                     
-                    <!-- 🔴 አዲስ የተጨመረ፦ ተጨማሪ የምስል ጋለሪ ካለ ወደ ስላይደር (Carousel) የመቀየር ሎጂክ [1] -->
+                    <!-- ተጨማሪ የምስል ጋለሪ ካለ ወደ ስላይደር (Carousel) የመቀየር ሎጂክ -->
                     {% if image_gallery %}
                         <div id="productImagesCarousel" class="carousel slide h-100" data-bs-ride="carousel">
                             <div class="carousel-indicators">
@@ -90,7 +90,6 @@
                     {% endif %}
                 </div>
 
-                <!-- 🔴 OPTIMIZED: በከፍተኛ ፍጥነት ተተርጉሞ የመጣውን ርዕስ ማሳያ [1] -->
                 <h1 class="fw-bold display-6 mb-2">{{ translated_title|default:product.title }}</h1>
                 <div class="price-hero mb-4">
                     {% if product.price > 0 %}
@@ -107,7 +106,6 @@
 
                 <h6 class="fw-bold text-muted small text-uppercase mb-3">{% trans "About this product" %}</h6>
                 
-                <!-- 🔴 OPTIMIZED: በከፍተኛ ፍጥነት ተተርጉሞ የመጣውን መግለጫ ማሳያ [1] -->
                 <p class="text-secondary mb-5" style="font-size: 1.1rem; line-height: 1.7; white-space: pre-line;">
                     {{ translated_description|default:product.description }}
                 </p>
@@ -178,12 +176,12 @@
         </div>
     </div>
 
-    <!-- 🌍 AI Multi-Lingual Section (ዘመናዊ የRAG ትርጉሞች) -->
+    <!-- 🌍 AI Multi-Lingual Section (ዘመናዊ የRAG 12 ቋንቋዎች ትርጉም ሰሌዳ) -->
     {% if product.translations %}
     <div class="mt-5">
         <div class="d-flex align-items-center justify-content-between mb-4">
             <h4 class="fw-bold mb-0"><i class="fas fa-language text-warning me-2"></i> {% trans "AI Translations" %}</h4>
-            <span class="badge bg-light text-muted border rounded-pill">{% trans "7 Languages Available" %}</span>
+            <span class="badge bg-light text-muted border rounded-pill">{% trans "12 Languages Available" %}</span>
         </div>
         
         <ul class="nav nav-pills lang-nav gap-2 mb-3" id="langTabs" role="tablist">
@@ -192,6 +190,11 @@
             <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#om">Afaan Oromoo</button></li>
             <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#ti">ትግርኛ</button></li>
             <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#so">Soomaali</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#aa">Qafaraf</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#sid">Sidaama</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#wal">Wolaitta</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#stv">Silt'e</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#sw">Kiswahili</button></li>
             <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#ar">العربية</button></li>
             <li class="nav-item"><button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#fr">Français</button></li>
         </ul>
@@ -199,28 +202,16 @@
         <div class="tab-content mt-3">
             <div class="tab-pane fade show active p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="en">{{ product.translations.en|default:_("Translation in progress...") }}</div>
             <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="am">{{ product.translations.am|default:_("Translation in progress...") }}</div>
-            
-            <!-- 🛡️ FIXED: የተደጋገመው የ ID 'om' ታግ ስህተት ተወግዶ ወደ አንድ ወጥ የትርጉም ሰሌዳ ተዋህዷል [1] -->
-            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="om">
-                {% if product.translations.om %}
-                    {{ product.translations.om }}
-                {% else %}
-                    <span class="text-muted small">Translation is queueing...</span>
-                {% endif %}
-            </div>
-            
-            <div class="tab-pane fade" id="ar" role="tabpanel">
-                <div class="p-3 bg-light rounded" style="direction: rtl;">{{ product.translations.ar|default:_("Translating...") }}</div>
-            </div>
-            <div class="tab-pane fade" id="so" role="tabpanel">
-                <div class="p-3 bg-light rounded">{{ product.translations.so|default:_("Translating...") }}</div>
-            </div>
-            <div class="tab-pane fade" id="ti" role="tabpanel">
-                <div class="p-3 bg-light rounded">{{ product.translations.ti|default:_("Translating...") }}</div>
-            </div>
-            <div class="tab-pane fade" id="fr" role="tabpanel">
-                <div class="p-3 bg-light rounded">{{ product.translations.fr|default:_("Translating...") }}</div>
-            </div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="om">{{ product.translations.om|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="ti">{{ product.translations.ti|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="so">{{ product.translations.so|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="aa">{{ product.translations.aa|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="sid">{{ product.translations.sid|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="wal">{{ product.translations.wal|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="stv">{{ product.translations.stv|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="sw">{{ product.translations.sw|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8; direction: rtl;" id="ar">{{ product.translations.ar|default:_("Translation in progress...") }}</div>
+            <div class="tab-pane fade p-4 rounded-4" style="background: #f1f5f9; min-height: 150px; line-height: 1.8;" id="fr">{{ product.translations.fr|default:_("Translation in progress...") }}</div>
         </div>
     </div>
     {% endif %}
@@ -259,7 +250,6 @@
 
 {% block extra_js %}
 <script>
-    // ⏰ global.js ባይጫን እንኳ ሁልጊዜ የ share ቁልፍ እንዲሰራ የተገጠመ UI ስክሪፕት
     function copyToClipboard(text, btn) {
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text).then(() => {
@@ -294,14 +284,13 @@
         }
     }
 
-    // 🔴 አዲስ የተጨመረ፦ የ A/B ሙከራ ቫሪያንት መከታተያ ስክሪፕት (Live A/B Testing AJAX Tracker) [1]
+    // 🔴 የ A/B ሙከራ ቫሪያንት መከታተያ ስክሪፕት (Live A/B Testing AJAX Tracker)
     {% if ab_test %}
     document.addEventListener("DOMContentLoaded", function() {
         const testId = "{{ ab_test.id }}";
         const variant = "{{ ab_variant }}";
         const csrfToken = "{{ csrf_token }}";
 
-        // 1. የሙከራ እይታ መጠንን (Page View) በእውነተኛ ሰዓት መመዝገብ
         fetch(`/api/ab-test/${testId}/view/`, {
             method: "POST",
             headers: {
@@ -311,7 +300,6 @@
             body: JSON.stringify({ variant: variant })
         }).catch(err => console.debug("A/B view track bypassed:", err));
 
-        // 2. ተጠቃሚው የሻጩን ስልክ ሲነካ (የልወጣ መጠንን መመዝገቢያ)
         document.querySelectorAll('.action-group a').forEach(btn => {
             btn.addEventListener('click', function() {
                 fetch(`/api/ab-test/${testId}/conversion/`, {
