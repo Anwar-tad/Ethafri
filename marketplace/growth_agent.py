@@ -1441,18 +1441,15 @@ class CEOOperations:
         self._harvest_verified_products_bulk()
         self.curate_user_listings()
         
-        # 🛡️ Dynamic Local Optimizations: ፊቸር 5, 9, 10 በስራ ላይ ማዋል
-        self.enrich_missing_seller_contacts()
+        # 🛡️ FIXED: የባለቤት ስልክ ቁጥር ፈላጊውን (Contact Enrichment) በየዑደቱ በንቃት ማስኬድ
+        try:
+            self.enrich_missing_seller_contacts(limit=3)
+        except Exception as enrich_err:
+            logger.debug(f"Contact enrichment background run skipped: {enrich_err}")
+            
         self.optimize_listings_seo()
         self.calculate_predictive_pricing()
         
-        # 🛡️ ፊቸር 1፦ የማህበራዊ ሚዲያ አውቶማቲክ ማስታወቂያ (Telegram Bot Post)
-        try:
-            from .growth_agent import SocialMediaCampaigner
-            SocialMediaCampaigner.run_automated_campaigns(self.site)
-        except Exception as e:
-            logger.debug(f"Failed to run automated social campaign: {e}")
-
         self._boost_revenue()
         self.dispatch_pending_notifications()
 
@@ -1753,6 +1750,7 @@ class CEOOperations:
         return stable_fallback
 
     def _seed_listings_bulk(self, products_list):
+        """ምርቶችን ዳታቤዝ ውስጥ ይጭናል - የአድሚን አንዋር ስልክን ያካተተ የተጠቃሚ ግብዣ መልዕክት የያዘ (Fuzzy Deduplication Enabled)"""
         Product = get_model('Product')
         SellerProfile = get_model('SellerProfile')
         NotificationQueue = get_model('NotificationQueue')
@@ -1764,6 +1762,7 @@ class CEOOperations:
         notifications_to_create = []
         seen_titles = set() 
 
+        # የማዕከላዊ አድሚን ተጠቃሚን መለየት
         try:
             from django.contrib.auth import get_user_model
             User = get_user_model()
@@ -1806,6 +1805,20 @@ class CEOOperations:
                     else:
                         continue
 
+                # 🛡️ FIXED: የምርት መደጋገምን በቃላት ተመሳሳይነት ፍተሻ መከላከል (Symmetric Fuzzy Deduplication)
+                title_words = p['title'].strip().split()
+                if len(title_words) >= 3:
+                    fuzzy_title = " ".join(title_words[:3])
+                    # በጣቢያው ላይ ተመሳሳይ መነሻ ርዕስ ያለው ምርት መኖሩን ማረጋገጥ
+                    duplicate_exists = Product.objects.filter(
+                        site=self.site,
+                        title__icontains=fuzzy_title
+                    ).exists()
+                    
+                    if duplicate_exists:
+                        logger.info(f"⏭️ Bulk Harvester: Skipped duplicate product '{p['title']}' via fuzzy title match.")
+                        continue
+
                 Product.objects.filter(
                     seller=target_seller,
                     site=self.site,
@@ -1842,6 +1855,7 @@ class CEOOperations:
                 )
                 products_to_create.append(product_obj)
 
+                # 🛡️ ሻጮች ምርታቸው በነፃ መለጠፉን የሚገልጽ እና የአንዋርን (0962200856) የድጋፍ ስልክ ያካተተ መልዕክት
                 if is_verified_seller:
                     login_token = hashlib.sha256(f"{uname}:{settings.SECRET_KEY}".encode('utf-8')).hexdigest()[:16]
                     SiteConfig.objects.update_or_create(
