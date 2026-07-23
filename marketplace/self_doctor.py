@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/self_doctor.py
-# 📝 ስሪት፦ v10.85 (Ultimate System Doctor - Zero Duplication Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic schema dropping, dynamic table lookup, Security Log Null Site Guard, and complete deduplication of PostgreSQL column checks, inline asset scanners, and logging blocks to optimize execution (v10.85).
-# 📅 ቀን፦ Monday, July 13, 2026
+# 📝 ስሪት፦ v11.00 (Ultimate System Doctor - Zero Duplication Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic schema dropping, dynamic table lookup, Security Log Null Site Guard,
+#                    and AttributeError safety fallbacks added to _heal_production_errors (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 import os
@@ -47,7 +48,6 @@ class DecimalEncoder(json.JSONEncoder):
 # ============================================================
 class SecurityAuditor:
 
-    
     @staticmethod
     def scan_code_safety(code, file_path="", site=None):
         """የ SQL Injection, Secrets Exposure, Shell Execution, እና የላቁ የንድፍ መርሆዎች (Symmetric Audit) ፍተሻ"""
@@ -57,7 +57,6 @@ class SecurityAuditor:
 
         is_python = file_path.endswith('.py') if file_path else True
         
-        # 🛡️ FIXED: የኤችቲኤምኤል የስታይልና ስክሪፕት ቆሻሻ ማስጠንቀቂያዎች (False Positives) ሙሉ በሙሉ እዚህ ተሰርዘዋል [1]
         if not is_python or 'html' in file_path.lower():
             self_log_issues(issues, file_path, site)
             return len(issues) == 0, issues
@@ -89,9 +88,9 @@ class SecurityAuditor:
                         issues.append(f"Design Warning: Function '{node.name}' has too many positional arguments ({len(node.args.args)}). Consider using dictionary payloads or **kwargs for extensible design.")
 
             secret_patterns = [
-                (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
-                (r'(?<![\w"])password\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'Possible password exposure'),
-                (r'(?<![\w"])API_KEY\s*=\s*[\'"][^\'"][^\'"]+[\'"]', 'API key exposure')
+                (r'(?<![\w"])SECRET_KEY\s*=\s*[\'"][^\'"][^\'"][^\'"]+[\'"]', 'Possible production SECRET_KEY exposure'),
+                (r'(?<![\w"])password\s*=\s*[\'"][^\'"][^\'"][^\'"]+[\'"]', 'Possible password exposure'),
+                (r'(?<![\w"])API_KEY\s*=\s*[\'"][^\'"][^\'"][^\'"]+[\'"]', 'API key exposure')
             ]
             for pattern, desc in secret_patterns:
                 if re.search(pattern, code, re.IGNORECASE):
@@ -185,7 +184,7 @@ class UniversalHealer:
 
         self._heal_production_errors()
         self._heal_security_issues()
-        self.heal_broken_api_integration()  # 🛡️ FIXED: የክፍያ ኤፒአይ ራስ-ጥገናን (Feature 12) እዚህ ማገናኘት
+        self.heal_broken_api_integration()
         PerformanceAuditor.run_daily_performance_audit(self.site)
 
     def hard_reset_database_schema(self):
@@ -293,7 +292,7 @@ class UniversalHealer:
                         if not cursor.fetchone():
                             cursor.execute(f'ALTER TABLE marketplace_product ADD COLUMN IF NOT EXISTS {col_name} {col_type};')
 
-            # 🛡️ FIXED: makemigrations እና migrate ትዕዛዞችን በተለየ ሳንድቦክስ በራስ-ሰር ማካሄድ (Feature 8)
+            # 🛡️ FIXED: makemigrations እና migrate ትዕዛዞችን በተለየ ሳንድቦክስ በራስ-ሰር ማካሄድ [1]
             try:
                 import sys
                 import subprocess
@@ -449,20 +448,24 @@ class UniversalHealer:
         try:
             errors = AgentErrorLog.objects.filter(site=self.site, resolved=False).order_by('-created_at')[:3]
             for err in errors:
-                if "FieldError" in err.error_message or "Cannot resolve keyword 'product_set'" in err.error_message:
+                error_msg = getattr(err, 'error_message', '') or ''
+                if "FieldError" in error_msg or "Cannot resolve keyword 'product_set'" in error_msg:
                     self.heal_model_field_errors()
                     err.resolved = True
                     err.save()
                     continue
 
-                task_name = f"🚑 EMERGENCY FIX: {err.task_name}"
+                # 🛡️ FIXED: AttributeError Guard on missing 'task_name' fields across schemas
+                raw_task_name = getattr(err, 'task_name', '') or error_msg[:40]
+                task_name = f"🚑 EMERGENCY FIX: {raw_task_name}"[:200]
+                
                 if not AIProjectBacklog.objects.filter(site=self.site, task_name=task_name, status__in=['Pending', 'Running']).exists():
                     AIProjectBacklog.objects.create(
                         site=self.site, task_name=task_name, target_file='views', priority='Critical',
-                        description=f"Automated Healing for error: {err.error_message}. Fix this immediately to restore uptime.",
+                        description=f"Automated Healing for error: {error_msg}. Fix this immediately to restore uptime.",
                         business_impact_score=10
                     )
-                    logger.info(f"🚑 Created healing task for: {err.task_name}")
+                    logger.info(f"🚑 Created healing task for: {raw_task_name}")
                 
                 err.resolved = True
                 err.save()
@@ -502,7 +505,7 @@ class UniversalHealer:
         """
         📊 [የአሰሳ ስለላ ሪፖርቶች ዕለታዊ አጠቃላይ ማጠቃለያ ሞተር]
         በባክሎግ ውስጥ የሚገኙትን 10+ የነጠላ ዌብሳይት ስህተቶች አውጥቶ በ AI በአንድ ላይ በመጭመቅ 
-        ባለ አንድ ማጠቃለያ መግለጫ ያዘጋጃል። (የነጠላ ሪፖርቶች በዳታቤዝ ውስጥ እንዲቀመጡ ተደርገዋል)
+        ባለ አንድ ማጠቃለያ መግለጫ ያዘጋጃል።
         """
         AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
         SiteConfig = get_marketplace_model('SiteConfig')
@@ -547,19 +550,19 @@ class UniversalHealer:
                     defaults={'value': {'summary': master_summary, 'updated_at': timezone.now().isoformat()}}
                 )
                 
-                logger.info("🧹 Recon Synthesizer: Successfully compressed reports. Kept individual reports for developer reverse-engineering.")
+                logger.info("🧹 Recon Synthesizer: Successfully compressed reports.")
                 
         except Exception as e:
             logger.error(f"Recon Synthesizer failed: {e}")
+
     def heal_broken_api_integration(self):
-        """የቴሌብር/ሲቢኢ ብር የክፍያ ስህተቶች (API errors) ሲከሰቱ የኤፒአይ ሰነዶችን በRAG አንብቦ ኮዱን በራሱ ይጠግናል (Feature 12)"""
+        """የቴሌብር/ሲቢኢ ብር የክፍያ ስህተቶች (API errors) ሲከሰቱ የኤፒአይ ሰነዶችን በRAG አንብቦ ኮዱን በራሱ ይጠግናል"""
         SecurityLog = get_marketplace_model('SecurityLog')
         AIProjectBacklog = get_marketplace_model('AIProjectBacklog')
         if not SecurityLog or not AIProjectBacklog:
             return
 
         try:
-            # የክፍያ ኤፒአይ ስህተቶችን መለየት (telebirr/chapa dependency errors)
             api_errors = SecurityLog.objects.filter(
                 site=self.site,
                 category='dependency',
@@ -574,7 +577,6 @@ class UniversalHealer:
                     api_docs_context = "No specific API docs found in memory."
                     if VectorMemory:
                         try:
-                            # የገንቢውን ኦፊሴላዊ የክፍያ ሰነድ ከ RAG ማስታወሻ መሳብ
                             docs = VectorMemory.objects.filter(site=self.site, memory_type='insight', content__icontains="api").first()
                             if docs:
                                 api_docs_context = docs.content
@@ -597,7 +599,7 @@ class UniversalHealer:
                         business_impact_score=10,
                         trigger_condition="Self-Healing External API Integration Loop"
                     )
-                    logger.warning(f"🚑 API Healer Gateway: Registered critical self-healing task for broken payment gateway: {err.description}")
+                    logger.warning(f"🚑 API Healer Gateway: Registered critical self-healing task: {err.description}")
                 
                 err.is_fixed = True
                 err.save()
@@ -637,7 +639,7 @@ class AutonomousBackupManager:
                 key=f"MASTER_BACKUP_DATA_{site.name}",
                 defaults={'value': json.loads(json.dumps(backup_payload, default=json_serial))}
             )
-            logger.info("💾 Backup Manager: Successfully saved compressed JSON database backup to SiteConfig.")
+            logger.info("💾 Backup Manager: Successfully saved compressed JSON database backup.")
         except Exception as e:
             logger.error(f"Failed to archive database: {e}")
 
@@ -675,7 +677,6 @@ class PerformanceAuditor:
                         if isinstance(current.value, ast.Name):
                             model_name = current.value.id
                             if model_name in ['Product', 'Category']:
-                                # 🛡️ FIXED: N+1 የlatency ችግር የማይፈጥሩ የተለዩ ጥያቄዎችን ከማስጠንቀቂያ መዝለል (False positive reduction)
                                 bypass_methods = {'count', 'exists', 'get', 'update', 'delete', 'create', 'aggregate', 'annotate'}
                                 if any(method in chain for method in bypass_methods):
                                     continue
@@ -706,7 +707,7 @@ class PerformanceAuditor:
             except Exception as e:
                 logger.debug("Failed to parse performance audit timestamp: %s", e)
         
-        logger.info(f"🩺 Performance Auditor: Running daily page-load speed audit for {site.name}...")
+        logger.info(f"🩺 Performance Auditor: Running daily speed audit for {site.name}...")
         issues_found = []
         
         PerformanceAuditor.ping_google_sitemap(site)
@@ -738,10 +739,10 @@ class PerformanceAuditor:
                 target = "views" if "views.py" in issue else "home_html"
                 AIProjectBacklog.objects.create(
                     site=site, task_name=task_name, target_file=target, priority="Critical",
-                    description=f"Performance bottleneck detected during daily audit: {issue} Fix this immediately to drastically improve page load speed.",
+                    description=f"Performance bottleneck detected during daily audit: {issue} Fix this immediately to improve load speed.",
                     business_impact_score=10
                 )
-                logger.warning(f"🩺 Performance Auditor: Created critical healing task for: {issue}")
+                logger.warning(f"🩺 Performance Auditor: Created critical healing task: {issue}")
 
         SiteConfig.objects.update_or_create(key=f"LAST_PERF_AUDIT_{site.name}", defaults={'value': {'time': timezone.now().isoformat()}})
 
@@ -750,7 +751,7 @@ class PerformanceAuditor:
         sitemap_url = f"{site.deployment_url}/sitemap.xml"
         try:
             requests.get(f"https://www.google.com/ping?sitemap={sitemap_url}", timeout=5)
-            logger.info("🔍 SEO Engine: Successfully pinged Google Search Console for sitemap re-indexing.")
+            logger.info("🔍 SEO Engine: Successfully pinged Google Search Console.")
         except Exception as e:
             logger.debug("Google sitemap ping failed: %s", e)
 
@@ -814,7 +815,6 @@ class AntiBloatEngine:
 
         logger.warning(f"⚠️ Anti-Bloat Guard: Code for {file_path} is bloated. Activating surgical self-pruning...")
 
-        # 🛡️ 1. SURGICAL REGEX CLEANUP: የኮሜንት እና ባዶ መስመሮችን 0% ሲፒዩ/ቶከን ወጪ በሆነ ሬጀክስ ማጽዳት (Surgical Pruning)
         cleaned_lines = []
         for line in new_code.splitlines():
             stripped = line.strip()
@@ -827,7 +827,6 @@ class AntiBloatEngine:
             logger.info(f"✨ Anti-Bloat: Surgically cleaned comments and blank spaces of {file_path} without calling AI.")
             return pruned_new_code
 
-        # 2. የላቀ የኤአይ ሪፋክተሪንግ ፍላጎት
         prompt = (
             f"Optimize and shrink this Python code for '{file_path}'.\n"
             f"1. Remove any dead code, unused helper functions, and redundant imports.\n"

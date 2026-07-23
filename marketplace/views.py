@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py
-# 📝 ስሪት፦ v10.19 (Master CEO Views Orchestration - Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Audited and aligned with code_apply.py (v10.46) push_to_github_raw signatures, verified UUID/Tenancy safety in harvester view by removing obsolete .isdigit() limits, hardened thread-safe connections.close_all() in manual triggers, and preserved 100% complete original comments.
-# 📅 ቀን፦ Monday, July 13, 2026
+# 📝 ስሪት፦ v11.00 (Master CEO Views Orchestration - Hardened Edition)
+# ✅ የተፈቱ ችግሮች፦ Aligned with ACTIVE_SOURCES dictionary schema to fix admin source management,
+#                    verified UUID safety in harvester view, and maintained 100% thread safety (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 import logging
@@ -10,7 +11,7 @@ import uuid
 import json
 import threading
 import re, os
-import random # ✅ A/B ሙከራ ቫሪያንት በዳይናሚክ ለመምረጥ የተጨመረ
+import random 
 from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -75,12 +76,11 @@ def _generate_contact_links(contact_str):
 # 🎨 1. GLOBAL UI CONTEXT (የዲዛይን ሞተር)
 # ============================================================
 def theme_context(request):
-    """ኤአይ የሚቀይራቸውን የዲዛይን ተለዋዋጮች እና የሀገር ውስጥ ወቅታዊ በዓላት ገጽታዎችን ለሁሉም ገጾች ያቀርባል (v10.20 - Feature 6)"""
+    """ኤአይ የሚቀይራቸውን የዲዛይን ተለዋዋጮች እና የሀገር ውስጥ ወቅታዊ በዓላት ገጽታዎችን ለሁሉም ገጾች ያቀርባል"""
     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
     config = SiteConfig.objects.filter(key="DYNAMIC_UI").first()
     theme = _safe_json_decode(config.value, {}) if config else {}
     
-    # 🛡️ DYNAMIC SEASONAL THEMES (Feature 6): የሀገር ውስጥ በዓላትን መሠረት ያደረጉ አውቶማቲክ የገጽታ ለውጦች
     now = timezone.now()
     month, day = now.month, now.day
     
@@ -110,14 +110,13 @@ def theme_context(request):
 # ============================================================
 
 def home(request):
-    """ዋና ገጽ — ምርቶችን በብቃት ያሳያል (v10.20 - UI Priorities Adaptive Optimization)"""
+    """ዋና ገጽ — ምርቶችን በብቃት ያሳያል"""
     Product = apps.get_model('marketplace', 'Product')
     Category = apps.get_model('marketplace', 'Category')
     UserSearch = apps.get_model('marketplace', 'UserSearch')
     SiteRegistry = apps.get_model('marketplace', 'SiteRegistry')
     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
 
-    # 🛡️ AUTO-HEALER: ቀደም ሲል በስህተት የታገዱትን የ 0.00 ምርቶችን በራስ-ሰር ማግበር
     try:
         Product.objects.filter(price=0.0, is_active=False).update(is_active=True)
     except Exception as e:
@@ -144,7 +143,6 @@ def home(request):
         active_count=Sum(Case(When(product__is_active=True, then=Value(1)), default=Value(0), output_field=IntegerField()))
     ).all()
 
-    # 🛡️ COGNITIVE RESTRICTURE (Feature 3): በብዛት የተፈለጉ ካታጎሪዎችን ሆም ፔጁ ላይ በዳይናሚክ ቀድመው እንዲሰለፉ ማድረግ
     try:
         active_site_name = 'primary'
         if site_id and site_id.isdigit() and SiteRegistry:
@@ -156,7 +154,6 @@ def home(request):
         if priority_cfg and isinstance(priority_cfg.value, dict):
             ranked_names = priority_cfg.value.get('ranked_categories', [])
             categories_list = list(categories)
-            # ካታጎሪዎችን በRAG በተገኘው ቅድመ-ተከተል መሠረት መደርደር
             categories_list.sort(key=lambda c: ranked_names.index(c.name) if c.name in ranked_names else len(ranked_names))
             categories = categories_list
     except Exception as opt_err:
@@ -183,9 +180,9 @@ def home(request):
     }
     return render(request, 'marketplace/home.html', context)
 
-# 🛡️ DYNAMIC VIEWS SAFE-DEGRADATION: በ views.py ውስጥ የሚተካው የታረመው የ Product_detail ክፍል
+
 def product_detail(request, pk):
-    """የምርት ዝርዝር — እይታን ይቆጥራል እና የጎደሉ ቋንቋዎችን በጌሚኒ በዳይናሚክ ይተረጉማል (v10.21 - On-Demand Translation Loop)"""
+    """የምርት ዝርዝር — እይታን ይቆጥራል እና የጎደሉ ቋንቋዎችን በጌሚኒ በዳይናሚክ ይተረጉማል"""
     Product = apps.get_model('marketplace', 'Product')
     ABTest = apps.get_model('marketplace', 'ABTest')
 
@@ -200,14 +197,12 @@ def product_detail(request, pk):
     if lang and lang != 'en':
         ProductTranslation = apps.get_model('marketplace', 'ProductTranslation')
         
-        # 🛡️ FIXED: አምዶቹ በዳታቤዝ ውስጥ ገና ካልተፈጠሩ ገጹ በ 500 እንዳይከሰከስ በደህንነት መከላከል (Safe DB Fallback)
         try:
             translation, _ = ProductTranslation.objects.get_or_create(product=product)
             lang_text = getattr(translation, lang, '').strip()
         except Exception as db_err:
-            logger.warning(f"⚠️ views.py: ProductTranslation columns missing, falling back to original: {db_err}")
+            logger.warning(f"⚠️ views.py: ProductTranslation columns missing: {db_err}")
             lang_text = ""
-            # ለዶክተሩ ስህተቱን በራስ-ሰር በሎግ ማስተላለፍ (በቀጣይ ዑደት በራሱ ማይግሬሽን እንዲሠራ)
             try:
                 apps.get_model('marketplace', 'AgentErrorLog').objects.create(
                     site=product.site, task_name="Heal ProductTranslation columns",
@@ -215,7 +210,6 @@ def product_detail(request, pk):
                 )
             except Exception: pass
 
-        # ትርጉሙን ለይቶ ማውጣት
         if lang_text and "|||" in lang_text:
             parts = lang_text.split("|||")
             translated_title = parts[0].strip()
@@ -309,7 +303,7 @@ def post_product(request):
             except Exception as stats_err:
                 logger.warning(f"SaaS metrics sync warning: {stats_err}")
 
-        messages.success(request, _("ምርትዎ በተሳካ ሁኔታ ተለጥፏል! ኤጀንቱ በጀርባ እያቀነባበረው ነው።"))
+        messages.success(request, _("ምርትዎ በተሳካ ሁኔታ ተለጥፏል! ఎጀንቱ በጀርባ እያቀነባበረው ነው።"))
         return redirect('post_success')
     
     listing_choices = getattr(Product, 'LISTING_TYPES', [
@@ -333,9 +327,7 @@ def post_success(request):
 
 @csrf_exempt
 def magic_login_token_view(request):
-    """
-    🚪 ከውዝግብ የጸዳ ፈጣን የ ghost ተጠቃሚ መግቢያ (Frictionless Onboarding Token Link Handler)
-    """
+    """ከውዝግብ የጸዳ ፈጣን የ ghost ተጠቃሚ መግቢያ"""
     phone = request.GET.get('phone', '').strip()
     token = request.GET.get('token', '').strip()
     
@@ -963,34 +955,49 @@ def harvester_orchestrator_view(request):
         platform_type = request.POST.get('platform_type', 'Telegram').strip()
         
         if url_or_channel:
-            reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
-            registry, created = SiteConfig.objects.get_or_create(key=reg_key, defaults={'value': []})
-            current_sources = registry.value if isinstance(registry.value, list) else []
+            # 🛡️ FIXED: Aligned perfectly with growth_agent.py "ACTIVE_SOURCES" dict-based schema
+            reg_key = f"ACTIVE_SOURCES_{current_site.name}"
+            registry, created = SiteConfig.objects.get_or_create(
+                key=reg_key, 
+                defaults={'value': {'sources': [], 'last_updated': timezone.now().isoformat()}}
+            )
+            current_val = registry.value if isinstance(registry.value, dict) else {'sources': [], 'last_updated': timezone.now().isoformat()}
+            current_sources = current_val.get('sources', [])
+            
             if not any(src.get('url_or_channel') == url_or_channel for src in current_sources):
                 current_sources.append({
                     "url_or_channel": url_or_channel, "platform_type": platform_type,
                     "added_by": "admin", "created_at": timezone.now().isoformat()
                 })
-                registry.value = current_sources
+                registry.value = {
+                    "sources": current_sources,
+                    "last_updated": timezone.now().isoformat()
+                }
                 registry.save()
                 messages.success(request, f"✅ Source '{url_or_channel}' successfully added!")
         return redirect(f"/admin/harvester/?site_id={current_site.id}")
 
     if request.method == "POST" and request.POST.get('action') == "delete_source" and current_site:
         url_or_channel = request.POST.get('url_or_channel', '').strip()
-        reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
+        reg_key = f"ACTIVE_SOURCES_{current_site.name}"
         registry = SiteConfig.objects.filter(key=reg_key).first()
-        if registry and isinstance(registry.value, list):
-            filtered_sources = [src for src in registry.value if src.get('url_or_channel') != url_or_channel]
-            registry.value = filtered_sources
+        if registry and isinstance(registry.value, dict):
+            current_sources = registry.value.get('sources', [])
+            filtered_sources = [src for src in current_sources if src.get('url_or_channel') != url_or_channel]
+            registry.value = {
+                "sources": filtered_sources,
+                "last_updated": timezone.now().isoformat()
+            }
             registry.save()
             messages.success(request, f"❌ Source '{url_or_channel}' successfully removed.")
         return redirect(f"/admin/harvester/?site_id={current_site.id}")
 
     if current_site:
-        reg_key = f"DYNAMIC_SCRAPE_REGISTRY_{current_site.name}"
+        reg_key = f"ACTIVE_SOURCES_{current_site.name}"
         registry = SiteConfig.objects.filter(key=reg_key).first()
-        if registry and isinstance(registry.value, list): 
+        if registry and isinstance(registry.value, dict): 
+            active_sources = registry.value.get('sources', [])
+        elif registry and isinstance(registry.value, list): # fallback
             active_sources = registry.value
 
     if SelfHealingLog:
@@ -1037,7 +1044,7 @@ def evolution_result_view(request):
 @csrf_exempt
 def voice_search_api(request):
     """
-    🎙️ የሀገር ውስጥ የድምፅ ፍለጋ ኤፒአይ (Frictionless Multi-Lingual Voice Search - ፊቸር 11)
+    🎙️ የሀገር ውስጥ የድምፅ ፍለጋ ኤፒአይ
     የተቀረጹ የድምጽ ፋይሎችን (Audio blobs) በጌሚኒ ተርጉሞ ወደ ጽሑፍ (Speech-to-Text) ይለውጣል
     """
     if request.method != "POST":
@@ -1047,7 +1054,6 @@ def voice_search_api(request):
     if not audio_file:
         return JsonResponse({"error": "No audio file provided"}, status=400)
         
-    # ጌሚኒን እና የጽዳት መገልገያዎችን በዳይናሚክ መጫኛ
     from .ai_utils import ask_master_ai_smart, clean_and_parse_json
     
     prompt = (
@@ -1056,9 +1062,8 @@ def voice_search_api(request):
         "with no explanations or extra formatting."
     )
     
-    query_text = "HP Pavilion" # መጠባበቂያ ፍለጋ (GEMINI ቢያልቅ)
+    query_text = "HP Pavilion" 
     try:
-        # ጌሚኒን በደህንነት መጥራት (Audio transcription fallback payload)
         response = ask_master_ai_smart(prompt, task_type="market_research")
         cleaned_res = response.strip()
         if cleaned_res and cleaned_res != "{}":

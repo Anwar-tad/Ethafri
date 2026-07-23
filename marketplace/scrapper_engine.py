@@ -1,12 +1,10 @@
-# --------------------------------------------------------------
-#  scrapper_engine.py  – high‑performance, thread‑safe, self‑healing
-#  v10.57  •  SmartProductExtractor fully implemented with unified Amharic-aware price & contact parsing (Zero duplication across files).
-#          •  Render CPU Guard added to prevent Playwright browser launch OOM crashes under heavy server load.
-#          •  requests.Session() with local cookie & language header spoofing added to bypass Cloudflare and regional bot protection.
-#          •  bs4 is optional – degrades to regex path if missing.
-#          •  429 / Retry‑After aware backoff with jitter.
-#          •  intra‑page title dedup, stale‑listing filtering.
-# ---------------------------------------------------------------
+# =================================================================
+#  scrapper_engine.py – high‑performance, thread‑safe, self‑healing
+#  v11.00 • SmartProductExtractor fully upgraded with native match index pricing
+#         • Render CPU Guard integrated to prevent heavy browser OOM crashes
+#         • requests.Session() with local cookie & language header spoofing
+#         • Dual-engine fallback for DuckDuckGo and Google Search lookup
+# =================================================================
 
 import asyncio
 import hashlib
@@ -26,12 +24,12 @@ from django.conf import settings
 from django.utils import timezone
 
 # --------------------------------------------------------------
-#  Optional BeautifulSoup (module degrades gracefully if missing)
+#  Optional BeautifulSoup (Gracefully degrades to regex if missing)
 # --------------------------------------------------------------
 try:
     from bs4 import BeautifulSoup
     _HAS_BS4 = True
-except Exception:                                      # pragma: no cover
+except Exception:
     BeautifulSoup = None
     _HAS_BS4 = False
 
@@ -48,24 +46,28 @@ class ScraperConfig:
     SCRAPEOPS_ENDPOINT: str = "https://proxy.scrapeops.io/v1/"
     REQUEST_TIMEOUT: int = 30
     PLAYWRIGHT_TIMEOUT: int = 60
-    RATE_LIMIT_RANGE: Tuple[float, float] = (0.8, 1.5)   # faster loops on low‑CPU hosts
+    RATE_LIMIT_RANGE: Tuple[float, float] = (0.8, 1.5)
     CACHE_TTL: int = 3600
     SMART_CACHE_TTL: int = 1800
-    # Extraction tuning -------------------------------------------------
+    
+    # Extraction tuning 
     MAX_PRODUCTS_PER_PAGE: int = 60
     MIN_TITLE_LEN: int = 8
     MAX_TITLE_LEN: int = 150
     MAX_DESC_LEN: int = 1000
-    # Ethiopian phone / contact patterns --------------------------------
+    
+    # Ethiopian phone / contact patterns
     PHONE_RE = re.compile(r"(?:\+251|09|07)\s*[\d\s\-\(\)\.]{7,15}\d")
     TELEGRAM_RE = re.compile(r"@[a-zA-Z0-9_]{4,32}")
-    # Price patterns (Amharic ዋጋ/ብር + English) --------------------------
+    
+    # Price patterns (Amharic ዋጋ/ብር + English)
     PRICE_RE = re.compile(
         r"(?:ዋጋ|Price|Birr|ETB|ብር)\s*[:፡\-]?\s*([\d,]+(?:\.\d+)?)",
         re.IGNORECASE,
     )
     PRICE_TAIL_RE = re.compile(r"([\d,]+(?:\.\d+)?)\s*(?:ETB|ብር|Birr|Br)", re.IGNORECASE)
-    # Stale / non‑product markers ---------------------------------------
+    
+    # Stale / non‑product markers
     STALE_RE = re.compile(
         r"(?:sold\s*out|out\s*of\sstock|already\s*sold|ended|expired|"
         r"closed\slisting|removed\b)",
@@ -76,6 +78,7 @@ class ScraperConfig:
         r"[4-9]\s*months?\s*ago|year\s*ago",
         re.IGNORECASE,
     )
+    
     # 🛡️ ቴሌግራም ላይ የሚለጠፉ የምርት ያልሆኑ የሲስተም መልዕክቶች ማጣሪያ
     SYSTEM_MSG_RE = re.compile(
         r"(?:channel\s*created|channel\s*photo\s*updated|channel\s*name\s*was\s*changed|"
@@ -84,11 +87,13 @@ class ScraperConfig:
         re.IGNORECASE
     )
 
+
 # ==============================================================
 #  Helper utilities
 # ==============================================================
 def _is_telegram(url: str) -> bool:
     return any(x in url.lower() for x in ("t.me", "telegram", "@"))
+
 
 def _safe_json_load(text: str) -> Optional[Dict]:
     """Parse JSON safely – returns None on any error."""
@@ -98,11 +103,13 @@ def _safe_json_load(text: str) -> Optional[Dict]:
         logger.debug(f"[Scraper] JSON decode error: {e}")
         return None
 
+
 def _extract_domain(url: str) -> str:
     try:
         return urlparse(url).netloc.lower()
     except Exception:
         return ""
+
 
 # ==============================================================
 #  FingerprintEvasion (user‑agent & header generator)
@@ -125,12 +132,13 @@ class FingerprintEvasion:
         return {
             "User-Agent": ua,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "am-ET,am;q=0.9,en-US;q=0.8,en;q=0.7", # የአማርኛ ቋንቋ ማስመሰል
+            "Accept-Language": "am-ET,am;q=0.9,en-US;q=0.8,en;q=0.7",  # የአማርኛ ቋንቋ ማስመሰል
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
             "DNT": "1",
-            "Cookie": "lang=et; currency=ETB", # የሀገር ውስጥ ሻጭ ኩኪዎችን ማስመሰል (Cookie Spoofing)
+            "Cookie": "lang=et; currency=ETB",  # የሀገር ውስጥ ሻጭ ኩኪዎችን ማስመሰል (Cookie Spoofing)
         }
+
 
 # ==============================================================
 #  Metrics, RateLimiter & SmartCache
@@ -155,6 +163,7 @@ class ScraperMetrics:
             "failed_scrapes": self.failed_scrapes,
             "error_count": len(self.errors),
         }
+
 
 class IntelligentRateLimiter:
     def __init__(self, delay_range: Tuple[float, float] = ScraperConfig.RATE_LIMIT_RANGE) -> None:
@@ -184,6 +193,7 @@ class IntelligentRateLimiter:
             "last_request_time": self.last_request_time,
         }
 
+
 class SmartCache:
     def __init__(self, ttl: int = ScraperConfig.CACHE_TTL) -> None:
         self.ttl = ttl
@@ -209,13 +219,14 @@ class SmartCache:
     def get_stats(self) -> Dict[str, Any]:
         return {"hits": self.hits, "misses": self.misses, "size": len(self.store)}
 
+
 # ==============================================================
 #  Product extraction  (BeautifulSoup + regex, multi‑strategy)
 # ==============================================================
 class SmartProductExtractor:
     """Extracts product dicts from marketplace HTML."""
 
-    # 🛡️ FIXED: የፌስቡክ ማርኬትፕሌስ እና የሀገር ውስጥ ድረ-ገጾች ልዩ አሰሳ መዋቅሮች እዚህ ተጨምረዋል
+    # 🛡️ የፌስቡክ ማርኬትፕሌስ እና የሀገር ውስጥ ድረ-ገጾች ልዩ አሰሳ መዋቅሮች
     FB_LISTING_SELECTORS = [
         "div[role='feed'] div[style*='max-width']",
         "div.x9f619.x78zum5.x1r8u6il",
@@ -672,9 +683,11 @@ class SmartProductExtractor:
             val_str = m.group(1).replace(",", "")
             val = float(val_str)
             
-            # Smart Adjacent/Proximity Check (የዋጋ ማባዣዎችን ጥቅል በሆነ ፍተሻ ሳይሆን ከቁጥሩ ጀርባ ባሉት 10 ፊደላት ውስጥ ብቻ መፈለግ)
+            # 🛡️ FIXED: Native match index-based slicing completely avoids comma mismatch bugs [1]
             text_lower = text.lower()
-            matched_price_segment = text_lower[max(0, text_lower.find(val_str)-10) : text_lower.find(val_str)+len(val_str)+10]
+            start_idx = m.start()
+            end_idx = m.end()
+            matched_price_segment = text_lower[max(0, start_idx - 10) : end_idx + 10]
             
             amharic_numeral_map = {
                 "፩": 1, "፪": 2, "፫": 3, "፬": 4, "፭": 5, "፮": 6, "፯": 7, "፰": 8, "፺": 9,
@@ -683,7 +696,6 @@ class SmartProductExtractor:
             }
             
             for key, multiplier in amharic_numeral_map.items():
-                # 🛡️ FIXED: Checking word boundaries strictly for single-char keys "k" and "m" to avoid mashing with "samsung" etc.
                 if key in ["k", "m"]:
                     if re.search(rf"\b{val_str}\s*{key}\b", text_lower):
                         val *= multiplier
@@ -736,6 +748,7 @@ class SmartProductExtractor:
             return "service"
         return "sale"
 
+
 # ==============================================================
 #  AdvancedProductExtractor  (caching wrapper)
 # ==============================================================
@@ -751,6 +764,7 @@ class AdvancedProductExtractor:
         products = SmartProductExtractor.extract_products(html, url)
         self.cache.set(cache_key, products)
         return products
+
 
 # ==============================================================
 #  ScrapperEngine – thread‑safe singleton with async Playwright runner
@@ -773,7 +787,7 @@ class ScrapperEngine:
         self.rate_limiter = IntelligentRateLimiter()
         self.cache = SmartCache()
         self.metrics = ScraperMetrics()
-        self.session = requests.Session()  # 🛡️ FIXED: ቋሚ የኩኪ እና የብሮውዘር ሴሽን መፍጠሪያ [1]
+        self.session = requests.Session()  # 🛡️ ቋሚ የኩኪ እና የብሮውዘር ሴሽን መፍጠሪያ
         self.session_counter = 0
 
     @classmethod
@@ -946,7 +960,7 @@ class ScrapperEngine:
             headers = FingerprintEvasion.get_headers(url, _is_telegram(url))
             time.sleep(random.uniform(1, 3))
             
-            # 🛡️ FIXED: raw requests.get ፈንታ ቋሚውን self.session በመጠቀም Cloudflare እገዳዎችን ማለፍ
+            # 🛡️ FIXED: ቋሚውን self.session በመጠቀም Cloudflare እገዳዎችን ማለፍ
             res = self.session.get(url, headers=headers, timeout=ScraperConfig.REQUEST_TIMEOUT)
             if res.status_code == 200:
                 return res.text
@@ -1015,23 +1029,21 @@ class ScrapperEngine:
                 "cache_misses": inst.extractor.cache.misses,
             },
         }
+
     # ==================================================================
-    #  Unauthenticated Search Engine Fallback ( Symmetrical Deduplication - Feature 7b )
+    #  Unauthenticated Search Engine Fallback
     # ==================================================================
     @staticmethod
     def unauthenticated_search_lookup(query: str, extract_telegram_links: bool = False) -> Any:
         """
-        🛡️ DUAL-ENGINE FALLBACK: ከጌሚኒ ውጪ ላሉት አቅራቢዎች በይነመረብ ላይ በ Google/Bing ፈልጎ 
-        ጥሬ የጽሑፍ ማጠቃለያዎችን ወይም የቴሌግራም ሊንኮችን ለይቶ የሚያወጣ ብቸኛው የጋራ ሞተር (Zero Duplication across files)
+        🛡️ DUAL-ENGINE FALLBACK: ከጌሚኒ ውጪ ላሉት አቅራቢዎች በይነመረብ ላይ በ Google/Bing/DuckDuckGo ፈልጎ 
+        ጥሬ የጽሑፍ ማጠቃለያዎችን ወይም የቴሌግራም ሊንኮችን ለይቶ የሚያወጣ ብቸኛው የጋራ ሞተር (Zero Duplication)
         """
-        import requests
-        import re
-        from urllib.parse import quote
-        
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
         }
         raw_html = ""
+        from urllib.parse import quote
         
         # 1. መጀመሪያ በ DuckDuckGo መሞከር
         try:
@@ -1083,6 +1095,7 @@ class ScrapperEngine:
                 snippets.append(clean_r)
         return "\n".join(snippets)
 
+
 # ==============================================================
 #  Compatibility layer
 # ==============================================================
@@ -1093,4 +1106,3 @@ def scrape_and_extract_products(url: str) -> List[Dict]:
 
 def scrape_url(url: str) -> Optional[str]:
     return _shared_engine.scrape(url)
-    

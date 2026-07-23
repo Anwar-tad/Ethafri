@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/feature_evolution.py
-# 📝 ስሪት፦ v10.54 (Dynamic Self-Evolution Engine - Spy-to-Evolution Edition)
-# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading to prevent AppRegistryNotReady, integrated 12-hour pacing cooldown, token-optimized codebase context scanner, and dynamic RAG Competitor Spying (Spy-to-Evolution Loop) integration to organically discover gaps and prioritize tasks (v10.54).
-# 📅 ቀን፦ Wednesday, July 15, 2026
+# 📝 ስሪት፦ v11.00 (Dynamic Self-Evolution Engine - Spy-to-Evolution Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic app model registry loading to prevent AppRegistryNotReady,
+#                    and robust JSONField type checking added to evolution cooldown to prevent parsing crashes (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 import os
@@ -32,7 +33,6 @@ def _scan_local_marketplace_code(site) -> Dict[str, str]:
     base_dir = str(settings.BASE_DIR)
     app_name = 'marketplace'
     
-    # የባለብዙ ጣቢያ (Multi-site Tenant) አቅጣጫን ማስተካከያ (Dynamic Resolution)
     if site and site.name != 'primary':
         if site.repo_path:
             if site.repo_path.startswith('http') or 'github.com' in site.repo_path:
@@ -58,7 +58,6 @@ def _scan_local_marketplace_code(site) -> Dict[str, str]:
         if os.path.exists(full_path):
             try:
                 with open(full_path, 'r', encoding='utf-8') as f:
-                    # 🛡️ ቶከን መቆጠቢያ፦ የመጀመሪያዎቹን 2000 ፊደላት ብቻ ማንበብ
                     code_state[key] = f.read()[:2000]
             except Exception:
                 code_state[key] = "❌ ERROR_READING"
@@ -81,7 +80,6 @@ class FeatureEvolutionEngine:
         """የእድገት ዑደቱን ያስፈጽማል (የተፎካካሪ ስለላ ታሪክን ከአሁኑ ኮድ ጋር በማወዳደር ክፍተቶችን ይለያል)"""
         logger.info(f"🧬 FeatureEvolution: Initializing R&D evolution cycle for site '{self.site.name}'...")
         
-        # የክብ ጥገኝነትን በዘላቂነት ለመከላከል ሞዴሎችን በዳይናሚክ መጫን
         SiteConfig = apps.get_model('marketplace', 'SiteConfig')
         AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
         Product = apps.get_model('marketplace', 'Product')
@@ -96,16 +94,23 @@ class FeatureEvolutionEngine:
         # 🛡️ ቶከን መቆጠቢያ፦ አዲስ የራስ-ዕድገት ፊቸር ታስክ በየ 12 ሰዓቱ ቢበዛ 1 ጊዜ ብቻ እንዲፈጠር መገደብ
         if last_gen and last_gen.value:
             try:
-                last_time = datetime.fromisoformat(last_gen.value.get('time', ''))
-                if timezone.is_naive(last_time):
-                    last_time = timezone.make_aware(last_time)
-                if timezone.now() - last_time < timedelta(hours=12):
-                    logger.info(f"🧬 FeatureEvolution: Engine is on 12-hour cooldown. Skipping generation to save API tokens.")
-                    return
+                # 🛡️ FIXED: JSONField String/Dict Parsing safety checks across DB drivers
+                val_data = last_gen.value
+                if isinstance(val_data, str):
+                    val_data = json.loads(val_data)
+                
+                if isinstance(val_data, dict):
+                    last_time_str = val_data.get('time', '')
+                    if last_time_str:
+                        last_time = datetime.fromisoformat(last_time_str)
+                        if timezone.is_naive(last_time):
+                            last_time = timezone.make_aware(last_time)
+                        if timezone.now() - last_time < timedelta(hours=12):
+                            logger.info(f"🧬 FeatureEvolution: Engine is on 12-hour cooldown. Skipping generation to save API tokens.")
+                            return
             except Exception as e:
                 logger.warning(f"Error parsing evolution timestamp: {e}")
 
-        # 1. በዳታቤዝ ውስጥ አስቀድሞ 'Pending' የሆኑ የኮድ ስራዎች ካሉ አዲስ ፊቸር አለመፍጠር
         existing_pending = AIProjectBacklog.objects.filter(
             site=self.site, 
             status='Pending',
@@ -116,16 +121,13 @@ class FeatureEvolutionEngine:
             logger.info("🧬 FeatureEvolution: Active pending evolution tasks exist in queue. Postponing new feature research.")
             return
 
-        # 2. የአሁናዊ የኮድ ይዘትን መቃኘት (Context Scanner)
         code_context = _scan_local_marketplace_code(self.site)
         
-        # 3. የድረ-ገጹን ምርቶች ብዛት መረጃ ማካተት
         try:
             products_count = Product.objects.filter(site=self.site, is_active=True).count() if Product else 0
         except Exception:
             products_count = 0
 
-        # 🛡️ SPY-TO-EVOLUTION: የቅርብ ጊዜዎቹን የተፎካካሪ ስለላ መረጃዎች ከ RAG ማስታወሻ መሳብ
         competitor_insights = []
         if VectorMemory:
             try:
@@ -134,7 +136,6 @@ class FeatureEvolutionEngine:
             except Exception as e:
                 logger.debug(f"Failed to query competitor insights: {e}")
 
-        # መረጃዎች ባዶ ከሆኑ እንደ መጠባበቂያ መሠረታዊ የገበያ ግቦችን መጠቀም
         if not competitor_insights:
             competitor_insights = [
                 "Trending features from Jumia: Advanced product filtering by category/price.",
@@ -151,7 +152,6 @@ class FeatureEvolutionEngine:
 
         logger.info(f"🧠 FeatureEvolution: Asking Master AI CTO to architect the next optimal feature...")
 
-        # 🛡️ ራስ-ገዝ ክፍተት ፍለጋ የቅደም-ተከተል መመሪያ (Symmetric Blueprint & Gap Analysis Rules)
         prompt = f"""
         Act as an Enterprise AI Chief Technology Officer (CTO). 
         Our dynamic Django 4/5 marketplace system state is: {json.dumps(system_summary, ensure_ascii=False)}
@@ -190,7 +190,6 @@ class FeatureEvolutionEngine:
             if feature and isinstance(feature, dict) and feature.get('task_name'):
                 task_name = feature['task_name'][:200]
                 
-                # በስህተት ተደጋገሚ ታስክ እንዳይፈጠር መከላከል (Deduplication)
                 task_exists = AIProjectBacklog.objects.filter(site=self.site, task_name=task_name).exists()
                 if not task_exists:
                     AIProjectBacklog.objects.create(
@@ -204,7 +203,6 @@ class FeatureEvolutionEngine:
                         trigger_condition='Autonomous R&D Self-Evolution Loop'
                     )
                     
-                    # አዲሱን የተሳካ የዕድገት ጊዜ መመዝገብ
                     SiteConfig.objects.update_or_create(
                         key=cooldown_key,
                         defaults={'value': {'time': timezone.now().isoformat(), 'status': 'success'}}
@@ -223,7 +221,6 @@ class FeatureEvolutionEngine:
         except Exception as e:
             logger.error(f"❌ FeatureEvolution Engine failed: {e}", exc_info=True)
         finally:
-            # በክሮች ውስጥ ግንኙነቶችን በጥንቃቄ መዝጋት
             try:
                 connections.close_all()
             except Exception:

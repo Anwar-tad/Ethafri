@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/models.py
-# 📝 ስሪት፦ v10.19 (Production Grade - Upgraded & Hardened)
-# ✅ የተፈቱ ችግሮች፦ Fully compatible with updated views.py & growth_agent.py, integrated strategic database indexes for AIProjectBacklog and AgentErrorLog to prevent query latency, and maintained 100% complete original comments.
-# 📅 ቀን፦ Monday, July 13, 2026
+# 📝 ስሪት፦ v11.00 (Production Grade - Upgraded & Hardened)
+# ✅ የተፈቱ ችግሮች፦ Fully compatible with updated views.py, growth_agent.py,
+#                    and robust query type checking added to VectorMemory.find_similar (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 from django.db import models
@@ -63,7 +64,6 @@ class Product(models.Model):
     specifications = models.TextField(default='{}', blank=True)
     market_value_status = models.CharField(max_length=50, blank=True, default='Unknown')
     
-    # የመገናኛ እና የገበያ አይነት ፊልዶች (views.py እና growth_agent.py Alignment)
     listing_type = models.CharField(max_length=50, choices=LISTING_TYPES, default='sale', db_index=True)
     contact_info = models.CharField(max_length=255, blank=True, default='')
     image_gallery = models.JSONField(default=list, blank=True)
@@ -76,7 +76,6 @@ class Product(models.Model):
     inquiry_count = models.IntegerField(default=0, help_text="የጥያቄ ብዛት")
     last_enhanced = models.DateTimeField(null=True, blank=True)
     
-    # Multi-Site Support
     site = models.ForeignKey(
         'SiteRegistry',
         on_delete=models.CASCADE,
@@ -116,10 +115,9 @@ class Product(models.Model):
 
 
 class ProductTranslation(models.Model):
-    """ምርቶችን በ 12 የሀገር ውስጥና የአፍሪካ ቋንቋዎች በራስ-ሰር ተርጉሞ ለማከማቸት (v10.20)"""
+    """ምርቶችን በ 12 የሀገር ውስጥና የአፍሪካ ቋንቋዎች በራስ-ሰር ተርጉሞ ለማከማቸት"""
     product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='translations')
     
-    # 1. ነባር ቋንቋዎች
     en = models.TextField(blank=True, verbose_name="English")
     am = models.TextField(blank=True, verbose_name="Amharic")
     om = models.TextField(blank=True, verbose_name="Oromo")
@@ -128,7 +126,6 @@ class ProductTranslation(models.Model):
     ti = models.TextField(blank=True, verbose_name="Tigrinya")
     fr = models.TextField(blank=True, verbose_name="French")
     
-    # 🛡️ 2. አዳዲስ አገር በቀል ቋንቋዎች (Symmetric Linguistic Schema Alignment - ፊቸር 6)
     aa = models.TextField(blank=True, verbose_name="Afar")       # አፋርኛ
     sid = models.TextField(blank=True, verbose_name="Sidama")     # ሲዳመኛ
     wal = models.TextField(blank=True, verbose_name="Wolaytta")   # ወላይተኛ
@@ -257,7 +254,6 @@ class AIProjectBacklog(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        # 🛡️ OPTIMIZATION: added strategic indexes for background thread queries & dashboard listings
         indexes = [
             models.Index(fields=['status', 'site']),
             models.Index(fields=['task_type']),
@@ -374,7 +370,6 @@ class AgentErrorLog(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        # 🛡️ OPTIMIZATION: added strategic indexes for rapid error summary resolution
         indexes = [
             models.Index(fields=['site', 'resolved']),
             models.Index(fields=['error_type']),
@@ -703,6 +698,10 @@ class VectorMemory(models.Model):
             queryset = queryset.filter(memory_type=memory_type)
         if site:
             queryset = queryset.filter(site=site)
+        
+        # 🛡️ DEFENSIVE QUERY GUARD: query ባዶ ወይም ስትሪንግ ካልሆነ በቀጥታ ነባሪውን መመለስ
+        if not query or not isinstance(query, str):
+            return queryset.order_by('-success_rate', '-usage_count')[:limit]
         
         keywords = [k for k in query.lower().split() if len(k) > 2][:8]
         

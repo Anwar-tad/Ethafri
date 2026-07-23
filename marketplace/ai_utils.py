@@ -1,8 +1,10 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/ai_utils.py
-# 📝 ስሪት፦ v10.43 (Production Grade - Master Brain - Shift, Spacing & JSON Healer)
-# ✅ የተፈቱ ችግሮች፦ Dynamic Quota 24h Quarantine using MD5 key hashes, LRU Local Cache Memory Guard, Cerebras model preserved, Gemini 6-hour shift rotation, circular dependency prevention, and automatic JSON Self-Healer added in clean_and_parse_json to fix Unterminated string errors on the fly (v10.43).
-# 📅 ቀን፦ Thursday, July 13, 2026
+# 📝 ስሪት፦ v11.00 (Production Grade - Thread-Safe & JSON Healer Edition)
+# ✅ የተፈቱ ችግሮች፦ Dynamic Quota 24h Quarantine using MD5 key hashes, LRU Local Cache Memory Guard, 
+#                    Cerebras model preserved, Gemini 6-hour shift rotation, circular dependency prevention,
+#                    automatic JSON Self-Healer, and thread-safe dict operations with threading.Lock() added (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 import os
@@ -13,6 +15,7 @@ import logging
 import requests
 import time   
 import random 
+import threading  # 🛡️ Thread-safe ስራዎችን ለመስራት እዚህ ተጨምሯል
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Any, Tuple
 
@@ -27,6 +30,7 @@ logger = logging.getLogger(__name__)
 # Django Cache ካልተዋቀረ በስተጀርባ የሚሰራ ጊዜያዊ የአካባቢ መሸጎጫ (Memory Guard Fallback)
 _LOCAL_CACHE = {}
 _LOCAL_CACHE_MAX_SIZE = 100
+_LOCAL_CACHE_LOCK = threading.Lock()  # 🛡️ ለክሮች ደህንነት ዋስትና የሚሰጥ መቆለፊያ
 
 
 class AIUtils:
@@ -55,14 +59,15 @@ class AIUtils:
         except Exception:
             pass
         
-        # የዳታቤዝ ወይም የሪዲስ መሸጎጫ ካልሰራ ከፊል ማህደረ-ትውስታ መሳቢያ
-        local_val = _LOCAL_CACHE.get(cache_key)
-        if local_val:
-            val, expiry = local_val
-            if time.time() < expiry:
-                return val
-            else:
-                del _LOCAL_CACHE[cache_key]
+        # 🛡️ Thread-Safe Memory Read
+        with _LOCAL_CACHE_LOCK:
+            local_val = _LOCAL_CACHE.get(cache_key)
+            if local_val:
+                val, expiry = local_val
+                if time.time() < expiry:
+                    return val
+                else:
+                    del _LOCAL_CACHE[cache_key]
         return default
     
     @staticmethod
@@ -75,15 +80,15 @@ class AIUtils:
         except Exception:
             pass
         
-        # 🛡️ LOCAL MEMORY GUARD: የራም ማህደረ-ትውስታ እንዳይሞላ የቆዩ መሸጎጫዎችን ማስወገድ
-        if len(_LOCAL_CACHE) >= _LOCAL_CACHE_MAX_SIZE:
-            try:
-                oldest_key = next(iter(_LOCAL_CACHE))
-                del _LOCAL_CACHE[oldest_key]
-            except Exception:
-                pass
-                
-        _LOCAL_CACHE[cache_key] = (value, time.time() + timeout)
+        # 🛡️ Thread-Safe Memory Guard: የራም ማህደረ-ትውስታ እንዳይሞላ የቆዩ መሸጎጫዎችን በአስተማማኝ ሁኔታ ማስወገድ
+        with _LOCAL_CACHE_LOCK:
+            if len(_LOCAL_CACHE) >= _LOCAL_CACHE_MAX_SIZE:
+                try:
+                    oldest_key = next(iter(_LOCAL_CACHE))
+                    del _LOCAL_CACHE[oldest_key]
+                except Exception:
+                    pass
+            _LOCAL_CACHE[cache_key] = (value, time.time() + timeout)
         return True
     
     @staticmethod
@@ -100,10 +105,11 @@ class AIUtils:
             except Exception:
                 pass
             
-            for k in list(_LOCAL_CACHE.keys()):
-                if k.startswith(f"{AIUtils.CACHE_PREFIX}{key}"):
-                    del _LOCAL_CACHE[k]
-                    count += 1
+            with _LOCAL_CACHE_LOCK:
+                for k in list(_LOCAL_CACHE.keys()):
+                    if k.startswith(f"{AIUtils.CACHE_PREFIX}{key}"):
+                        del _LOCAL_CACHE[k]
+                        count += 1
         else:
             try:
                 keys = cache.keys(f"{AIUtils.CACHE_PREFIX}*")
@@ -112,7 +118,8 @@ class AIUtils:
                     count += 1
             except Exception:
                 pass
-            _LOCAL_CACHE.clear()
+            with _LOCAL_CACHE_LOCK:
+                _LOCAL_CACHE.clear()
         return count
     
     @staticmethod
@@ -134,7 +141,7 @@ class AIUtils:
     
     @staticmethod
     def get_ai_model_version() -> str:
-        return getattr(settings, 'AI_MODEL_VERSION', '2026.07.13')
+        return getattr(settings, 'AI_MODEL_VERSION', '2026.07.24')
     
     @staticmethod
     def is_ai_feature_enabled(feature_name: str) -> bool:
@@ -256,13 +263,13 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
         logger.warning(f"⚠️ JSON Parsing failed initially: {e}. Activating automatic JSON self-repair...")
         try:
             # 1. በምርት ዲስክሪፕሽን ውስጥ ያሉ ያልተጠበቁ አዳዲስ መስመሮችን (Newlines/Tabs) እና የመዝጊያ ኮማዎችን ማጽዳት
-            repaired = re.sub(r',\s*([\]}])', r'\1', cleaned) # የመዝጊያ ኮማዎችን ማጥፋት
-            repaired = re.sub(r'[\t\n\r]', ' ', repaired) # አዳዲስ መስመሮችን በባዶ ቦታ መተካት
+            repaired = re.sub(r',\s*([\]}])', r'\1', cleaned)  # የመዝጊያ ኮማዎችን ማጥፋት
+            repaired = re.sub(r'[\t\n\r]', ' ', repaired)  # አዳዲስ መስመሮችን በባዶ ቦታ መተካት
             
-            # 2. 🛡️ SURGICAL QUOTE ESCAPER: በምርት ርዕስ/መግለጫ ውስጥ ያሉ ያልተጠበቁ ጥቅሶችን በራስ-ሰር በ slash (\") መተካት [NEW]
+            # 2. 🛡️ SURGICAL QUOTE ESCAPER: በምርት ርዕስ/መግለጫ ውስጥ ያሉ ያልተጠበቁ ጥቅሶችን በራስ-ሰር በ slash (\") መተካት
             repaired = re.sub(r'(?<=[:\s,\[])"([\s\S]*?)"(?=[\s,\]}])', lambda m: '"' + m.group(1).replace('"', '\\"') + '"', repaired)
             
-            # 3. 🛡️ TRUNCATED JSON REPAIRER: በቶከን ገደብ መሃል ላይ የተቋረጠ የ AI ጽሑፍ ከሆነ የቅንፎችና የጥቅሶች ብዛት ማመጣጠን [NEW]
+            # 3. 🛡️ TRUNCATED JSON REPAIRER: በቶከን ገደብ መሃል ላይ የተቋረጠ የ AI ጽሑፍ ከሆነ የቅንፎችና የጥቅሶች ብዛት ማመጣጠን
             repaired = repaired.strip()
             if repaired:
                 # የጥቅስ ምልክት ብዛት ያልተመጣጠነ ከሆነ በጥቅስ መዝጋት
@@ -292,11 +299,13 @@ def clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
 
 def _fetch_raw_search_results(query: str) -> str:
     """
-    🛡️ DECOUPLED WRAPPER: የ RAG የፍለጋ መረጃዎችን በቀጥታ ወደ scrapper_engine ያዞራል (v10.43)
+    🛡️ DECOUPLED WRAPPER: የ RAG የፍለጋ መረጃዎችን በቀጥታ ወደ scrapper_engine ያዞራል
     """
     from .scrapper_engine import ScrapperEngine
     # extract_telegram_links=False በማድረግ ጥሬ የጽሑፍ ማጠቃለያዎችን ብቻ ይስባል
     return ScrapperEngine.unauthenticated_search_lookup(query, extract_telegram_links=False)
+
+
 # ============================================================
 # 🧠 DYNAMIC MULTI-PROVIDER AI ROUTER WITH TASK-BASED GATING
 # ============================================================
@@ -537,11 +546,11 @@ def broadcast_agent_log(site, message: str, status_type: str = "info"):
 
 
 # ============================================================
-# 🗳️ MULTI-AGENT CONSENSUS & DEBATE LOOP (ፊቸር 4)
+# 🗳️ MULTI-AGENT CONSENSUS & DEBATE LOOP
 # ============================================================
 def run_multi_ai_debate(prompt: str, task_type: str = "coding") -> str:
     """
-    ባለብዙ-ኤአይ የጋራ የኮድ ውይይት መረብ (Multi-Agent Consensus Network - ፊቸር 4)
+    ባለብዙ-ኤአይ የጋራ የኮድ ውይይት መረብ (Multi-Agent Consensus Network)
     • Sambanova/Mistral (Coder) ➔ Gemini (Linguist) ➔ Cerebras (Architect) የጋራ ውይይት እና ፍተሻ
     """
     logger.info("🗳️ Consensus Network: Initiating 3-Agent Dynamic Code Debate loop...")

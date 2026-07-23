@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/autonomous_healer.py
 # 📝 ዓላማ፦ Autonomous Healing Coordinator (The Planner)
-# ✅ ዝማኔ፦ Code deployment, compilation checking, and rollbacks 100% delegated to code_apply.py (The sole Executor). Added Experiential Failure Memory retrieval from VectorMemory, and a 2-attempt dynamic prompt mutation retry loop to prevent infinite loops (v10.50).
-# 📅 ቀን፦ Monday, July 13, 2026
+# ✅ ዝማኔ፦ Code deployment delegated to code_apply.py, prompt mutation enabled, 
+#          and FieldError reflection check added to execute_autonomous_healing_cycle (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 import os
@@ -11,6 +12,7 @@ import logging
 import json
 from django.conf import settings
 from django.apps import apps
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,6 @@ def resolve_target_file_path(site, target_file: str) -> str:
     base_dir = str(settings.BASE_DIR)
     app_name = 'marketplace'
     
-    # የባለብዙ ጣቢያ (Multi-site Tenant) አቅጣጫን ማስተካከያ (Dynamic Resolution)
     if site and site.name != 'primary':
         if site.repo_path:
             if site.repo_path.startswith('http') or 'github.com' in site.repo_path:
@@ -34,12 +35,10 @@ def resolve_target_file_path(site, target_file: str) -> str:
     else:
         base = base_dir
 
-    # የኤችቲኤምኤል ቴምፕሌቶችን መለየት
     if target_file.endswith('_html') or 'html' in target_file:
         clean_name = target_file.replace('_html', '').replace('.html', '') + '.html'
         return os.path.join(base, app_name, 'templates', app_name, clean_name)
     
-    # የፓይተን ፋይሎችን መለየት
     clean_name = target_file.replace('.py', '') + '.py'
     return os.path.join(base, app_name, clean_name)
 
@@ -68,34 +67,38 @@ def execute_autonomous_healing_cycle(site):
     በስርዓቱ የተመዘገቡ ስህተቶችን በዳይናሚክ መንገድ ይለያል፣ በ RAG ታሪክ መሠረት ፕሮምፕቱን ያዘጋጃል፣ 
     እና ኮዱን በደህንነት ለመተግበር 100% ወደ code_apply.py በውክልና ያስተላልፋል (The Planner)።
     """
-    # 🛡️ DYNAMIC MODEL LOADER: የክብ ጥገኝነት ጥሪን መከላከያ
     AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
     VectorMemory = apps.get_model('marketplace', 'VectorMemory')
     
     if not AIProjectBacklog:
         return
 
-    # 🛡️ DYNAMIC FUNCTION IMPORTS: ዑደቱ በሚጀምርበት ጊዜ ብቻ ፋይሎቹን መጫን
     from .ai_utils import ask_master_ai_smart, clean_and_parse_json
     from .code_apply import apply_code_change
 
-    # 1. አዳዲስ መፍትሄ የሚጠይቁ ሁሉንም የጥገና ታስኮች ለይ
-    pending_tasks = AIProjectBacklog.objects.filter(
-        site=site, 
-        status="Pending", 
-        task_name__icontains="EMERGENCY"
-    ) | AIProjectBacklog.objects.filter(
-        site=site, 
-        status="Pending", 
-        task_type="code_repair"
-    ) | AIProjectBacklog.objects.filter(
-        site=site, 
-        status="Pending", 
-        target_file="scrapper_engine"
-    )
+    # 1. አዳዲስ መፍትሄ የሚጠይቁ የጥገና ታስኮችን ለይቶ ማውጣት
+    try:
+        pending_tasks = AIProjectBacklog.objects.filter(
+            site=site, 
+            status="Pending"
+        ).filter(Q(task_name__icontains="EMERGENCY") | Q(target_file="scrapper_engine"))
 
-    pending_tasks = pending_tasks.distinct()
-    
+        # 🛡️ FIELDERROR REFLECTION CHECK: የ task_type መሬት በስኬማው ውስጥ መኖሩን በዳይናሚክ ማረጋገጥ
+        task_fields = [f.name for f in AIProjectBacklog._meta.get_fields()]
+        if 'task_type' in task_fields:
+            pending_tasks = pending_tasks | AIProjectBacklog.objects.filter(
+                site=site, 
+                status="Pending", 
+                task_type="code_repair"
+            )
+        pending_tasks = pending_tasks.distinct()
+    except Exception as query_err:
+        logger.warning(f"Healer query optimization bypassed due to error: {query_err}. Running fallback query.")
+        pending_tasks = AIProjectBacklog.objects.filter(
+            site=site,
+            status="Pending"
+        ).filter(Q(task_name__icontains="EMERGENCY") | Q(target_file="scrapper_engine"))
+
     if not pending_tasks.exists():
         logger.info("Healer Coordinator: No pending repair tasks found. System stable.")
         return
@@ -104,7 +107,6 @@ def execute_autonomous_healing_cycle(site):
 
     for task in pending_tasks:
         try:
-            # 2. ታስክን በስራ ላይ አድርግ (Locking)
             task.status = "Running"
             task.save()
             
@@ -119,7 +121,6 @@ def execute_autonomous_healing_cycle(site):
                 except Exception as r_err:
                     logger.warning(f"Healer could not read target file: {r_err}")
 
-            # 🛡️ EXPERIENTIAL LEARNING: ከዚህ ቀደም ያጋጠሙ ውድቀቶችን ከ RAG ማስታወሻ መሳብ
             past_failed_patches = []
             if VectorMemory:
                 try:
@@ -132,11 +133,9 @@ def execute_autonomous_healing_cycle(site):
             success = False
             last_error_msg = ""
 
-            # 🔄 PROMPT MUTATION RETRY LOOP: በተከታታይ የኤአይ አቅራቢዎችን እና መመሪያዎችን የመቀየር ዑደት
             while attempts < 2 and not success:
                 attempts += 1
                 
-                # የመጀመሪያው ሙከራ ከከሸፈ ስህተቱን ለቀጣዩ ኤአይ በመስጠት ፕሮምፕቱን ይቀይረዋል (Mutation)
                 if attempts > 1 and last_error_msg:
                     prompt = (
                         f"REPAIR RETRY LOOP (Attempt {attempts}/2):\n"
@@ -157,7 +156,6 @@ def execute_autonomous_healing_cycle(site):
                         f"Write the optimal, syntactically valid code. Return JSON with key 'code' containing only the code."
                     )
 
-                # መፍትሄ በ AI router በኩል በደህንነት አመንጭ
                 try:
                     ai_response = ask_master_ai_smart(prompt, task_type="coding", task=task)
                     res_data = clean_and_parse_json(ai_response)
@@ -169,10 +167,8 @@ def execute_autonomous_healing_cycle(site):
                     continue
 
                 if fixed_code and len(fixed_code.strip()) > 10:
-                    # 🛡️ DELEGATION GATES: የኮድ ፍተሻ፣ መጻፍ፣ ቼክ እና ሮልባክ ሥራን በሙሉ ለ code_apply.py ውክልና መስጠት
                     logger.info(f"Healer Coordinator: Delegating code deployment of {target_file} to code_apply...")
                     
-                    # በታስኩ ርዕስ/መግለጫ ውስጥ ደቂቅ ቀዶ-ጥገና የሚጠይቅ ፈንክሽን ወይም ክላስ ካለ መለየት
                     surgical_target = None
                     match_node = re.search(r'(?:class|def)\s+([a-zA-Z0-9_]+)', task.description)
                     if match_node:
@@ -189,7 +185,7 @@ def execute_autonomous_healing_cycle(site):
 
                     if result.get('success'):
                         success = True
-                        logger.info(f"✅ Healer Coordinator: Task {task.id} successfully healed and applied via code_apply on {target_file}.")
+                        logger.info(f"✅ Healer Coordinator: Task {task.id} successfully healed on {target_file}.")
                     else:
                         last_error_msg = result.get('message', 'Unknown application failure')
                         logger.warning(f"⚠️ Healer Coordinator: Application attempt {attempts} failed: {last_error_msg}")
@@ -197,7 +193,6 @@ def execute_autonomous_healing_cycle(site):
                     last_error_msg = "Generated code was empty or invalid"
 
             if not success:
-                # 🛡️ EXPERIENTIAL LEARNING: ታስኩ ሙሉ በሙሉ ከከሸፈ ውድቀቱን በ RAG ማህደረ-ትውስታ ውስጥ መመዝገብ
                 if VectorMemory:
                     try:
                         VectorMemory.objects.create(
