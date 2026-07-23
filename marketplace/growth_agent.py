@@ -2513,6 +2513,9 @@ def execute_master_cycle():
 
 
 def _run_site_cycle(site):
+    """
+    Symmetric Alternating Pacing — ዑደቶቹን በደህንነት የሚያፈራርቅ ዋና ዘዴ
+    """
     _, _, broadcast_agent_log, _ = _get_ai_utils()
     FeatureEvolutionEngine = _get_feature_evolution()
     SiteConfig = get_model('SiteConfig')
@@ -2523,7 +2526,11 @@ def _run_site_cycle(site):
     track_cfg, _ = SiteConfig.objects.get_or_create(key=track_key, defaults={'value': {'mode': 'A'}})
     current_mode = track_cfg.value.get('mode', 'A') if isinstance(track_cfg.value, dict) else 'A'
 
-    def run_track_a_evolution():
+    # የትራክ ዑደቶች በጊዜ ገደብ ቢታለፉ እንኳ ሥራው እንዳይበላሽ ረዳት አመልካቾች
+    track_a_executed = False
+
+    def run_track_a_evolution() -> bool:
+        nonlocal track_a_executed
         try:
             last_evolution_key = f"LAST_EVOLUTION_TIME_{site.name}"
             last_evo_cfg = SiteConfig.objects.filter(key=last_evolution_key).first()
@@ -2553,12 +2560,13 @@ def _run_site_cycle(site):
                 except Exception:
                     load_avg = 0.5
                 
-            if load_avg > 4.5:
-                logger.warning(f"⚠️ CPU Load heavy ({load_avg:.2f}). Postponing Track A evolution.")
+            # 🛡️ Render False Alarm Shield: የሲፒዩ መከላከያ መለኪያውን ወደ 8.0 ከፍ ማድረግ
+            if load_avg > 8.0:
+                logger.warning(f"⚠️ CPU Load is extremely heavy ({load_avg:.2f}). Postponing Track A to protect server.")
                 should_run_evo = False
 
             if not should_run_evo:
-                return
+                return False  # ትራኩ አልሠራም
 
             from .orchestrator import run_thread_safe_task
             from .self_doctor import UniversalHealer
@@ -2586,14 +2594,19 @@ def _run_site_cycle(site):
                 run_thread_safe_task(evolution_engine.evolve)
                 
                 SiteConfig.objects.update_or_create(
-                    key=last_evolution_key, defaults={'value': {'time': timezone.now().isoformat(), 'status': 'success'}}
+                    key=last_evolution_key,
+                    defaults={'value': {'time': timezone.now().isoformat(), 'status': 'success'}}
                 )
             else:
                 update_agent_progress(site, "Track A: Offline Caching and Recovery...", 60)
                 OfflineCacheManager = _get_offline_cache()
                 OfflineCacheManager.process_stale_offline_tasks(site)
+                
+            track_a_executed = True
+            return True
         except Exception as e:
             logger.error(f"❌ Track A (Evolution) failed for {site.name}: {e}")
+            return False
         finally:
             safe_close_connections()
 
@@ -2620,18 +2633,24 @@ def _run_site_cycle(site):
         finally:
             safe_close_connections()
 
+    # 🔄 በየተራ ሥራዎችን በፈረቃ የማስፈጸም ውሳኔ
     if current_mode == 'A':
-        broadcast_agent_log(site, "Symmetric Alternating Pacing: Running ONLY Track A...", "info")
-        run_track_a_evolution()
+        logger.info("Symmetric Alternating Pacing: Trying Track A...")
+        executed = run_track_a_evolution()
+        
+        # 🛡️ መፍትሔ፦ Track A በጊዜ ገደብ ምክንያት ከታለፈ፣ ጊዜ ሳናባክን በዚያው ዑደት ላይ Track B ን ማስኬድ
+        if not executed:
+            logger.info("ℹ️ Track A on cooldown. Automatically routing to Track B to keep agent active.")
+            run_track_b_growth()
+            
         SiteConfig.objects.update_or_create(key=track_key, defaults={'value': {'mode': 'B'}})
     else:
-        broadcast_agent_log(site, "Symmetric Alternating Pacing: Running ONLY Track B...", "info")
+        logger.info("Symmetric Alternating Pacing: Running Track B...")
         run_track_b_growth()
         SiteConfig.objects.update_or_create(key=track_key, defaults={'value': {'mode': 'A'}})
 
     update_agent_progress(site, "Cycle Completed Successfully! Sleeping...", 100)
     broadcast_agent_log(site, f"✨ Master Cycle executed successfully for {site.name}.", "success")
-
 
 def run_recursive_code_builder(site):
     AIProjectBacklog = get_model('AIProjectBacklog')
@@ -2699,30 +2718,30 @@ def start_autonomous_ceo():
             has_pending = False
             try:
                 has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
-            except Exception: pass
-            
-            try:
-                load_avg = os.getloadavg()[0]
-            except Exception:
-                load_avg = 0.5
+            except Exception as e:
+                logger.debug("Failed to verify pending backlog status: %s", e)
                 
             prod_count = Product.objects.filter(is_active=True).count() if Product else 0
             is_empty_or_low = prod_count < 120
             
-            if load_avg > 2.0 and not is_empty_or_low:
-                interval = 2700
-                logger.warning(f"⚠️ Server CPU Load is heavy ({load_avg:.2f}). Pacing slowed to 45 minutes.")
-            elif not MultiChannelHarvester.is_network_available():
-                interval = 1800
-                logger.warning("🌐 Offline Mode detected. Pacing slowed to 30 minutes.")
+            # 🛡️ RENDER-FRIENDLY PACING: የጋራ ፊዚካል ሰርቨር የሲፒዩ ጫናን ችላ በማለት ቋሚ ፍጥነትን መጠቀም
+            if not MultiChannelHarvester.is_network_available():
+                interval = 300  # ኢንተርኔት ከሌለ በየ 5 ደቂቃው መሞከር
+                logger.warning("🌐 Offline Mode detected. Pacing slowed to 5 minutes.")
             else:
-                interval = 30 if (has_pending or is_empty_or_low) else 300
+                # የሚሰሩ ታስኮች ካሉ ወይም ምርቶች ካነሱ በየ 15 ሰከንዱ በፍጥነት እንዲሠራ ማድረግ
+                if has_pending or is_empty_or_low:
+                    interval = 15
+                else:
+                    # በመደበኛ ሁኔታ በየ 1 ደቂቃው (60 ሰከንድ) በንቃት እንዲሠራ ማድረግ
+                    interval = 60
                 
-            # 🛡️ FIXED: sleep_duration -> interval spelling error resolved completely
             logger.info(f"Master Cycle Complete. Sleeping {interval} seconds...")
+            import time
             time.sleep(interval)
         except Exception as e:
             logger.error(f"🚨 MASTER CEO FATAL ERROR: {e}")
+            import time
             time.sleep(10)
 
 
