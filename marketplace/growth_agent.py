@@ -1533,13 +1533,14 @@ class AdvancedContactHunter:
     def __init__(self, site):
         self.site = site
 
+# 📌 በ EthAfri/marketplace/growth_agent.py ውስጥ የሚገኘውን hunt_and_resolve_contacts ዘዴ በዚህ ይተኩት፡
+
     def hunt_and_resolve_contacts(self, limit=3):
-        """ባለቤት ያልተገኘላቸውን ምርቶች አድኖ በመፈለግና ወተርማርካቸውን በመተካት ባለቤትነታቸውን የሚያዘምን ዋና ሞተር"""
+        """ባለቤት ያልተገኘላቸውን ምርቶች አድኖ በመፈለግ፣ ወተርማርካቸውን በመተካት እና መረጃዎቻቸውን በ AI በማበልጸግ ባለቤትነታቸውን የሚያዘምን ዋና ሞተር"""
         Product = get_model('Product')
         if not Product:
             return
 
-        # 1. በጊዜያዊ አድራሻ (Anwar / 0900000000) የተለጠፉ ምርቶችን መለየት
         unresolved_products = Product.objects.filter(
             site=self.site,
             contact_info="0900000000",
@@ -1553,10 +1554,12 @@ class AdvancedContactHunter:
             logger.info(f"🕵️ Contact & Watermark Hunter: Initiating advanced scan for Product {product.id}: '{product.title}'")
             real_contact = None
             watermark_pos = "center"
+            clean_title = None
+            clean_desc = None
 
-            # ደረጃ 1፦ ምስሉን ወደ Multimodal Vision AI በመላክ ስልክ ቁጥር መፈለቅ እና ወተርማርክ መለየት
+            # ደረጃ 1፦ ምስሉን ወደ Multimodal Vision AI በመላክ ስልክ፣ ርዕስ እና መግለጫ በአንድ ላይ መፈለቅ
             if product.image_url and product.image_url.startswith('http'):
-                real_contact, watermark_pos = self._vision_ai_ocr_and_watermark_scan(product.image_url)
+                real_contact, watermark_pos, clean_title, clean_desc = self._vision_ai_ocr_and_watermark_scan(product.image_url)
 
             # ደረጃ 2፦ በምስል ፍተሻ ስልኩ ካልተገኘ፣ በምንጭ ገጹ ላይ በ Playwright 'Show Contact' ን መጫን
             if not real_contact and product.source_url:
@@ -1566,37 +1569,64 @@ class AdvancedContactHunter:
             if not real_contact:
                 real_contact = self._search_seller_brand_on_web(product)
 
-            # 🟢 ደረጃ 4፦ የሌላ ጣቢያ ወተርማርክ ካለ በ Pillow ሸፍኖ በ EthAfri ባጅ መተካት (Permanent Flattening)
+            # 🟢 ደረጃ 4፦ የሌላ ጣቢያ ወተርማርክ ካለ በ Pillow ሸፍኖ በ EthAfri ባጅ መተካት
             if product.image_url and product.image_url.startswith('http'):
                 rebranded_url = PillowWatermarkEngine.process_and_rebrand_image(product.image_url, watermark_pos)
                 if rebranded_url and rebranded_url != product.image_url:
                     product.image_url = rebranded_url
                     product.save()
 
-            # 🟢 እውነተኛ ስልክ ቁጥር ወይም ቴሌግራም ከተገኘ ወዲያውኑ ማስተካከል (Hot-Update & SMS Queue)
-            if real_contact and real_contact != "0900000000":
-                self._apply_discovered_contact(product, real_contact)
+            # 🟢 ደረጃ 5፦ የምርቱ ርዕስ ወይም መግለጫ ጊዜያዊ/የተበላሸ ከሆነ በ Vision AI በተገኘው እውነተኛ መረጃ መተካት (Hot-Update)
+            updated_meta = False
+            if clean_title and ("model Price" in product.title or "የሙከራ ምርት" in product.title or "For sale" in product.title):
+                product.title = clean_title
+                updated_meta = True
+            if clean_desc and len(product.description) < 50:
+                product.description = clean_desc
+                updated_meta = True
+            
+            if updated_meta:
+                product.save()
+                logger.info(f"✨ Metadata Enrichment: Successfully enriched metadata for Product {product.id} -> '{product.title}'")
 
-    def _vision_ai_ocr_and_watermark_scan(self, image_url: str) -> Tuple[Optional[str], str]:
-        """የጌሚኒ ቪዥን (Vision AI) ቶከኖችን በመጠቀም በአንድ ጥሪ ስልክ ቁጥር መፈለቅ እና ወተርማርክ መገኛን መለየት"""
+            # 🟢 ደረጃ 6፦ የ AI መሸወጃ ጽሑፎች (Placeholders) ወደ ሻጭነት እንዳይቀየሩ በስልክ ሬጀክስ ማጣራት
+            if real_contact and real_contact != "0900000000":
+                from .scrapper_engine import SmartProductExtractor
+                parsed_contact = SmartProductExtractor._parse_contact(real_contact)
+                
+                if parsed_contact and parsed_contact != "0900000000" and len(parsed_contact) >= 9:
+                    self._apply_discovered_contact(product, parsed_contact)
+                else:
+                    logger.info(f"⏭️ Contact Hunter: Ignored placeholder/invalid AI text: '{real_contact}'")
+
+    # 📌 በ EthAfri/marketplace/growth_agent.py ውስጥ የሚገኘውን _vision_ai_ocr_and_watermark_scan ዘዴ በዚህ ይተኩት፡
+
+    def _vision_ai_ocr_and_watermark_scan(self, image_url: str) -> Tuple[Optional[str], str, Optional[str], Optional[str]]:
+        """ምስሉን መርምሮ ስልክ ቁጥር፣ ወተርማርክ፣ እውነተኛ ርዕስ እና መግለጫ በአንድ ጥሪ በእንግሊዝኛ ይፈልቃል"""
         clean_and_parse_json, ask_master_ai_smart, _, _ = _get_ai_utils()
         
+        # የ AI ስህተቶችን ለማስወገድ ሙሉ በሙሉ በእንግሊዝኛ መዋቅር የተዘጋጀ ፕሮምፕት
         prompt = (
             f"Analyze this product image URL: {image_url}.\n"
-            f"Perform two tasks in a single run:\n"
+            f"Perform the following tasks in a single run:\n"
             f"1. Extract any written phone numbers (starting with +251, 09, or 07) or Telegram handles from the image body.\n"
-            f"2. Detect if there is a competitor watermark (like 'Posted on Jiji' or brand stamps).\n"
-            f"If detected, estimate its vertical position ('top', 'center', or 'bottom').\n"
-            f"Return clean JSON with keys: 'contact_info' (string or empty) and 'watermark_position' ('top'/'center'/'bottom')."
+            f"2. Detect if there is a competitor watermark (like 'Posted on Jiji' or brand stamps) and specify its position ('top', 'center', or 'bottom').\n"
+            f"3. Generate a highly descriptive, professional product title (max 5 words, in English) and a detailed, appealing description in English based on what is physically shown in the image (e.g. if it shows a car registration document, specify the vehicle model, color, and year mentioned; if it shows a phone, describe the phone model and condition).\n"
+            f"Return clean JSON with keys: 'contact_info' (string), 'watermark_position' ('top'/'center'/'bottom'), 'clean_title' (string), and 'clean_description' (string)."
         )
         try:
             res = ask_master_ai_smart(prompt, task_type="analysis")
             data = clean_and_parse_json(res)
             if data and isinstance(data, dict):
-                return data.get('contact_info'), data.get('watermark_position', 'center')
+                return (
+                    data.get('contact_info'), 
+                    data.get('watermark_position', 'center'),
+                    data.get('clean_title'),
+                    data.get('clean_description')
+                )
         except Exception as e:
             logger.debug(f"Vision AI OCR call failed: {e}")
-        return None, "center"
+        return None, "center", None, None
 
     def _simulate_click_jiji_contact(self, source_url: str) -> Optional[str]:
         try:

@@ -45,28 +45,33 @@ def _safe_json_decode(value, default_dict):
         return default_dict
 
 
+# 📌 በ EthAfri/marketplace/views.py ውስጥ የሚገኘውን _generate_contact_links ዘዴ በዚህ ይተኩት፡
+
 def _generate_contact_links(contact_str):
-    """የሻጩን ስልክ ወይም ዩዘርኔም በመለየት የዋትሳፕ፣ ቴሌግራም ቀጥታ፣ ኢሞ እና የስልክ ማሳወቂያ ሊንኮችን ያመነጫል"""
+    """የሻጩን ስልክ ወይም ዩዘርኔም በዲጂት ርዝመት በጥራት በመለየት የመገናኛ ሊንኮችን ያመነጫል"""
     links = {}
     if not contact_str:
         return links
     
-    phone_match = re.search(r'(?:\+251|09|07)\d{8}', contact_str)
-    if phone_match:
-        raw_phone = phone_match.group(0)
-        clean_phone = raw_phone
+    # ቁጥሮችን ብቻ ለይቶ ማውጣት
+    clean_digits = re.sub(r'[^\d]', '', contact_str)
+    
+    # የኢትዮጵያ ስልክ ቁጥር ርዝመት (ከ9 እስከ 13 ዲጂት) መሆኑን ማረጋገጥ
+    if (len(clean_digits) >= 9 and len(clean_digits) <= 13) or contact_str.startswith('+251'):
+        clean_phone = clean_digits
         if clean_phone.startswith('0'):
             clean_phone = '251' + clean_phone[1:]
-        elif clean_phone.startswith('+'):
-            clean_phone = clean_phone.replace('+', '')
+        elif not clean_phone.startswith('251') and len(clean_phone) == 9:
+            clean_phone = '251' + clean_phone
             
         links['whatsapp'] = f"https://wa.me/{clean_phone}"
         links['telegram'] = f"https://t.me/+{clean_phone}"
         links['imo'] = f"imo://chat?phone={clean_phone}"
         links['call'] = f"tel:+{clean_phone}"
     else:
+        # ስልክ ካልሆነ የቴሌግራም ዩዘርኔም መሆኑን ማረጋገጥ
         clean_username = contact_str.replace('@', '').strip()
-        if clean_username:
+        if clean_username and not clean_username.isdigit():
             links['telegram'] = f"https://t.me/{clean_username}"
             links['messenger'] = f"https://m.me/{clean_username}"
             
