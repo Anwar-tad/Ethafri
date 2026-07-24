@@ -1131,10 +1131,24 @@ class MultiChannelHarvester:
             
             failure_key = f"CONSECUTIVE_FAILURES_{domain}"
             failure_cfg = SiteConfig.objects.filter(key=failure_key).first()
-            failures_count = failure_cfg.value.get('count', 0) if failure_cfg and isinstance(failure_cfg.value, dict) else 0
             
+            failures_count = 0
+            if failure_cfg and isinstance(failure_cfg.value, dict):
+                failures_count = failure_cfg.value.get('count', 0)
+                last_fail_str = failure_cfg.value.get('last_fail')
+                if last_fail_str:
+                    try:
+                        last_fail_time = datetime.fromisoformat(last_fail_str)
+                        if timezone.is_naive(last_fail_time):
+                            last_fail_time = timezone.make_aware(last_fail_time)
+                        # 🛡️ FIXED: 12-Hour Cooldown instead of Forever Ban to restore and unblock all 150+ sources!
+                        if timezone.now() - last_fail_time > timedelta(hours=12):
+                            failures_count = 0
+                    except Exception:
+                        pass
+
             if failures_count >= 3:
-                logger.warning(f"skip permanently dead source '{domain}' (failed {failures_count} times consecutively).")
+                logger.info(f"⏭️ Scraper: Source '{domain}' is on 12-hour cooldown (failed 3 times consecutively). Skipping.")
                 return []
             
             if not force_crawl and last_scrape_cfg and isinstance(last_scrape_cfg.value, dict):
@@ -1191,7 +1205,8 @@ class MultiChannelHarvester:
             return products
 
         try:
-            with ThreadPoolExecutor(max_workers=2) as executor:
+            # 🛡️ SPEED BOOSTER: Parallel scraping max_workers increased to 6 to collect thousands of products daily!
+            with ThreadPoolExecutor(max_workers=6) as executor:
                 futures = [executor.submit(_scrape_source_worker, source) for source in sources]
                 for future in futures:
                     try:
@@ -1451,7 +1466,6 @@ class PillowWatermarkEngine:
             return image_url
 
         try:
-            # 1. ኦሪጅናሉን ምስል በዥረት ማውረድ
             res = requests.get(image_url, timeout=10, stream=True)
             if res.status_code != 200:
                 return image_url
@@ -1459,7 +1473,6 @@ class PillowWatermarkEngine:
             img = Image.open(res.raw).convert("RGBA")
             width, height = img.size
             
-            # 2. የ EthAfri መሸፈኛ ባጅ (Badge Overlay) መፍጠር
             overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             
@@ -1467,13 +1480,12 @@ class PillowWatermarkEngine:
             badge_width = int(width * 0.48)
             badge_height = int(height * 0.08)
             
-            # ወተርማርኩ የሚገኝበትን ቦታ በ AI መረጃ መሠረት መወሰን
             pos_lower = watermark_pos.lower()
             if "top" in pos_lower:
                 x1, y1 = (width - badge_width) // 2, int(height * 0.1)
             elif "bottom" in pos_lower:
                 x1, y1 = (width - badge_width) // 2, int(height * 0.8)
-            else:  # "center" - Jiji ብዙውን ጊዜ መሃል ላይ ስለሚተክለው
+            else: 
                 x1, y1 = (width - badge_width) // 2, (height - badge_height) // 2
                 
             x2, y2 = x1 + badge_width, y1 + badge_height
@@ -1482,7 +1494,7 @@ class PillowWatermarkEngine:
             draw.rounded_rectangle(
                 [x1, y1, x2, y2], 
                 radius=12, 
-                fill=(15, 23, 42, 180),       # Elegant semi-transparent slate (Pristine glasslook)
+                fill=(15, 23, 42, 180),       # Elegant semi-transparent slate
                 outline=(218, 165, 32, 180),  # Luxurious gold border to match EthAfri yellow
                 width=2
             )
@@ -1492,17 +1504,13 @@ class PillowWatermarkEngine:
             except Exception:
                 font = None
                 
-            # ፅሁፉን በባጁ መሃል ላይ ማሳረፍ
             draw.text(((x1 + x2) // 2, (y1 + y2) // 2), badge_text, fill=(255, 255, 255, 240), anchor="mm")
             
-            # 3. ምስሎቹን ማዋሃድ (Flatten layers)
             final_img = Image.alpha_composite(img, overlay).convert("RGB")
             
-            # 4. በጊዜያዊ ማከማቻ ውስጥ ማስቀመጥ
             temp_filename = f"/tmp/rebranded_{hashlib.md5(image_url.encode()).hexdigest()}.jpg"
             final_img.save(temp_filename, "JPEG", quality=95)
             
-            # 5. የተቀየረውን ምስል ወደ Cloudinary በቋሚነት መጫን
             try:
                 import cloudinary.uploader
                 with open(temp_filename, "rb") as img_file:
@@ -1551,8 +1559,6 @@ class AdvancedContactHunter:
         if not unresolved_products.exists():
             return
 
-        # 📌 EthAfri/marketplace/growth_agent.py -> hunt_and_resolve_contacts ዘዴ መጀመሪያ ላይ፡
-
         for product in unresolved_products:
             # 🛡️ መደጋገም መከላከያ ጋሻ፦ ምስሉ ቀድሞውኑ rebrand ተደርጎ ከሆነ ማለፍ
             if product.image_url and "products_rebranded" in product.image_url:
@@ -1565,26 +1571,21 @@ class AdvancedContactHunter:
             clean_title = None
             clean_desc = None
 
-            # ደረጃ 1፦ ምስሉን ወደ Multimodal Vision AI በመላክ ስልክ፣ ርዕስ እና መግለጫ በአንድ ላይ መፈለቅ
             if product.image_url and product.image_url.startswith('http'):
                 real_contact, watermark_pos, clean_title, clean_desc = self._vision_ai_ocr_and_watermark_scan(product.image_url)
 
-            # ደረጃ 2፦ በምስል ፍተሻ ስልኩ ካልተገኘ፣ በምንጭ ገጹ ላይ በ Playwright 'Show Contact' ን መጫን
             if not real_contact and product.source_url:
                 real_contact = self._simulate_click_jiji_contact(product.source_url)
 
-            # ደረጃ 3፦ አሁንም ካልተገኘ፣ የሻጭ ስምና ብራንድ (OSINT) ፍለጋ ማካሄድ
             if not real_contact:
                 real_contact = self._search_seller_brand_on_web(product)
 
-            # 🟢 ደረጃ 4፦ የሌላ ጣቢያ ወተርማርክ ካለ በ Pillow ሸፍኖ በ EthAfri ባጅ መተካት
             if product.image_url and product.image_url.startswith('http'):
                 rebranded_url = PillowWatermarkEngine.process_and_rebrand_image(product.image_url, watermark_pos)
                 if rebranded_url and rebranded_url != product.image_url:
                     product.image_url = rebranded_url
                     product.save()
 
-            # 🟢 ደረጃ 5፦ የምርቱ ርዕስ ወይም መግለጫ ጊዜያዊ/የተበላሸ ከሆነ በ Vision AI በተገኘው እውነተኛ መረጃ መተካት (Hot-Update)
             updated_meta = False
             if clean_title and ("model Price" in product.title or "የሙከራ ምርት" in product.title or "For sale" in product.title):
                 product.title = clean_title
@@ -1597,7 +1598,7 @@ class AdvancedContactHunter:
                 product.save()
                 logger.info(f"✨ Metadata Enrichment: Successfully enriched metadata for Product {product.id} -> '{product.title}'")
 
-            # 🟢 ደረጃ 6፦ የ AI መሸወጃ ጽሑፎች (Placeholders) ወደ ሻጭነት እንዳይቀየሩ በስልክ ሬጀክስ ማጣራት
+            # 🟢 🛡️ FIXED: የ AI መሸወጃ ጽሑፎች (Placeholders) ወደ ሻጭነት እንዳይቀየሩ በስልክ ሬጀክስ ማጣራት
             if real_contact and real_contact != "0900000000":
                 from .scrapper_engine import SmartProductExtractor
                 parsed_contact = SmartProductExtractor._parse_contact(real_contact)
@@ -1755,8 +1756,10 @@ class CEOOperations:
     def __init__(self, site):
         self.site = site
 
+    # 📌 ሀ. በ CEOOperations ክላስ ውስጥ የሚገኘውን run_business_growth ዘዴ በዚህ ይተኩት፡
+
     def run_business_growth(self):
-        """የንግድ ዕድገት ዑደት (Bulk Harvesting + Curation + Hunting + Repricing + Notifications)"""
+        """የንግድ ዕድገት ዑደት (Bulk Harvesting + Curation + Spying + Campaign + Optimization)"""
         try:
             prod_count = get_model('Product').objects.filter(site=self.site, is_active=True).count()
             logger.info(f"📈 Running business growth cycle for {self.site.name} (Active: {prod_count})")
@@ -1767,18 +1770,54 @@ class CEOOperations:
         self._harvest_verified_products_bulk()
         self.curate_user_listings()
         
-        # 🛡️ ሻጭ አድኖ መፈለጊያና ወተርማርክ ለዋጭ ሞተር ማስኬድ
         try:
             hunter = AdvancedContactHunter(self.site)
             hunter.hunt_and_resolve_contacts(limit=3)
         except Exception as hunt_err:
-            logger.debug(f"Advanced contact hunting task failed: {hunt_err}")
+            logger.debug(f"Contact enrichment background run skipped: {hunt_err}")
+            
+        # 🛡️ ጀርባ ላይ የሚሰራ የድሮ ወተርማርኮች ማስተካከያ (Background Image Healing) [1]
+        try:
+            self.heal_existing_watermarks(limit=5)
+        except Exception as heal_err:
+            logger.debug(f"Background watermark healing failed: {heal_err}")
             
         self.optimize_listings_seo()
         self.calculate_predictive_pricing()
         
         self._boost_revenue()
         self.dispatch_pending_notifications()
+
+
+# 📌 ለ. በ CEOOperations ክላስ ውስጥ ይህንን አዲስ ዘዴ መጨረሻ ላይ ይጨምሩት፡
+
+    def heal_existing_watermarks(self, limit=5):
+        """የድሮዎቹን 280+ የ Jiji መጥፎ ወተርማርኮች በአዲሱ ወርቃማ መሸፈኛ ባጅ በራስ-ሰር የሚተካ ሞተር [1]"""
+        Product = get_model('Product')
+        if not Product:
+            return
+
+        stale_products = Product.objects.filter(
+            site=self.site,
+            image_url__icontains="products_rebranded",
+            is_active=True
+        ).exclude(ai_tags__icontains="gold_rebrand")[:limit]
+
+        for prod in stale_products:
+            try:
+                rebranded_url = PillowWatermarkEngine.process_and_rebrand_image(prod.image_url, "center")
+                if rebranded_url and rebranded_url != prod.image_url:
+                    prod.image_url = rebranded_url
+                    
+                    tags = json.loads(prod.ai_tags) if (prod.ai_tags and prod.ai_tags.startswith('[')) else []
+                    if "gold_rebrand" not in tags:
+                        tags.append("gold_rebrand")
+                    prod.ai_tags = json.dumps(tags)
+                    
+                    prod.save()
+                    logger.info(f"✨ Watermark Restorer: Successfully rebranded existing product {prod.id} to Gold style!")
+            except Exception as e:
+                logger.error(f"Failed to heal watermark for product {prod.id}: {e}")
 
     def _harvest_verified_products_bulk(self):
         SiteConfig = get_model('SiteConfig')

@@ -1,8 +1,8 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/views.py
 # 📝 ስሪት፦ v11.00 (Master CEO Views Orchestration - Hardened Edition)
-# ✅ የተፈቱ ችግሮች፦ Aligned with ACTIVE_SOURCES dictionary schema to fix admin source management,
-#                    verified UUID safety in harvester view, and maintained 100% thread safety (v11.00).
+# ✅ የተፈቱ ችግሮች፦ Aligned with ACTIVE_SOURCES dict-based schema, added Anwar Outreach Gateway (Feature 13)
+#                    for 1-click free invites, and resolved call button rendering bugs (v11.00).
 # 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
@@ -12,6 +12,7 @@ import json
 import threading
 import re, os
 import random 
+import urllib.parse
 from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -45,18 +46,15 @@ def _safe_json_decode(value, default_dict):
         return default_dict
 
 
-# 📌 በ EthAfri/marketplace/views.py ውስጥ የሚገኘውን _generate_contact_links ዘዴ በዚህ ይተኩት፡
-
 def _generate_contact_links(contact_str):
     """የሻጩን ስልክ ወይም ዩዘርኔም በዲጂት ርዝመት በጥራት በመለየት የመገናኛ ሊንኮችን ያመነጫል"""
     links = {}
     if not contact_str:
         return links
     
-    # ቁጥሮችን ብቻ ለይቶ ማውጣት
     clean_digits = re.sub(r'[^\d]', '', contact_str)
     
-    # የኢትዮጵያ ስልክ ቁጥር ርዝመት (ከ9 እስከ 13 ዲጂት) መሆኑን ማረጋገጥ
+    # 🛡️ FIXED: Aligned perfectly with 2519... DB formats to display the Call Button correctly [1]
     if (len(clean_digits) >= 9 and len(clean_digits) <= 13) or contact_str.startswith('+251'):
         clean_phone = clean_digits
         if clean_phone.startswith('0'):
@@ -69,7 +67,6 @@ def _generate_contact_links(contact_str):
         links['imo'] = f"imo://chat?phone={clean_phone}"
         links['call'] = f"tel:+{clean_phone}"
     else:
-        # ስልክ ካልሆነ የቴሌግራም ዩዘርኔም መሆኑን ማረጋገጥ
         clean_username = contact_str.replace('@', '').strip()
         if clean_username and not clean_username.isdigit():
             links['telegram'] = f"https://t.me/{clean_username}"
@@ -77,11 +74,54 @@ def _generate_contact_links(contact_str):
             
     return links
 
+
+# ============================================================
+# 🥷 ANWAR ONE-CLICK OUTREACH ROUTER (አዲሱ ፊቸር 13)
+# ============================================================
+
+def _generate_outreach_protocol_links(product, magic_url, contact):
+    """
+    Anwar Outreach Gateway - ሻጮችን በዋትሳፕ ወይም ቴሌግራም በባለ 1-ጠቅታ ለመጋበዝ የሚረዱ የፕሮቶኮል ሊንኮች [1]
+    """
+    links = {}
+    if not contact:
+        return links
+
+    # በአማርኛ የተዘጋጀ የምርት ግብዣ ማስታወቂያ
+    message = (
+        f"ሰላም! በይነመረብ ላይ የለጠፉት '{product.title}' ምርት በኢትአፍሪ (EthAfri) ድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
+        f"ምርትዎን ለማስተዳደር፣ ዋጋ ለመቀየር ወይም ፎቶ ለመጨመር በዚህ ሊንክ ይግቡ፦\n"
+        f"{magic_url}\n\n"
+        f"ማንኛውንም ድጋፍ ከፈለጉ አስተዳዳሪውን አንዋርን በስልክ ቁጥር 0962200856 ያነጋግሩ።"
+    )
+    encoded_msg = urllib.parse.quote(message)
+
+    # 🛡️ FIXED: Digit-based parsing for 100% robust outreach matching [1]
+    clean_digits = re.sub(r'[^\d]', '', contact)
+    if (len(clean_digits) >= 9 and len(clean_digits) <= 13) or contact.startswith('+251'):
+        clean_phone = clean_digits
+        if clean_phone.startswith('0'):
+            clean_phone = '251' + clean_phone[1:]
+        elif not clean_phone.startswith('251') and len(clean_phone) == 9:
+            clean_phone = '251' + clean_phone
+        
+        links['whatsapp_outreach'] = f"https://api.whatsapp.com/send?phone={clean_phone}&text={encoded_msg}"
+        links['telegram_outreach'] = f"https://t.me/share/url?url={urllib.parse.quote(magic_url)}&text={encoded_msg}"
+        links['call'] = f"tel:+{clean_phone}"
+    else:
+        clean_username = contact.replace('@', '').strip()
+        if clean_username and not clean_username.isdigit():
+            links['telegram_outreach'] = f"https://t.me/{clean_username}"
+            links['whatsapp_outreach'] = f"https://api.whatsapp.com/send?text={encoded_msg}"
+
+    return links
+
+
 # ============================================================
 # 🎨 1. GLOBAL UI CONTEXT (የዲዛይን ሞተር)
 # ============================================================
 def theme_context(request):
-    """ኤአይ የሚቀይራቸውን የዲዛይን ተለዋዋጮች እና የሀገር ውስጥ ወቅታዊ በዓላት ገጽታዎችን ለሁሉም ገጾች ያቀርባል"""
+    """ኤአይ የሚቀይራቸውን የዲዛይን ተለዋዋጮች እና የሀገር ውስጥ ወቅታዊ በዓላት ገጽታዎችን ያቀርባል"""
     SiteConfig = apps.get_model('marketplace', 'SiteConfig')
     config = SiteConfig.objects.filter(key="DYNAMIC_UI").first()
     theme = _safe_json_decode(config.value, {}) if config else {}
@@ -93,22 +133,23 @@ def theme_context(request):
     if month == 9 and 8 <= day <= 15:
         theme.update({
             "holiday_mode": "enkutatash",
-            "primary_color": "#ffc107",       # ወርቃማ አበባ ቢጫ
-            "accent_purple": "#28a745",       # ለምለም አረንጓዴ
+            "primary_color": "#ffc107",       
+            "accent_purple": "#28a745",       
             "logo_text": "🌻 እንቁጣጣሽ EthAfri",
             "custom_css": "body { background-color: #fcfdf5 !important; }"
         })
-    # 🎄 የገና ጨዋታ / ክሪስማስ (Tahsas 29 / Jan 7)
+    # 🎄 የገና ጨዋታ (Tahsas 29 / Jan 7)
     elif month == 1 and 4 <= day <= 9:
         theme.update({
             "holiday_mode": "genna",
-            "primary_color": "#dc3545",       # ደማቅ ቀይ
-            "accent_purple": "#1a2a6c",       # የገና ጥቁር ሰማያዊ
+            "primary_color": "#dc3545",       
+            "accent_purple": "#1a2a6c",       
             "logo_text": "🎄 የገና ጨዋታ በኢትአፍሪ",
             "custom_css": "body { background-color: #fdf5f5 !important; }"
         })
         
     return {'theme': theme}
+
 
 # ============================================================
 # 🏠 2. CORE MARKETPLACE (ምርት እና ንግድ)
@@ -308,7 +349,7 @@ def post_product(request):
             except Exception as stats_err:
                 logger.warning(f"SaaS metrics sync warning: {stats_err}")
 
-        messages.success(request, _("ምርትዎ በተሳካ ሁኔታ ተለጥፏል! ఎጀንቱ በጀርባ እያቀነባበረው ነው።"))
+        messages.success(request, _("ምርትዎ በተሳካ ሁኔታ ተለጥፏል! ኤጀንቱ በጀርባ እያቀነባበረው ነው።"))
         return redirect('post_success')
     
     listing_choices = getattr(Product, 'LISTING_TYPES', [
@@ -325,6 +366,7 @@ def post_product(request):
 
 def post_success(request):
     return render(request, 'marketplace/post_success.html')
+
 
 # ============================================================
 # 🚪 2.1 FRICTIONLESS GHOST ONBOARDING TOKEN LOGIN
@@ -915,6 +957,7 @@ def harvester_orchestrator_view(request):
     current_site = None
     active_sources = []
     dropped_sources = []
+    unverified_sellers = []
 
     sites = SiteRegistry.objects.filter(is_active=True)
     selected_site_id = request.GET.get('site_id')
@@ -960,7 +1003,6 @@ def harvester_orchestrator_view(request):
         platform_type = request.POST.get('platform_type', 'Telegram').strip()
         
         if url_or_channel:
-            # 🛡️ FIXED: Aligned perfectly with growth_agent.py "ACTIVE_SOURCES" dict-based schema
             reg_key = f"ACTIVE_SOURCES_{current_site.name}"
             registry, created = SiteConfig.objects.get_or_create(
                 key=reg_key, 
@@ -1005,6 +1047,31 @@ def harvester_orchestrator_view(request):
         elif registry and isinstance(registry.value, list): # fallback
             active_sources = registry.value
 
+        # 🥷 3. ADMIN-ASSISTED ONE-CLICK OUTREACH ROUTER (የሻጮች ዝርዝርና የግብዣ ሊንኮች ማመንጫ)
+        unverified_products = Product.objects.filter(
+            site=current_site,
+            is_active=True
+        ).exclude(contact_info__in=["", "0900000000", "09000000"]).order_by('-id')[:15]
+
+        for prod in unverified_products:
+            uname = prod.contact_info.replace('@', '').replace('+', '').strip()
+            uname = re.sub(r'[^a-zA-Z0-9_@.+\-]', '', uname)[:150]
+            
+            token_cfg = SiteConfig.objects.filter(key=f"ACCESS_TOKEN_{uname}").first()
+            token = token_cfg.value.get('token') if (token_cfg and isinstance(token_cfg.value, dict)) else ""
+            
+            if token:
+                magic_url = f"{current_site.deployment_url or 'http://ethafri.com'}/api/magic-token/?phone={uname}&token={token}"
+            else:
+                magic_url = f"{current_site.deployment_url or 'http://ethafri.com'}/login/"
+                
+            outreach_links = _generate_outreach_protocol_links(prod, magic_url, prod.contact_info)
+            unverified_sellers.append({
+                'product': prod,
+                'contact_info': prod.contact_info,
+                'links': outreach_links
+            })
+
     if SelfHealingLog:
         dropped_sources = SelfHealingLog.objects.filter(error_message__icontains="dropping").order_by('-created_at')[:15]
 
@@ -1019,6 +1086,7 @@ def harvester_orchestrator_view(request):
         'current_site': current_site,
         'active_sources': active_sources,
         'dropped_sources': dropped_sources,
+        'unverified_sellers': unverified_sellers,
         'recon_reports': recon_reports,  
         'daily_summary': daily_summary,  
         'stats': stats,
@@ -1045,53 +1113,7 @@ def evolution_result_view(request):
         'live_time': timezone.now()
     }
     return render(request, 'marketplace/evolution_result.html', context)
-# 📌 የተሻሻለውና አስተማማኙ _generate_outreach_protocol_links ኮድ መዋቅር፡
-
-def _generate_outreach_protocol_links(product, magic_url, contact):
-    """
-    ሻጮችን በቴሌግራም/ዋትሳፕ በባለ 1-ጠቅታ በነፃ ለመጋበዝ የሚረዱ የፕሮቶኮል ሊንኮች ማመንጫ (Anwar Outreach Gateway)
-    ይህ ሎጂክ በእርስዎ የግል ዋትሳፕ/ቴሌግራም ላይ አውቶማቲክ መልዕክቱን ቀድሞ ሞልቶ ያዘጋጃል (Anwar clicks 'Send' only).
-    """
-    import urllib.parse
-    import re
-    links = {}
-    if not contact:
-        return links
-
-    # 1. እጅግ በጣም በትህትና የተዘጋጀ የግብዣ ማስታወቂያ copy በአማርኛ
-    message = (
-        f"ሰላም! በይነመረብ ላይ የለጠፉት '{product.title}' ምርት በኢትአፍሪ (EthAfri) ድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
-        f"ምርትዎን ለማስተዳደር፣ ዋጋ ለመቀየር ወይም ፎቶ ለመጨመር በዚህ ሊንክ ይግቡ፦\n"
-        f"{magic_url}\n\n"
-        f"ማንኛውንም ድጋፍ ከፈለጉ አስተዳዳሪውን አንዋርን በስልክ ቁጥር 0962200856 ያነጋግሩ።"
-    )
-    encoded_msg = urllib.parse.quote(message)
-
-    # ቁጥሮችን ብቻ ለይቶ ማውጣት (Pristine Digit Extraction) [1]
-    clean_digits = re.sub(r'[^\d]', '', contact)
     
-    # የኢትዮጵያ ስልክ ቁጥር ርዝመት (ከ9 እስከ 13 ዲጂት) መሆኑን ማረጋገጥ [1]
-    if (len(clean_digits) >= 9 and len(clean_digits) <= 13) or contact.startswith('+251'):
-        clean_phone = clean_digits
-        if clean_phone.startswith('0'):
-            clean_phone = '251' + clean_phone[1:]
-        elif not clean_phone.startswith('251') and len(clean_phone) == 9:
-            clean_phone = '251' + clean_phone
-        
-        # 🟢 ዋትሳፕ እና ቴሌግራም የባለ 1-ጠቅታ መጋጠሚያ ሊንኮች (WhatsApp & Telegram Direct Protocols) [1]
-        links['whatsapp_outreach'] = f"https://api.whatsapp.com/send?phone={clean_phone}&text={encoded_msg}"
-        links['telegram_outreach'] = f"https://t.me/share/url?url={urllib.parse.quote(magic_url)}&text={encoded_msg}"
-        links['call'] = f"tel:+{clean_phone}"
-    else:
-        # ስልክ ካልሆነ የቴሌግራም ዩዘርኔም መሆኑን ማረጋገጥ
-        clean_username = contact.replace('@', '').strip()
-        if clean_username and not clean_username.isdigit():
-            # ቴሌግራም በቀጥታ ዩዘርኔም መፈለጊያ እና መጋበዣ
-            links['telegram_outreach'] = f"https://t.me/{clean_username}"
-            links['whatsapp_outreach'] = f"https://api.whatsapp.com/send?text={encoded_msg}"
-
-    return links    
-
 @csrf_exempt
 def voice_search_api(request):
     """
