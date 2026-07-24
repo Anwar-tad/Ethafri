@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/database_memory.py
-# 📝 ዓላማ፦ Safe Offline-First & Semantic Cache Memory Controller (v10.19)
-# ✅ የተፈቱ ችግሮች፦ Dynamic apps model registry, dynamic function imports added to prevent boot circular dependency, getattr dynamic safe-reading added on Product attributes to prevent unmigrated database crashes, and experiential failure memory logging added on cache generation failures (v10.19).
-# 📅 ቀን፦ Saturday, July 04, 2026
+# 📝 ዓላማ፦ Safe Offline-First & Semantic Cache Memory Controller (v11.00)
+# ✅ የተፈቱ ችግሮች፦ Dynamic apps model registry, prevention of circular dependency, and
+#                    robust JSONField string/dict type-checking added to get_cached_or_fallback (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 import json
@@ -22,7 +23,7 @@ class OfflineCacheManager:
     def get_cached_or_fallback(site, key, fallback_func, ttl_hours=24):
         """
         መረጃን በመጀመሪያ ከ SiteConfig (የአገር ውስጥ ካሽ) ይፈልጋል፤ 
-        ካሽ ካለቀበት ወይም ከሌለ ኔትወርክ ግንኙነቱን አረጋግጦ አዲስ መረጃ ያመነጫል [1]
+        ካሽ ካለቀበት ወይም ከሌለ ኔትወርክ ግንኙነቱን አረጋግጦ አዲስ መረጃ ያመነጫል
         """
         SiteConfig = apps.get_model('marketplace', 'SiteConfig')
         VectorMemory = apps.get_model('marketplace', 'VectorMemory')
@@ -35,17 +36,24 @@ class OfflineCacheManager:
         
         now = timezone.now()
         
-        # 1. ትኩስ ካሽ ካለ በቀጥታ ካሹን መጠቀም (Cache-First)
-        if cached_data and isinstance(cached_data.value, dict):
+        # 1. 🛡️ FIXED: JSONField parsing robustness check to prevent unparsed string skip
+        val_data = cached_data.value if cached_data else None
+        if isinstance(val_data, str):
             try:
-                timestamp = datetime.fromisoformat(cached_data.value.get('cached_at', ''))
+                val_data = json.loads(val_data)
+            except Exception:
+                val_data = None
+
+        # ትኩስ ካሽ ካለ በቀጥታ ካሹን መጠቀም (Cache-First)
+        if val_data and isinstance(val_data, dict):
+            try:
+                timestamp = datetime.fromisoformat(val_data.get('cached_at', ''))
                 if timezone.is_naive(timestamp):
                     timestamp = timezone.make_aware(timestamp)
                 
-                # ካሹ ጊዜው ካላለፈበት
                 if now - timestamp < timedelta(hours=ttl_hours):
                     logger.info(f"💾 Cache Hit: Using local memory for key '{key}' on site '{site.name}'.")
-                    return cached_data.value.get('data')
+                    return val_data.get('data')
             except Exception as e:
                 logger.warning(f"Error parsing cache timestamp: {e}")
 
@@ -56,7 +64,6 @@ class OfflineCacheManager:
                 logger.info(f"🌐 Network Active: Fetching fresh dynamic data for key '{key}'...")
                 fresh_data = fallback_func()
                 
-                # አዲሱን መረጃ ካሽ ማድረግ
                 SiteConfig.objects.update_or_create(
                     key=cache_key,
                     defaults={
@@ -69,7 +76,6 @@ class OfflineCacheManager:
                 return fresh_data
             except Exception as e:
                 logger.error(f"Fallback function execution failed: {e}")
-                # 🛡️ EXPERIENTIAL LEARNING: የካሽ ማመንጨት ውድቀትን በታሪክ መዝገብ ውስጥ መመዝገብ
                 if VectorMemory:
                     try:
                         VectorMemory.objects.create(
@@ -81,11 +87,10 @@ class OfflineCacheManager:
                     except Exception: pass
 
         # 3. ኔትወርክ ከሌለ የቆየውንም ቢሆን ካሽ መረጃ መጠቀም (Degraded Mode)
-        if cached_data and isinstance(cached_data.value, dict):
+        if val_data and isinstance(val_data, dict):
             logger.warning(f"⚠️ Offline-First Fallback: Utilizing expired cache for '{key}' due to network disconnection.")
-            return cached_data.value.get('data')
+            return val_data.get('data')
 
-        # 4. ምንም ካሽ ከሌለ ባዶ መረጃ መመለስ
         logger.critical(f"🚨 Memory Exhausted: No cache or network available for key '{key}'.")
         return None
 
@@ -100,24 +105,20 @@ class OfflineCacheManager:
 
         logger.info(f"🧠 Offline-First: Analysing existing product data on site '{site.name}' for strategic insights.")
         
-        # 1. በዳታቤዝ ውስጥ ያሉትን ምርቶች መተንተን
         products_count = Product.objects.filter(site=site, is_active=True).count()
         if products_count == 0:
             logger.warning(f"No products found to analyze offline for site '{site.name}'")
             return []
 
-        # 2. ከፍተኛ እይታ ያላቸውን ምርቶች መለየት
         hot_products = Product.objects.filter(site=site, is_active=True).order_by('-view_count')[:10]
         insights = []
         
         for p in hot_products:
-            # 🛡️ FIXED: Safe attribute reading to prevent crashes on fresh unmigrated databases
             views = getattr(p, 'view_count', 0)
             inquiries = getattr(p, 'inquiry_count', 0)
             
             insight_content = f"Product '{p.title}' has high user engagement with {views} views and {inquiries} inquiries."
             
-            # 3. insight-type Vector Memory መዝገብ መፍጠር
             VectorMemory.objects.create(
                 site=site,
                 memory_type='insight',
@@ -147,7 +148,6 @@ class OfflineCacheManager:
         logger.info(f"🧹 Offline-First Maintenance: Scanning for blocked or stale tasks on site '{site.name}'.")
         
         try:
-            # 1. ከ 15 ደቂቃ በላይ 'Running' የነበሩ ታስኮችን 'Pending' ማድረግ
             stuck_limit = timezone.now() - timedelta(minutes=15)
             stuck_tasks = AIProjectBacklog.objects.filter(site=site, status='Running', updated_at__lt=stuck_limit)
             
@@ -157,7 +157,6 @@ class OfflineCacheManager:
                     stuck_tasks.update(status='Pending')
                 logger.info(f"🩹 Repaired {stuck_count} stuck tasks by resetting status to Pending.")
                 
-            # 2. የተደጋገሙ ታስኮችን ማጽዳት (Deduplication)
             from django.db.models import Count
             duplicates = (
                 AIProjectBacklog.objects.filter(site=site, status='Pending')
@@ -182,7 +181,6 @@ class OfflineCacheManager:
                 logger.info(f"🧹 Cleaned up {cleared_count} duplicate backlog tasks from queue.")
                 
         except Exception as e:
-            # 🛡️ DYNAMIC FUNCTION IMPORT: የዳታቤዝ ግንኙነት ጥገና ጥሪን በዳይናሚክ መንገድ በመጫን የክብ ጥገኝነት መከላከል [1]
             try:
                 from marketplace.self_doctor import refresh_db_connection_on_error
                 db_refreshed = refresh_db_connection_on_error(str(e))

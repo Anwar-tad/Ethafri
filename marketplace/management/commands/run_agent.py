@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/management/commands/run_agent.py
-# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with CPU-Load Adaptive Pacing (v10.20)
-# ✅ የተፈቱ ችግሮች፦ Dynamic apps model registry upgraded, AIProjectBacklog registry check added in handle() to prevent unmigrated database crashes, and experiential failure memory logging added on daemon loop fatal exceptions (v10.20).
-# 📅 ቀን፦ Monday, July 13, 2026
+# 📝 ዓላማ፦ Safe 24/7 autonomous agent execution with CPU-Load Adaptive Pacing (v11.00)
+# ✅ የተፈቱ ችግሮች፦ Dynamic apps model registry, and optimized Render-friendly CPU pacing 
+#                    threshold (raised to 8.0) and shorter cooldowns to break the sleep trap (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 from django.core.management.base import BaseCommand
@@ -15,7 +16,6 @@ import sys
 import time
 import os
 
-# 🛡️ Logger setup
 logger = logging.getLogger(__name__)
 
 
@@ -24,12 +24,10 @@ logger = logging.getLogger(__name__)
 # ============================================================
 def _is_network_available() -> bool:
     """
-    ከ growth_agent.py እና ከ MultiChannelHarvester መደብ ነጻ በሆነ መንገድ 
-    የበይነመረብ ግንኙነት መኖሩን በደህንነት የሚፈትሽ ረዳት
+    ከ growth_agent.py መደብ ነጻ በሆነ መንገድ የበይነመረብ ግንኙነት መኖሩን በደህንነት የሚፈትሽ ረዳት
     """
     import requests
     try:
-        # በኢትዮጵያ ውስጥ ፈጣንና አስተማማኝ ለሆኑ የፍተሻ ጣቢያዎች ጥሪ ማድረግ
         return requests.get("https://google.com", timeout=3).status_code == 200
     except requests.RequestException:
         return False
@@ -42,8 +40,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--interval',
             type=int,
-            default=600,  # ቋሚ መኝታ ከተፈለገ በዲፎልት 10 ደቂቃ (600s) እንዲሆን ተደርጓል
-            help='Standard interval in seconds when backlog is empty (default: 600)'
+            default=60,  # ቋሚ መኝታ ከተፈለገ በዲፎልት 1 ደቂቃ (60s) እንዲሆን ተደርጓል
+            help='Standard interval in seconds when backlog is empty (default: 60)'
         )
         parser.add_argument(
             '--force-static',
@@ -52,15 +50,13 @@ class Command(BaseCommand):
         )
     
     def handle(self, *args, **kwargs):
-        # 🛡️ FIXED: Lazy Loading of agent and doctor modules inside handle()
         from marketplace.growth_agent import execute_master_cycle
         from marketplace.ai_utils import broadcast_agent_log
         from marketplace.self_doctor import refresh_db_connection_on_error
 
-        # የሞዴል ተለዋዋጭ ጭነት (Registry Safety)
         AIProjectBacklog = apps.get_model('marketplace', 'AIProjectBacklog')
 
-        interval = kwargs.get('interval', 600)
+        interval = kwargs.get('interval', 60)
         force_static = kwargs.get('force_static', False)
         
         self.stdout.write(self.style.SUCCESS(
@@ -72,19 +68,16 @@ class Command(BaseCommand):
         # 🔄 Master Loop
         while True:
             try:
-                # 1. Database Connection Management (Memory Leak ለመከላከል)
                 connections.close_all()
                 
-                # 2. Execute Business Logic (የሥራ ዑደቱን መጥራት)
                 self.stdout.write("⚙️ Running Master Cycle...")
                 broadcast_agent_log(None, "Command: Master Pacing cycle triggered manually or dynamically.", "info")
                 execute_master_cycle()
                 
-                # 3. Memory Cleanup (ራም ለመቆጠብ)
-                reset_queries()  # DEBUG=True በሚሆንበት ወቅት የሚከሰተውን የሜሞሪ መፍሰስ መከላከያ
+                reset_queries()  
                 gc.collect()
                 
-                # 4. Adaptive Pacing logic (የጊዜ ማስተካከያ ሎጂክ)
+                # የጊዜ ማስተካከያ ሎጂክ
                 if force_static:
                     sleep_duration = interval
                 else:
@@ -93,35 +86,33 @@ class Command(BaseCommand):
                         try:
                             load_avg = os.getloadavg()[0]
                         except (AttributeError, OSError, Exception):
-                            # ዊንዶውስ ወይም በኮንቴይነር ውስጥ os.getloadavg() ካልሰራ ዱሚ ጫና መስጠት
                             load_avg = 0.5
                             
-                        if load_avg > 2.0:
-                            sleep_duration = 2700  # 45 ደቂቃ (ሰርቨሩ በከፍተኛ ጫና ውስጥ ከሆነ መኝታውን ያረዝማል)
-                            self.stdout.write(self.style.WARNING(f"⚠️ Server CPU Load is heavy ({load_avg:.2f}). Pacing slowed to 45 minutes to protect host."))
-                            broadcast_agent_log(None, f"Pacing Alert: Server CPU load is heavy ({load_avg:.2f}). Pacing slowed to 45 minutes.", "warning")
+                        # 🛡️ RENDER-FRIENDLY TIMEOUTS: የሲፒዩ መከላከያ ገደቡን ወደ 8.0 ከፍ ማድረግ
+                        if load_avg > 8.0:
+                            sleep_duration = 300  # 5 ደቂቃ (የ 45 ደቂቃ መኝታ ወጥመድ እዚህ ተሰብሯል)
+                            self.stdout.write(self.style.WARNING(f"⚠️ Server CPU Load is extremely heavy ({load_avg:.2f}). Pacing slowed to 5 minutes to protect host."))
+                            broadcast_agent_log(None, f"Pacing Alert: Server CPU load is extremely heavy ({load_avg:.2f}). Pacing slowed to 5 minutes.", "warning")
                         else:
-                            # 🛡️ FIXED: Decoupled network connectivity checker from MultiChannelHarvester to prevent boot-time import loops
                             if not _is_network_available():
-                                sleep_duration = 1800  # 30 ደቂቃ
-                                self.stdout.write(self.style.WARNING("🌐 Network is offline. Slow-pacing active (1800s sleep to save tokens)..."))
-                                broadcast_agent_log(None, "Pacing Alert: Server is offline. Sleeping for 30 minutes.", "warning")
+                                sleep_duration = 300  # 5 ደቂቃ (ከ 30 ደቂቃ እንቅልፍ ወደ 5 ደቂቃ ተቀንሷል)
+                                self.stdout.write(self.style.WARNING("🌐 Network is offline. Slow-pacing active (5-minute sleep to save tokens)..."))
+                                broadcast_agent_log(None, "Pacing Alert: Server is offline. Sleeping for 5 minutes.", "warning")
                             else:
-                                # 🛡️ FIXED: Safety guard when registry load fails to prevent AttributeErrors on startup [1]
                                 if AIProjectBacklog:
                                     has_pending = AIProjectBacklog.objects.filter(status='Pending').exists()
                                 else:
                                     has_pending = False
                                     
                                 if has_pending:
-                                    sleep_duration = 30  # የሚሰሩ ስራዎች ካሉ በፍጥነት በየ30 ሰከንዱ ይነሳል
-                                    self.stdout.write(self.style.NOTICE("⚡ Backlog has pending tasks. Fast-pacing active (30s sleep)..."))
+                                    sleep_duration = 15  # የሚሰሩ ስራዎች ካሉ በየ 15 ሰከንዱ በፍጥነት ይነሳል
+                                    self.stdout.write(self.style.NOTICE("⚡ Backlog has pending tasks. Fast-pacing active (15s sleep)..."))
                                 else:
-                                    sleep_duration = interval  # ባዶ ከሆነ ረዘም ላለ ጊዜ ይተኛል
+                                    sleep_duration = interval  # ባዶ ከሆነ በዲፎልት 1 ደቂቃ (60 ሰከንድ) ይተኛል
                                     self.stdout.write(f"💤 No pending tasks. Concluding cycle. Sleeping {sleep_duration}s to save resources...")
                     except Exception as db_err:
                         logger.warning(f"Failed to query backlog status for pacing: {db_err}")
-                        sleep_duration = 60  # ዳታቤዝ ላይ ችግር ካለ በዲፎልት 1 ደቂቃ መጠበቅ
+                        sleep_duration = 60  
                 
                 time.sleep(sleep_duration)
                 
@@ -134,7 +125,6 @@ class Command(BaseCommand):
                 logger.error(f"❌ Fatal Agent Loop Exception: {e}", exc_info=True)
                 self.stdout.write(self.style.ERROR(f"Fatal Loop Error: {e}"))
                 
-                # 🛡️ EXPERIENTIAL LEARNING: የዴሞን ሉፕ መቆራረጥ ውድቀትን በታሪክ መዝገብ ውስጥ መመዝገብ (የመማር ሎጂክ)
                 VectorMemory = apps.get_model('marketplace', 'VectorMemory')
                 if VectorMemory:
                     try:
@@ -150,10 +140,9 @@ class Command(BaseCommand):
                 if db_refreshed:
                     self.stdout.write(self.style.WARNING("🚑 Database connection refreshed safely across all active threads."))
                 
-                time.sleep(30)  # ከስህተት በኋላ ዳግም ከመነሳቱ በፊት እረፍት መስጠት
+                time.sleep(30)  
             
             finally:
-                # 🧹 የዳታቤዝ ግንኙነቶችን መልቀቅ (Multi-Thread Safe release)
                 try:
                     connections.close_all()
                 except Exception as close_err:

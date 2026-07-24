@@ -1463,9 +1463,8 @@ class PillowWatermarkEngine:
             overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             
-            # ባጅ ዲዛይን (ክብ ማዕዘን ያለው ጥቁር/ሰማያዊ ሰሌዳ ከነጭ ፅሁፍ ጋር)
-            badge_text = "Verified on EthAfri"
-            badge_width = int(width * 0.45)
+            badge_text = "✔ Verified on EthAfri"
+            badge_width = int(width * 0.48)
             badge_height = int(height * 0.08)
             
             # ወተርማርኩ የሚገኝበትን ቦታ በ AI መረጃ መሠረት መወሰን
@@ -1479,25 +1478,29 @@ class PillowWatermarkEngine:
                 
             x2, y2 = x1 + badge_width, y1 + badge_height
             
-            # ጠንካራ መሸፈኛ ጀርባ (Solid Dark Background to securely hide competitor watermark)
-            draw.rounded_rectangle([x1, y1, x2, y2], radius=15, fill=(15, 23, 42, 240), outline=(220, 38, 38, 255), width=2)
+            # 🎨 ELEGANT GLASS-MORPHIC DESIGN: ሰማያዊ/ጥቁር የብርጭቆ ጀርባ ከወርቃማ መስመር ጋር (No scary red borders)
+            draw.rounded_rectangle(
+                [x1, y1, x2, y2], 
+                radius=12, 
+                fill=(15, 23, 42, 180),       # Elegant semi-transparent slate (Pristine glasslook)
+                outline=(218, 165, 32, 180),  # Luxurious gold border to match EthAfri yellow
+                width=2
+            )
             
-            # በባጁ ላይ የጽሑፍ ማስተካከያ ማድረግ
             try:
-                # የስርዓቱን ነባሪ ፎንት ለመጫን መሞከር
                 font = ImageFont.load_default()
             except Exception:
                 font = None
                 
             # ፅሁፉን በባጁ መሃል ላይ ማሳረፍ
-            draw.text(((x1 + x2) // 2, (y1 + y2) // 2), badge_text, fill=(255, 255, 255, 255), anchor="mm")
+            draw.text(((x1 + x2) // 2, (y1 + y2) // 2), badge_text, fill=(255, 255, 255, 240), anchor="mm")
             
             # 3. ምስሎቹን ማዋሃድ (Flatten layers)
             final_img = Image.alpha_composite(img, overlay).convert("RGB")
             
             # 4. በጊዜያዊ ማከማቻ ውስጥ ማስቀመጥ
             temp_filename = f"/tmp/rebranded_{hashlib.md5(image_url.encode()).hexdigest()}.jpg"
-            final_img.save(temp_filename, "JPEG", quality=90)
+            final_img.save(temp_filename, "JPEG", quality=95)
             
             # 5. የተቀየረውን ምስል ወደ Cloudinary በቋሚነት መጫን
             try:
@@ -1511,8 +1514,7 @@ class PillowWatermarkEngine:
                     )
                 secure_url = upload_data.get('secure_url', '')
                 if secure_url:
-                    logger.info(f"✨ Image Rebrander: Watermark overwritten permanently! -> {secure_url}")
-                    # ጊዜያዊ ፋይሉን ማጽዳት
+                    logger.info(f"✨ Image Rebrander: Watermark rebranded beautifully -> {secure_url}")
                     if os.path.exists(temp_filename):
                         os.remove(temp_filename)
                     return secure_url
@@ -1523,7 +1525,6 @@ class PillowWatermarkEngine:
             logger.error(f"Pillow image rebrand crash: {e}")
             
         return image_url
-
 
 # ============================================================
 # 🎯 ADVANCED CONTACT & WATERMARK HUNTER ENGINE
@@ -1550,7 +1551,14 @@ class AdvancedContactHunter:
         if not unresolved_products.exists():
             return
 
+        # 📌 EthAfri/marketplace/growth_agent.py -> hunt_and_resolve_contacts ዘዴ መጀመሪያ ላይ፡
+
         for product in unresolved_products:
+            # 🛡️ መደጋገም መከላከያ ጋሻ፦ ምስሉ ቀድሞውኑ rebrand ተደርጎ ከሆነ ማለፍ
+            if product.image_url and "products_rebranded" in product.image_url:
+                logger.info(f"⏭️ Contact Hunter: Product {product.id} already rebranded. Skipping duplicates.")
+                continue
+
             logger.info(f"🕵️ Contact & Watermark Hunter: Initiating advanced scan for Product {product.id}: '{product.title}'")
             real_contact = None
             watermark_pos = "center"

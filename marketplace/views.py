@@ -1045,7 +1045,53 @@ def evolution_result_view(request):
         'live_time': timezone.now()
     }
     return render(request, 'marketplace/evolution_result.html', context)
+# 📌 የተሻሻለውና አስተማማኙ _generate_outreach_protocol_links ኮድ መዋቅር፡
+
+def _generate_outreach_protocol_links(product, magic_url, contact):
+    """
+    ሻጮችን በቴሌግራም/ዋትሳፕ በባለ 1-ጠቅታ በነፃ ለመጋበዝ የሚረዱ የፕሮቶኮል ሊንኮች ማመንጫ (Anwar Outreach Gateway)
+    ይህ ሎጂክ በእርስዎ የግል ዋትሳፕ/ቴሌግራም ላይ አውቶማቲክ መልዕክቱን ቀድሞ ሞልቶ ያዘጋጃል (Anwar clicks 'Send' only).
+    """
+    import urllib.parse
+    import re
+    links = {}
+    if not contact:
+        return links
+
+    # 1. እጅግ በጣም በትህትና የተዘጋጀ የግብዣ ማስታወቂያ copy በአማርኛ
+    message = (
+        f"ሰላም! በይነመረብ ላይ የለጠፉት '{product.title}' ምርት በኢትአፍሪ (EthAfri) ድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
+        f"ምርትዎን ለማስተዳደር፣ ዋጋ ለመቀየር ወይም ፎቶ ለመጨመር በዚህ ሊንክ ይግቡ፦\n"
+        f"{magic_url}\n\n"
+        f"ማንኛውንም ድጋፍ ከፈለጉ አስተዳዳሪውን አንዋርን በስልክ ቁጥር 0962200856 ያነጋግሩ።"
+    )
+    encoded_msg = urllib.parse.quote(message)
+
+    # ቁጥሮችን ብቻ ለይቶ ማውጣት (Pristine Digit Extraction) [1]
+    clean_digits = re.sub(r'[^\d]', '', contact)
     
+    # የኢትዮጵያ ስልክ ቁጥር ርዝመት (ከ9 እስከ 13 ዲጂት) መሆኑን ማረጋገጥ [1]
+    if (len(clean_digits) >= 9 and len(clean_digits) <= 13) or contact.startswith('+251'):
+        clean_phone = clean_digits
+        if clean_phone.startswith('0'):
+            clean_phone = '251' + clean_phone[1:]
+        elif not clean_phone.startswith('251') and len(clean_phone) == 9:
+            clean_phone = '251' + clean_phone
+        
+        # 🟢 ዋትሳፕ እና ቴሌግራም የባለ 1-ጠቅታ መጋጠሚያ ሊንኮች (WhatsApp & Telegram Direct Protocols) [1]
+        links['whatsapp_outreach'] = f"https://api.whatsapp.com/send?phone={clean_phone}&text={encoded_msg}"
+        links['telegram_outreach'] = f"https://t.me/share/url?url={urllib.parse.quote(magic_url)}&text={encoded_msg}"
+        links['call'] = f"tel:+{clean_phone}"
+    else:
+        # ስልክ ካልሆነ የቴሌግራም ዩዘርኔም መሆኑን ማረጋገጥ
+        clean_username = contact.replace('@', '').strip()
+        if clean_username and not clean_username.isdigit():
+            # ቴሌግራም በቀጥታ ዩዘርኔም መፈለጊያ እና መጋበዣ
+            links['telegram_outreach'] = f"https://t.me/{clean_username}"
+            links['whatsapp_outreach'] = f"https://api.whatsapp.com/send?text={encoded_msg}"
+
+    return links    
+
 @csrf_exempt
 def voice_search_api(request):
     """

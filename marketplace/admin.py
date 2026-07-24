@@ -1,15 +1,20 @@
 # ============================================================
 # 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/admin.py
-# 📝 ስሪት፦ v10.20 (Production Grade - Safe Boot & Beautiful Admin)
-# ✅ የተፈቱ ችግሮች፦ Standard relative imports from .models implemented to prevent AppRegistryNotReady crashes during Django launch auto-discovery, safety model check added in safe_register to prevent TypeErrors, product translation stacked inline, and secure code-escaped comparisons inside AIEvolutionLog (v10.20).
-# 📅 ቀን፦ Monday, July 13, 2026
+# 📝 ስሪት፦ v11.00 (Production Grade - Safe Boot & Beautiful Admin)
+# ✅ የተፈቱ ችግሮች፦ Standard relative imports implemented, defined logger to prevent NameErrors 
+#                    on safe_register failures, and duplicate AgentTask registrations cleared (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 from django.contrib import admin
 from django.utils.html import escape, format_html
 from django.apps import apps
+import logging  # 🛡️ NameError ለመከላከል እዚህ ተጨምሯል
 
-# 🛡️ SAFE RELATIVE IMPORTS: የ 'AppRegistryNotReady' ስህተቶችን ለመከላከል ሞዴሎችን በቀጥታ መጫን (Symmetric Boot Safety)
+# 🛡️ Logger setup
+logger = logging.getLogger(__name__)
+
+# 🛡️ SAFE RELATIVE IMPORTS: የ 'AppRegistryNotReady' ስህተቶችን ለመከላከል ሞዴሎችን በቀጥታ መጫን
 from .models import (
     Product, Category, UserSearch, ProductTranslation, TranslationQueue,
     SiteRegistry, AIProjectBacklog, AIEvolutionLog, AdminOverrideInstruction,
@@ -40,7 +45,7 @@ def safe_register(model_class, admin_class=None):
 # ============================================================
 
 class ProductTranslationInline(admin.StackedInline):
-    """🔴 የምርት ትርጉሞችን በአንድ ገጽ ላይ በአድሚን ሰሌዳ ለመተርጎም (UX Booster)"""
+    """🔴 የምርት ትርጉሞችን በአንድ ገጽ ላይ በአድሚን ሰሌዳ ለመተርጎም"""
     model = ProductTranslation
     extra = 1
     max_num = 1
@@ -52,7 +57,6 @@ class ProductAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description', 'location')
     readonly_fields = ('view_count', 'inquiry_count', 'created_at', 'updated_at')
     
-    # የትርጉም ሰንጠረዡን ወደ ምርት ገጽ ስር inline ማገናኘት
     inlines = [ProductTranslationInline]
     
     def get_site(self, obj):
@@ -103,12 +107,11 @@ class AIProjectBacklogAdmin(admin.ModelAdmin):
 
 
 class AIEvolutionLogAdmin(admin.ModelAdmin):
-    """🔴 ኤጀንቱ የቀየራቸውን ኮዶች በጥቁር ዳራ (HTML pre/code style) аሳምሮ የሚያሳይ ሰሌዳ"""
+    """🔴 ኤጀንቱ የቀየራቸውን ኮዶች በጥቁር ዳራ አሳምሮ የሚያሳይ ሰሌዳ"""
     list_display = ('target_file', 'site', 'reason_preview', 'created_at')
     list_filter = ('site', 'target_file')
     readonly_fields = ('created_at', 'code_preview')
     
-    # የድሮ እና አዳዲስ ኮዶችን በኮድ ፎርማት ማሳያ
     fields = ('backlog_task', 'target_file', 'site', 'reason_for_change', 'code_preview', 'created_at')
     
     def reason_preview(self, obj):
@@ -119,7 +122,6 @@ class AIEvolutionLogAdmin(admin.ModelAdmin):
         old_code = obj.old_code_backup or "No previous content (New File)"
         new_code = obj.new_code_patch or "No patch content"
         
-        # HTML እና JavaScript ኮዶችን በአድሚን ገጽ ላይ ደህንነታቸውን ጠብቆ ለማሳየት 'escape' ጥሪ (XSS Shield)
         safe_old_code = escape(old_code)
         safe_new_code = escape(new_code)
         
@@ -183,7 +185,7 @@ safe_register(AdminOverrideInstruction, AdminOverrideInstructionAdmin)
 
 
 # ============================================================
-# 💰 5. የንግድ እድገት እና ማርኬቲおり
+# 💰 5. የንግድ እድገት እና ማርኬቲንግ
 # ============================================================
 
 class SellerProfileAdmin(admin.ModelAdmin):
@@ -236,7 +238,6 @@ safe_register(VectorMemory, VectorMemoryAdmin)
 safe_register(SecurityLog, SecurityLogAdmin)
 safe_register(PredictionLog, PredictionLogAdmin)
 
-safe_register(AgentTask)
-safe_register(AgentTask)
+safe_register(AgentTask)  # 🛡️ FIXED: የተደጋገመው የ AgentTask ምዝገባ እዚህ ተስተካክሏል
 safe_register(ABTest)
 safe_register(ExternalAPI)

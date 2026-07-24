@@ -1,8 +1,9 @@
 # ============================================================
 # 📁 ፋይል፦ EthAfri/marketplace/event_bus.py
-# 📝 ስሪት፦ v10.20 Asynchronous Event Bus (Dynamic Safe-Memory & Translation Queue)
-# ✅ የተፈቱ ችግሮች፦ Dynamic apps model registry upgraded, VectorMemory registry check added in get_semantic_memory to prevent unmigrated database crashes, and experiential failure memory logging added on translation queue operational failures (v10.20).
-# 📅 ቀን፦ Monday, July 13, 2026
+# 📝 ስሪት፦ v11.00 Asynchronous Event Bus (Dynamic Safe-Memory & Translation Queue)
+# ✅ የተፈቱ ችግሮች፦ Upgraded apps model registry, VectorMemory check added in get_semantic_memory,
+#                    and fixed translation duplicate logical bug by adding is_processed=False (v11.00).
+# 📅 ቀን፦ Friday, July 24, 2026
 # ============================================================
 
 import logging
@@ -68,12 +69,10 @@ def get_semantic_memory(query, memory_type=None, site=None, limit=5):
     """ከ RAG VectorMemory ላይ የቆዩ የኮድ መፍትሔዎችን የሚስብ ሎጂክ (የመዝገብ ፍተሻ ጥበቃ የተጫነበት)"""
     VectorMemory = apps.get_model('marketplace', 'VectorMemory')
     
-    # 🛡️ FIXED: Safety guard when VectorMemory registry load fails to prevent AttributeErrors on startup [1]
     if not VectorMemory:
         return []
         
     try:
-        # 🛡️ Custom find_similar ዘዴ ባይኖር እንኳ መደበኛ የ Django ORM ፍለጋ መመለስ (Resilient Fallback)
         if hasattr(VectorMemory, 'find_similar'):
             return VectorMemory.find_similar(query, memory_type=memory_type, site=site, limit=limit)
         else:
@@ -95,15 +94,16 @@ def enqueue_pending_translations(product, target_languages):
 
     try:
         with transaction.atomic():
+            # 🛡️ FIXED: is_processed=False added to allow translating updated listings again
             TranslationQueue.objects.get_or_create(
                 product=product,
-                defaults={'target_languages': target_languages, 'is_processed': False}
+                is_processed=False,
+                defaults={'target_languages': target_languages}
             )
             logger.info(f"✨ TranslationQueue: Added pending translations for product '{product.title}'")
     except Exception as e:
         logger.error(f"Failed to enqueue pending translations: {e}")
         
-        # 🛡️ EXPERIENTIAL LEARNING: የትርጉም ወረፋ ውድቀትን በታሪክ መዝገብ ውስጥ መመዝገብ (የመማር ሎጂክ)
         VectorMemory = apps.get_model('marketplace', 'VectorMemory')
         if VectorMemory:
             try:

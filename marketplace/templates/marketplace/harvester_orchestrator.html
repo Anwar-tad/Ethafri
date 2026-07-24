@@ -1,8 +1,9 @@
 <!-- ============================================================
 📁 የፋይል አቅጣጫ፦ EthAfri/marketplace/templates/marketplace/harvester_orchestrator.html
-📝 ስሪት፦ v10.18 (Harvester Control Center - Unified Live Diagnostics Edition)
-✅ የተፈቱ ችግሮች፦ Dynamic 7-day Chart.js crawl trend integration, manual source injection, active vs dropped sources pulse logs, and outbox notification queue stats.
-📅 ቀን፦ Saturday, July 04, 2026
+📝 ስሪት፦ v11.00 (Harvester Control Center - Unified Outreach & Diagnostics Edition)
+✅ የተፈቱ ችግሮች፦ Dynamic Chart.js integration, active vs dropped sources, 
+                    and Anwar One-Click Outreach Router (Feature 13) panel added for free Telegram/WhatsApp invites.
+📅 ቀን፦ Friday, July 24, 2026
 ============================================================ -->
 
 {% extends "marketplace/base.html" %}
@@ -49,11 +50,9 @@
                 <p class="text-muted m-0 small">{% trans "Live web discovery, dynamic crawling queues, dropped source logs, and outbound notification trends." %}</p>
             </div>
             
-            <!-- የንዑስ ጣቢያዎች መራጭ (Site Selector Dropdown) -->
             <div class="d-flex gap-2 align-items-center">
                 <span class="small fw-bold text-muted text-uppercase">Niche:</span>
-                <!-- 🛡️ FIXED: ረዥም የኒች ስሞች መራጩን አዝራር እንዳይዘረጡ በ max-width እና በ text-overflow ተገድቧል [1] -->
-<select class="form-select rounded-pill px-3 py-1" id="harvesterSiteSelector" style="width: auto; max-width: 170px; font-weight: bold; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onchange="switchHarvesterSite(this.value)">
+                <select class="form-select rounded-pill px-3 py-1" id="harvesterSiteSelector" style="width: auto; max-width: 170px; font-weight: bold; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onchange="switchHarvesterSite(this.value)">
                     {% for site in sites %}
                         <option value="{{ site.id }}" {% if current_site.id == site.id %}selected{% endif %}>{{ site.display_name }} ({{ site.niche|upper }})</option>
                     {% endfor %}
@@ -63,7 +62,8 @@
                 </a>
             </div>
         </div>
-<!-- ============================================================
+
+        <!-- ============================================================
         🧠 AI DAILY EXECUTIVE SUMMARY (የእለት ማጠቃለያ ሰሌዳ)
         ============================================================ -->
         <div class="alert alert-success border-0 shadow-sm rounded-4 p-4 mb-4 d-flex align-items-center">
@@ -73,6 +73,7 @@
                 <p class="m-0 text-dark small" style="font-weight: 500;">{{ daily_summary }}</p>
             </div>
         </div>
+
         <!-- ============================================================
         📊 2. HARVEST & OUTBOX METRICS
         ============================================================ -->
@@ -146,12 +147,12 @@
                 </div>
 
                 <!-- ንቁ የሆኑ የዳሳሽ ምንጮች ሰንጠረዥ -->
-                <div class="card border-0 shadow-sm rounded-4">
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
                     <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold"><i class="fa-solid fa-satellites me-2 text-primary"></i> Active Crawling Queue</h5>
                         <span class="badge bg-light text-dark border rounded-pill px-3">{{ active_sources|length }} Active</span>
                     </div>
-                    <div class="card-body p-3" style="max-height: 400px; overflow-y: auto;">
+                    <div class="card-body p-3" style="max-height: 350px; overflow-y: auto;">
                         {% for src in active_sources %}
                         <div class="p-3 mb-2 rounded-3 bg-light d-flex justify-content-between align-items-center border">
                             <div>
@@ -179,6 +180,69 @@
                         <div class="text-center py-5 text-muted">
                             <i class="fa-solid fa-satellite-dish fa-3x mb-3 opacity-25"></i>
                             <p class="m-0">No active sources in queue. System is offline-first.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                👤 4b. UNVERIFIED SELLERS & ONE-CLICK OUTREACH (የሻጮች ዝርዝርና የግብዣ ሰሌዳ) - አዲሱ ፊቸር 13
+                ============================================================ -->
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-dark text-white py-3 border-0 d-flex justify-content-between align-items-center rounded-top-4">
+                        <h5 class="mb-0 fw-bold">
+                            <i class="fa-solid fa-users-gear me-2 text-warning"></i> 
+                            የተገኙ ሻጮችና የግብዣ ሰሌዳ (Outreach Router)
+                        </h5>
+                        <span class="badge bg-warning text-dark rounded-pill px-3">{{ unverified_sellers|length }} Pending</span>
+                    </div>
+                    <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                        {% for seller in unverified_sellers %}
+                        <div class="p-3 border-bottom border-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-3">
+                                <!-- የምርት ፎቶ ማሳያ -->
+                                <div class="rounded-3 bg-light border d-flex align-items-center justify-content-center" style="width: 55px; height: 55px; overflow: hidden; flex-shrink: 0;">
+                                    {% if seller.product.image_url %}
+                                        <img src="{{ seller.product.image_url }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                    {% else %}
+                                        <i class="fa-solid fa-image text-muted opacity-50"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold mb-1 text-dark" style="max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        {{ seller.product.title }}
+                                    </h6>
+                                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                                        <span class="badge bg-success small">{{ seller.product.price|floatformat:0 }} ETB</span>
+                                        <span class="small text-muted fw-bold"><i class="fa-solid fa-address-book text-secondary me-1"></i>{{ seller.contact_info }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- የባለ 1-ጠቅታ የግብዣ በተኖች (Anwar Outreach Protocols) -->
+                            <div class="d-flex gap-2">
+                                {% if seller.links.whatsapp_outreach %}
+                                    <a href="{{ seller.links.whatsapp_outreach }}" target="_blank" class="btn btn-sm btn-success rounded-pill px-3 fw-bold shadow-sm">
+                                        <i class="fa-brands fa-whatsapp me-1"></i> WhatsApp
+                                    </a>
+                                {% endif %}
+                                {% if seller.links.telegram_outreach %}
+                                    <a href="{{ seller.links.telegram_outreach }}" target="_blank" class="btn btn-sm btn-info text-white rounded-pill px-3 fw-bold shadow-sm">
+                                        <i class="fa-brands fa-telegram me-1"></i> Telegram
+                                    </a>
+                                {% endif %}
+                                {% if seller.links.call %}
+                                    <a href="{{ seller.links.call }}" class="btn btn-sm btn-outline-dark rounded-pill px-3">
+                                        <i class="fa-solid fa-phone"></i>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-5 text-muted">
+                            <i class="fa-solid fa-users-slash fa-3x mb-3 opacity-25"></i>
+                            <p class="m-0 fw-bold">No unverified sellers pending outreach.</p>
+                            <p class="m-0 text-secondary small">All scraped listings are currently claimed or verified!</p>
                         </div>
                         {% endfor %}
                     </div>
@@ -224,9 +288,8 @@
             </div>
         </div>
 
-    </div>
-    <!-- ============================================================
-        🕵️ 5. SCRAPER INTELLIGENCE & TARGET RECONNAISSANCE REPORTS (አዲሱ የስለላ ሰሌዳ)
+        <!-- ============================================================
+        🕵️ 5. SCRAPER INTELLIGENCE & TARGET RECONNAISSANCE REPORTS
         ============================================================ -->
         <div class="card border-0 shadow-sm rounded-4 mt-4">
             <div class="card-header bg-dark text-white py-3 border-0 d-flex justify-content-between align-items-center rounded-top-4">
@@ -254,7 +317,6 @@
                         </h2>
                         <div id="collapse{{ report.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ report.id }}" data-bs-parent="#reconAccordion">
                             <div class="accordion-body bg-white p-4">
-                                <!-- ሪፖርቱን እጅግ በሚያምር የኮድ ሰሌዳ አቀራረብ ማሳያ -->
                                 <pre style="white-space: pre-wrap; font-family: 'Courier New', Courier, monospace;" class="bg-light p-3 rounded border text-secondary small">{{ report.description }}</pre>
                                 
                                 <div class="alert alert-info d-flex align-items-center mt-3 small" role="alert">
@@ -276,20 +338,18 @@
                 </div>
             </div>
         </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<!-- Chart.js ቤተ-መጽሐፍት ጭነት (Symmetric Asset Loading - loaded only here) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 
 <script>
-    // 📍 የሳይት ምርጫ መለወጫ ሎጂክ
     function switchHarvesterSite(siteId) {
         window.location.href = `?site_id=${siteId}`;
     }
 
-    // 📈 Chart.js የ 7-ቀን የምርት አሰሳ ግራፍ አኒሜሽን
     document.addEventListener("DOMContentLoaded", function() {
         const trendData = JSON.parse('{{ daily_trend_json|safe }}');
         
@@ -338,12 +398,10 @@
         }
     });
 
-    // 📟 WebSocket Auto-Updater (🛡️ FIXED: Aligned payload integration)
     document.addEventListener('agent_update', function(event) {
         const data = event.detail;
         if (data.type === 'status_update' || data.type === 'live_stats') {
             const todayCountEl = document.getElementById('scraped-today-val');
-            // የዛሬውን የምርት አሰሳ ቁጥር በእውነተኛ ሰዓት ማዘመን
             if (todayCountEl && (data.scraped_today_count !== undefined || data.scraped_today !== undefined)) {
                 todayCountEl.innerText = data.scraped_today_count !== undefined ? data.scraped_today_count : data.scraped_today;
             }
