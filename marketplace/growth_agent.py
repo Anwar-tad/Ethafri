@@ -1729,7 +1729,7 @@ class AdvancedContactHunter:
                 defaults={'value': {'token': login_token, 'created_at': timezone.now().isoformat()}}
             )
 
-            magic_login_url = f"{self.site.deployment_url or 'http://ethafri.com'}/api/magic-token/?phone={uname}&token={login_token}"
+            magic_login_url = f"{self.site.deployment_url or 'https://ethafri.onrender.com'}/api/magic-token/?phone={uname}&token={login_token}"
 
             # 3. የአንዋርን (0962200856) የድጋፍ ስልክ ያካተተ የተጠቃሚ ግብዣ መልዕክት
             message = (
@@ -2171,7 +2171,7 @@ class CEOOperations:
                         defaults={'value': {'token': login_token, 'created_at': timezone.now().isoformat()}}
                     )
 
-                    magic_login_url = f"{self.site.deployment_url or 'http://ethafri.com'}/api/magic-token/?phone={uname}&token={login_token}"
+                    magic_login_url = f"{self.site.deployment_url or 'http://ethafri.onrender.com'}/api/magic-token/?phone={uname}&token={login_token}"
 
                     message = (
                         f"ሰላም! በይነመረብ ላይ የለጠፉት '{clean_title}' ምርት በኢትአፍሪ (EthAfri) ድረ-ገጻችን ላይ በነፃ ተለጥፏል።\n"
@@ -2853,7 +2853,7 @@ class SocialMediaCampaigner:
                     
                     if tg_token:
                         url = f"https://api.telegram.org/bot{tg_token}/sendMessage"
-                        payload = {"chat_id": channel_id, "text": f"{ad_copy}\n\n🌐 View listing: {site.deployment_url or 'http://ethafri.com'}/product/{prod.id}/"}
+                        payload = {"chat_id": channel_id, "text": f"{ad_copy}\n\n🌐 View listing: {site.deployment_url or 'http://ethafri.onrender.com'}/product/{prod.id}/"}
                         requests.post(url, json=payload, timeout=5)
                         
                     SiteConfig.objects.create(key=campaign_key, defaults={'value': {'posted_at': timezone.now().isoformat()}})

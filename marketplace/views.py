@@ -1060,10 +1060,13 @@ def harvester_orchestrator_view(request):
             token_cfg = SiteConfig.objects.filter(key=f"ACCESS_TOKEN_{uname}").first()
             token = token_cfg.value.get('token') if (token_cfg and isinstance(token_cfg.value, dict)) else ""
             
+            # 📌 EthAfri/marketplace/views.py -> harvester_orchestrator_view ውስጥ ይህንን ክፍል ይቀይሩ፡
+
             if token:
-                magic_url = f"{current_site.deployment_url or 'http://ethafri.com'}/api/magic-token/?phone={uname}&token={token}"
+                # ከ 'http://ethafri.com' ወደ 'https://ethafri.onrender.com' ተለውጧል
+                magic_url = f"{current_site.deployment_url or 'https://ethafri.onrender.com'}/api/magic-token/?phone={uname}&token={token}"
             else:
-                magic_url = f"{current_site.deployment_url or 'http://ethafri.com'}/login/"
+                magic_url = f"{current_site.deployment_url or 'https://ethafri.onrender.com'}/login/"
                 
             outreach_links = _generate_outreach_protocol_links(prod, magic_url, prod.contact_info)
             unverified_sellers.append({
