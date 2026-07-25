@@ -371,10 +371,11 @@ def post_success(request):
 # ============================================================
 # 🚪 2.1 FRICTIONLESS GHOST ONBOARDING TOKEN LOGIN
 # ============================================================
+# 📌 EthAfri/marketplace/views.py ውስጥ magic_login_token_view ዘዴን በዚህ ይተኩት፡
 
 @csrf_exempt
 def magic_login_token_view(request):
-    """ከውዝግብ የጸዳ ፈጣን የ ghost ተጠቃሚ መግቢያ"""
+    """🚪 ከውዝግብ የጸዳ ፈጣን የ ghost ተጠቃሚ መግቢያ (Frictionless Seller Direct Redirect)"""
     phone = request.GET.get('phone', '').strip()
     token = request.GET.get('token', '').strip()
     
@@ -394,9 +395,18 @@ def magic_login_token_view(request):
         user.backend = 'django.contrib.auth.backends.ModelBackend'
         login(request, user)
         
-        messages.success(request, _(f"እንኳን በደህና መጡ {phone}! አዲሱን ምርትዎን በቀጥታ እዚህ ማስተዳደር ይችላሉ።"))
+        messages.success(request, _(f"እንኳን በደህና መጡ! ምርትዎን በቀጥታ እዚህ ማስተዳደር ይችላሉ።"))
         request.session['frictionless_needs_password'] = True
-        return redirect('manage_backlog')
+        
+        # 🛡️ ሻጩ የለጠፈውን የቅርብ ጊዜ ምርት መለየት
+        Product = apps.get_model('marketplace', 'Product')
+        user_product = Product.objects.filter(seller=user, is_active=True).order_by('-id').first()
+        
+        if user_product:
+            # ቀጥታ ወደ ምርት ማሻሻያ ገጹ መምራት (No Django Admin Blocking!)
+            return redirect('edit_product', pk=user_product.id)
+        else:
+            return redirect('home')
     except User.DoesNotExist:
         messages.error(request, _("ተጠቃሚው አልተገኘም።"))
         return redirect('login')
@@ -1148,3 +1158,53 @@ def voice_search_api(request):
         logger.debug(f"Voice search transcription failed, using fallback query: {e}")
         
     return JsonResponse({"status": "success", "query": query_text})
+    
+# 📌 ይህንን አዲስ ዘዴ በ EthAfri/marketplace/views.py ግርጌ ላይ ይጨምሩት፡
+
+@login_required
+def edit_product_view(request, pk):
+    """ሻጮች የራሳቸውን ምርት ዋጋ፣ መግለጫ እና ፎቶ እንዲያስተካክሉ የሚፈቅድ ነጻ ገጽ (Seller Listing Editor)"""
+    Product = apps.get_model('marketplace', 'Product')
+    product = get_object_or_404(Product, pk=pk)
+    
+    # የደህንነት ጋሻ፦ የራሱን ምርት ብቻ ማሻሻል እንዲችል መፈተሽ (Symmetric Ownership Guard)
+    if product.seller != request.user and not request.user.is_staff:
+        messages.error(request, _("ይህን ምርት የማሻሻል ፈቃድ የለዎትም።"))
+        return redirect('home')
+        
+    if request.method == "POST":
+        title = request.POST.get('title', '').strip()
+        price_str = request.POST.get('price', '0').strip()
+        description = request.POST.get('description', '').strip()
+        image = request.FILES.get('image')
+        image_url = request.POST.get('image_url', '').strip()
+        listing_type = request.POST.get('listing_type', 'sale').strip()
+        contact_info = request.POST.get('contact_info', '').strip()
+        
+        if not title:
+            messages.error(request, _("እባክዎ የምርቱን ስም ያስገቡ።"))
+            return redirect('edit_product', pk=pk)
+            
+        try:
+            price = float(price_str) if price_str else 0.0
+        except ValueError:
+            price = 0.0
+            
+        product.title = title
+        product.price = price
+        product.description = description
+        if image:
+            product.image = image
+        if image_url:
+            product.image_url = image_url
+        product.listing_type = listing_type
+        product.contact_info = contact_info
+        product.save()
+        
+        messages.success(request, _("ምርትዎ በተሳካ ሁኔታ ተሻሽሏል!"))
+        return redirect('product_detail', pk=pk)
+        
+    return render(request, 'marketplace/edit_product.html', {
+        'product': product,
+        'listing_types': getattr(Product, 'LISTING_TYPES', [])
+    })

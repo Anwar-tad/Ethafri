@@ -1,0 +1,83 @@
+<!-- 📌 ይህንን አዲስ የፋይል ይዘት በ EthAfri/marketplace/templates/marketplace/edit_product.html ስር ይፍጠሩት፡ -->
+
+{% extends "marketplace/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Edit Product" %} - EthAfri{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 600px;">
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-dark text-white py-3 border-0 rounded-top-4">
+            <h5 class="mb-0 fw-bold"><i class="fa-solid fa-pen-to-square me-2 text-warning"></i> ምርትዎን ያስተዳድሩ (Edit Listing)</h5>
+        </div>
+        <div class="card-body p-4 bg-light rounded-bottom-4">
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <!-- የምርት ስም -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase">የምርት ስም (Product Title)</label>
+                    <input type="text" name="title" class="form-control rounded-3 border-0 bg-white" value="{{ product.title }}" required>
+                </div>
+                
+                <!-- ዋጋ -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase">ዋጋ በብር (Price ETB)</label>
+                    <input type="number" step="any" name="price" class="form-control rounded-3 border-0 bg-white" value="{{ product.price|floatformat:0 }}" required>
+                </div>
+
+                <!-- የሽያጭ ሁኔታ -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase">የሽያጭ ሁኔታ (Listing Type)</label>
+                    <select name="listing_type" class="form-select rounded-3 border-0 bg-white">
+                        {% for key, val in listing_types %}
+                            <option value="{{ key }}" {% if product.listing_type == key %}selected{% endif %}>{{ val }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- ስልክ ወይም መለያ -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase">የመገናኛ ስልክ (Contact Info)</label>
+                    <input type="text" name="contact_info" class="form-control rounded-3 border-0 bg-white" value="{{ product.contact_info }}" placeholder="e.g. 0911223344">
+                </div>
+
+                <!-- የምርት ፎቶ ፋይል -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase">አዲስ ፎቶ ይጫኑ (Upload Photo)</label>
+                    <input type="file" name="image" class="form-control rounded-3 border-0 bg-white">
+                    {% if product.image %}
+                        <div class="mt-2 small text-success"><i class="fa-solid fa-check-circle"></i> ፎቶ ከሰርቨር ተጭኗል</div>
+                    {% endif %}
+                </div>
+
+                <!-- ወይም የፎቶ ሊንክ -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase">ወይም የፎቶ አድራሻ (Photo URL)</label>
+                    <input type="text" name="image_url" class="form-control rounded-3 border-0 bg-white" value="{{ product.image_url|default:'' }}">
+                </div>
+
+                <!-- መግለጫ -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted text-uppercase">ዝርዝር መግለጫ (Description)</label>
+                    <textarea name="description" rows="5" class="form-control rounded-3 border-0 bg-white" required>{{ product.description }}</textarea>
+                </div>
+
+                <!-- የምስል መገምገሚያ -->
+                {% if product.image_url %}
+                <div class="mb-4 text-center">
+                    <label class="form-label small d-block fw-bold text-muted text-uppercase mb-2">የምርትዎ አሁናዊ ምስል (Current Image)</label>
+                    <img src="{{ product.image_url }}" class="img-thumbnail rounded-3" style="max-height: 200px; object-fit: cover;">
+                </div>
+                {% endif %}
+
+                <!-- አስቀምጥ በተን -->
+                <button type="submit" class="btn btn-dark rounded-pill px-4 fw-bold w-100 shadow-sm py-2">
+                    <i class="fa-solid fa-save me-2 text-warning"></i> ለውጦችን በነፃ አስቀምጥ (Save Changes)
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
